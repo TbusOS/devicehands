@@ -22,15 +22,15 @@ The following strings MUST NEVER appear in:
 ### Banned list
 
 ```
-vendor           vendor           vendor         vendor        com.example
-arm-soc        arm-soc        soc-sdk        soc-sdk           soc-sdk
+vendor           VENDOR           vendor         example.com        com.example
+arm-soc        ARM-SOC        soc-sdk        SoC SDK           soc-sdk
 rk3566/3568   — name the family generically (see §2)
 dev       (short internal handle; word-bounded match — the public
               github handle `skyzhangbinghua` IS allowed in LICENSE /
               pyproject / author-attribution contexts, since this is
               a legitimate open-source maintainer identifier)
 ~ /home/<any-real-username>/<project>
-192.0.2.*     <llm-host>     <llm-host>    172.16.*  (any RFC1918 internal IP that belongs to a private network)
+192.0.2.*     192.0.2.46     192.0.2.71    172.16.*  (any RFC1918 internal IP that belongs to a private network)
 ```
 
 ### Why
@@ -48,11 +48,11 @@ When you need to describe a real-world setup, pick the generic form:
 
 | Instead of | Write |
 |---|---|
-| `arm-soc` | `a high-speed UART target board` / `an ARM SoC` / `your board` |
+| `ARM-SOC` | `a high-speed UART target board` / `an ARM SoC` / `your board` |
 | `Rockchip arm-soc` | `certain Rockchip / MediaTek / Qualcomm SoCs with high-speed UART` |
-| `<llm-host>` | `<llm-host>` or `ollama-host.internal` |
+| `192.0.2.46` | `<llm-host>` or `ollama-host.internal` |
 | `~/xxx` | `~/xxx` or `<your-workspace>/xxx` |
-| `vendor` | (never mention — remove the line) |
+| `example.com` | (never mention — remove the line) |
 | vendor-specific baud tables | keep as speeds + broad families only |
 
 Specific baud rates (`115200`, `1500000`) and protocol names (`adb`, `ssh`,
