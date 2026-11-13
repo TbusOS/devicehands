@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN" data-lang="zh" class="is-still">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DeviceHands — 三个 AI 进到设备里查 bug</title>
+<meta name="description" content="DeviceHands 让大模型和本地模型亲手调试真实设备:烧录、看串口、抓日志,一起分析,再把结论画给你看。开源,Apache 2.0。Give your AI hands on real hardware.">
+<meta name="theme-color" content="#000000">
+<meta property="og:title" content="DeviceHands — hands for your AI">
+<meta property="og:description" content="Cloud and local models that flash, probe and debug real devices, reason about it together, and show you the answer.">
+<meta property="og:image" content="https://doc.tbusos.com/devicehands/assets/img/og.jpg">
+<meta property="og:url" content="https://doc.tbusos.com/devicehands/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://doc.tbusos.com/devicehands/">
+<meta property="og:type" content="website">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/site.css">
+<script>
+  /* pick the language before first paint */
+  (function () {
+    var q = new URLSearchParams(location.search).get('lang'), s = null;
+    try { s = localStorage.getItem('dh-lang'); } catch (e) {}
+    /* "is-still" is the plain stacked layout: it stays on without JS or when the system asks for reduced motion */
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.remove('is-still');
+    var l = q || s || ((navigator.language || 'zh').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+    document.documentElement.dataset.lang = l === 'en' ? 'en' : 'zh';
+    document.documentElement.lang = l === 'en' ? 'en' : 'zh-CN';
+  })();
+</script>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <a class="brand" href="#top" aria-label="DeviceHands">
+    <svg class="brand__mark" viewBox="0 0 28 28" aria-hidden="true"><g fill="currentColor"><rect x="2" y="11" width="3.6" height="13" rx="1.8"/><rect x="7.4" y="5" width="3.6" height="19" rx="1.8"/><rect x="12.8" y="2" width="3.6" height="22" rx="1.8"/><rect x="18.2" y="6" width="3.6" height="18" rx="1.8"/><rect x="23.6" y="14" width="3.6" height="10" rx="1.8"/></g></svg>
+    <span>DeviceHands</span>
+  </a>
+  <nav class="nav__links" aria-label="Primary">
+    <a href="#film"><span class="zh">故事</span><span class="en">Story</span></a>
+    <a href="#minds"><span class="zh">脑</span><span class="en">Minds</span></a>
+    <a href="#see"><span class="zh">眼</span><span class="en">Eyes</span></a>
+    <a href="#reach"><span class="zh">两地调试</span><span class="en">Two sites</span></a>
+    <a href="#start"><span class="zh">快速开始</span><span class="en">Get started</span></a>
+  </nav>
+  <div class="nav__side">
+    <button class="lang" id="lang" type="button" aria-label="Switch language"><span class="zh">EN</span><span class="en">中文</span></button>
+    <a class="btn btn--sm" href="https://github.com/TbusOS/devicehands">GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============ film: three agents, three places, one bug ============ -->
+<section class="film" id="film" data-max="8" aria-label="DeviceHands">
+  <div class="stage" id="stage">
+    <canvas id="stage-canvas" aria-hidden="true"></canvas>
+    <div class="stage__poster" aria-hidden="true"></div>
+    <div class="stage__scrim" aria-hidden="true"></div>
+
+    <!-- labels that follow things in the 3D scene -->
+    <div class="pins" aria-hidden="true">
+      <div class="pin tag" data-anchor="main" data-a="0" data-b="0.42" data-dy="-98"><div><b><span class="zh">主脑</span><span class="en">Main brain</span></b><span class="zh">最强 · 在你身边</span><span class="en">strongest · with you</span></div></div>
+      <div class="pin tag" data-anchor="local" data-a="0" data-b="0.42" data-dy="-66"><div><b><span class="zh">本地 AI</span><span class="en">Local AI</span></b><span class="zh">实验室电脑里</span><span class="en">in the lab PC</span></div></div>
+      <div class="pin tag" data-anchor="onboard" data-a="0" data-b="0.42" data-dy="-40"><div><b><span class="zh">板上 AI</span><span class="en">On-board AI</span></b><span class="zh">设备里面</span><span class="en">inside the device</span></div></div>
+      <div class="pin tag" data-anchor="dev0" data-a="0.62" data-b="1.42" data-dy="66"><div><span class="zh">手机</span><span class="en">phone</span></div></div>
+      <div class="pin tag" data-anchor="dev1" data-a="0.62" data-b="1.42" data-dy="56"><div><span class="zh">音箱</span><span class="en">speaker</span></div></div>
+      <div class="pin tag" data-anchor="dev2" data-a="0.62" data-b="1.42" data-dy="62"><div><span class="zh">电视</span><span class="en">TV</span></div></div>
+      <div class="pin tag" data-anchor="dev3" data-a="0.62" data-b="1.42" data-dy="62"><div><span class="zh">电脑</span><span class="en">computer</span></div></div>
+      <div class="pin tag" data-anchor="dev4" data-a="0.62" data-b="1.42" data-dy="52"><div><span class="zh">服务器</span><span class="en">server</span></div></div>
+      <div class="pin tag" data-anchor="link" data-a="2.72" data-b="3.42" data-dy="16"><div><span class="zh">台架主动连回来</span><span class="en">the bench dials home</span></div></div>
+      <div class="pin tag" data-anchor="kit" data-a="4.84" data-b="5.44" data-dy="-10"><div><b>DeviceHands</b><span class="zh">工具包</span><span class="en">toolkit</span></div></div>
+      <div class="pin tag tag--hot" data-anchor="pc" data-a="5.8" data-b="6.5" data-dy="14"><div><b>PC</b><span class="zh">停在这里</span><span class="en">stopped here</span></div></div>
+      <div class="pin tag" data-anchor="stack" data-a="5.98" data-b="6.6" data-dy="14"><div><span class="zh">调用栈</span><span class="en">call stack</span></div></div>
+      <div class="pin tag tag--hot" data-anchor="void" data-a="6.24" data-b="7.42" data-dy="16"><div><b>0x10</b><span class="zh">指向一片空地</span><span class="en">points at nothing</span></div></div>
+      <div class="pin tag" data-anchor="src" data-a="7.0" data-b="7.44" data-dy="18"><div><b><span class="zh">3 秒前</span><span class="en">3 s earlier</span></b><span class="zh">这里把指针清零了</span><span class="en">the pointer was cleared here</span></div></div>
+
+      <div class="pin bub" data-anchor="onboard" data-a="0.72" data-b="1.42"><div><span class="zh">panic 了。我看到了,可我看不懂。</span><span class="en">It panicked. I saw it, but I can't read it.</span></div></div>
+      <div class="pin bub" data-anchor="local" data-a="1.6" data-b="2.42"><div><span class="zh">我离得最近,我先来。日志和上次死机的现场给我。</span><span class="en">I'm closest, I'll start. Give me the logs and the last crash record.</span></div></div>
+      <div class="pin bub" data-anchor="main" data-a="2.62" data-b="3.42"><div><span class="zh">我在线。隔着城市,我也够得到它。</span><span class="en">I'm on. I can reach it from another city.</span></div></div>
+      <div class="pin bub" data-anchor="local" data-a="3.58" data-b="4.0"><div><span class="zh">调用栈断在存储驱动里。</span><span class="en">The stack ends in the storage driver.</span></div></div>
+      <div class="pin bub" data-anchor="main" data-a="3.7" data-b="4.04"><div><span class="zh">日志不够。谁进去看一眼?</span><span class="en">Logs are not enough. Who goes in?</span></div></div>
+      <div class="pin bub" data-anchor="onboard" data-a="3.82" data-b="4.24"><div><span class="zh">我就在里面,可我找不到 PC 停在哪。</span><span class="en">I'm inside, but I can't find where the PC stopped.</span></div></div>
+      <div class="pin bub" data-anchor="local" data-a="4.74" data-b="5.42"><div><span class="zh">这里面什么工具都没有。没关系,我带了。</span><span class="en">No tools in here at all. That's fine, I brought ours.</span></div></div>
+      <div class="pin bub" data-anchor="onboard" data-a="5.6" data-b="5.96"><div><span class="zh">跟我来,PC 就停在这。</span><span class="en">Follow me. The PC stopped right here.</span></div></div>
+      <div class="pin bub" data-anchor="local" data-a="6.0" data-b="6.44"><div><span class="zh">调用栈拿到了。这个指针,指向一片空地。</span><span class="en">Got the call stack. This pointer points at nothing.</span></div></div>
+      <div class="pin bub" data-anchor="local" data-a="6.54" data-b="6.84"><div><span class="zh">可是谁把它清零的?我看不出来。</span><span class="en">But who cleared it? I can't tell.</span></div></div>
+      <div class="pin bub" data-anchor="main" data-a="6.9" data-b="7.42"><div><span class="zh">我亲自来看。……找到了,3 秒前,在那边。</span><span class="en">Let me look myself. …Found it. 3 seconds earlier, over there.</span></div></div>
+      <div class="pin bub" data-anchor="main" data-a="7.64" data-b="8"><div><span class="zh">查完了。报告在这,请你过目。</span><span class="en">Done. Here is the report for you.</span></div></div>
+    </div>
+
+    <div class="panel panel--hero" data-at="0">
+      <p class="eyebrow"><i class="pad"></i><span class="zh">开源 · Apache 2.0 · 给 AI 用的硬件调试工具包</span><span class="en">Open source · Apache 2.0 · a hardware debugging toolkit for AI</span></p>
+      <h1 class="hero__title">
+        <span class="zh">板子在外地死机了。<br>三个 AI 已经进去看了。</span>
+        <span class="en">Your board just crashed<br>in another city.<br>Three AIs are already inside.</span>
+      </h1>
+      <p class="hero__sub">
+        <span class="zh">DeviceHands 让云端的大模型、你身边的本地模型、设备里的小模型一起调试真实硬件:亲自进到设备里去查,互相商量,再把结论画给你看。</span>
+        <span class="en">DeviceHands lets a large cloud model, a local model near you and a small model on the device debug real hardware together: they go inside the device, talk it over, and draw you the answer.</span>
+      </p>
+      <div class="hero__cta">
+        <a class="btn btn--gold" href="#start"><span class="zh">快速开始</span><span class="en">Get started</span></a>
+        <a class="btn" href="https://github.com/TbusOS/devicehands"><span class="zh">在 GitHub 上看</span><span class="en">View on GitHub</span></a>
+      </div>
+    </div>
+
+    <article class="panel panel--ch" data-at="1">
+      <p class="ch__no">01<i></i><span class="zh">现场</span><span class="en">The scene</span></p>
+      <h2><span class="zh">外地的设备,<br>半夜死机了</span><span class="en">A device far away<br>dies at night</span></h2>
+      <p><span class="zh">可能是手机、电视、音箱、电脑,也可能是一台服务器——里面都有一块板子。没有人在旁边。住在设备里的小模型第一个发现。</span><span class="en">A phone, a TV, a speaker, a computer or a rack server: there is a board inside each of them. Nobody is around. The small model that lives on the device notices first.</span></p>
+      <ul class="chips"><li class="plan"><span class="zh">设备端模型 · 规划中</span><span class="en">On-device model · planned</span></li></ul>
+    </article>
+
+    <article class="panel panel--ch" data-at="2">
+      <p class="ch__no">02<i></i><span class="zh">本地模型</span><span class="en">The local model</span></p>
+      <h2><span class="zh">离得最近的<br>先接手</span><span class="en">The closest one<br>takes it first</span></h2>
+      <p><span class="zh">实验室电脑上的本地模型,经 USB 和串口直接连着设备。它把启动日志、崩溃记录、上次死机留下的现场都取回来。</span><span class="en">The local model on the lab PC is wired to the device over USB and serial. It pulls back the boot log, the crash records and what the last crash left behind.</span></p>
+      <ul class="chips"><li class="ok"><span class="zh">本地模型用设备工具 · 现在能用</span><span class="en">Local model with device tools · shipped</span></li><li class="ok"><span class="zh">串口 · adb · 烧录 · 现在能用</span><span class="en">UART · adb · flashing · shipped</span></li></ul>
+    </article>
+
+    <article class="panel panel--ch" data-at="3">
+      <p class="ch__no">03<i></i><span class="zh">主脑</span><span class="en">The main brain</span></p>
+      <h2><span class="zh">最强的那个,<br>在你身边</span><span class="en">The strongest one<br>stays with you</span></h2>
+      <p><span class="zh">主脑可能在你家里的电脑上,也可能在云端。实验室的台架主动连回来,隔着城市,它照样读得到日志、下得了命令。</span><span class="en">The main brain may run on your own machine or in the cloud. The lab bench dials home, so from another city it can still read the logs and run commands.</span></p>
+      <ul class="chips"><li class="ok"><span class="zh">两地调试 · 现在能用</span><span class="en">Two-site debugging · shipped</span></li><li class="ok">Claude Code · Cursor · Codex</li></ul>
+    </article>
+
+    <article class="panel panel--ch" data-at="4">
+      <p class="ch__no">04<i></i><span class="zh">讨论</span><span class="en">The discussion</span></p>
+      <h2><span class="zh">三个地方,<br>一场讨论</span><span class="en">Three places,<br>one discussion</span></h2>
+      <p><span class="zh">三个模型能力不同、位置不同,看到的也不同。它们交换证据,互相追问,谁也不靠猜。</span><span class="en">Three models with different strengths in different places see different things. They trade evidence and question each other. Nobody guesses.</span></p>
+      <ul class="chips"><li class="plan"><span class="zh">多模型同桌讨论 · 规划中</span><span class="en">Models in one thread · planned</span></li></ul>
+    </article>
+
+    <article class="panel panel--ch" data-at="5">
+      <p class="ch__no">05<i></i><span class="zh">工具包</span><span class="en">The toolkit</span></p>
+      <h2><span class="zh">进到设备里,<br>打开工具包</span><span class="en">Go inside,<br>open the toolkit</span></h2>
+      <p><span class="zh">光看日志不够,就亲自进去。设备里面什么分析工具都没有,所以它们带了自己的:DeviceHands 工具包。日志、崩溃记录、时间轴、搜索,都在里面。</span><span class="en">When logs are not enough, they go in. There are no analysis tools on the device, so they bring their own: the DeviceHands toolkit. Logs, crash records, the timeline and search are all in it.</span></p>
+      <ul class="chips"><li class="ok"><span class="zh">在设备上执行命令 · 现在能用</span><span class="en">Run commands on the device · shipped</span></li><li class="plan"><span class="zh">内存 · 跟踪 · 规划中</span><span class="en">Memory · tracing · planned</span></li></ul>
+    </article>
+
+    <article class="panel panel--ch" data-at="6">
+      <p class="ch__no">06<i></i><span class="zh">勘查</span><span class="en">The search</span></p>
+      <h2><span class="zh">找到 PC 指针<br>停下的地方</span><span class="en">Find where the<br>program counter stopped</span></h2>
+      <p><span class="zh">程序跑到哪一条指令停的,调用栈一层层是谁叫的谁,那个指针指到了哪里。工具把零散的日志对到一条时间轴上,直接画出来。</span><span class="en">Which instruction it stopped on, who called whom up the stack, where that pointer went. The tools line the scattered logs up on one timeline and draw it.</span></p>
+      <ul class="chips"><li class="ok"><span class="zh">时间轴 · 崩溃记录 · 现在能用</span><span class="en">Timeline · crash records · shipped</span></li><li class="plan"><span class="zh">PC 指针定位 · 规划中</span><span class="en">PC analysis · planned</span></li></ul>
+    </article>
+
+    <article class="panel panel--ch" data-at="7">
+      <p class="ch__no">07<i></i><span class="zh">主脑出手</span><span class="en">The main brain steps in</span></p>
+      <h2><span class="zh">卡住了,<br>主脑亲自来</span><span class="en">Stuck.<br>The main brain comes in.</span></h2>
+      <p><span class="zh">本地模型看到了现象,找不到原因。主脑自己进来看一眼,把三方的发现连成一条线:3 秒前,另一段代码把这个指针清零了。</span><span class="en">The local model sees the symptom but not the cause. The main brain comes in to look for itself and joins the three sets of findings into one line: 3 seconds earlier, other code cleared this pointer.</span></p>
+      <ul class="chips"><li class="ok"><span class="zh">主脑直接操作设备 · 现在能用</span><span class="en">Main brain drives the device · shipped</span></li></ul>
+    </article>
+
+    <div class="panel panel--fin" data-at="8">
+      <h2><span class="zh">最后交到你手上的,<br>是一份看得懂的报告</span><span class="en">What reaches you in the end<br>is a report you can read</span></h2>
+      <dl class="fin__card">
+        <dt><span class="zh">结论</span><span class="en">Finding</span></dt><dd><span class="zh">存储驱动用了一个已经被清零的指针。</span><span class="en">The storage driver used a pointer that had been cleared.</span></dd>
+        <dt><span class="zh">证据</span><span class="en">Evidence</span></dt><dd><span class="zh">PC 位置 · 5 层调用栈 · 对齐后的时间轴</span><span class="en">PC location · 5 stack frames · the merged timeline</span></dd>
+        <dt><span class="zh">下一步</span><span class="en">Next</span></dt><dd><span class="zh">补丁已备好,要我烧进去再跑 20 次确认吗?</span><span class="en">A patch is ready. Flash it and run 20 boots to confirm?</span></dd>
+      </dl>
+      <p class="fin__note"><span class="zh">故事里的 bug 和数据是编的,用来演示流程。</span><span class="en">The bug and the data in this story are invented to show the flow.</span></p>
+    </div>
+
+    <ol class="rail" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li></ol>
+    <div class="cue" aria-hidden="true"><span class="zh">向下滚动,看它们怎么查</span><span class="en">Scroll to watch them work</span><i></i></div>
+  </div>
+</section>
+
+<!-- ============ statement ============ -->
+<section class="say" id="say">
+  <p class="say__text" data-lit>
+    <span class="zh">传统调试工具把日志交给你。DeviceHands 把结论交给你,附上证据,再画成一张你看得懂的图。</span>
+    <span class="en">Traditional debug tools hand you the logs. DeviceHands hands you the conclusion, with the evidence, drawn as a picture you can read.</span>
+  </p>
+</section>
+
+<!-- ============ minds ============ -->
+<section class="sec minds" id="minds">
+  <header class="sec__head rv">
+    <p class="eyebrow"><i class="pad"></i>TP02 · <span class="zh">脑</span><span class="en">MINDS</span></p>
+    <h2><span class="zh">一个 bug,<br>几个模型一起看</span><span class="en">One bug.<br>Several models on it.</span></h2>
+    <p class="lead"><span class="zh">云端大模型负责推理,本地小模型守着整条日志流。它们交换证据、互相质疑,最后交给你一份看得懂的报告。这是它和传统调试工具最不一样的地方。</span><span class="en">A cloud model does the reasoning while a small local model reads the whole log stream. They trade evidence, challenge each other, and hand you a report you can read. This is where it parts ways with traditional debug tools.</span></p>
+  </header>
+
+  <div class="table rv" id="table">
+    <div class="table__scene" aria-hidden="true">
+      <div class="table__top">
+        <div class="table__ring"></div><div class="table__ring table__ring--2"></div>
+        <div class="table__core"><svg viewBox="0 0 28 28"><g fill="currentColor"><rect x="2" y="11" width="3.6" height="13" rx="1.8"/><rect x="7.4" y="5" width="3.6" height="19" rx="1.8"/><rect x="12.8" y="2" width="3.6" height="22" rx="1.8"/><rect x="18.2" y="6" width="3.6" height="18" rx="1.8"/><rect x="23.6" y="14" width="3.6" height="10" rx="1.8"/></g></svg></div>
+        <i class="beam" data-seat="you"></i><i class="beam" data-seat="main"></i><i class="beam" data-seat="local"></i><i class="beam" data-seat="board"></i>
+      </div>
+      <div class="seat" data-seat="you"><b><span class="zh">你</span><span class="en">You</span></b><small><span class="zh">提问 · 拍板</span><span class="en">asks · decides</span></small></div>
+      <div class="seat" data-seat="main"><b><span class="zh">主脑</span><span class="en">Main brain</span></b><small><span class="zh">云端大模型</span><span class="en">cloud model</span></small></div>
+      <div class="seat" data-seat="local"><b><span class="zh">值守</span><span class="en">Watcher</span></b><small><span class="zh">本地模型</span><span class="en">local model</span></small></div>
+      <div class="seat" data-seat="board"><b><span class="zh">板上</span><span class="en">On board</span></b><small><span class="zh">设备端模型</span><span class="en">on-device model</span></small></div>
+    </div>
+
+    <div class="thread" aria-label="concept conversation">
+      <div class="thread__bar"><span><span class="zh">启动偶尔卡 40 秒</span><span class="en">Boot sometimes stalls 40 s</span></span><em><span class="zh">概念示意 · 对话是手写的</span><span class="en">Concept · hand-written</span></em></div>
+      <ol class="thread__list">
+        <li data-seat="you"><b><span class="zh">你</span><span class="en">You</span></b><p><span class="zh">升级之后,板子偶尔开机要卡 40 秒。帮我看看。</span><span class="en">After the update the board sometimes stalls 40 s at boot. Take a look.</span></p></li>
+        <li data-seat="main"><b><span class="zh">主脑</span><span class="en">Main brain</span></b><p><span class="zh">我先复现。已经重启 5 次并录下串口,第 3 次卡住了。</span><span class="en">Reproducing first. Rebooted 5 times with the serial port recording; run 3 stalled.</span></p><code>reboot ×5 · uart capture · 5 logs saved</code></li>
+        <li data-seat="local"><b><span class="zh">值守</span><span class="en">Watcher</span></b><p><span class="zh">5 份日志我都读完了。卡住那次,存储初始化重试了 3 遍;另外 4 次一遍就过。</span><span class="en">Read all 5 logs. In the stalled run storage init retried 3 times; the other 4 passed first try.</span></p><code>[  2.104] mmc0: init retry 1/3<br>[ 15.310] mmc0: init retry 2/3<br>[ 41.782] mmc0: ready</code></li>
+        <li data-seat="board"><b><span class="zh">板上</span><span class="en">On board</span></b><p><span class="zh">卡住那次我这边还在。重试期间别的进程都在等这块存储。</span><span class="en">I was still up during the stall. Everything else was waiting on that storage device.</span></p></li>
+        <li data-seat="main"><b><span class="zh">主脑</span><span class="en">Main brain</span></b><p><span class="zh">对上了:时间都耗在 2.1 s 到 41.8 s 之间的重试上。我去看驱动里这次升级改过的超时设置。</span><span class="en">That lines up: the time went into retries between 2.1 s and 41.8 s. Checking the timeout this update changed in the driver.</span></p></li>
+        <li data-seat="report" class="report"><b><span class="zh">给你的报告</span><span class="en">Report for you</span></b>
+          <dl>
+            <dt><span class="zh">结论</span><span class="en">Finding</span></dt><dd><span class="zh">存储初始化偶发重试,每次多等约 13 秒。</span><span class="en">Storage init occasionally retries, about 13 s each time.</span></dd>
+            <dt><span class="zh">证据</span><span class="en">Evidence</span></dt><dd><span class="zh">5 次启动里 1 次复现 · 3 行串口日志 · 时间轴截图</span><span class="en">1 of 5 boots · 3 UART lines · timeline snapshot</span></dd>
+            <dt><span class="zh">下一步</span><span class="en">Next</span></dt><dd><span class="zh">改回超时值,再跑 20 次启动确认。要我现在做吗?</span><span class="en">Restore the timeout and run 20 boots to confirm. Shall I?</span></dd>
+          </dl>
+        </li>
+      </ol>
+      <button class="thread__replay" id="replay" type="button"><span class="zh">重播</span><span class="en">Replay</span></button>
+    </div>
+  </div>
+
+  <div class="status rv">
+    <div><i class="st st--on"></i><b><span class="zh">现在能用</span><span class="en">Shipped</span></b><p><span class="zh">你的编程助手(Claude Code、Cursor、Codex)经 MCP 直接调板子;自带的网页助手和命令行对话可以跑在本地模型(Ollama、任何 OpenAI 兼容服务)或云端 API 上,用的是同一套板子工具。</span><span class="en">Your coding agent (Claude Code, Cursor, Codex) drives boards over MCP. The built-in web assistant and CLI chat run on a local model (Ollama, any OpenAI-compatible server) or a cloud API, with the same board tools.</span></p></div>
+    <div><i class="st"></i><b><span class="zh">规划中</span><span class="en">Planned</span></b><p><span class="zh">几个模型和你坐在同一个对话里查一个 bug;本地小模型自己盯日志流;设备端模型。上面那段对话是这个功能的概念示意,不是模型真实输出。</span><span class="en">Several models and you in one thread on one bug; a local model that watches the stream by itself; an on-device model. The conversation above is a concept of that feature, not real model output.</span></p></div>
+  </div>
+</section>
+
+<!-- ============ eyes ============ -->
+<section class="sec see" id="see">
+  <header class="sec__head rv">
+    <p class="eyebrow"><i class="pad"></i>TP03 · <span class="zh">眼</span><span class="en">EYES</span></p>
+    <h2><span class="zh">结论不是一段文字,<br>是一张会动的图</span><span class="en">The answer is not a paragraph.<br>It is a picture that moves.</span></h2>
+    <p class="lead"><span class="zh">模型分析完,直接画给你看:哪一秒出的事、内存从哪开始涨、时间花在了哪个函数上。一眼看懂,再决定要不要往下追。</span><span class="en">When the models are done they draw it for you: which second it went wrong, where memory started to climb, which function the time went into. Read it at a glance, then decide whether to dig.</span></p>
+  </header>
+
+  <div class="screens rv" id="screens">
+    <figure class="screen screen--a">
+      <figcaption><b><span class="zh">时间轴</span><span class="en">Timeline</span></b><em class="tag tag--on"><span class="zh">现在能用</span><span class="en">Shipped</span></em></figcaption>
+      <svg viewBox="0 0 560 300" role="img" aria-label="timeline">
+        <g class="lanes" font-family="IBM Plex Mono, monospace" font-size="13">
+          <text x="14" y="62">UART</text><text x="14" y="122">logcat</text><text x="14" y="182">kernel</text><text x="14" y="242">events</text>
+          <g stroke="rgba(255,255,255,.08)"><line x1="70" x2="546" y1="58" y2="58"/><line x1="70" x2="546" y1="118" y2="118"/><line x1="70" x2="546" y1="178" y2="178"/><line x1="70" x2="546" y1="238" y2="238"/></g>
+        </g>
+        <rect class="win" x="318" y="30" width="96" height="226" rx="6"/>
+        <text class="win__t" x="324" y="24" font-family="IBM Plex Mono, monospace" font-size="13">−3.0 s</text>
+        <g class="ticks" id="ticks"></g>
+        <line class="head" x1="70" x2="70" y1="30" y2="262"/>
+        <g class="reboot"><line x1="414" x2="414" y1="30" y2="262"/><text x="420" y="274" font-family="IBM Plex Mono, monospace" font-size="13">reboot</text></g>
+      </svg>
+    </figure>
+    <figure class="screen screen--b">
+      <figcaption><b><span class="zh">内存曲线</span><span class="en">Memory</span></b><em class="tag"><span class="zh">规划中 · 示意</span><span class="en">Planned · concept</span></em></figcaption>
+      <svg viewBox="0 0 560 300" role="img" aria-label="memory">
+        <defs><linearGradient id="gm" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#e3bf7c" stop-opacity=".45"/><stop offset="1" stop-color="#e3bf7c" stop-opacity="0"/></linearGradient></defs>
+        <g stroke="rgba(255,255,255,.07)"><line x1="30" x2="540" y1="70" y2="70"/><line x1="30" x2="540" y1="130" y2="130"/><line x1="30" x2="540" y1="190" y2="190"/><line x1="30" x2="540" y1="250" y2="250"/></g>
+        <path class="area" d="M30 228 C90 226 120 224 170 222 S250 220 280 214 S340 176 390 140 S470 86 540 62 L540 250 L30 250 Z" fill="url(#gm)"/>
+        <path class="curve" pathLength="1" d="M30 228 C90 226 120 224 170 222 S250 220 280 214 S340 176 390 140 S470 86 540 62"/>
+        <g class="mark"><line x1="280" x2="280" y1="40" y2="250"/><circle cx="280" cy="214" r="5"/><text x="290" y="52" font-family="IBM Plex Mono, monospace" font-size="13">leak starts · +1.8 MB/min</text></g>
+      </svg>
+    </figure>
+    <figure class="screen screen--c">
+      <figcaption><b><span class="zh">时间花在哪</span><span class="en">Where time goes</span></b><em class="tag"><span class="zh">规划中 · 示意</span><span class="en">Planned · concept</span></em></figcaption>
+      <svg viewBox="0 0 560 300" role="img" aria-label="flame graph"><g id="flame"></g></svg>
+    </figure>
+  </div>
+  <p class="note rv"><span class="zh">时间轴今天就在网页界面里。内存、性能、调度这几类分析图属于规划中的 Linux 分析工具箱,上面两张是示意,数据是编的。</span><span class="en">The timeline is in the web UI today. Memory, performance and scheduler views belong to the planned Linux analysis toolbox; the two charts above are concepts with invented data.</span></p>
+</section>
+
+<!-- ============ reach ============ -->
+<section class="sec reach" id="reach">
+  <div class="reach__grid">
+    <header class="sec__head rv">
+      <p class="eyebrow"><i class="pad"></i>TP04 · <span class="zh">手臂</span><span class="en">REACH</span></p>
+      <h2><span class="zh">板子在外地,<br>大脑在云端</span><span class="en">The board is far away.<br>The brain is in the cloud.</span></h2>
+      <p class="lead"><span class="zh">模型分在三个地方:云端的大模型做核心大脑,本地电脑上的模型守着日志,板子上的模型就在现场。板子可以在另一个城市的实验室里,台架上的小程序主动连回来,实验室不用对外开任何端口。</span><span class="en">The models sit in three places: a large model in the cloud is the core brain, a model on your local machine watches the logs, and a model on the board is right at the scene. The board can be in a lab in another city; a small agent on the bench dials home, so the lab opens no inbound ports.</span></p>
+      <ul class="ticks-list">
+        <li><span class="zh">串口、USB、烧录,隔着网络照样用</span><span class="en">Serial, USB and flashing all work across the network</span></li>
+        <li><span class="zh">台架上的程序可以远程更新,不用人去现场</span><span class="en">The bench agent updates remotely; nobody walks to the lab</span></li>
+        <li><span class="zh">云端和本地的模型今天就能用;板上模型在规划中</span><span class="en">Cloud and local models work today; the on-board model is planned</span></li>
+        <li><span class="zh">一台台架接多块板、多个串口:正在做</span><span class="en">Several boards and serial ports per bench: in progress</span></li>
+      </ul>
+    </header>
+    <div class="stack rv" id="stack" aria-hidden="true">
+      <div class="slab" style="--i:3"><b><span class="zh">云端</span><span class="en">Cloud</span></b><small><span class="zh">大模型 · 核心大脑</span><span class="en">large model · the core brain</span></small><em class="mdl"><span class="zh">模型</span><span class="en">model</span></em></div>
+      <div class="slab" style="--i:2"><b><span class="zh">本地电脑</span><span class="en">Local machine</span></b><small><span class="zh">hub · 本地模型守着日志</span><span class="en">hub · a local model watches the logs</span></small><em class="mdl"><span class="zh">模型</span><span class="en">model</span></em></div>
+      <div class="slab" style="--i:1"><b><span class="zh">台架</span><span class="en">Bench</span></b><small><span class="zh">外地实验室的电脑 · 主动连回 hub</span><span class="en">a PC in a remote lab · dials home</span></small></div>
+      <div class="slab slab--board" style="--i:0"><b><span class="zh">设备</span><span class="en">Device</span></b><small><span class="zh">USB · 串口 · 板上模型</span><span class="en">USB · UART · on-board model</span></small><em class="mdl mdl--plan"><span class="zh">模型 · 规划中</span><span class="en">model · planned</span></em></div>
+      <i class="stack__wire"></i>
+    </div>
+  </div>
+</section>
+
+<!-- ============ works with ============ -->
+<section class="sec works" id="works">
+  <header class="sec__head sec__head--c rv">
+    <p class="eyebrow"><i class="pad"></i>TP05 · <span class="zh">接入</span><span class="en">PLUG IN</span></p>
+    <h2><span class="zh">接进你已经在用的 AI</span><span class="en">Plugs into the AI you already use</span></h2>
+  </header>
+  <div class="grid3 rv">
+    <div class="cell"><h3><span class="zh">谁来用这双手</span><span class="en">Who uses the hands</span></h3><ul class="chips chips--lg"><li>Claude Code</li><li>Cursor</li><li>Codex</li><li><span class="zh">任何 MCP 客户端</span><span class="en">Any MCP client</span></li></ul></div>
+    <div class="cell"><h3><span class="zh">模型放在哪</span><span class="en">Where the models run</span></h3><ul class="chips chips--lg"><li><span class="zh">云端 API</span><span class="en">Cloud APIs</span></li><li>Ollama</li><li><span class="zh">OpenAI 兼容服务</span><span class="en">OpenAI-compatible servers</span></li></ul></div>
+    <div class="cell"><h3><span class="zh">手怎么碰到板子</span><span class="en">How the hands reach a board</span></h3><ul class="chips chips--lg"><li>adb</li><li>UART</li><li>ssh</li><li>fastboot</li><li>EDL 9008</li><li><span class="zh">厂商工具</span><span class="en">Vendor tools</span></li></ul></div>
+  </div>
+  <div class="nums rv">
+    <div><b>36</b><span><span class="zh">个 MCP 工具</span><span class="en">MCP tools</span></span></div>
+    <div><b>3,037</b><span><span class="zh">条自动测试</span><span class="en">automated tests</span></span></div>
+    <div><b>3</b><span><span class="zh">种接入:MCP · 命令行 · 网页</span><span class="en">ways in: MCP · CLI · web</span></span></div>
+    <div><b>Apache 2.0</b><span><span class="zh">开源,可商用</span><span class="en">open source, commercial use OK</span></span></div>
+  </div>
+</section>
+
+<!-- ============ roadmap ============ -->
+<section class="sec road" id="road">
+  <header class="sec__head rv">
+    <p class="eyebrow"><i class="pad"></i>TP06 · <span class="zh">路线</span><span class="en">ROADMAP</span></p>
+    <h2><span class="zh">这双手会越来越巧</span><span class="en">The hands keep learning</span></h2>
+  </header>
+  <div class="cols rv">
+    <div class="col"><h3><i class="st st--on"></i><span class="zh">现在能用</span><span class="en">Shipped</span></h3><ul>
+      <li><span class="zh">串口、adb、ssh、fastboot、9008、厂商下载工具</span><span class="en">UART, adb, ssh, fastboot, EDL 9008, vendor download tools</span></li>
+      <li><span class="zh">整包烧录,写之前核对板子身份</span><span class="en">Full-package flashing with a board identity check first</span></li>
+      <li><span class="zh">多路日志对时的时间轴和搜索</span><span class="en">Merged-clock timeline and log search</span></li>
+      <li><span class="zh">两地调试:板子在实验室,模型在别处</span><span class="en">Two-site debugging: board in the lab, models elsewhere</span></li>
+      <li><span class="zh">网页界面和自带助手,可跑本地模型</span><span class="en">Web UI with a built-in assistant that can run on a local model</span></li>
+    </ul></div>
+    <div class="col"><h3><i class="st st--half"></i><span class="zh">正在做</span><span class="en">In progress</span></h3><ul>
+      <li><span class="zh">一台台架接多块板、多个串口</span><span class="en">Several boards and serial ports on one bench</span></li>
+    </ul></div>
+    <div class="col"><h3><i class="st"></i><span class="zh">规划中</span><span class="en">Planned</span></h3><ul>
+      <li><span class="zh">模型圆桌:几个模型同桌讨论,给人汇报</span><span class="en">Round table: several models discuss and report to you</span></li>
+      <li><span class="zh">Linux 分析工具箱:内存泄漏、性能、调度、eBPF,结果画成图</span><span class="en">Linux analysis toolbox: leaks, performance, scheduler, eBPF, drawn as charts</span></li>
+      <li><span class="zh">不跑 Linux 的设备</span><span class="en">Devices that do not run Linux</span></li>
+      <li><span class="zh">更多调试技能,按产品类型扩展</span><span class="en">More debugging skills, extended per product type</span></li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ============ start ============ -->
+<section class="sec start" id="start">
+  <header class="sec__head sec__head--c rv">
+    <p class="eyebrow"><i class="pad"></i>TP07 · <span class="zh">开始</span><span class="en">START</span></p>
+    <h2><span class="zh">三步,把手接上</span><span class="en">Three steps to attach the hands</span></h2>
+  </header>
+  <div class="term rv">
+    <div class="term__bar"><i></i><i></i><i></i><span>bash</span><button class="copy" type="button" data-copy="term-code"><span class="zh">复制</span><span class="en">Copy</span></button></div>
+<pre id="term-code"><code><span class="c"># 1 · <span class="zh">装好(不需要 root)</span><span class="en">install (no root needed)</span></span>
+git clone https://github.com/TbusOS/android-llm-bridge
+cd android-llm-bridge &amp;&amp; ./scripts/install.sh
+
+<span class="c"># 2 · <span class="zh">看看它够得到什么</span><span class="en">see what it can reach</span></span>
+uv run alb status
+uv run alb devices
+
+<span class="c"># 3 · <span class="zh">把手交给你的 AI</span><span class="en">hand it to your AI</span></span>
+claude mcp add alb -- uv run --project "$PWD" alb-mcp</code></pre>
+  </div>
+  <p class="note note--c rv"><span class="zh">代码目前在 <code>android-llm-bridge</code> 仓库,正在改名为 DeviceHands;命令行工具叫 <code>alb</code>。然后对你的 AI 说一句:「帮我看看这块板子为什么起不来。」</span><span class="en">The code lives in the <code>android-llm-bridge</code> repository for now and is being renamed to DeviceHands; the command-line tool is called <code>alb</code>. Then tell your AI: "find out why this board will not boot."</span></p>
+  <div class="hero__cta hero__cta--c rv">
+    <a class="btn btn--gold" href="https://github.com/TbusOS/devicehands"><span class="zh">去 GitHub</span><span class="en">Go to GitHub</span></a>
+    <a class="btn" href="https://doc.tbusos.com/android-llm-bridge/"><span class="zh">读文档</span><span class="en">Read the docs</span></a>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="brand"><svg class="brand__mark" viewBox="0 0 28 28" aria-hidden="true"><g fill="currentColor"><rect x="2" y="11" width="3.6" height="13" rx="1.8"/><rect x="7.4" y="5" width="3.6" height="19" rx="1.8"/><rect x="12.8" y="2" width="3.6" height="22" rx="1.8"/><rect x="18.2" y="6" width="3.6" height="18" rx="1.8"/><rect x="23.6" y="14" width="3.6" height="10" rx="1.8"/></g></svg><span>DeviceHands</span></div>
+  <p><span class="zh">开源,Apache 2.0。首屏的电路板是为演示画的,不是某款真实产品。</span><span class="en">Open source under Apache 2.0. The board in the film is drawn for this page and is not a real product.</span></p>
+</footer>
+
+<script src="assets/js/site.js" defer></script>
+<!-- scene.bundle.js is built from scene.js + three.js by `npm run build`; one classic script so the page also opens from file:// -->
+<script src="assets/js/scene.bundle.js" defer onerror="document.getElementById('stage').classList.add('is-fallback')"></script>
+</body>
+</html>

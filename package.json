@@ -1,0 +1,11 @@
+{
+  "name": "devicehands-site",
+  "private": true,
+  "description": "Build step for the DeviceHands landing page: bundles the 3D scene into one classic script so the page also opens from file://",
+  "scripts": {
+    "build": "node tools/build-scene.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
