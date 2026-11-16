@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/common.json",
+  "title": "Shared definitions",
+  "description": "Building blocks shared by the v1 control-frame and job-channel schemas. Not a frame by itself.",
+  "$defs": {
+    "v": {
+      "description": "Protocol version carried by every control frame. Always 1 in v1. Neither side checks it today (known-gaps G1).",
+      "const": 1
+    },
+    "cid": {
+      "description": "Channel id minted by the hub: uuid4 as 32 lowercase hex digits (src/alb/remote/protocol.py:152-161). The bench treats it as an opaque routing key and echoes it back.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "csecret": {
+      "description": "Per-channel secret minted by the hub: secrets.token_urlsafe(32), 43 base64url characters (src/alb/remote/protocol.py:164-176). Sent only on the signaling connection; presented back as the x-alb-csecret header on dial-back.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "opName": {
+      "description": "Name of an op in the bench op table. Same shape the hub enforces when it reads a table (src/alb/remote/bench_ops.py:38).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
+    },
+    "build": {
+      "description": "First 12 hex digits of the sha256 of the bench program file, or empty when the file could not be read (clients/windows-agent/alb_agent.py:118-131).",
+      "type": "string",
+      "pattern": "^([0-9a-f]{12})?$"
+    },
+    "sha256": {
+      "description": "sha256 of an image, 64 lowercase hex digits (hub: hashlib hexdigest; bench lower-cases before comparing, clients/windows-agent/alb_agent.py:3515).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "errorCode": {
+      "description": "An error code from the hub catalogue (src/alb/infra/errors.py), or empty. Two bench failure paths send an empty code (clients/windows-agent/alb_agent.py:3238, 3575).",
+      "type": "string",
+      "pattern": "^([A-Z][A-Z0-9_]*)?$"
+    }
+  }
+}

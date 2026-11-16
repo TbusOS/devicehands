@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/job-progress.json",
+  "title": "job event: progress",
+  "description": "Progress of a running job. phase transfer: one per received data frame, done/total in bytes. phase flash/edl/tool: one per output line of the tool, done = total = 0 (clients/windows-agent/alb_agent.py:3587, 3615, 3661, 1903, 2451). total = 0 means indeterminate. JobPhase on the hub lists only transfer and flash (known-gaps G5).",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "ev",
+    "phase",
+    "done",
+    "total",
+    "text"
+  ],
+  "properties": {
+    "ev": {
+      "const": "progress"
+    },
+    "phase": {
+      "enum": [
+        "transfer",
+        "flash",
+        "edl",
+        "tool"
+      ]
+    },
+    "done": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "text": {
+      "type": "string"
+    }
+  }
+}

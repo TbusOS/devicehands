@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/hello_ok.json",
+  "title": "hello_ok",
+  "description": "Handshake accepted (src/alb/api/agent_route.py:236). Sent after the hub registered the bench and attached its forwarders. The bench only checks verb == hello_ok and ignores server_version (clients/windows-agent/alb_agent.py:5281-5283).",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "server_version"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "hello_ok"
+    },
+    "server_version": {
+      "description": "Hub protocol version (1). Not checked by the bench (known-gaps G1).",
+      "type": "integer"
+    }
+  }
+}

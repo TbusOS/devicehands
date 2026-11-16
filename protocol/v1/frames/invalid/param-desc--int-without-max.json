@@ -1,0 +1,7 @@
+{
+  "name": "lines",
+  "kind": "int",
+  "required": false,
+  "default": 1,
+  "min": 1
+}

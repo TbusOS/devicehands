@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/channel_error.json",
+  "title": "channel_error",
+  "description": "The bench could not open the channel named by cid. The hub fails the pending dial-back at once instead of waiting for its timeout (src/alb/api/agent_route.py:249-258; src/alb/remote/registry.py:301-319). reason is free text; there is no error code.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "cid",
+    "reason"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "channel_error"
+    },
+    "cid": {
+      "$ref": "common.json#/$defs/cid"
+    },
+    "reason": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "image",
+  "kind": "partition",
+  "required": true,
+  "default": null
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/restart_adb.json",
+  "title": "restart_adb",
+  "description": "Ask the bench to restart its local adb server, then answer with adb_list (src/alb/remote/protocol.py:215-225; clients/windows-agent/alb_agent.py:5210-5236). Fire-and-forget; benches that predate this verb ignore it.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "kill_conflicts"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "restart_adb"
+    },
+    "kill_conflicts": {
+      "description": "Also terminate processes the bench itself judges to be foreign adb builds. The hub never names a process.",
+      "type": "boolean"
+    }
+  }
+}

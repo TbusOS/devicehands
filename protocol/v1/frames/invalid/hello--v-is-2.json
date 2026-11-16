@@ -1,0 +1,179 @@
+{
+  "v": 2,
+  "verb": "hello",
+  "agent_id": "bench-1",
+  "name": "bench one",
+  "agent_version": 1,
+  "build": "0123456789ab",
+  "caps": [
+    "adb",
+    "fastboot"
+  ],
+  "ops": [
+    {
+      "name": "devices",
+      "group": "fastboot",
+      "summary": "fastboot devices",
+      "params": [],
+      "needs": "",
+      "image": false,
+      "max_image_bytes": 0,
+      "mutates": false,
+      "exclusive": true,
+      "record": "none",
+      "timeout_s": 20.0
+    },
+    {
+      "name": "getvar",
+      "group": "fastboot",
+      "summary": "fastboot getvar <name>",
+      "params": [
+        {
+          "name": "name",
+          "kind": "text",
+          "required": false,
+          "default": "all",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}\\Z",
+          "max_len": 64
+        }
+      ],
+      "needs": "fastboot-device",
+      "image": false,
+      "max_image_bytes": 0,
+      "mutates": false,
+      "exclusive": true,
+      "record": "none",
+      "timeout_s": 20.0
+    },
+    {
+      "name": "reboot",
+      "group": "fastboot",
+      "summary": "fastboot reboot [target]",
+      "params": [
+        {
+          "name": "target",
+          "kind": "enum",
+          "required": false,
+          "default": "",
+          "choices": [
+            "bootloader",
+            "fastboot",
+            "recovery"
+          ]
+        }
+      ],
+      "needs": "fastboot-device",
+      "image": false,
+      "max_image_bytes": 0,
+      "mutates": true,
+      "exclusive": true,
+      "record": "events",
+      "timeout_s": 60.0
+    },
+    {
+      "name": "flash",
+      "group": "fastboot",
+      "summary": "fastboot flash <partition> <image>",
+      "params": [
+        {
+          "name": "partition",
+          "kind": "partition",
+          "required": true,
+          "default": null
+        }
+      ],
+      "needs": "fastboot-device",
+      "image": true,
+      "max_image_bytes": 0,
+      "mutates": true,
+      "exclusive": true,
+      "record": "uart",
+      "timeout_s": 900.0
+    },
+    {
+      "name": "log-tail",
+      "group": "host",
+      "summary": "last lines of a host-side log, by source name",
+      "params": [
+        {
+          "name": "source",
+          "kind": "enum",
+          "required": true,
+          "default": null,
+          "choices": [
+            "agent"
+          ]
+        },
+        {
+          "name": "lines",
+          "kind": "int",
+          "required": false,
+          "default": 200,
+          "min": 1,
+          "max": 2000
+        },
+        {
+          "name": "grep",
+          "kind": "text",
+          "required": false,
+          "default": "",
+          "pattern": "[^\\x00-\\x1f\\x7f]*",
+          "max_len": 64
+        }
+      ],
+      "needs": "",
+      "image": false,
+      "max_image_bytes": 0,
+      "mutates": false,
+      "exclusive": false,
+      "record": "none",
+      "timeout_s": 30.0
+    },
+    {
+      "name": "tool-run",
+      "group": "tool",
+      "summary": "run a registered vendor tool with your own arguments",
+      "params": [
+        {
+          "name": "tool",
+          "kind": "enum",
+          "required": true,
+          "default": null,
+          "choices": [
+            "example-tool"
+          ]
+        },
+        {
+          "name": "args",
+          "kind": "argv",
+          "required": false,
+          "default": [],
+          "max_items": 64,
+          "max_len": 1024
+        }
+      ],
+      "needs": "",
+      "image": false,
+      "max_image_bytes": 0,
+      "mutates": true,
+      "exclusive": true,
+      "record": "uart",
+      "timeout_s": 1500.0
+    }
+  ],
+  "flash_partitions": [],
+  "boards": {
+    "board-a": {
+      "partitions": null,
+      "product": "EXAMPLE-PRODUCT"
+    }
+  },
+  "update": {
+    "id": "update-0001",
+    "outcome": "updated",
+    "from_build": "ba9876543210",
+    "to_build": "0123456789ab",
+    "at": 1700000000.5
+  },
+  "token": "example-token"
+}

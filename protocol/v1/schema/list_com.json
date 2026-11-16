@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/list_com.json",
+  "title": "list_com",
+  "description": "Ask the bench to report its serial ports; answered with com_list. Sent unconditionally after hello_ok (src/alb/remote/registry.py:154-157). No fields.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "v",
+    "verb"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "list_com"
+    }
+  }
+}

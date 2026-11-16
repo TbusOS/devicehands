@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/list_adb.json",
+  "title": "list_adb",
+  "description": "Ask the bench to report its adb devices; answered with adb_list (src/alb/remote/registry.py:148-157; clients/windows-agent/alb_agent.py:5329-5335). No fields.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "v",
+    "verb"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "list_adb"
+    }
+  }
+}

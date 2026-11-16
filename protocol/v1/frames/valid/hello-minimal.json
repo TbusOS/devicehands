@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "verb": "hello",
+  "agent_id": "bench-2",
+  "name": "",
+  "agent_version": 1,
+  "build": "",
+  "caps": [
+    "adb"
+  ],
+  "ops": [],
+  "flash_partitions": [],
+  "boards": {},
+  "update": null,
+  "token": null
+}

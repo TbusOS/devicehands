@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/job-done.json",
+  "title": "job event: done",
+  "description": "Terminal frame of a job. The bench releases its job lock as soon as this frame is sent (clients/windows-agent/alb_agent.py:3356-3366). May arrive before the hub has finished sending an image (refusal). A job channel that closes without done is reported by the hub as FLASH_FAILED with data.result_lost (src/alb/remote/flash.py:956-967).",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "ev",
+    "ok",
+    "rc",
+    "stdout",
+    "stderr",
+    "error",
+    "code"
+  ],
+  "properties": {
+    "ev": {
+      "const": "done"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "rc": {
+      "description": "Tool exit code; -1 when the tool did not run or was killed.",
+      "type": "integer"
+    },
+    "stdout": {
+      "description": "Last 64 KiB of the tool's stdout.",
+      "type": "string"
+    },
+    "stderr": {
+      "description": "Last 64 KiB of the tool's stderr.",
+      "type": "string"
+    },
+    "error": {
+      "description": "Human-readable reason; empty when ok.",
+      "type": "string"
+    },
+    "code": {
+      "$ref": "common.json#/$defs/errorCode"
+    },
+    "data": {
+      "description": "Structured result of builtin ops (usb-list, log-tail, tool-run, tool-list, agent-update, edl-*). Shape differs per op and is not described in v1.",
+      "type": "object"
+    }
+  },
+  "if": {
+    "required": [
+      "ok"
+    ],
+    "properties": {
+      "ok": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "code": {
+        "const": ""
+      },
+      "error": {
+        "const": ""
+      }
+    }
+  }
+}

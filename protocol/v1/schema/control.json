@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/control.json",
+  "title": "Any control frame",
+  "description": "A JSON text message on the signaling WebSocket /agent/connect. Exactly one of the per-verb schemas applies, selected by verb. The hub ends the session on an unknown verb; the bench ignores it (known-gaps G7).",
+  "oneOf": [
+    {
+      "$ref": "hello.json"
+    },
+    {
+      "$ref": "hello_ok.json"
+    },
+    {
+      "$ref": "heartbeat.json"
+    },
+    {
+      "$ref": "list_adb.json"
+    },
+    {
+      "$ref": "adb_list.json"
+    },
+    {
+      "$ref": "list_com.json"
+    },
+    {
+      "$ref": "com_list.json"
+    },
+    {
+      "$ref": "restart_adb.json"
+    },
+    {
+      "$ref": "open_channel.json"
+    },
+    {
+      "$ref": "channel_error.json"
+    },
+    {
+      "$ref": "channel_opened.json"
+    },
+    {
+      "$ref": "close_channel.json"
+    },
+    {
+      "$ref": "channel_closed.json"
+    }
+  ]
+}

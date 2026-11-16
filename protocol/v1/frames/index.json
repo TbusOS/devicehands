@@ -1,0 +1,527 @@
+{
+  "description": "Which schema each sample frame is checked against and whether it must pass. schema is a file in ../schema, optionally with a JSON pointer fragment. Driven by tests/protocol/test_golden_frames.py.",
+  "frames": [
+    {
+      "file": "valid/hello.json",
+      "schema": "hello.json",
+      "valid": true,
+      "note": "full hello: fastboot present, board identity, last update"
+    },
+    {
+      "file": "valid/hello-minimal.json",
+      "schema": "hello.json",
+      "valid": true,
+      "note": "no fastboot, empty op table, no token, unreadable build"
+    },
+    {
+      "file": "valid/hello_ok.json",
+      "schema": "hello_ok.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/heartbeat.json",
+      "schema": "heartbeat.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/list_adb.json",
+      "schema": "list_adb.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/adb_list.json",
+      "schema": "adb_list.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/adb_list-with-conflicts.json",
+      "schema": "adb_list.json",
+      "valid": true,
+      "note": "conflicts are filled only when devices is empty"
+    },
+    {
+      "file": "valid/list_com.json",
+      "schema": "list_com.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/com_list.json",
+      "schema": "com_list.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/restart_adb.json",
+      "schema": "restart_adb.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/open_channel-tcp.json",
+      "schema": "open_channel.json",
+      "valid": true,
+      "note": "adb channel"
+    },
+    {
+      "file": "valid/open_channel-serial.json",
+      "schema": "open_channel.json",
+      "valid": true,
+      "note": "serial channel"
+    },
+    {
+      "file": "valid/open_channel-job.json",
+      "schema": "open_channel.json",
+      "valid": true,
+      "note": "job channel with op hint"
+    },
+    {
+      "file": "valid/channel_error.json",
+      "schema": "channel_error.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/channel_opened.json",
+      "schema": "channel_opened.json",
+      "valid": true,
+      "note": "unused verb"
+    },
+    {
+      "file": "valid/close_channel.json",
+      "schema": "close_channel.json",
+      "valid": true,
+      "note": "unused verb"
+    },
+    {
+      "file": "valid/channel_closed.json",
+      "schema": "channel_closed.json",
+      "valid": true,
+      "note": "unused verb"
+    },
+    {
+      "file": "valid/op-desc-flash.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": true,
+      "note": "image op, partition param"
+    },
+    {
+      "file": "valid/op-desc-log-tail.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": true,
+      "note": "enum + int + text params"
+    },
+    {
+      "file": "valid/param-desc-argv.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-request-devices.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "no params"
+    },
+    {
+      "file": "valid/job-request-getvar.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-request-flash.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "image op: size + sha256 up front, board chosen on the hub"
+    },
+    {
+      "file": "valid/job-request-log-tail.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "int parameter"
+    },
+    {
+      "file": "valid/job-request-tool-run.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "argv parameter"
+    },
+    {
+      "file": "valid/job-accepted.json",
+      "schema": "job-accepted.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-progress-transfer.json",
+      "schema": "job-progress.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-progress-flash.json",
+      "schema": "job-progress.json",
+      "valid": true,
+      "note": "tool output line, indeterminate"
+    },
+    {
+      "file": "valid/job-progress-edl.json",
+      "schema": "job-progress.json",
+      "valid": true,
+      "note": "phase not in the hub JobPhase enum (known-gaps G5)"
+    },
+    {
+      "file": "valid/job-progress-tool.json",
+      "schema": "job-progress.json",
+      "valid": true,
+      "note": "phase not in the hub JobPhase enum (known-gaps G5)"
+    },
+    {
+      "file": "valid/job-file.json",
+      "schema": "job-file.json",
+      "valid": true,
+      "note": "ev not in the hub JobEvent enum (known-gaps G4)"
+    },
+    {
+      "file": "valid/job-file-empty.json",
+      "schema": "job-file.json",
+      "valid": true,
+      "note": "an empty file is one frame with empty b64"
+    },
+    {
+      "file": "valid/job-done-ok.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-done-fail.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-done-fail-empty-code.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": "two bench failure paths send an empty code"
+    },
+    {
+      "file": "valid/job-done-with-data.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": "data shape is per op and not described in v1"
+    },
+    {
+      "file": "invalid/hello--missing-agent_id.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/hello--blank-agent_id.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "hub closes 1002 on a blank agent_id"
+    },
+    {
+      "file": "invalid/hello--v-is-2.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "wrong protocol version (neither side checks it today, known-gaps G1)"
+    },
+    {
+      "file": "invalid/hello--caps-not-array.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/hello--missing-ops.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "what protocol.hello() produces lacks ops/build/... (known-gaps G2)"
+    },
+    {
+      "file": "invalid/hello--update-outcome-unknown.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/hello--op-group-unknown.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "unknown enum value inside the op table"
+    },
+    {
+      "file": "invalid/hello_ok--missing-server_version.json",
+      "schema": "hello_ok.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/hello_ok--server_version-string.json",
+      "schema": "hello_ok.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/heartbeat--missing-v.json",
+      "schema": "heartbeat.json",
+      "valid": false,
+      "note": "missing envelope field"
+    },
+    {
+      "file": "invalid/list_adb--v-string.json",
+      "schema": "list_adb.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/adb_list--missing-conflicts.json",
+      "schema": "adb_list.json",
+      "valid": false,
+      "note": "what protocol.adb_list() produces (known-gaps G3)"
+    },
+    {
+      "file": "invalid/adb_list--devices-not-strings.json",
+      "schema": "adb_list.json",
+      "valid": false,
+      "note": "wrong item type"
+    },
+    {
+      "file": "invalid/list_com--wrong-verb.json",
+      "schema": "list_com.json",
+      "valid": false,
+      "note": "unknown verb value"
+    },
+    {
+      "file": "invalid/com_list--port-missing.json",
+      "schema": "com_list.json",
+      "valid": false,
+      "note": "missing field in item"
+    },
+    {
+      "file": "invalid/com_list--old-shape.json",
+      "schema": "com_list.json",
+      "valid": false,
+      "note": "the shape tests/remote/test_protocol.py:33 feeds the builder (known-gaps G17)"
+    },
+    {
+      "file": "invalid/restart_adb--kill_conflicts-string.json",
+      "schema": "restart_adb.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/open_channel--channel_type-unknown.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/open_channel--tcp-target-not-allowlisted.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "the bench answers channel_error for any other target"
+    },
+    {
+      "file": "invalid/open_channel--serial-baud-string.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "wrong type in params"
+    },
+    {
+      "file": "invalid/open_channel--job-wrong-role.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "role does not match channel_type"
+    },
+    {
+      "file": "invalid/open_channel--missing-csecret.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/open_channel--cid-uppercase.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "cid is lowercase hex"
+    },
+    {
+      "file": "invalid/channel_error--missing-reason.json",
+      "schema": "channel_error.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/channel_opened--missing-cid.json",
+      "schema": "channel_opened.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/close_channel--cid-not-string.json",
+      "schema": "close_channel.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/channel_closed--missing-cid.json",
+      "schema": "channel_closed.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/control--unknown-verb.json",
+      "schema": "control.json",
+      "valid": false,
+      "note": "unknown verb: hub ends the session, bench ignores it (known-gaps G7)"
+    },
+    {
+      "file": "invalid/control--not-an-object.json",
+      "schema": "control.json",
+      "valid": false,
+      "note": "not an object: hub ends the session, bench process exits (known-gaps G8)"
+    },
+    {
+      "file": "invalid/op-desc--group-unknown.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/op-desc--missing-timeout_s.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/op-desc--record-unknown.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/param-desc--kind-unknown.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/param-desc--enum-without-choices.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "kind-specific field missing"
+    },
+    {
+      "file": "invalid/param-desc--int-without-max.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "kind-specific field missing"
+    },
+    {
+      "file": "invalid/param-desc--name-image.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "reserved name"
+    },
+    {
+      "file": "invalid/job-request--missing-op.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/job-request--size-without-sha256.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "size and sha256 travel together"
+    },
+    {
+      "file": "invalid/job-request--sha256-uppercase.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "sha256 is lowercase hex"
+    },
+    {
+      "file": "invalid/job-request--size-zero.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "the bench refuses size <= 0"
+    },
+    {
+      "file": "invalid/job-request--param-is-object.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "wrong parameter value type"
+    },
+    {
+      "file": "invalid/job-accepted--detail-number.json",
+      "schema": "job-accepted.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/job-progress--phase-unknown.json",
+      "schema": "job-progress.json",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/job-progress--done-negative.json",
+      "schema": "job-progress.json",
+      "valid": false,
+      "note": "out of range"
+    },
+    {
+      "file": "invalid/job-file--missing-end.json",
+      "schema": "job-file.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/job-file--b64-invalid.json",
+      "schema": "job-file.json",
+      "valid": false,
+      "note": "not base64"
+    },
+    {
+      "file": "invalid/job-done--ok-string.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/job-done--missing-code.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/job-done--ok-with-code.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "a successful done carries no code"
+    },
+    {
+      "file": "invalid/job-done--code-lowercase.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "codes are upper snake case"
+    },
+    {
+      "file": "invalid/job-event--ev-unknown.json",
+      "schema": "job-event.json",
+      "valid": false,
+      "note": "unknown ev value"
+    }
+  ]
+}

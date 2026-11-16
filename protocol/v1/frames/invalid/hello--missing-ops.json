@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "verb": "hello",
+  "agent_id": "bench-1",
+  "name": "bench one",
+  "agent_version": 1,
+  "build": "0123456789ab",
+  "caps": [
+    "adb",
+    "fastboot"
+  ],
+  "flash_partitions": [],
+  "boards": {
+    "board-a": {
+      "partitions": null,
+      "product": "EXAMPLE-PRODUCT"
+    }
+  },
+  "update": {
+    "id": "update-0001",
+    "outcome": "updated",
+    "from_build": "ba9876543210",
+    "to_build": "0123456789ab",
+    "at": 1700000000.5
+  },
+  "token": "example-token"
+}

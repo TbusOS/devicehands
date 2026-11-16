@@ -1,0 +1,7 @@
+{
+  "ev": "progress",
+  "phase": "tool",
+  "done": 0,
+  "total": 0,
+  "text": "example vendor tool line"
+}

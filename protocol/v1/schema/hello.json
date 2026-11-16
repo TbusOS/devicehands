@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/hello.json",
+  "title": "hello",
+  "description": "First frame on the signaling connection, sent by the bench right after the WebSocket opens. The hub closes with 1002 when it is not a hello or has an empty agent_id, and with 1008 when the token is wrong (src/alb/api/agent_route.py:187-200). The hub tolerates the absence of build/ops/flash_partitions/boards/update (older benches, src/alb/api/agent_route.py:210-223); the current bench always sends every field (clients/windows-agent/alb_agent.py:408-441), so all of them are required here. The hub-side builder protocol.hello() sends fewer fields (known-gaps G2).",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "agent_id",
+    "name",
+    "agent_version",
+    "build",
+    "caps",
+    "ops",
+    "flash_partitions",
+    "boards",
+    "update",
+    "token"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "hello"
+    },
+    "agent_id": {
+      "description": "Stable identity of this bench. Must contain a non-blank character (the hub strips it and closes 1002 when empty). Reconnecting with the same id replaces the previous registration.",
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "name": {
+      "description": "Human-readable bench name. The hub falls back to agent_id when empty.",
+      "type": "string"
+    },
+    "agent_version": {
+      "description": "Carries the PROTOCOL version (1), not a program version. Stored by the hub, never compared (known-gaps G1).",
+      "type": "integer"
+    },
+    "build": {
+      "$ref": "common.json#/$defs/build"
+    },
+    "caps": {
+      "description": "Capability strings. Values in use: \"adb\" (always), \"fastboot\" (only when a fastboot executable resolves on the bench host). Unknown values are ignored by the hub.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "ops": {
+      "description": "The bench op table, one OpDesc per op. The hub drops malformed rows individually (src/alb/remote/bench_ops.py:180-244).",
+      "type": "array",
+      "items": {
+        "$ref": "op-table.json#/$defs/OpDesc"
+      }
+    },
+    "flash_partitions": {
+      "description": "Legacy partition allowlist. Always [] since ADR-070 (clients/windows-agent/alb_agent.py:430-434); kept for hubs that still read it.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "boards": {
+      "description": "Boards whose identity the bench checks before a write, keyed by board name. The hub drops entries whose name does not match ^[a-z0-9][a-z0-9_-]{0,31}$ (src/alb/remote/bench_board.py:43, 301-319).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "partitions",
+          "product"
+        ],
+        "properties": {
+          "partitions": {
+            "description": "Always null from the current bench (no list limits names, ADR-070). null means not configured, never 'none'.",
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "product": {
+            "description": "What `fastboot getvar product` must answer before a write to this board.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "update": {
+      "description": "Outcome of the last remote self-update as recorded by the bench update helper, or null when there is none. The hub reads outcome=pending from a hello whose build equals to_build as updated (src/alb/remote/registry.py:74-89).",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "outcome",
+            "from_build",
+            "to_build",
+            "at"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "outcome": {
+              "enum": [
+                "pending",
+                "updated",
+                "rolled_back",
+                "aborted"
+              ]
+            },
+            "from_build": {
+              "$ref": "common.json#/$defs/build"
+            },
+            "to_build": {
+              "$ref": "common.json#/$defs/build"
+            },
+            "at": {
+              "description": "Unix time in seconds (float).",
+              "type": "number"
+            }
+          }
+        }
+      ]
+    },
+    "token": {
+      "description": "Shared bench token, or null when none is configured. The only credential on the signaling connection; no HTTP header carries it there.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

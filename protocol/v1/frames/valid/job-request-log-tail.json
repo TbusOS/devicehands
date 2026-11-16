@@ -1,0 +1,5 @@
+{
+  "op": "log-tail",
+  "source": "agent",
+  "lines": 50
+}

@@ -1,0 +1,19 @@
+{
+  "name": "flash",
+  "group": "fastboot",
+  "summary": "fastboot flash <partition> <image>",
+  "params": [
+    {
+      "name": "partition",
+      "kind": "partition",
+      "required": true,
+      "default": null
+    }
+  ],
+  "needs": "fastboot-device",
+  "image": true,
+  "max_image_bytes": 0,
+  "mutates": true,
+  "exclusive": true,
+  "record": "uart"
+}

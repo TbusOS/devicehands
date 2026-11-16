@@ -1,0 +1,6 @@
+{
+  "name": "slot",
+  "kind": "enum",
+  "required": true,
+  "default": null
+}

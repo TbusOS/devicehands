@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/job-event.json",
+  "title": "Any job event",
+  "description": "A control frame (kind 'C') sent by the bench on a job channel after the request. The hub ignores unknown ev values (src/alb/remote/flash.py:1007-1009).",
+  "oneOf": [
+    {
+      "$ref": "job-accepted.json"
+    },
+    {
+      "$ref": "job-progress.json"
+    },
+    {
+      "$ref": "job-file.json"
+    },
+    {
+      "$ref": "job-done.json"
+    }
+  ]
+}

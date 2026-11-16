@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/op-table.json",
+  "title": "Op table descriptors",
+  "description": "OpDesc and ParamDesc: the bench op table as it rides in hello.ops. Wire form produced by OpSpec.describe / ParamSpec.describe on the bench (clients/windows-agent/alb_agent.py:1021-1040, 1175-1188) and read by OpSpec.from_wire / ParamSpec.from_wire on the hub (src/alb/remote/bench_ops.py:60-78, 180-211).",
+  "$defs": {
+    "OpDesc": {
+      "type": "object",
+      "required": [
+        "name",
+        "group",
+        "summary",
+        "params",
+        "needs",
+        "image",
+        "max_image_bytes",
+        "mutates",
+        "exclusive",
+        "record",
+        "timeout_s"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "common.json#/$defs/opName"
+        },
+        "group": {
+          "enum": [
+            "fastboot",
+            "host",
+            "edl",
+            "tool"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "params": {
+          "description": "In argv order. Names are unique within one op.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParamDesc"
+          }
+        },
+        "needs": {
+          "description": "Precondition the bench checks before running: a board in fastboot, a board in EDL (9008), or nothing.",
+          "enum": [
+            "",
+            "fastboot-device",
+            "edl-device"
+          ]
+        },
+        "image": {
+          "description": "The op receives an image stream (data frames) after the request.",
+          "type": "boolean"
+        },
+        "max_image_bytes": {
+          "description": "Largest image the bench accepts for this op; 0 = bounded only by the bench host's free temp space.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "mutates": {
+          "description": "The op changes the device; the hub asks for confirmation and records it.",
+          "type": "boolean"
+        },
+        "exclusive": {
+          "description": "The op needs the single job lock. Non-exclusive ops (host reads) may run during a long exclusive job.",
+          "type": "boolean"
+        },
+        "record": {
+          "description": "Hub-side recording tier.",
+          "enum": [
+            "none",
+            "events",
+            "uart"
+          ]
+        },
+        "timeout_s": {
+          "description": "How long the bench lets the op's tool run before killing it. The hub does not use it; its own ceiling is 1800 s per job (src/alb/remote/flash.py:82).",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "ParamDesc": {
+      "type": "object",
+      "required": [
+        "name",
+        "kind",
+        "required",
+        "default"
+      ],
+      "properties": {
+        "name": {
+          "allOf": [
+            {
+              "$ref": "common.json#/$defs/opName"
+            },
+            {
+              "not": {
+                "const": "image"
+              }
+            }
+          ],
+          "description": "Parameter name; also the key of its value in the job request. 'image' is reserved (clients/windows-agent/alb_agent.py:1170-1171)."
+        },
+        "kind": {
+          "description": "partition: implicit shape rule ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$ that is not carried on the wire (known-gaps G9). enum: one of choices. int: min..max. text: pattern + max_len. argv: list of strings.",
+          "enum": [
+            "partition",
+            "enum",
+            "int",
+            "text",
+            "argv"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {
+          "description": "Value used when an optional parameter is missing, null or empty. Any JSON type; for an optional enum it may be a value outside choices (e.g. reboot target \"\")."
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "min": {
+          "type": "integer"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "pattern": {
+          "description": "Python `re` syntax, applied with full-match semantics (re.fullmatch) on both sides. NOT an ECMA-262 pattern: values in use contain \\Z (known-gaps G9).",
+          "type": "string",
+          "minLength": 1
+        },
+        "max_len": {
+          "description": "text: max length of the value; argv: max length of each element.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_items": {
+          "description": "argv: max number of elements.",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "choices"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "int"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "min",
+              "max"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pattern",
+              "max_len"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "argv"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "max_items",
+              "max_len"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/job-accepted.json",
+  "title": "job event: accepted",
+  "description": "The bench understood the request and is starting. For image ops it is sent BEFORE the image is received (clients/windows-agent/alb_agent.py:3547). The hub ignores it (src/alb/remote/flash.py:1007-1009).",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "ev",
+    "detail"
+  ],
+  "properties": {
+    "ev": {
+      "const": "accepted"
+    },
+    "detail": {
+      "description": "Free text: the op name, the argv tail, or 'receiving <n> bytes'.",
+      "type": "string"
+    }
+  }
+}

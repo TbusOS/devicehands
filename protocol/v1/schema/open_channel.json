@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/open_channel.json",
+  "title": "open_channel",
+  "description": "Ask the bench to open one data channel and dial it back to /agent/channel?cid=<cid>. The hub registers the cid before sending this frame (src/alb/remote/registry.py:169-193). The bench answers with channel_error when it cannot open the channel; there is no success frame, the dial-back itself is the success signal. The bench never reads role (clients/windows-agent/alb_agent.py:519-538); the hub always pairs tcp/daemon, serial/gateway, job/job.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "cid",
+    "csecret",
+    "channel_type",
+    "role",
+    "params"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "open_channel"
+    },
+    "cid": {
+      "$ref": "common.json#/$defs/cid"
+    },
+    "csecret": {
+      "$ref": "common.json#/$defs/csecret"
+    },
+    "channel_type": {
+      "enum": [
+        "tcp",
+        "serial",
+        "job"
+      ]
+    },
+    "role": {
+      "description": "Retry policy name (ADR-052): daemon = no retry, gateway = bounded retry, job = no retry.",
+      "enum": [
+        "daemon",
+        "gateway",
+        "job"
+      ]
+    },
+    "params": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "channel_type"
+        ],
+        "properties": {
+          "channel_type": {
+            "const": "tcp"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role": {
+            "const": "daemon"
+          },
+          "params": {
+            "type": "object",
+            "required": [
+              "target"
+            ],
+            "properties": {
+              "target": {
+                "description": "The only target the bench accepts; anything else gets channel_error (clients/windows-agent/alb_agent.py:82-83, 545-551).",
+                "const": "127.0.0.1:5037"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "channel_type"
+        ],
+        "properties": {
+          "channel_type": {
+            "const": "serial"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role": {
+            "const": "gateway"
+          },
+          "params": {
+            "type": "object",
+            "required": [
+              "com",
+              "baud"
+            ],
+            "properties": {
+              "com": {
+                "description": "Serial port name on the bench host.",
+                "type": "string",
+                "minLength": 1
+              },
+              "baud": {
+                "description": "Baud rate. The bench defaults to 115200 when it is 0 or missing (clients/windows-agent/alb_agent.py:602).",
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "channel_type"
+        ],
+        "properties": {
+          "channel_type": {
+            "const": "job"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role": {
+            "const": "job"
+          },
+          "params": {
+            "type": "object",
+            "required": [
+              "op"
+            ],
+            "properties": {
+              "op": {
+                "description": "Hint: the op the job request will name. Lets the bench refuse a busy or unsupported job before dialling back. A bench treats a missing hint as an exclusive fastboot job (clients/windows-agent/alb_agent.py:3176-3191).",
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

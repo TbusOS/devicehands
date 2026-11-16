@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/heartbeat.json",
+  "title": "heartbeat",
+  "description": "Liveness frame, every 20 s from the bench (clients/windows-agent/alb_agent.py:110, 5103-5109). The hub ends the session when no control frame arrives for 60 s (src/alb/api/agent_route.py:50, 242-245). No fields.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "v",
+    "verb"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "heartbeat"
+    }
+  }
+}

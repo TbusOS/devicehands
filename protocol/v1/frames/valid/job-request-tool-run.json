@@ -1,0 +1,9 @@
+{
+  "op": "tool-run",
+  "tool": "example-tool",
+  "args": [
+    "--port",
+    "{com}",
+    "--verbose"
+  ]
+}

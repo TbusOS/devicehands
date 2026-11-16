@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/job-request.json",
+  "title": "job request",
+  "description": "The first control frame (kind 'C') on a job channel, hub->bench. Flat: op, then one key per parameter value, plus size/sha256 for image ops and board when the hub has a board chosen (src/alb/remote/protocol.py:361-374; src/alb/remote/flash.py:840-842, 853). The bench ignores keys its table does not name (clients/windows-agent/alb_agent.py:1190-1194); the hub refuses them before sending (src/alb/remote/bench_ops.py:337-345). No path, no command line ever rides this frame.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "op"
+  ],
+  "properties": {
+    "op": {
+      "$ref": "common.json#/$defs/opName"
+    },
+    "size": {
+      "description": "Image ops only: exact image length in bytes. The bench refuses <= 0 (clients/windows-agent/alb_agent.py:3512-3522).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "board": {
+      "description": "The board the hub has chosen; the bench uses it for the product identity check before a write.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "dependentRequired": {
+    "size": [
+      "sha256"
+    ],
+    "sha256": [
+      "size"
+    ]
+  },
+  "additionalProperties": {
+    "description": "A parameter value keyed by ParamDesc.name: string (partition, enum, text), integer (int) or list of strings (argv).",
+    "type": [
+      "string",
+      "integer",
+      "array"
+    ],
+    "items": {
+      "type": "string"
+    }
+  }
+}

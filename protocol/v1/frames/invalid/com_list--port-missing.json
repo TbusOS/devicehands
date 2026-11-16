@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "verb": "com_list",
+  "ports": [
+    {
+      "desc": "x"
+    }
+  ]
+}

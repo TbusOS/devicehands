@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "verb": "open_channel",
+  "cid": "0123456789abcdef0123456789abcdef",
+  "csecret": "EXAMPLE_secret-EXAMPLE_secret-EXAMPLE_00000",
+  "channel_type": "usb",
+  "role": "daemon",
+  "params": {
+    "target": "127.0.0.1:5037"
+  }
+}

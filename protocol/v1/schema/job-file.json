@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/job-file.json",
+  "title": "job event: file",
+  "description": "A piece of a file a vendor tool wrote on the bench host (tool-run only, clients/windows-agent/alb_agent.py:2610-2643). Files are cut into 512 KiB pieces before base64; an empty file is one frame with b64 \"\" and end true. Not in the hub JobEvent enum (known-gaps G4); the hub reads it by string literal (src/alb/remote/flash.py:979-991).",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "ev",
+    "name",
+    "size",
+    "offset",
+    "b64",
+    "end"
+  ],
+  "properties": {
+    "ev": {
+      "const": "file"
+    },
+    "name": {
+      "description": "File name relative to the tool's working directory.",
+      "type": "string",
+      "minLength": 1
+    },
+    "size": {
+      "description": "Total length of the file in bytes.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "offset": {
+      "description": "Byte offset of this piece in the file.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "b64": {
+      "description": "This piece, standard base64 with padding.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+    },
+    "end": {
+      "description": "True on the last piece of this file.",
+      "type": "boolean"
+    }
+  }
+}

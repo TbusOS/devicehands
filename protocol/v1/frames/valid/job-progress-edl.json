@@ -1,0 +1,7 @@
+{
+  "ev": "progress",
+  "phase": "edl",
+  "done": 0,
+  "total": 0,
+  "text": "example EDL tool line"
+}

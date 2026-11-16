@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "verb": "com_list",
+  "ports": [
+    {
+      "com": "COM3",
+      "baud": 115200
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "verb": "adb_list",
+  "devices": [],
+  "conflicts": [
+    "vendor_adb.exe pid=4242"
+  ]
+}

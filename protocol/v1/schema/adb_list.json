@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/adb_list.json",
+  "title": "adb_list",
+  "description": "adb devices seen on the bench host, answer to list_adb and restart_adb (clients/windows-agent/alb_agent.py:5199-5207). The hub-side builder protocol.adb_list() omits conflicts (known-gaps G3); the hub reader treats a missing conflicts as [] (src/alb/api/agent_route.py:148-152).",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "devices",
+    "conflicts"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "adb_list"
+    },
+    "devices": {
+      "description": "adb serial numbers, as `adb devices` lists them.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conflicts": {
+      "description": "Processes that look like a foreign adb build ('<name> pid=<n>'). Filled only when devices is empty.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "v": 1,
+  "verb": "channel_error",
+  "cid": "0123456789abcdef0123456789abcdef",
+  "reason": "cannot open COM3 @ 115200: example reason"
+}

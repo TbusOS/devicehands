@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "verb": "com_list",
+  "ports": [
+    {
+      "port": "COM3",
+      "desc": "USB Serial Port (COM3)"
+    },
+    {
+      "port": "/dev/ttyUSB0",
+      "desc": ""
+    }
+  ]
+}

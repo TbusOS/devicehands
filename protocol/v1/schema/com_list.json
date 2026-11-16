@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/com_list.json",
+  "title": "com_list",
+  "description": "Serial ports seen on the bench host (clients/windows-agent/alb_agent.py:5239-5251). Empty list when pyserial is not installed.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "ports"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "com_list"
+    },
+    "ports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "port",
+          "desc"
+        ],
+        "properties": {
+          "port": {
+            "description": "Port name as the OS reports it, e.g. COM3 or /dev/ttyUSB0.",
+            "type": "string"
+          },
+          "desc": {
+            "description": "OS description of the port; may be empty.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

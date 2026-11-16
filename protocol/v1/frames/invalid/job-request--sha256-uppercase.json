@@ -1,0 +1,6 @@
+{
+  "op": "flash",
+  "partition": "boot_a",
+  "size": 1024,
+  "sha256": "ABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB"
+}

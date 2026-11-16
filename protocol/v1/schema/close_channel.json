@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v1/schema/close_channel.json",
+  "title": "close_channel",
+  "description": "UNUSED in v1: defined in the Verb enum and as a builder (src/alb/remote/protocol.py:143-146, 254-267) but neither side sends it, and the bench does not handle it. Accepted by the hub decoder because the verb is known.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "v",
+    "verb",
+    "cid"
+  ],
+  "properties": {
+    "v": {
+      "$ref": "common.json#/$defs/v"
+    },
+    "verb": {
+      "const": "close_channel"
+    },
+    "cid": {
+      "$ref": "common.json#/$defs/cid"
+    }
+  },
+  "x-status": "unused"
+}
