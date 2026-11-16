@@ -418,9 +418,12 @@ async def test_serial_session_end_closes_every_local_connection():
 
         # the board side goes away
         server.close()
-        with contextlib.suppress(Exception):
-            await server.wait_closed()
         await fwd._session._channel.aclose()  # type: ignore[union-attr]
+        # Only after the channel is closed: from Python 3.12 on,
+        # Server.wait_closed() also waits for the connections the server
+        # accepted, and the channel is one of them — awaited before aclose(),
+        # it never returns.
+        await asyncio.wait_for(server.wait_closed(), timeout=5)
 
         assert await asyncio.wait_for(r1.read(), timeout=5) == b""
         assert await asyncio.wait_for(r2.read(), timeout=5) == b""
