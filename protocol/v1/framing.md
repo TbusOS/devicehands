@@ -1,6 +1,6 @@
 # v1 线路格式:WebSocket 消息、job 帧、字节流通道
 
-本文只写 v1 的现状(仓库 `p0/baseline`,HEAD `9423271`;`src/`、`clients/` 与 `a073158` 相同),不提改法。改法的输入在
+本文只写 v1 的现状(仓库 `p0/baseline`,HEAD `a27ad4a`;`src/`、`clients/` 与 `e36c43f` 相同),不提改法。改法的输入在
 [known-gaps.md](known-gaps.md)。出处里 `P` = `src/alb/remote/protocol.py`,
 `J` = `src/alb/remote/jobframe.py`,`AR` = `src/alb/api/agent_route.py`,
 `F` = `src/alb/remote/forwarder.py`,`FL` = `src/alb/remote/flash.py`,

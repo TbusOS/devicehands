@@ -2,7 +2,7 @@
 
 本清单只记录,不修。每条写:现状、两边的出处、会造成什么、留给 v2 的问题。
 出处缩写同 [sequences.md](sequences.md)(`P` `J` `R` `AR` `F` `FL` `O` `A`)。
-基线:仓库 `p0/baseline`,HEAD `9423271`;`src/`、`clients/` 与 `a073158` 相同。
+基线:仓库 `p0/baseline`,HEAD `a27ad4a`;`src/`、`clients/` 与 `e36c43f` 相同。
 
 「测试」一栏写的是 `tests/protocol/test_golden_frames.py` 里对应的
 `xfail(strict=True)` 测试。代码修好后这条测试会变成通过,strict 让它报错,

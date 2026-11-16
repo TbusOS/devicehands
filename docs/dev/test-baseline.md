@@ -8,7 +8,7 @@
 | 项 | 值 |
 |---|---|
 | 日期 | 2026-11-16 |
-| 提交 | `a073158`(`git rev-parse --short HEAD`),分支 `p0/baseline` |
+| 提交 | `e36c43f`(`git rev-parse --short HEAD`),分支 `p0/baseline` |
 | 工作区 | `pyproject.toml`、`uv.lock` 有未提交改动:开发依赖加了 `import-linter>=2.0`,不涉及被测代码 |
 | 系统 | Linux 5.4 x86_64 |
 | Python | 3.11.15(仓库内 `.venv`) |
@@ -102,5 +102,5 @@ grep -E '^(FAILED|ERROR) ' after.txt | awk '{print $2}' | sort -u
 
 | 日期 | 提交 | 收集到 | 通过 | 跳过 | 预期失败(xfail) | 失败 | 变化原因 |
 |---|---|---|---|---|---|---|---|
-| 2026-11-16 | `a073158` | 3037 | 3036 | 1 | 0 | 0 | 首次记录 |
-| 2026-11-16 | `3745a54` | 3294 | 3288 | 1 | 5 | 0 | 新增 `tests/protocol/`:252 条通过,5 条预期失败,各对应 `protocol/v1/known-gaps.md` 里的一条 |
+| 2026-11-16 | `e36c43f` | 3037 | 3036 | 1 | 0 | 0 | 首次记录 |
+| 2026-11-16 | `1caf3f6` | 3294 | 3288 | 1 | 5 | 0 | 新增 `tests/protocol/`:252 条通过,5 条预期失败,各对应 `protocol/v1/known-gaps.md` 里的一条 |

@@ -152,7 +152,7 @@ class AgentConnection:
         with suppress(Exception):
             await self._send_control(protocol.list_adb())
             # Asked unconditionally: every agent has answered list_com since
-            # the first one (059c7f3), and none has ever put `serial` in its
+            # the first one (a99d0dd), and none has ever put `serial` in its
             # caps — gating on that cap left com_ports empty on every bench.
             await self._send_control(protocol.list_com())
 

@@ -895,9 +895,9 @@ def _getvar_allowed(name: str) -> bool:
 
 
 # `oem` 命令只查形状,不设白名单(2026-11-05 起)。
-# 以前只放行 at-lock-vboot / at-unlock-vboot 两条(c7a1a83,10-07,理由是有的 oem
+# 以前只放行 at-lock-vboot / at-unlock-vboot 两条(b5c43dd,10-07,理由是有的 oem
 # 命令不可逆)。10-23 定了板子侧命令全部放开、权限只防 Windows 主机上的文件
-# (23aa5f6),这张白名单当时没跟着放开:bootloader 本来允许的 oem 命令(比如让板子
+# (6d124b4),这张白名单当时没跟着放开:bootloader 本来允许的 oem 命令(比如让板子
 # 进下载模式的那条),dhands 先拦了,板子根本收不到。oem 命令做什么、准不准做,由板子的 bootloader 定,
 # 拒了就把它的原话带回来。
 # 剩下的形状规则只为让命令原样到板子,不为限制做什么:

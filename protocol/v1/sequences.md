@@ -1,7 +1,7 @@
 # v1 顺序和时间规则
 
 结构描述(`schema/`)只管单个帧长什么样。本文管帧之间的先后、谁等谁、等多久。
-只写现状(仓库 `p0/baseline`,HEAD `9423271`;`src/`、`clients/` 与 `a073158` 相同)。两边做法不一样的地方照实写,
+只写现状(仓库 `p0/baseline`,HEAD `a27ad4a`;`src/`、`clients/` 与 `e36c43f` 相同)。两边做法不一样的地方照实写,
 标「现状」;改法留给 v2,问题汇总在 [known-gaps.md](known-gaps.md)。
 
 出处缩写:`P` = `src/alb/remote/protocol.py`,`J` = `src/alb/remote/jobframe.py`,

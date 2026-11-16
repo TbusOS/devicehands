@@ -27,7 +27,7 @@ ship 前最终质量检查：7 个 agents 并行启动 + 三道脚本闸 + 主�
 并行跑（**用 Bash 在同一条消息发 3 个 tool call**）：
 
 ```bash
-./scripts/check_sensitive_words.sh --all
+./scripts/check_sensitive_words.sh --require-private --all
 ./scripts/check_offline_purity.sh
 uv run pytest -q --no-cov
 ```

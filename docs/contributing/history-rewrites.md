@@ -38,6 +38,58 @@ contributors know it happened and can coordinate before doing another.
 
 ## Record
 
+### Rewrite #4 — 2026-11-16 (before the first push of the merged history)
+
+- **Why**: the project moved to this repository (`devicehands`) and the full
+  history of the former repository was merged in. Before that history was
+  pushed here for the first time, a scan of **every file version in history**
+  (not only the current tree) found real identifiers that had been allowed on
+  purpose in the rule-defining files (`CLAUDE.md`, `CONTRIBUTING.md`, the guard
+  script, the pre-commit config, the auditor agent) because they *defined* the
+  banned list: the company name, a customer SoC model, an internal handle, a
+  home-directory path, two internal hosts and two internal subnets. One mock-up
+  page carried a real LAN address, three commit messages quoted removed values,
+  and one commit was authored with a laptop host name as the e-mail domain.
+  The maintainer's rule: the public repository carries no local information;
+  real values live only in a private repository.
+- **Tool**: `git filter-repo` on a throwaway mirror clone of the unpushed
+  history, in one pass: `--replace-text` for file contents (including escaped
+  and `\b`-prefixed spellings found by a second, looser scan), `--replace-message`
+  for the three messages, `--mailmap` for the author e-mail. Categories:
+  - company / brand tokens → `vendor`, `com.example`, `example.com`
+  - the customer SoC model → `arm-soc`; vendor SDK names → `soc-sdk`
+  - the internal handle → `dev`; home-directory paths → `~`
+  - internal hosts and subnets → documentation addresses (`192.0.2.x`,
+    `198.51.100.x`)
+  - the laptop host name → `laptop`; that commit's author → the public
+    maintainer address
+- **Before → after**: `main` moved from `43bfe0e` to `379268b`. 559 of 585
+  commits changed hash; the 26 that kept theirs include this repository's
+  first commit `53fece8`, the only commit already on `origin`, so the push was
+  an ordinary fast-forward. Abbreviated hashes inside commit messages were
+  rewritten by the tool; the 24 references in tracked files were updated in the
+  commit that adds this entry.
+- **Guard changed in the same commit**: the real values no longer live in this
+  repository. `scripts/check_sensitive_words.sh` keeps only generic patterns
+  and reads the real ones from a private word list
+  (`$DHANDS_SENSITIVE_WORDS_FILE`); `CLAUDE.md` and the other rule files now
+  name categories, not values.
+- **Safety**: nothing of this history had been pushed to this repository; a
+  full bundle of the pre-rewrite repository (all 13 refs) was kept outside it.
+- **Verification**:
+  - the private word list over all 10 681 blobs, all messages and all
+    identities of the rewritten history: 0 hits apart from case-insensitive
+    substrings inside third-party minified bundles and compressed image / font
+    bytes (the same kind of coincidence noted in rewrite #3); the same scan of
+    the original history: 121 blob hits and 8 message / identity hits;
+  - a second scan with looser spellings (escaped dots, separators): 0 real hits
+    after, 111 + 8 on the original;
+  - at the tip, only the six rule / mock-up files differ from the original;
+  - full test suite passes; the guard self-test passes and, run with the
+    private list against the original tree, reports the five offending files.
+- **Not done**: the former repository was **not** rewritten; its history and
+  current tree still carry these values.
+
 ### Rewrite #3 — 2026-06-18 (neutrality scrub of historical blobs)
 
 - **Why**: the current tree was already clean, but earlier commits still carried
@@ -56,7 +108,7 @@ contributors know it happened and can coordinate before doing another.
     (the public maintainer handle `skyzhangbinghua` is preserved — it is a
     legitimate attribution identifier)
   - internal private-network IPs → `<llm-host>` / `<internal-ip>`
-- **Before → after**: `main` moved from `e78da8c` to `9375e84` (a fully divergent
+- **Before → after**: `main` moved from `e78da8c` to `d5d3077` (a fully divergent
   chain — every commit hash from the first scrubbed commit onward changed, which
   is why a force-push was required).
 - **Restore commit**: the rewrite was followed by one commit restoring the

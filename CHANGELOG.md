@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### 敏感词检查:真实的词不再放在公开仓库里(2026-11-16)
+- `scripts/check_sensitive_words.sh` 只保留通用规则;真实要拦的词(公司名、内部用户名、内网地址、机器名等)从私有词表读取:`$DHANDS_SENSITIVE_WORDS_FILE`,默认 `~/.config/devicehands/sensitive-words.txt`,一行一个扩展正则。没有私有词表时只跑通用规则,并在 stderr 说明。
+- 新参数:`--require-private`(缺私有词表就失败,退出码 2)、`--file PATH...`(检查指定文件,提交说明的检查用它)。
+- `CLAUDE.md`、`CONTRIBUTING.md`、安全审查规则只写类别,不写具体的值;pre-commit 的提交说明检查改成调用同一个脚本。
+- 合并进来的历史在第一次推送前改写过一次,见 `docs/contributing/history-rewrites.md` 第 4 次记录。
+
 ### 改名为 DeviceHands,能和旧的 alb 装在同一台电脑上(P1,2026-11-16)
 设计依据:`docs/devicehands-design.md` 5.10、5.11。新旧两套的名字、端口、目录全部不同,新程序不读旧程序的配置和数据。
 
@@ -48,7 +54,7 @@
 ### 许可证改为 Apache 2.0(2026-10-10)
 - `LICENSE` 换成 Apache License 2.0 全文,新增 `NOTICE`;`pyproject.toml`、`alb.__license__`、生成的 `SKILL.md`、README 和网页页脚同步改。
 - 原因:Apache 2.0 带明确的专利授权,设备厂商的法务评审更容易通过;和 AOSP、Gemma 4 用同一个许可证。
-- 2026-10-10 之前发布的版本(到 `4d912d9` 为止)仍是 MIT,已经拿到的副本按 MIT 使用。
+- 2026-10-10 之前发布的版本(到 `9e86e11` 为止)仍是 MIT,已经拿到的副本按 MIT 使用。
 
 ### M1 · 核心完成（W1-W3）
 - ✅ 4 个传输 beta：AdbTransport（A/B）、SshTransport（C）、SerialTransport（G）、HybridTransport（智能路由）
