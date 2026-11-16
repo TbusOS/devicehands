@@ -1,6 +1,6 @@
 """Push a new copy of the bench agent and confirm it came back (ADR-060).
 
-The bundle is this hub's own `clients/windows-agent/` folder — the agent
+The bundle is this hub's own `bench-py/` folder — the agent
 mirrors wire constants of `devicehands.remote.protocol`, so the copy that matches the
 running hub is the right one to send. It travels as an image op
 (`agent-update`) over the same job channel as a flash: size + sha256 checked
@@ -38,8 +38,8 @@ from devicehands.remote.flash import EventSink, FlashEvent, FlashResult, FlashSe
 # packs and that side refuses fails the whole update.
 BUNDLE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 BUNDLE_SUFFIXES = (".py", ".bat", ".md", ".txt", ".example")
-BUNDLE_CONFIG = "agent.conf"
-BUNDLE_MAIN = "alb_agent.py"
+BUNDLE_CONFIG = "bench.conf"
+BUNDLE_MAIN = "dhands_bench.py"
 OP = "agent-update"
 # The helper waits up to 60 s for the new build, then rolls back and waits
 # for the old one; transfer and self-check come before that.
@@ -51,11 +51,11 @@ _ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 
 def bundle_dir() -> Path:
     """Where the agent files come from: DHANDS_AGENT_BUNDLE_DIR, else this
-    checkout's clients/windows-agent."""
+    checkout's bench-py."""
     override = os.environ.get("DHANDS_AGENT_BUNDLE_DIR", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path(__file__).resolve().parents[3] / "clients" / "windows-agent"
+    return Path(__file__).resolve().parents[3] / "bench-py"
 
 
 def member_ok(name: str) -> bool:
@@ -70,7 +70,7 @@ def build_of(data: bytes) -> str:
 
 
 def bundle_files(src: Path) -> list[Path]:
-    """The files that make up the agent. agent.conf is never taken from the
+    """The files that make up the agent. bench.conf is never taken from the
     folder: a real config is sent only when the caller passes one."""
     return sorted(
         p for p in src.iterdir() if p.is_file() and p.name != BUNDLE_CONFIG and member_ok(p.name)
@@ -139,7 +139,7 @@ async def update_agent(
             "hand once and restart the agent there; later updates go through this command",
         )
 
-    with tempfile.TemporaryDirectory(prefix="alb-agent-bundle-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="dhands-bench-bundle-") as tmp:
         zpath = Path(tmp) / "agent-bundle.zip"
         try:
             to_build, names = await asyncio.to_thread(make_bundle, src, config_text, zpath)

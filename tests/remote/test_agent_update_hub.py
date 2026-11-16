@@ -21,7 +21,7 @@ from devicehands.remote import protocol as p
 from devicehands.remote.flash import FlashEvent, FlashResult
 from tests.remote.bench_tables import new_agent_ops
 
-_SRC = Path(__file__).resolve().parents[2] / "clients" / "windows-agent"
+_SRC = Path(__file__).resolve().parents[2] / "bench-py"
 
 
 @pytest.fixture(autouse=True)
@@ -36,32 +36,32 @@ def _ephemeral_forward_port(monkeypatch):
 def _folder(tmp_path: Path) -> Path:
     src = tmp_path / "windows-agent"
     src.mkdir()
-    (src / "alb_agent.py").write_bytes(b"print('agent')\n")
-    (src / "run-agent.bat").write_bytes(b"@echo off\r\n")
+    (src / "dhands_bench.py").write_bytes(b"print('agent')\n")
+    (src / "run-bench.bat").write_bytes(b"@echo off\r\n")
     (src / "README.md").write_text("doc")
-    (src / "agent.conf").write_text("token=REAL\n")  # a real config next to the files
+    (src / "bench.conf").write_text("token=REAL\n")  # a real config next to the files
     (src / "notes.log").write_text("x")
     (src / "__pycache__").mkdir()
-    (src / "__pycache__" / "alb_agent.cpython-311.pyc").write_bytes(b"\0")
+    (src / "__pycache__" / "dhands_bench.cpython-311.pyc").write_bytes(b"\0")
     return src
 
 
 def test_the_bundle_is_the_agent_files_and_never_the_folders_own_config(tmp_path):
     src = _folder(tmp_path)
     build, names = au.make_bundle(src, None, tmp_path / "b.zip")
-    assert names == ["README.md", "alb_agent.py", "run-agent.bat"]
+    assert names == ["README.md", "dhands_bench.py", "run-bench.bat"]
     with zipfile.ZipFile(tmp_path / "b.zip") as zf:
         assert sorted(zf.namelist()) == names
-        assert zf.read("run-agent.bat") == b"@echo off\r\n", "bytes travel unchanged"
+        assert zf.read("run-bench.bat") == b"@echo off\r\n", "bytes travel unchanged"
     assert build == au.build_of(b"print('agent')\n")
 
 
 def test_a_config_is_sent_only_when_passed(tmp_path):
     src = _folder(tmp_path)
     _, names = au.make_bundle(src, "hub_url=ws://h\r\ntoken=t\r\n", tmp_path / "b.zip")
-    assert "agent.conf" in names
+    assert "bench.conf" in names
     with zipfile.ZipFile(tmp_path / "b.zip") as zf:
-        assert zf.read("agent.conf") == b"hub_url=ws://h\r\ntoken=t\r\n"
+        assert zf.read("bench.conf") == b"hub_url=ws://h\r\ntoken=t\r\n"
 
 
 def test_identical_files_make_an_identical_bundle(tmp_path):
@@ -73,15 +73,15 @@ def test_identical_files_make_an_identical_bundle(tmp_path):
 
 def test_a_folder_without_the_agent_is_refused(tmp_path):
     src = _folder(tmp_path)
-    (src / "alb_agent.py").unlink()
-    with pytest.raises(ValueError, match=r"alb_agent\.py"):
+    (src / "dhands_bench.py").unlink()
+    with pytest.raises(ValueError, match=r"dhands_bench\.py"):
         au.make_bundle(src, None, tmp_path / "b.zip")
 
 
 def test_the_repo_folder_bundles_cleanly(tmp_path):
     """The real folder: every file it ships passes the agent's rules."""
     build, names = au.make_bundle(_SRC, None, tmp_path / "b.zip")
-    assert "alb_agent.py" in names and "run-agent.bat" in names
+    assert "dhands_bench.py" in names and "run-bench.bat" in names
     assert build == au.local_build(_SRC)
 
 
@@ -155,7 +155,7 @@ async def test_the_old_build_coming_back_rolled_back_is_reported_as_such(tmp_pat
 
 
 async def test_same_agent_file_rolled_back_is_still_told_apart(tmp_path):
-    """Only run-agent.bat changed: both builds have the same digest, so the
+    """Only run-bench.bat changed: both builds have the same digest, so the
     build alone cannot say which came back — the update record can."""
     data = {"to_build": "same", "from_build": "same"}
     reg = _Registry(_Conn("same"), _Conn("same", {"id": "u1", "outcome": "rolled_back"}))
@@ -379,7 +379,7 @@ def test_cli_asks_first_and_sends_nothing_when_declined(hub):
 
 
 def test_cli_sends_the_config_bytes_unchanged(hub, tmp_path):
-    conf = tmp_path / "agent.conf"
+    conf = tmp_path / "bench.conf"
     conf.write_bytes(b"hub_url=ws://h\r\ntoken=t\r\n")
     hub["final"] = {
         "ev": "done",
@@ -389,7 +389,7 @@ def test_cli_sends_the_config_bytes_unchanged(hub, tmp_path):
             "restarting": True,
             "from_build": "old",
             "build": "new",
-            "changed": ["alb_agent.py"],
+            "changed": ["dhands_bench.py"],
         },
     }
     r = runner.invoke(app, ["bench", "agent-update", "--config", str(conf), "--yes"])
@@ -397,7 +397,7 @@ def test_cli_sends_the_config_bytes_unchanged(hub, tmp_path):
     assert hub["runs"] == [
         ("/api/bench", "agent-update", {"config_text": "hub_url=ws://h\r\ntoken=t\r\n"})
     ]
-    assert "old -> new" in r.output and "alb_agent.py" in r.output
+    assert "old -> new" in r.output and "dhands_bench.py" in r.output
 
 
 def test_cli_explains_a_rollback(hub):

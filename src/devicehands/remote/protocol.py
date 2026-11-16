@@ -35,7 +35,7 @@ ADB_TARGET = "127.0.0.1:5037"
 # present the agent token AND the per-channel secret; carrying them as HTTP
 # headers instead of query params keeps them out of the request line, which
 # every access log, proxy log and connection-error message reproduces
-# verbatim. Mirrored as string literals in clients/windows-agent/alb_agent.py
+# verbatim. Mirrored as string literals in bench-py/dhands_bench.py
 # (the agent is standalone and cannot import devicehands).
 TOKEN_HEADER = "x-alb-token"
 CSECRET_HEADER = "x-alb-csecret"

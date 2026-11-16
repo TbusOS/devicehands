@@ -126,7 +126,7 @@ def test_a_failure_uses_the_catalog_advice(hub):
     hub["final"] = {"ev": "done", "ok": False, "code": "BENCH_AGENT_TOO_OLD", "error": ""}
     r = runner.invoke(app, ["bench", "usb"])
     assert r.exit_code == 1
-    assert "BENCH_AGENT_TOO_OLD" in r.output and "alb_agent.py" in r.output
+    assert "BENCH_AGENT_TOO_OLD" in r.output and "dhands_bench.py" in r.output
 
 
 def test_log_passes_source_lines_and_grep(hub):

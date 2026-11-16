@@ -1,6 +1,6 @@
 # Device agent (dial-home)
 
-A small, headless agent that lets a Linux **alb hub** reach an Android device
+A small, headless agent that lets a Linux **DeviceHands hub** (`dhands-hub`) reach an Android device
 that is physically attached to *this* machine (USB for adb, serial for UART).
 
 It dials **out** to the hub over a single WebSocket — so there is **no inbound
@@ -10,14 +10,14 @@ humans (via the web UI) can debug it, all driven from the Linux side.
 
 ## Run (config file + one click — the normal path)
 
-1. Copy `agent.conf.example` to `agent.conf` (same folder) and fill in
+1. Copy `bench.conf.example` to `bench.conf` (same folder) and fill in
    `hub_url` + `token` (+ optionally `name`, and `agent_id` for a stable
    identity across restarts).
-2. Double-click `run-agent.bat`.
+2. Double-click `run-bench.bat`.
 
 The script re-checks the environment on every run and prints each result:
 Python 3.11+ (`python`, falling back to the `py -3` launcher), the two
-dependencies (auto-installed when missing), `agent.conf` presence, adb on
+dependencies (auto-installed when missing), `bench.conf` presence, adb on
 PATH with its current device list (warn-only — serial works without it), and
 the serial ports visible on this machine. Then it prints the status page URL
 and starts the agent. On errors the window stays open so the reason is
@@ -38,21 +38,21 @@ suspects (its own heuristic decides what matches; the hub can never name a
 process) before restarting the server. Default is false: killing a vendor
 tool's adb mid-flash would interrupt it.
 
-`agent.conf` holds your real token, so it is gitignored — only the
+`bench.conf` holds your real token, so it is gitignored — only the
 `.example` is tracked.
 
 ## Run (flags — override any config value)
 
 ```
 pip install -r requirements.txt
-python alb_agent.py --hub-url wss://<hub>/agent/connect --token <token>
+python dhands_bench.py --hub-url wss://<hub>/agent/connect --token <token>
 ```
 
-Precedence: command line > `agent.conf` > built-in defaults.
+Precedence: command line > `bench.conf` > built-in defaults.
 
-- `--config`  — config file path (default: `agent.conf` next to the script).
+- `--config`  — config file path (default: `bench.conf` next to the script).
 - `--hub-url` — the hub's signaling endpoint (`/agent/connect`).
-- `--token`   — must match `ALB_AGENT_TOKEN` configured on the hub. Omit only
+- `--token`   — must match `DHANDS_AGENT_TOKEN` configured on the hub. Omit only
   for a fully local, no-auth dev setup.
 - `--name`    — a human-readable label shown in the hub's device list.
 - `--agent-id`— a stable id (defaults to a random one each run).
@@ -65,8 +65,8 @@ hard-kills the process (serial writes also carry a 2 s timeout, so a
 flow-control-wedged port can no longer block shutdown).
 
 Keep the process running (it auto-reconnects with backoff if the link drops).
-On Windows run it via `run-agent.bat` in a terminal or point Task Scheduler
-at the `.bat` for start-at-boot — set `ALB_AGENT_NO_PAUSE=1` in the task's
+On Windows run it via `run-bench.bat` in a terminal or point Task Scheduler
+at the `.bat` for start-at-boot — set `DHANDS_BENCH_NO_PAUSE=1` in the task's
 environment so an exit never waits for a keypress (interactively the script
 pauses on exit to keep the window readable). A background service wrapper
 can come later.
@@ -79,20 +79,20 @@ one-time setup on the agent host leaves one way in: run
 authorizes that key for this account (for Administrators members in
 `C:\ProgramData\ssh\administrators_authorized_keys`, the only file Windows
 OpenSSH reads for them, locked to Administrators + SYSTEM) and registers a
-scheduled task `alb-agent` that runs `run-agent.bat` in the user's desktop
+scheduled task `dhands-bench` that runs `run-bench.bat` in the user's desktop
 session (also at logon, no 3-day run limit). On the hub, set
-`ALB_BENCH_SSH_HOST` in `deploy/hub/hub.env` to the `~/.ssh/config` Host of
-this machine; then `alb bench agent-start` starts the task over ssh and
+`DHANDS_BENCH_SSH_HOST` in `deploy/hub/hub.env` to the `~/.ssh/config` Host of
+this machine; then `dhands bench agent-start` starts the task over ssh and
 waits for the agent to connect, bringing back the last lines of
-`logs\agent.log` when it does not (plain
-`ssh <user>@<host> schtasks /Run /TN alb-agent` works too). The task, not
+`logs\bench.log` when it does not (plain
+`ssh <user>@<host> schtasks /Run /TN dhands-bench` works too). The task, not
 ssh, starts the agent: a process started by an ssh session has no visible
 window and ends with the session. Needs OpenSSH Server running and the user
 logged on; `setup-remote-start.bat --remove` undoes both changes.
 
 This is a start, not a restart: the task is registered to ignore a new run
 while it is running, so on a running agent `schtasks /Run` reports success
-and changes nothing. `alb bench agent-update` replaces a running agent with
+and changes nothing. `dhands bench agent-update` replaces a running agent with
 new files (and does not restart it when the files are the same); there is no
 plain restart from the hub yet.
 
@@ -102,7 +102,7 @@ The agent serves a localhost-only status page on `http://127.0.0.1:8741`. It
 shows the hub's web-console URL (a clickable `web console` row, derived from
 `hub_url`; the agent window prints it at the bottom of the block it shows once
 connected, after `>>> Web console`, and keeps it in the window title
-`alb agent <name> · connected · <url>`, which turns into
+`dhands bench <name> · connected · <url>`, which turns into
 `DISCONNECTED - retrying` while the hub is gone), the connection state,
 active channels, enumerated devices, and the last error — so you can tell whether the dial-home reached the hub *without* logging
 into the hub, even when the hub never saw the agent (wrong token / hub
@@ -121,7 +121,7 @@ same data for scripted checks.
 To use serial, set the COM + baud on the **hub** (it drives the agent):
 
 ```
-ALB_AGENT_SERIAL_COM=COM27 ALB_AGENT_SERIAL_BAUD=1500000 alb-api
+DHANDS_AGENT_SERIAL_COM=COM27 DHANDS_AGENT_SERIAL_BAUD=1500000 dhands-hub
 ```
 
 - Enumerates attached serial ports on request (`serial.tools.list_ports`).
@@ -147,7 +147,7 @@ so a new op on the agent needs no hub code.
 | `log-tail` | last N lines of a host log, optional substring filter. Sources are names only: `agent` (this agent's own log, when `log_file` is set), `setupapi` (Windows' driver-install log) and `update` (the last remote update, once there has been one) | no |
 | `agent-update` | replace this agent's own files and restart it — see below | no |
 | `edl-sahara` / `edl-program` / `edl-reset` | Qualcomm 9008 (EDL) flashing — see "Qualcomm 9008" below | no (needs the board in 9008) |
-| `tool-run` / `tool-list` | run a vendor flashing tool registered in `agent.conf`, with the arguments the vendor documents — see "Other vendors' download tools" below | no (needs the board in that vendor's download mode) |
+| `tool-run` / `tool-list` | run a vendor flashing tool registered in `bench.conf`, with the arguments the vendor documents — see "Other vendors' download tools" below | no (needs the board in that vendor's download mode) |
 
 Two rules do not change:
 
@@ -176,7 +176,7 @@ fastboot_product.board-a=board_a_product
 flash_partitions.board-b=boot_a,boot_b
 ```
 
-Board names are the hub's board-table names (`alb bench board`). With any
+Board names are the hub's board-table names (`dhands bench board`). With any
 per-board list set:
 
 - every job carries the board the hub has chosen, and the partition must be
@@ -194,7 +194,7 @@ per-board list set:
 
 Some boards only take an image in Qualcomm's emergency download mode (USB
 05c6:9008, "Qualcomm HS-USB QDLoader 9008 (COMnn)" in Device Manager). Three
-lines in `agent.conf` add three ops:
+lines in `bench.conf` add three ops:
 
 ```
 edl_sahara=D:\flash\board-a\tools\QSaharaServer.exe
@@ -241,8 +241,8 @@ with one kind of 9008 board on the host, point them at that board's directory.
 
 ### Other vendors' download tools: registered here, run with their own arguments
 
-Every vendor's download-mode tool takes different arguments, and alb does not
-try to understand them. Register the tool under a name in `agent.conf`; the
+Every vendor's download-mode tool takes different arguments, and dhands does not
+try to understand them. Register the tool under a name in `bench.conf`; the
 caller writes the arguments as the vendor documents them, and the agent
 checks the paths in them and hands them to the tool unchanged.
 
@@ -254,7 +254,7 @@ tool_fail.vt=(?i)fail|error
 tool_note.vt=^Write .* (ok|fail)
 tool_usb.vt=1a2b:3c4d
 tool_usage.vt=hold the recovery key while plugging USB in
-tool_usage.vt=e.g. alb flash tool vt --pkg v12 -- -p {com} -f update.img
+tool_usage.vt=e.g. dhands flash tool vt --pkg v12 -- -p {com} -f update.img
 ```
 
 | key | required | meaning |
@@ -267,13 +267,13 @@ tool_usage.vt=e.g. alb flash tool vt --pkg v12 -- -p {com} -f update.img
 | `tool_fail.<name>` | no | regex; a matching line is a failure, even with exit code 0 |
 | `tool_note.<name>` | no | regex; matching lines are listed in the result |
 | `tool_usb.<name>` | no | `VID:PID`, comma-separated; checked before the run; needed for `{com}` |
-| `tool_usage.<name>` | no | notes shown by `alb flash tools`; repeat the line for more lines |
+| `tool_usage.<name>` | no | notes shown by `dhands flash tools`; repeat the line for more lines |
 
 From the Linux side:
 
 ```bash
-alb flash tools                                   # what is registered, whether its device is attached, usage
-alb flash tool vt --pkg v12 -- -p {com} -f update.img
+dhands flash tools                                   # what is registered, whether its device is attached, usage
+dhands flash tool vt --pkg v12 -- -p {com} -f update.img
 ```
 
 - Everything after `--` reaches the tool as is, without cmd.exe. stdin is
@@ -301,32 +301,32 @@ alb flash tool vt --pkg v12 -- -p {com} -f update.img
   mistakes, not against intent.
 
 Register the `fastboot.exe` you already use as a pass-through tool first and
-compare `alb flash tool fb -- getvar product` with `alb flash getvar product`.
+compare `dhands flash tool fb -- getvar product` with `dhands flash getvar product`.
 
 ## Updating the agent from the hub
 
 Install by hand **once** (copy the folder, close the old agent window, run
-`run-agent.bat`): an agent from before this feature cannot receive updates.
+`run-bench.bat`): an agent from before this feature cannot receive updates.
 After that, from the hub side:
 
 ```bash
-alb bench agent-update                      # program files only; agent.conf here is kept
-alb bench agent-update --config agent.conf  # also replace agent.conf
+dhands bench agent-update                      # program files only; bench.conf here is kept
+dhands bench agent-update --config bench.conf  # also replace bench.conf
 ```
 
-The hub sends its own `clients/windows-agent/` folder. On this host:
+The hub sends its own `bench-py/` folder. On this host:
 
 1. The bundle is checked (size, sha256, flat file names only).
-2. The new code runs `alb_agent.py --self-check` (compiles, imports, reads
+2. The new code runs `dhands_bench.py --self-check` (compiles, imports, reads
    the config). A failure refuses the update; the old build keeps running.
 3. An update helper starts and the old agent exits; its window closes.
-4. The helper backs the current files up to `.alb-agent/backup/`, installs
+4. The helper backs the current files up to `.dhands-bench/backup/`, installs
    the new ones and starts the new build in a new window.
 5. If the new build has not reached the hub within 60 s, the old files go
    back and the old build starts again; the hub reports
-   `AGENT_UPDATE_ROLLED_BACK` and `alb bench log update` shows why.
+   `AGENT_UPDATE_ROLLED_BACK` and `dhands bench log update` shows why.
 
-Identical files restart nothing. `alb bench ops` shows the build this host
+Identical files restart nothing. `dhands bench ops` shows the build this host
 runs and says when the hub has a newer one. The agent window prints the same
 build number at start-up (`starting: build ...`) and on every connect
 (`connected to ... as ... (build ...)`).
@@ -349,7 +349,7 @@ copy the whole folder and give the copy its own `agent_id` / `name`.
   (`127.0.0.1:5037`); it re-checks every request and refuses anything else, so
   it can never be turned into an open proxy on your LAN.
 - Traffic rides the same authenticated `wss://` connection as the hub API.
-- Configure a token (`--token` / `ALB_AGENT_TOKEN`) for any non-loopback hub.
+- Configure a token (`--token` / `DHANDS_AGENT_TOKEN`) for any non-loopback hub.
 - `agent-update` lets whoever drives the hub replace this agent's code, i.e.
   run code on this host. That is accepted for a bench on a trusted network
   (ADR-060); the hub API has no authentication of its own.

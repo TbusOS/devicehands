@@ -238,7 +238,7 @@ async def flash_getvar(body: GetvarBody) -> StreamingResponse:
 class OemBody(BaseModel):
     # Required, no default: an empty oem request is a mistake. The shape rule
     # lives on the AGENT, next to the argv it builds — this bound is only a
-    # sanity ceiling, the same as the agent's (alb_agent._OEM_RE).
+    # sanity ceiling, the same as the agent's (dhands_bench._OEM_RE).
     command: str = Field(..., min_length=1, max_length=256, description="e.g. device-info")
 
 

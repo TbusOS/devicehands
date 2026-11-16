@@ -7,18 +7,18 @@ the hub reach the local adb server and the device's serial / UART port.
 
 Design: see the hub's ADR-050/051/052. This file is intentionally standalone:
 it depends only on the stdlib + `websockets` (+ `pyserial` for serial channels),
-NOT the alb package, so it can be dropped onto a bare host. The wire constants
-below mirror the hub's `alb.remote.protocol` and MUST stay in lockstep with it.
+NOT the devicehands package, so it can be dropped onto a bare host. The wire constants
+below mirror the hub's `devicehands.remote.protocol` and MUST stay in lockstep with it.
 
 Usage (config file — the normal path):
-    copy agent.conf.example agent.conf   # fill in hub_url + token
-    run-agent.bat                        # or: python alb_agent.py
+    copy bench.conf.example bench.conf   # fill in hub_url + token
+    run-bench.bat                        # or: python dhands_bench.py
 
 Usage (flags — override any config value):
     pip install -r requirements.txt   # websockets + pyserial
-    python alb_agent.py --hub-url wss://<hub>/agent/connect --token <token>
+    python dhands_bench.py --hub-url wss://<hub>/agent/connect --token <token>
 
-Precedence: command line > agent.conf > built-in defaults. The config file
+Precedence: command line > bench.conf > built-in defaults. The config file
 lives next to this script by default (`--config` points elsewhere).
 
 The agent maintains the signaling connection (auto-reconnect with backoff) and,
@@ -72,7 +72,7 @@ try:
 except ImportError:
     sys.exit("websockets not installed.  Run: pip install websockets")
 
-_log = logging.getLogger("alb-agent")
+_log = logging.getLogger("dhands-bench")
 
 PROTOCOL_VERSION = 1
 
@@ -82,7 +82,7 @@ PROTOCOL_VERSION = 1
 ADB_TARGET = "127.0.0.1:5037"
 ALLOWED_TCP_TARGETS = frozenset({ADB_TARGET})
 
-# Dial-back credential headers (ADR-055) — mirror alb.remote.protocol. They
+# Dial-back credential headers (ADR-055) — mirror devicehands.remote.protocol. They
 # used to ride the query string, where the hub's access log recorded both in
 # clear text on every channel open. Headers are not logged.
 TOKEN_HEADER = "x-alb-token"
@@ -320,7 +320,7 @@ def _render_status_html(snap: dict[str, Any]) -> str:
     return f"""<!doctype html>
 <html lang=en><head><meta charset=utf-8>
 <meta http-equiv=refresh content=3>
-<title>alb device agent — {state}</title>
+<title>DeviceHands bench — {state}</title>
 <style>
  body{{font:14px/1.5 system-ui,sans-serif;margin:0;background:#faf9f5;color:#2b2a27}}
  .wrap{{max-width:680px;margin:0 auto;padding:24px}}
@@ -335,7 +335,7 @@ def _render_status_html(snap: dict[str, Any]) -> str:
  .muted{{color:#9b968c}}
  code{{font-family:ui-monospace,monospace}}
 </style></head><body><div class=wrap>
-<h1><span class=dot></span> alb device agent — {state}</h1>
+<h1><span class=dot></span> DeviceHands bench — {state}</h1>
 <table class=info>{info}</table>
 {channels}
 </div></body></html>"""
@@ -386,11 +386,11 @@ def _start_status_server(host: str, port: int) -> ThreadingHTTPServer | None:
         started.set()
         httpd.serve_forever()
 
-    threading.Thread(target=_serve, name="alb-agent-status", daemon=True).start()
+    threading.Thread(target=_serve, name="dhands-bench-status", daemon=True).start()
     started.wait(timeout=2.0)  # serve_forever is (about to be) looping → shutdown is safe
     global _STATUS_URL
     _STATUS_URL = f"http://{host}:{port}"
-    _log.info("status page on %s", _STATUS_URL, extra={"alb_where": "file"})
+    _log.info("status page on %s", _STATUS_URL, extra={"dhands_where": "file"})
     return httpd
 
 
@@ -398,7 +398,7 @@ class _HandshakeRejected(Exception):
     """The hub refused the handshake (bad token / version) — fatal, no retry."""
 
 
-# ── wire helpers (mirror alb.remote.protocol) ────────────────────────
+# ── wire helpers (mirror devicehands.remote.protocol) ────────────────────────
 
 
 def _frame(verb: str, **fields: Any) -> str:
@@ -417,7 +417,7 @@ def _hello(agent_id: str, name: str, token: str | None) -> str:
         agent_id=agent_id,
         name=name,
         agent_version=PROTOCOL_VERSION,
-        # Which code is running (ADR-060): what `alb bench agent-update` compares
+        # Which code is running (ADR-060): what `dhands bench agent-update` compares
         # after the restart to tell "updated" from "rolled back".
         build=_BUILD,
         caps=caps,
@@ -629,7 +629,7 @@ async def _handle_serial_channel(
         cid[:8],
         com,
         baud,
-        extra={"alb_short": f"serial {com} opened @ {baud}"},
+        extra={"dhands_short": f"serial {com} opened @ {baud}"},
     )
 
     url = _channel_url(hub_url, cid)
@@ -713,7 +713,7 @@ async def _bridge(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, da
 
 # ── job channel: bench ops on this host (ADR-056 · ADR-059) ──────────
 #
-# Mirrors alb.remote.jobframe + the job vocabulary in alb.remote.protocol.
+# Mirrors devicehands.remote.jobframe + the job vocabulary in devicehands.remote.protocol.
 # Frame: kind(1B) + length(4B BE) + payload;  kind = b"C" control JSON /
 # b"D" data chunk.
 #
@@ -815,7 +815,7 @@ class _JobReader:
         return out
 
 
-# Set once at startup from agent.conf / flags. Module-level because a job
+# Set once at startup from bench.conf / flags. Module-level because a job
 # channel is handled far from the arg parsing, and threading the values
 # through every call would be noise.
 _FASTBOOT_PATH = ""
@@ -823,7 +823,7 @@ _FASTBOOT_PATH = ""
 # but no longer limit anything (ADR-070, 2026-11-12): which partitions a
 # package writes is the vendor's manifest's to say, and a hand-kept copy of
 # it here refused a whole debug package for a board whose list had 3 of its
-# 24 partitions. Kept parseable so an agent.conf that has them still starts;
+# 24 partitions. Kept parseable so an bench.conf that has them still starts;
 # the start-up log says they are ignored.
 _FLASH_PARTITIONS: frozenset[str] = frozenset()
 _BOARD_PARTITIONS: dict[str, frozenset[str]] = {}
@@ -898,7 +898,7 @@ def _getvar_allowed(name: str) -> bool:
 # 以前只放行 at-lock-vboot / at-unlock-vboot 两条(c7a1a83,10-07,理由是有的 oem
 # 命令不可逆)。10-23 定了板子侧命令全部放开、权限只防 Windows 主机上的文件
 # (23aa5f6),这张白名单当时没跟着放开:bootloader 本来允许的 oem 命令(比如让板子
-# 进下载模式的那条),alb 先拦了,板子根本收不到。oem 命令做什么、准不准做,由板子的 bootloader 定,
+# 进下载模式的那条),dhands 先拦了,板子根本收不到。oem 命令做什么、准不准做,由板子的 bootloader 定,
 # 拒了就把它的原话带回来。
 # 剩下的形状规则只为让命令原样到板子,不为限制做什么:
 #   · 不以 `-` 开头:fastboot 会把它当成自己的选项(`-w` 是清 userdata),
@@ -1671,7 +1671,7 @@ def _fit_rows(rows: list[str], budget: int) -> tuple[list[str], bool]:
 #
 # Same rule as every other op (ADR-056 §决定 5): the hub sends names and
 # choices, never a path or a command line. `dir` is a directory RELATIVE to
-# edl_root in agent.conf; the agent joins it, resolves it (links and
+# edl_root in bench.conf; the agent joins it, resolves it (links and
 # junctions included) and refuses anything that lands outside the root.
 # Any package under the root can be used — the root is the boundary, there
 # is no list of allowed packages. The XML and programmer are bare file names
@@ -1874,7 +1874,7 @@ async def _run_edl_tool(
         "job: running %s (in %s)",
         " ".join(argv),
         cwd,
-        extra={"alb_short": f"job   {_exe_name(argv[0])} {' '.join(argv[1:])}"},
+        extra={"dhands_short": f"job   {_exe_name(argv[0])} {' '.join(argv[1:])}"},
     )
     kw: dict[str, Any] = {"creationflags": _CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     try:
@@ -2024,7 +2024,7 @@ async def _op_edl_reset(
     port = await _edl_port(str(values["port"]))
     argv = [tools.firehose, f"--port=\\\\.\\{port}", "--reset", "--noprompt"]
     # Nothing is read from a package; port_trace.txt goes to a scratch directory.
-    work = Path(await asyncio.to_thread(tempfile.mkdtemp, prefix="alb-edl-"))
+    work = Path(await asyncio.to_thread(tempfile.mkdtemp, prefix="dhands-edl-"))
     try:
         rc, out = await _run_edl_tool(
             data_ws, argv, cwd=work, timeout_s=_EDL_RESET_TIMEOUT_S, fail_code="EDL_FIREHOSE_FAILED"
@@ -2043,14 +2043,14 @@ async def _op_edl_reset(
 
 
 # ── builtins: vendor tools (ADR-068) ─────────────────────────────────
-# A chip vendor's download-mode tool, registered on THIS host in agent.conf
+# A chip vendor's download-mode tool, registered on THIS host in bench.conf
 # (`tool_exe.<name>` and friends), run with the caller's own arguments.
 # The agent does not understand those arguments; it checks only what could
 # reach a file outside the package (the path rules below), fills in {pkg}
 # and {com}, runs the tool without a shell, relays every output line, judges
 # the run by the patterns the owner registered, and brings back the files
 # the tool wrote. What a tool may be run at all is decided here, by whoever
-# edits agent.conf — never by the hub.
+# edits bench.conf — never by the hub.
 
 _TOOL_KEYS = (
     "tool_exe",
@@ -2066,7 +2066,7 @@ _TOOL_KEYS = (
 _TOOL_OP_NAMES = frozenset({"tool-run", "tool-list"})
 _TOOL_CWD_MODES = ("package", "job")
 _TOOL_TIMEOUT_DEFAULT_S = 1500
-# Under the hub's 30-minute job limit (src/alb/remote/flash.py JOB_TIMEOUT_S),
+# Under the hub's 30-minute job limit (src/devicehands/remote/flash.py JOB_TIMEOUT_S),
 # so a stuck tool is ended — and reported — by the agent, with its output,
 # before the hub gives up on the job without either.
 _TOOL_TIMEOUT_MAX_S = 1700
@@ -2202,7 +2202,7 @@ def _resolve_tools(raw: Mapping[str, Mapping[str, str]]) -> tuple[dict[str, _Too
 
 
 def _is_windows_absolute(path: str) -> bool:
-    """`D:\\x` / `D:/x` read as absolute on any host, so a Windows agent.conf
+    """`D:\\x` / `D:/x` read as absolute on any host, so a Windows bench.conf
     can be checked (self-check, tests) where it does not run."""
     return bool(re.match(r"^[A-Za-z]:[\\/]", path))
 
@@ -2328,7 +2328,7 @@ async def _tool_port(tool: _Tool, requested: str, uses_com: bool) -> str:
         if uses_com:
             raise _JobRejected(
                 "BENCH_TOOL_ARG_REJECTED",
-                f"{{com}} needs tool_usb.{tool.name} (the device's VID:PID) in agent.conf",
+                f"{{com}} needs tool_usb.{tool.name} (the device's VID:PID) in bench.conf",
             )
         return ""
     devices = await _tool_usb_devices(30.0)
@@ -2480,7 +2480,7 @@ async def _run_vendor_tool(
         tool.name,
         subprocess.list2cmdline(argv),
         cwd,
-        extra={"alb_short": f"job   {tool.name} {subprocess.list2cmdline(argv[1:])}".rstrip()},
+        extra={"dhands_short": f"job   {tool.name} {subprocess.list2cmdline(argv[1:])}".rstrip()},
     )
     kw: dict[str, Any] = (
         {"creationflags": _CREATE_NO_WINDOW}
@@ -2694,7 +2694,7 @@ async def _op_tool_run(
         cwd = pkg
     else:
         scratch = cwd = Path(
-            await asyncio.to_thread(tempfile.mkdtemp, prefix=f"alb-tool-{tool.name}-")
+            await asyncio.to_thread(tempfile.mkdtemp, prefix=f"dhands-tool-{tool.name}-")
         )
     started = time.monotonic()
     try:
@@ -2748,7 +2748,7 @@ async def _op_tool_run(
     if judged_by == "exit_code_only":
         data["note"] = (
             f"judged by the exit code only — some tools exit 0 after a failure; read the output "
-            f"or check the board (tool_ok.{tool.name} in agent.conf makes this stricter)"
+            f"or check the board (tool_ok.{tool.name} in bench.conf makes this stricter)"
         )
     return tail, data
 
@@ -3077,7 +3077,7 @@ def _tool_rows(tools: Mapping[str, _Tool], problems: tuple[str, ...] = ()) -> li
         OpSpec(
             "tool-run",
             "tool",
-            "run a vendor tool registered in the bench agent.conf with your own arguments "
+            "run a vendor tool registered in the bench host's bench.conf with your own arguments "
             "(args, a list); pkg is a directory under that tool's tool_root, {pkg} and {com} "
             "in an argument become the package path and the device's COM port",
             params=(
@@ -3087,7 +3087,7 @@ def _tool_rows(tools: Mapping[str, _Tool], problems: tuple[str, ...] = ()) -> li
                     choices=tuple(tools),
                     code="BENCH_TOOL_UNKNOWN",
                     label="tool",
-                    hint="register one with tool_exe.<name> and tool_root.<name> in agent.conf",
+                    hint="register one with tool_exe.<name> and tool_root.<name> in bench.conf",
                 ),
                 ParamSpec(
                     "pkg",
@@ -3127,7 +3127,7 @@ def _tool_rows(tools: Mapping[str, _Tool], problems: tuple[str, ...] = ()) -> li
         OpSpec(
             "tool-list",
             "tool",
-            "the vendor tools registered in the bench agent.conf: usage, settings, and "
+            "the vendor tools registered in the bench host's bench.conf: usage, settings, and "
             "whether each one's USB device is attached now",
             mutates=False,
             exclusive=False,
@@ -3255,12 +3255,12 @@ async def _run_job(data_ws: Any, ops: Mapping[str, OpSpec], *, hint: str | None 
         if op in _EDL_OP_NAMES:
             why = (
                 f"{why}: this agent has no EDL tools configured "
-                f"(edl_sahara, edl_firehose and edl_root in agent.conf){_edl_problem_note()}"
+                f"(edl_sahara, edl_firehose and edl_root in bench.conf){_edl_problem_note()}"
             )
         elif op in _TOOL_OP_NAMES:
             why = (
                 f"{why}: this agent has no vendor tool registered "
-                f"(tool_exe.<name> and tool_root.<name> in agent.conf){_tool_problem_note()}"
+                f"(tool_exe.<name> and tool_root.<name> in bench.conf){_tool_problem_note()}"
             )
         await _job_fail(data_ws, why, code="BENCH_OP_UNKNOWN")
         return
@@ -3450,10 +3450,10 @@ async def _device_product(fastboot: str) -> tuple[str, str]:
 async def _check_board_identity(spec: OpSpec, req: Mapping[str, Any], fastboot: str) -> None:
     """Refuse (FLASH_BOARD_MISMATCH) unless the board in fastboot is the
     board the request names. Only for ops that change the device, only when
-    agent.conf gives that board a `fastboot_product`.
+    bench.conf gives that board a `fastboot_product`.
 
     The board name says which list applies; it does not say which board is
-    on the cable. Someone swaps the cable and forgets `alb bench board use`,
+    on the cable. Someone swaps the cable and forgets `dhands bench board use`,
     and every write would go to the other board under the wrong list. One
     ~20 ms query before anything is written closes that."""
     if not spec.mutates or spec.needs != "fastboot-device" or not _BOARD_PRODUCT:
@@ -3463,22 +3463,22 @@ async def _check_board_identity(spec: OpSpec, req: Mapping[str, Any], fastboot: 
     # Once any board has a product, a write that cannot be checked is
     # refused. These refusals used to come from the per-board partition
     # lists (a request with no board, or a board without a list); with
-    # the lists gone (ADR-070) a forgotten `alb bench board use` would
+    # the lists gone (ADR-070) a forgotten `dhands bench board use` would
     # otherwise write to whatever board is on the cable, unchecked.
     if not isinstance(board, str) or not board:
         raise _JobRejected(
             "FLASH_BOARD_NOT_LISTED",
             f"this agent checks which board is on the cable before writing "
             f"(fastboot_product for: {have}) and the request names no board — choose "
-            "one on the hub with `alb bench board use`; nothing was changed",
+            "one on the hub with `dhands bench board use`; nothing was changed",
         )
     want = _BOARD_PRODUCT.get(board)
     if not want:
         raise _JobRejected(
             "FLASH_BOARD_NOT_LISTED",
-            f"board {board[:64]!r} has no fastboot_product in agent.conf (set for: {have}), "
+            f"board {board[:64]!r} has no fastboot_product in bench.conf (set for: {have}), "
             "so this agent cannot check it is the board on the cable — add "
-            f"fastboot_product.{board[:64]}=<what `alb flash getvar product` answers>; "
+            f"fastboot_product.{board[:64]}=<what `dhands flash getvar product` answers>; "
             "nothing was changed",
         )
     got, text = await _device_product(fastboot)
@@ -3487,14 +3487,14 @@ async def _check_board_identity(spec: OpSpec, req: Mapping[str, Any], fastboot: 
     if not got:
         raise _JobRejected(
             "FLASH_BOARD_MISMATCH",
-            f"board {board!r} is product {want!r} in agent.conf, and `fastboot getvar product` "
+            f"board {board!r} is product {want!r} in bench.conf, and `fastboot getvar product` "
             f"named no product ({text[-200:]!r}) — nothing was changed",
         )
     raise _JobRejected(
         "FLASH_BOARD_MISMATCH",
         f"the board in fastboot is product {got!r}, but board {board!r} is {want!r} — "
         "another board is on the cable, or the hub has the wrong one chosen "
-        "(`alb bench board use`); nothing was changed",
+        "(`dhands bench board use`); nothing was changed",
     )
 
 
@@ -3551,7 +3551,7 @@ async def _run_image_op(
     # anywhere on the agent host".
     digest = hashlib.sha256()
     received = 0
-    tmp_dir = Path(await asyncio.to_thread(tempfile.mkdtemp, prefix="alb-flash-"))
+    tmp_dir = Path(await asyncio.to_thread(tempfile.mkdtemp, prefix="dhands-flash-"))
     tmp_img = tmp_dir / "image.bin"
     try:
         # Every disk touch here goes through a worker thread. Writing a large
@@ -3641,7 +3641,7 @@ async def _run_fastboot(
     _log.info(
         "job: running %s",
         " ".join(argv[1:]),
-        extra={"alb_short": f"job   fastboot {' '.join(argv[1:])}"},
+        extra={"dhands_short": f"job   fastboot {' '.join(argv[1:])}"},
     )
     proc = await asyncio.create_subprocess_exec(
         *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -3727,10 +3727,10 @@ async def _job_finish(
 #    agent restarts itself on it — or goes back to the old copy when the
 #    new one does not reach the hub.
 #
-# "The same agent" is the same config file: one agent.conf = one bench
+# "The same agent" is the same config file: one bench.conf = one bench
 # identity. Two agents on one host, each with its own folder (or its own
 # --config), never touch each other. Each running agent leaves a record in
-# <its folder>/.alb-agent/instance-<key>.json; a newer start reads it, asks
+# <its folder>/.dhands-bench/instance-<key>.json; a newer start reads it, asks
 # that process to stop through a stop-<pid> file the process polls, and
 # kills it only when it does not go.
 #
@@ -3739,17 +3739,17 @@ async def _job_finish(
 # replaced and its COM ports reopened, and the code doing the swap should be
 # the code already proven to run here, not the code that just arrived.
 
-_EXIT_REPLACED = 75  # run-agent.bat closes its window on this instead of pausing
-_STATE_DIR_NAME = ".alb-agent"
-_LAUNCHER_ENV = "ALB_AGENT_LAUNCHER"  # set by run-agent.bat
-_LAUNCHER_BAT = "run-agent.bat"
-# The bundle rules. MUST stay in lockstep with alb.remote.agent_update, which
+_EXIT_REPLACED = 75  # run-bench.bat closes its window on this instead of pausing
+_STATE_DIR_NAME = ".dhands-bench"
+_LAUNCHER_ENV = "DHANDS_BENCH_LAUNCHER"  # set by run-bench.bat
+_LAUNCHER_BAT = "run-bench.bat"
+# The bundle rules. MUST stay in lockstep with devicehands.remote.agent_update, which
 # builds the bundle: flat names only (no separator, no leading dot), so no
 # member can land outside the folder it is unpacked into.
 _BUNDLE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 _BUNDLE_SUFFIXES = (".py", ".bat", ".md", ".txt", ".example")
-_BUNDLE_CONFIG = "agent.conf"
-_BUNDLE_MAIN = "alb_agent.py"
+_BUNDLE_CONFIG = "bench.conf"
+_BUNDLE_MAIN = "dhands_bench.py"
 _BUNDLE_MAX_BYTES = 16 * 1024 * 1024
 _BUNDLE_MAX_FILES = 64
 _SELF_CHECK_TIMEOUT_S = 60.0
@@ -3786,7 +3786,7 @@ _INSTANCE: dict[str, Any] = {}
 _LAUNCH_ARGV: list[str] = []
 _CONFIG_USED = ""
 _CONFIG_EXPLICIT = False
-# False without a fixed agent_id (agent.conf or --agent-id): the restarted
+# False without a fixed agent_id (bench.conf or --agent-id): the restarted
 # copy would get a new random id, and the hub — which waits for THIS id to
 # come back — could never tell that it did.
 _IDENTITY_STABLE = False
@@ -3931,7 +3931,7 @@ def _win_process_table() -> dict[int, tuple[int, str]]:
 
 
 def _win_console_ancestor(pid: int) -> int:
-    """Windows: the cmd.exe running run-agent.bat for agent `pid` (through
+    """Windows: the cmd.exe running run-bench.bat for agent `pid` (through
     the py launcher when the bat used it), or 0."""
     table = _win_process_table()
     cur = table.get(pid, (0, ""))[0]
@@ -3993,7 +3993,7 @@ def _same_process(rec: Mapping[str, Any]) -> bool:
     The PID alone is not enough: after a reboot the number belongs to some
     other program, and "stop the previous agent" would stop that one.
     Windows: the creation time must match what the process recorded about
-    itself. Elsewhere: its command line must still name alb_agent.py."""
+    itself. Elsewhere: its command line must still name dhands_bench.py."""
     try:
         pid = int(rec.get("pid") or 0)
         recorded = float(rec.get("created") or 0)
@@ -4099,7 +4099,7 @@ def _process_table() -> dict[int, tuple[int, str]]:
 def _win_cmdline(pid: int) -> str:
     """Windows: the command line of the live process `pid`, or "".
 
-    The exe name cannot tell run-agent.bat's `python -c` checks from the
+    The exe name cannot tell run-bench.bat's `python -c` checks from the
     agent itself — all are python.exe."""
     import ctypes
     from ctypes import wintypes
@@ -4364,7 +4364,7 @@ def _stop_instance(
         elif now > deadline:
             say(f"pid {pid} did not stop within {grace_s:.0f}s — killing it")
             console = int(rec.get("console_pid") or 0)
-            # Its window too: a killed agent leaves run-agent.bat at "press
+            # Its window too: a killed agent leaves run-bench.bat at "press
             # any key", reading a file that is about to be replaced.
             if (
                 console
@@ -4634,7 +4634,7 @@ def _relaunch_argv() -> list[str]:
 
 
 def _relaunch_mode(install: Path) -> str:
-    """Restart the way it was started: through run-agent.bat (its own window,
+    """Restart the way it was started: through run-bench.bat (its own window,
     its environment checks) when that is how this one came up."""
     if (
         sys.platform == "win32"
@@ -4696,7 +4696,7 @@ def _update_stalled() -> None:
     if not _shutdown.is_set() and _STOP_REASON.startswith("this agent is restarting"):
         _log.warning(
             "the update helper never asked this agent to stop — carrying on with build %s "
-            "(see .alb-agent/update.log)",
+            "(see .dhands-bench/update.log)",
             _BUILD,
         )
         _STOP_REASON = ""
@@ -4713,7 +4713,7 @@ async def _op_agent_update(_spec: OpSpec, values: Mapping[str, Any]) -> tuple[st
     if not _IDENTITY_STABLE:
         raise _JobRejected(
             "AGENT_UPDATE_REJECTED",
-            "this agent has no fixed identity (no agent_id in agent.conf, no --agent-id), "
+            "this agent has no fixed identity (no agent_id in bench.conf, no --agent-id), "
             "so its restarted copy could not be recognised — set agent_id; nothing was changed",
         )
     install = _install_dir()
@@ -4722,9 +4722,9 @@ async def _op_agent_update(_spec: OpSpec, values: Mapping[str, Any]) -> tuple[st
     names = await asyncio.to_thread(_unpack_bundle, Path(values["image"]), staged)
     has_config = _BUNDLE_CONFIG in names
     if has_config and not _CONFIG_USED:
-        # Running on flags alone: a new agent.conf would be read on restart
+        # Running on flags alone: a new bench.conf would be read on restart
         # (the default path) and could change who this agent is.
-        raise _reject_bundle("this agent runs without a config file, so it takes no agent.conf")
+        raise _reject_bundle("this agent runs without a config file, so it takes no bench.conf")
     code_files = [n for n in names if n != _BUNDLE_CONFIG]
     config_target = Path(_CONFIG_USED) if _CONFIG_USED else install / _BUNDLE_CONFIG
     changed = await asyncio.to_thread(
@@ -4751,7 +4751,7 @@ async def _op_agent_update(_spec: OpSpec, values: Mapping[str, Any]) -> tuple[st
         # The hub waits for THIS agent_id to come back; under another one
         # (or a random one) a good update would read as "never returned".
         raise _reject_bundle(
-            f"the pushed agent.conf would make this agent {check.get('agent_id')!r} "
+            f"the pushed bench.conf would make this agent {check.get('agent_id')!r} "
             f"instead of {_AGENT_ID!r} — keep agent_id the same"
         )
 
@@ -4807,7 +4807,7 @@ async def _op_agent_update(_spec: OpSpec, values: Mapping[str, Any]) -> tuple[st
     )
 
 
-# ── the update helper (`alb_agent.py --apply-update <plan>`) ─────────
+# ── the update helper (`dhands_bench.py --apply-update <plan>`) ─────────
 
 
 def _update_logger(path: Path) -> Callable[[str], None]:
@@ -4824,7 +4824,7 @@ def _update_logger(path: Path) -> Callable[[str], None]:
 
 
 def _put_file(src: Path, dst: Path) -> None:
-    tmp = dst.with_name(dst.name + ".alb-new")
+    tmp = dst.with_name(dst.name + ".dhands-new")
     shutil.copy2(src, tmp)
     _replace_retry(tmp, dst)
 
@@ -4990,7 +4990,7 @@ def _apply_update(plan_path: Path, progress: dict[str, Any]) -> int:
         say("the running agent could not be stopped — update abandoned, nothing was changed")
         return 1
     progress["stopped"] = True
-    # run-agent.bat reads itself line by line while it runs: let the stopped
+    # run-bench.bat reads itself line by line while it runs: let the stopped
     # agent's window finish its last lines before that file is replaced.
     time.sleep(2.0)
     try:
@@ -5286,7 +5286,7 @@ async def _run_session(args: argparse.Namespace) -> None:
             args.hub_url,
             args.agent_id,
             _BUILD,
-            extra={"alb_where": "file"},
+            extra={"dhands_where": "file"},
         )
         _STATUS.on_connected()
         _console_title("connected", args.hub_url, args.name)
@@ -5443,14 +5443,14 @@ def _install_signal_handlers() -> None:
             signal.signal(signal.SIGBREAK, handler)
 
 
-# ── config file (agent.conf) ─────────────────────────────────────────
+# ── config file (bench.conf) ─────────────────────────────────────────
 # Minimal KEY=VALUE file next to this script, so a permanent bench setup is
-# "fill the file, double-click run-agent.bat" — no flags to remember. The
+# "fill the file, double-click run-bench.bat" — no flags to remember. The
 # parser is deliberately hand-rolled (~30 lines, zero deps) and hardened for
 # how the file is actually edited on Windows: Notepad's UTF-8 BOM, CRLF line
 # endings, values that contain '=' or '#' (tokens), and copy-pasted quotes.
 
-DEFAULT_CONFIG_NAME = "agent.conf"
+DEFAULT_CONFIG_NAME = "bench.conf"
 
 
 def _port_number(value: str) -> int:
@@ -5489,7 +5489,7 @@ _BOARD_CONFIG_KEYS = {
     "flash_partitions": "board_flash_partitions",
     "fastboot_product": "board_fastboot_product",
 }
-# Same rule as the hub's board table (alb.remote.bench_board).
+# Same rule as the hub's board table (devicehands.remote.bench_board).
 _BOARD_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}\Z")
 # `<key>.<tool>` keys (ADR-068): one vendor tool per name, collected into
 # args.tool_config = {tool: {key: value}}. Config file only, like the
@@ -5499,7 +5499,7 @@ _TOOL_CONFIG_DEST = "tool_config"
 
 
 def _default_config_path() -> Path:
-    """agent.conf next to this script — NOT the CWD, which is system32 when
+    """bench.conf next to this script — NOT the CWD, which is system32 when
     launched from Task Scheduler."""
     return Path(__file__).resolve().parent / DEFAULT_CONFIG_NAME
 
@@ -5507,7 +5507,7 @@ def _default_config_path() -> Path:
 def _load_config(path: Path) -> dict[str, Any]:
     """Parse a KEY=VALUE config file into {argparse dest: converted value}.
 
-    Rules (mirrored in agent.conf.example): one KEY=VALUE per line; comments
+    Rules (mirrored in bench.conf.example): one KEY=VALUE per line; comments
     on their own line only (a '#' inside a value is kept — tokens may contain
     it); only the first '=' splits key from value (values may contain '=');
     one pair of surrounding quotes is stripped; an empty value means "unset" —
@@ -5580,17 +5580,17 @@ def _load_config(path: Path) -> dict[str, Any]:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Two-pass parse: find --config, merge the file's values in as argparse
     defaults, then parse fully — so explicit flags always win over the file."""
-    ap = argparse.ArgumentParser(description="alb dial-home device agent")
+    ap = argparse.ArgumentParser(description="DeviceHands bench (dial-home agent)")
     ap.add_argument(
         "--config",
         default=None,
         help=f"config file (default: {DEFAULT_CONFIG_NAME} next to this script)",
     )
     ap.add_argument(
-        "--hub-url", default=None, help="wss://<hub>/agent/connect (or hub_url in agent.conf)"
+        "--hub-url", default=None, help="wss://<hub>/agent/connect (or hub_url in bench.conf)"
     )
     ap.add_argument(
-        "--token", default=None, help="agent auth token (matches ALB_AGENT_TOKEN on the hub)"
+        "--token", default=None, help="agent auth token (matches DHANDS_AGENT_TOKEN on the hub)"
     )
     ap.add_argument("--name", default="device-agent", help="human-readable agent name")
     ap.add_argument("--agent-id", default=None, help="stable agent id (default: random)")
@@ -5614,7 +5614,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument(
         "--fastboot-path",
         default=None,
-        help="fastboot executable (or fastboot_path in agent.conf); "
+        help="fastboot executable (or fastboot_path in bench.conf); "
         "defaults to whatever is on PATH. Absent = this agent reports no "
         "fastboot capability and the hub says so immediately",
     )
@@ -5622,24 +5622,24 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--flash-partitions",
         default=None,
         help="comma-separated partition allowlist (or flash_partitions in "
-        "agent.conf). Empty = any well-formed name is accepted",
+        "bench.conf). Empty = any well-formed name is accepted",
     )
     ap.add_argument(
         "--edl-sahara",
         default=None,
-        help="QSaharaServer executable (or edl_sahara in agent.conf); with "
+        help="QSaharaServer executable (or edl_sahara in bench.conf); with "
         "--edl-firehose and --edl-root, enables the edl-* ops",
     )
     ap.add_argument(
         "--edl-firehose",
         default=None,
-        help="fh_loader executable (or edl_firehose in agent.conf)",
+        help="fh_loader executable (or edl_firehose in bench.conf)",
     )
     ap.add_argument(
         "--edl-root",
         default=None,
         help="directory holding the unpacked factory packages (or edl_root in "
-        "agent.conf); every edl-* `dir` is relative to it and must stay inside it",
+        "bench.conf); every edl-* `dir` is relative to it and must stay inside it",
     )
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument(
@@ -5683,21 +5683,21 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 # is up, and the address in the window title, where it stays visible.
 #
 # A record says where it goes with `extra`:
-#   alb_where="file"     log file only (the detail behind the block)
-#   alb_where="console"  window only (the block, the "connecting" line)
-#   alb_short="..."      the window shows this instead of the message
-#   alb_block=[(text, style), ...]  printed as is, no time stamp
+#   dhands_where="file"     log file only (the detail behind the block)
+#   dhands_where="console"  window only (the block, the "connecting" line)
+#   dhands_short="..."      the window shows this instead of the message
+#   dhands_block=[(text, style), ...]  printed as is, no time stamp
 
 _ANSI_STYLES = {"bold": "\x1b[1m", "green": "\x1b[1;32m", "yellow": "\x1b[33m", "red": "\x1b[1;31m"}
 _ANSI_RESET = "\x1b[0m"
 
 
 def _to_file(record: logging.LogRecord) -> bool:
-    return getattr(record, "alb_where", "") != "console"
+    return getattr(record, "dhands_where", "") != "console"
 
 
 def _to_console(record: logging.LogRecord) -> bool:
-    return getattr(record, "alb_where", "") != "file"
+    return getattr(record, "dhands_where", "") != "file"
 
 
 class _ConsoleFormatter(logging.Formatter):
@@ -5714,10 +5714,10 @@ class _ConsoleFormatter(logging.Formatter):
         return f"{_ANSI_STYLES[style]}{text}{_ANSI_RESET}"
 
     def format(self, record: logging.LogRecord) -> str:
-        block = getattr(record, "alb_block", None)
+        block = getattr(record, "dhands_block", None)
         if block is not None:
             return "\n".join(self.paint(text, style) for text, style in block)
-        short = getattr(record, "alb_short", None)
+        short = getattr(record, "dhands_short", None)
         text = short if isinstance(short, str) else record.getMessage()
         if record.exc_info:
             if not record.exc_text:
@@ -5779,17 +5779,17 @@ _CONSOLE: _ConsoleLog | None = None
 
 
 def _console_title(state: str, hub_url: str, name: str) -> None:
-    """`alb agent <name> · <state> · <web console URL>` in the title bar,
+    """`dhands bench <name> · <state> · <web console URL>` in the title bar,
     set from the console thread (see _ConsoleLog for why)."""
     web = _web_ui_url(hub_url)
-    text = " · ".join(p for p in (f"alb agent {name}", state, web) if p)
+    text = " · ".join(p for p in (f"dhands bench {name}", state, web) if p)
     if _CONSOLE is not None:
         _CONSOLE.set_title(text)
 
 
 def _console_line(text: str) -> None:
     """A line for the window only."""
-    _log.info("%s", text, extra={"alb_where": "console"})
+    _log.info("%s", text, extra={"dhands_where": "console"})
 
 
 def _plural(n: int, word: str) -> str:
@@ -5837,7 +5837,7 @@ def _banner_lines(
         else:
             body.append("  partitions  any well-formed name")
     else:
-        body.append("  fastboot  not found - flashing is off (fastboot_path in agent.conf)")
+        body.append("  fastboot  not found - flashing is off (fastboot_path in bench.conf)")
     if edl is not None:
         body.append(f"  9008      {_exe_name(edl[0])} + {_exe_name(edl[1])}")
     elif edl_problem:
@@ -5845,13 +5845,13 @@ def _banner_lines(
     if tools or tool_problems:
         line = f"  tools     {', '.join(tools) or 'none'}"
         if tools:
-            line += "    (details: alb flash tools)"
+            line += "    (details: dhands flash tools)"
         if tool_problems:
             line += f"  - {tool_problems} not offered, see the warnings above"
         body.append(line)
     if log_path:
         body.append(f"  log file  {log_path} (full detail)")
-    head = f"  alb agent {name} · build {build} · CONNECTED to hub"
+    head = f"  dhands bench {name} · build {build} · CONNECTED to hub"
     tail: list[tuple[str, str]] = []
     if web_url:
         tail += [
@@ -5895,7 +5895,7 @@ def _show_banner(args: argparse.Namespace) -> None:
         status_url=_STATUS_URL,
     )
     _log.info(
-        "%s", "\n".join(t for t, _ in lines), extra={"alb_where": "console", "alb_block": lines}
+        "%s", "\n".join(t for t, _ in lines), extra={"dhands_where": "console", "dhands_block": lines}
     )
 
 
@@ -5987,7 +5987,7 @@ def _setup_file_logging(log_file: str) -> None:
     # Remember where it went: `log-tail agent` reads exactly this file.
     global _AGENT_LOG_PATH
     _AGENT_LOG_PATH = path
-    _log.info("logging to %s", path, extra={"alb_where": "file"})
+    _log.info("logging to %s", path, extra={"dhands_where": "file"})
 
 
 def _route_uncaught_to_log() -> None:
@@ -6027,7 +6027,7 @@ def _log_environment(args: argparse.Namespace) -> None:
     """Startup lines with everything a post-mortem needs (never the token).
     Log file only: the window shows _show_banner's block once connected;
     warnings still go to both."""
-    detail = {"alb_where": "file"}
+    detail = {"dhands_where": "file"}
     try:
         import serial
 
@@ -6056,7 +6056,7 @@ def _log_environment(args: argparse.Namespace) -> None:
         _log.info("fastboot: %s · partitions: any well-formed name", _fastboot_path(), extra=detail)
         if _FLASH_PARTITIONS or _BOARD_PARTITIONS:
             _log.warning(
-                "flash_partitions in agent.conf is no longer used (ADR-070): which partitions "
+                "flash_partitions in bench.conf is no longer used (ADR-070): which partitions "
                 "a package writes is its manifest's to say — the lines can be removed"
             )
         for board, row in _boards_view().items():
@@ -6064,7 +6064,7 @@ def _log_environment(args: argparse.Namespace) -> None:
     else:
         _log.info(
             "fastboot: not found — this agent will NOT advertise the fastboot "
-            "capability (set fastboot_path in agent.conf to enable flashing)",
+            "capability (set fastboot_path in bench.conf to enable flashing)",
             extra=detail,
         )
     if _EDL is not None:
@@ -6135,7 +6135,7 @@ def _apply_flash_config(args: argparse.Namespace) -> None:
     try:
         tools, problems = _resolve_tools(getattr(args, _TOOL_CONFIG_DEST, None) or {})
     except ValueError as e:
-        sys.exit(f"agent.conf: {e}")
+        sys.exit(f"bench.conf: {e}")
     _TOOLS, _TOOL_PROBLEMS = tools, tuple(problems)
     # The op table follows from the same resolution (ADR-059): fastboot rows
     # only when the tool resolved, log-tail sources from what is configured.

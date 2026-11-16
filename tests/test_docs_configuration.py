@@ -6,10 +6,9 @@ used to be missing: of the 43 ``ALB_*`` variables the code knew on
 learn that e.g. ``DHANDS_SERIAL_DEVICE`` is the only way to pin a local
 ``/dev/ttyUSB*``. These tests fail as soon as the code and the page drift.
 
-What counts as a variable "the code reads": every ``DHANDS_[A-Z0-9_]+`` name
-(``ALB_[A-Z0-9_]+`` in the bench program, not renamed yet) in
+What counts as a variable "the code reads": every ``DHANDS_[A-Z0-9_]+`` name in
 a **string literal** (including docstrings and the text parts of f-strings)
-of ``src/devicehands/**/*.py`` and ``clients/windows-agent/*.py``. Comments do not
+of ``src/devicehands/**/*.py`` and ``bench-py/*.py``. Comments do not
 count. A name only mentioned in a help text or an error suggestion still
 counts on purpose: a user is told to set it, so the page must say what it
 does — or that it does nothing (``DHANDS_OPENAI_COMPAT_MODEL`` is such a case).
@@ -29,23 +28,17 @@ from devicehands.infra import config as config_mod
 
 _ROOT = Path(__file__).resolve().parents[1]
 _DOC = _ROOT / "docs" / "configuration.md"
-_AGENT = _ROOT / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT = _ROOT / "bench-py" / "dhands_bench.py"
 # A whole name only: "DHANDS_SSH_*" (a prefix with a wildcard) is not a name.
-# DHANDS_ is the prefix of the main program. The bench program
-# (clients/windows-agent) still uses ALB_ until it is renamed in a later step.
-_NAME = re.compile(r"(?<![A-Za-z0-9_])(?:DHANDS|ALB)_[A-Z0-9_]*[A-Z0-9](?![A-Za-z0-9_*])")
+# DHANDS_ is the prefix of both the main program and the bench program.
+_NAME = re.compile(r"(?<![A-Za-z0-9_])DHANDS_[A-Z0-9_]*[A-Z0-9](?![A-Za-z0-9_*])")
 
-NOT_CONFIG: dict[str, str] = {
-    # alb_agent.py's --token help text still names the hub variable by its
-    # old name; the hub reads DHANDS_AGENT_TOKEN. The bench program is renamed
-    # in a later step, then this entry goes.
-    "ALB_AGENT_TOKEN": "old name of DHANDS_AGENT_TOKEN in the bench program's help text",
-}
+NOT_CONFIG: dict[str, str] = {}
 
 
 def _code_files() -> list[Path]:
     return sorted((_ROOT / "src" / "devicehands").rglob("*.py")) + sorted(
-        (_ROOT / "clients" / "windows-agent").glob("*.py")
+        (_ROOT / "bench-py").glob("*.py")
     )
 
 
@@ -73,7 +66,7 @@ def test_scan_sees_the_code() -> None:
     assert len(files) >= 100, f"only {len(files)} files scanned: is _ROOT right?"
     names = code_env_names()
     # Fixed points that must be found, or the scan itself is broken.
-    for known in ("DHANDS_SERIAL_DEVICE", "DHANDS_AGENT_TOKEN", "ALB_AGENT_LAUNCHER"):
+    for known in ("DHANDS_SERIAL_DEVICE", "DHANDS_AGENT_TOKEN", "DHANDS_BENCH_LAUNCHER"):
         assert known in names, f"{known} not found in the code scan — scan is broken"
 
 
@@ -118,7 +111,7 @@ def _config_file_keys() -> list[str]:
 
 
 def _agent_conf_keys() -> list[str]:
-    """agent.conf keys from alb_agent.py's _CONFIG_KEYS / _BOARD_CONFIG_KEYS.
+    """bench.conf keys from dhands_bench.py's _CONFIG_KEYS / _BOARD_CONFIG_KEYS.
 
     Read with ast, not imported: the agent is a standalone script."""
     tree = ast.parse(_AGENT.read_text(encoding="utf-8"), filename=str(_AGENT))
@@ -132,7 +125,7 @@ def _agent_conf_keys() -> list[str]:
         if target in ("_CONFIG_KEYS", "_BOARD_CONFIG_KEYS") and isinstance(value, ast.Dict):
             tables[target] = [k.value for k in value.keys if isinstance(k, ast.Constant)]
     assert set(tables) == {"_CONFIG_KEYS", "_BOARD_CONFIG_KEYS"}, (
-        f"agent.conf key tables not found in {_AGENT.name}: found {sorted(tables)}"
+        f"bench.conf key tables not found in {_AGENT.name}: found {sorted(tables)}"
     )
     return tables["_CONFIG_KEYS"] + [f"{k}.<board>" for k in tables["_BOARD_CONFIG_KEYS"]]
 
@@ -143,7 +136,7 @@ def test_every_config_file_key_is_documented() -> None:
     doc = _doc_text()
     missing = sorted(
         {f"config.toml/profile: {k}" for k in _config_file_keys() if f"`{k}`" not in doc}
-        | {f"agent.conf: {k}" for k in _agent_conf_keys() if f"`{k}`" not in doc}
+        | {f"bench.conf: {k}" for k in _agent_conf_keys() if f"`{k}`" not in doc}
     )
     assert not missing, (
         "config-file key(s) missing from docs/configuration.md (write each in backticks):\n"

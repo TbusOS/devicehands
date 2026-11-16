@@ -239,7 +239,7 @@ def cmd_status() -> None:
             typer.echo("[fail] fastboot unavailable")
             typer.echo(
                 "        no connected agent advertises the fastboot capability — "
-                "set fastboot_path in the agent's agent.conf and restart it"
+                "set fastboot_path in the agent's bench.conf and restart it"
             )
         raise typer.Exit(code=1)
     if data.get("busy"):
@@ -350,7 +350,7 @@ def cmd_erase(
     Runs the agent's `erase` op through /api/bench/ops, the path
     `dhands bench run erase partition=<p>` already takes, so there is no second
     copy of the checks: the hub holds the name against the chosen board's
-    partition list, the agent checks the list again and, when agent.conf gives
+    partition list, the agent checks the list again and, when bench.conf gives
     the board a fastboot_product, compares it with the board on the cable.
     Nothing to undo afterwards, hence the confirmation.
     """
@@ -613,8 +613,8 @@ def cmd_tools(
     For each tool: the exe, the directory its packages sit under, where it
     runs, its time limit, how its result is judged, its USB device and
     whether that device is attached right now, and the usage notes written
-    in agent.conf. Register a tool there with tool_exe.<name> and
-    tool_root.<name> (see clients/windows-agent/agent.conf.example).
+    in bench.conf. Register a tool there with tool_exe.<name> and
+    tool_root.<name> (see bench-py/bench.conf.example).
     """
     final = _run_job("ops/tool-list", {"params": {}}, base="/api/bench")
     if as_json:
@@ -694,7 +694,7 @@ def cmd_tool(
     tool's USB device. Every output line streams here and into the record;
     files the tool writes into its working directory come back to the hub.
     The result says who judged it: tool_fail / exit code / tool_ok from
-    agent.conf — with no tool_ok, only the exit code was looked at.
+    bench.conf — with no tool_ok, only the exit code was looked at.
 
     Exit codes: 0 judged a success · 1 refused or judged a failure · 2 the
     hub refused the request or cannot be reached.

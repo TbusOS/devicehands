@@ -22,11 +22,11 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_ops_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_ops_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -164,7 +164,7 @@ def test_partition_kind_rejects_with_the_partition_code(value):
 
 def test_partition_kind_checks_the_shape_only(monkeypatch):
     """The row says `partition`: a name fastboot cannot mistake for an
-    option or a path. No list (ADR-070), even if agent.conf still has one."""
+    option or a path. No list (ADR-070), even if bench.conf still has one."""
     monkeypatch.setattr(agent, "_FLASH_PARTITIONS", frozenset({"vendor_cfg"}))
     p = _param(name="partition", kind="partition")
     assert p.resolve({"partition": "vendor_cfg"}) == "vendor_cfg"
@@ -368,7 +368,7 @@ _OP_KEYS = {
 
 
 def test_every_row_describes_itself_with_exactly_the_contract_fields():
-    for spec in _ops(FB, {"agent": Path("/x/agent.log")}).values():
+    for spec in _ops(FB, {"agent": Path("/x/bench.log")}).values():
         d = spec.describe()
         assert set(d) == _OP_KEYS, spec.name
         assert d["group"] in ("fastboot", "host")
@@ -382,7 +382,7 @@ def test_every_row_describes_itself_with_exactly_the_contract_fields():
 
 
 def test_the_table_matches_the_contract_rows():
-    ops = _ops(FB, {"agent": Path("/x/agent.log"), "setupapi": Path("/y/setupapi.dev.log")})
+    ops = _ops(FB, {"agent": Path("/x/bench.log"), "setupapi": Path("/y/setupapi.dev.log")})
     assert list(ops) == [
         "devices",
         "getvar",
@@ -446,9 +446,9 @@ def test_hello_carries_the_table_from_apply_config(tmp_path, monkeypatch):
     reports — and the rows must say what this process will then accept."""
     exe = tmp_path / "fastboot"
     exe.write_text("#!/bin/sh\n")
-    monkeypatch.setattr(agent, "_AGENT_LOG_PATH", tmp_path / "agent.log")
+    monkeypatch.setattr(agent, "_AGENT_LOG_PATH", tmp_path / "bench.log")
     monkeypatch.setattr(agent, "_OPS", {})
-    # Without --config, _parse_args reads the agent.conf next to the script —
+    # Without --config, _parse_args reads the bench.conf next to the script —
     # a deployed checkout has a real one, and its lists would leak into every
     # later test through the globals _apply_flash_config rebinds.
     monkeypatch.setattr(agent, "_default_config_path", lambda: tmp_path / "absent.conf")
@@ -1151,14 +1151,14 @@ def test_tail_decodes_utf16_be_and_utf8_sig(tmp_path):
 
 
 def test_tail_plain_utf8_with_a_bad_byte_is_replaced_not_fatal(tmp_path):
-    p = tmp_path / "agent.log"
+    p = tmp_path / "bench.log"
     _write(p, b"ok line\nbad \xff byte\n")
     rows, _ = agent._tail_log(p, 5, "")
     assert rows[0] == "ok line" and "bad" in rows[1]
 
 
 def test_tail_grep_is_a_case_insensitive_literal(tmp_path):
-    p = tmp_path / "agent.log"
+    p = tmp_path / "bench.log"
     _write(p, b"ERROR one\ninfo\nerror two\na.b\n")
     assert agent._tail_log(p, 50, "error")[0] == ["ERROR one", "error two"]
     assert agent._tail_log(p, 50, "a.b")[0] == ["a.b"], "a dot is a dot, not a regex"
@@ -1166,7 +1166,7 @@ def test_tail_grep_is_a_case_insensitive_literal(tmp_path):
 
 
 def test_tail_returns_the_last_n_matching_lines(tmp_path):
-    p = tmp_path / "agent.log"
+    p = tmp_path / "bench.log"
     _write(p, "".join(f"line {i}\n" for i in range(500)).encode())
     rows, truncated = agent._tail_log(p, 3, "")
     assert rows == ["line 497", "line 498", "line 499"]
@@ -1174,7 +1174,7 @@ def test_tail_returns_the_last_n_matching_lines(tmp_path):
 
 
 def test_tail_truncated_when_the_window_does_not_reach_the_start(tmp_path):
-    p = tmp_path / "agent.log"
+    p = tmp_path / "bench.log"
     _write(p, "".join(f"row {i:04d}\n" for i in range(100)).encode())  # 900 bytes
     rows, truncated = agent._tail_log(p, 1000, "", window=100)
     assert truncated is True
@@ -1192,7 +1192,7 @@ def test_tail_utf16_window_stays_on_a_code_unit_boundary(tmp_path):
 
 
 async def test_log_tail_through_the_table(monkeypatch, tmp_path):
-    log = tmp_path / "agent.log"
+    log = tmp_path / "bench.log"
     _write(log, b"boot\nerror: x\nfine\nerror: y\n")
     ops = _ops("", {"agent": log})
     assert ops["log-tail"].params[0].choices == ("agent",)
@@ -1221,7 +1221,7 @@ async def test_log_tail_through_the_table(monkeypatch, tmp_path):
     ],
 )
 async def test_log_tail_rejects_unknown_source_and_bad_params(monkeypatch, tmp_path, req):
-    ops = _ops("", {"agent": tmp_path / "agent.log"})
+    ops = _ops("", {"agent": tmp_path / "bench.log"})
     ws, _ = await _dispatch(monkeypatch, req, ops=ops)
     assert ws.done()["code"] == "BENCH_PARAM_REJECTED"
     assert not ws.events("accepted")
@@ -1239,8 +1239,8 @@ def test_log_sources_come_from_config_not_from_the_hub(monkeypatch, tmp_path):
     monkeypatch.setattr(agent, "_AGENT_LOG_PATH", None)
     monkeypatch.setattr(agent.sys, "platform", "linux")
     assert agent._log_sources() == {}
-    monkeypatch.setattr(agent, "_AGENT_LOG_PATH", tmp_path / "agent.log")
-    assert agent._log_sources() == {"agent": tmp_path / "agent.log"}
+    monkeypatch.setattr(agent, "_AGENT_LOG_PATH", tmp_path / "bench.log")
+    assert agent._log_sources() == {"agent": tmp_path / "bench.log"}
     monkeypatch.setattr(agent.sys, "platform", "win32")
     monkeypatch.setenv("WINDIR", str(tmp_path / "Windows"))
     assert agent._log_sources()["setupapi"] == tmp_path / "Windows" / "INF" / "setupapi.dev.log"
@@ -1427,7 +1427,7 @@ async def test_log_tail_sends_whole_lines_that_fit_and_counts_them(tmp_path):
     for 2000 lines of ~150 characters must not deliver a half line at the
     top while `lines` claims 2000 and `truncated` says nothing is missing."""
     rows = [f"{i:05d} " + "x" * 144 for i in range(2000)]
-    log = tmp_path / "agent.log"
+    log = tmp_path / "bench.log"
     log.write_text("\n".join(rows) + "\n", encoding="utf-8")
     out, data = await agent._op_log_tail(
         None, {"source": "agent", "lines": 2000, "grep": ""}, sources={"agent": log}

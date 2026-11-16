@@ -1,14 +1,14 @@
 @echo off
-rem One-click launcher for the alb device agent.
+rem One-click launcher for the DeviceHands bench.
 rem Every run re-checks the environment (Python / deps / config / adb) and
 rem prints each result, then starts the agent. Extra arguments are passed
-rem through to alb_agent.py.
-rem Unattended runs (Task Scheduler): set ALB_AGENT_NO_PAUSE=1 in the task's
+rem through to dhands_bench.py.
+rem Unattended runs (Task Scheduler): set DHANDS_BENCH_NO_PAUSE=1 in the task's
 rem environment so an exit never waits for a keypress.
 setlocal
 cd /d "%~dp0"
 
-echo [run-agent] environment check:
+echo [run-bench] environment check:
 
 rem -- 1. Python 3.11+: plain `python` may be the Microsoft Store stub or an
 rem       old install -- fall back to the py launcher.
@@ -19,8 +19,8 @@ if errorlevel 1 set "PY=py -3"
 if errorlevel 1 (
     echo   [x] Python 3.11+ ... NOT FOUND
     echo.
-    echo [run-agent] Install it from https://www.python.org/downloads/
-    echo [run-agent] and tick "Add python.exe to PATH" in the installer.
+    echo [run-bench] Install it from https://www.python.org/downloads/
+    echo [run-bench] and tick "Add python.exe to PATH" in the installer.
     goto :fail
 )
 %PY% -c "import sys; print('  [v] Python ' + '.'.join(map(str, sys.version_info[:3])) + ' ... OK')"
@@ -42,14 +42,14 @@ if errorlevel 1 (
 )
 
 rem -- 3. config file
-if not exist agent.conf (
-    echo   [x] agent.conf ... NOT FOUND
+if not exist bench.conf (
+    echo   [x] bench.conf ... NOT FOUND
     echo.
-    echo [run-agent] Copy agent.conf.example to agent.conf, fill in
-    echo [run-agent] hub_url + token, then run this again.
+    echo [run-bench] Copy bench.conf.example to bench.conf, fill in
+    echo [run-bench] hub_url + token, then run this again.
     goto :fail
 )
-echo   [v] agent.conf ... OK
+echo   [v] bench.conf ... OK
 
 rem -- 4. adb: optional -- serial/UART works without it.
 where adb >nul 2>&1
@@ -68,8 +68,8 @@ rem agent itself once the hub connection is up (and kept in the title bar).
 echo.
 rem Tells the agent it was started from here, so a remote update restarts
 rem it the same way: through this script, in a window of its own.
-set "ALB_AGENT_LAUNCHER=run-agent.bat"
-%PY% alb_agent.py %*
+set "DHANDS_BENCH_LAUNCHER=run-bench.bat"
+%PY% dhands_bench.py %*
 set "RC=%errorlevel%"
 
 rem 75 = a newer instance of this agent took over (a restart or a remote
@@ -78,11 +78,11 @@ if "%RC%"=="75" exit /b 75
 
 rem -- keep the window open so exit reasons are readable on double-click
 rem    (e.g. a rejected token stops the agent on purpose).
-if defined ALB_AGENT_NO_PAUSE exit /b %RC%
+if defined DHANDS_BENCH_NO_PAUSE exit /b %RC%
 pause
 exit /b %RC%
 
 :fail
-if defined ALB_AGENT_NO_PAUSE exit /b 1
+if defined DHANDS_BENCH_NO_PAUSE exit /b 1
 pause
 exit /b 1

@@ -1,4 +1,4 @@
-"""Config file (agent.conf) loading + precedence of the standalone agent.
+"""Config file (bench.conf) loading + precedence of the standalone agent.
 
 The parser is hand-rolled, so these pin the behaviours the example file
 promises: Notepad's UTF-8 BOM, CRLF endings, '=' and '#' inside values,
@@ -19,11 +19,11 @@ from pathlib import Path
 
 import pytest
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_config_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_config_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -35,7 +35,7 @@ agent = _load_agent()
 
 
 def _write(tmp_path: Path, text: str, *, encoding: str = "utf-8") -> Path:
-    p = tmp_path / "agent.conf"
+    p = tmp_path / "bench.conf"
     p.write_bytes(text.encode(encoding))
     return p
 
@@ -115,7 +115,7 @@ def test_duplicate_key_last_wins(tmp_path):
 def test_shipped_example_parses_with_real_loader():
     # The example is the first step of the double-click path — it must always
     # parse, and must not demonstrate keys the loader doesn't accept.
-    cfg = agent._load_config(_AGENT_PATH.parent / "agent.conf.example")
+    cfg = agent._load_config(_AGENT_PATH.parent / "bench.conf.example")
     assert set(cfg) <= set(agent._CONFIG_KEYS)
     assert cfg["hub_url"]
 
@@ -196,8 +196,8 @@ def test_agent_id_random_when_unset(tmp_path, monkeypatch):
 
 
 def test_log_file_key_parses(tmp_path):
-    p = _write(tmp_path, "log_file=logs/agent.log\n")
-    assert agent._load_config(p) == {"log_file": "logs/agent.log"}
+    p = _write(tmp_path, "log_file=logs/bench.log\n")
+    assert agent._load_config(p) == {"log_file": "logs/bench.log"}
 
 
 def test_setup_file_logging_creates_rotating_handler(tmp_path):
@@ -211,7 +211,7 @@ def test_setup_file_logging_creates_rotating_handler(tmp_path):
         assert len(added) == 1  # parent dir auto-created, handler attached
         # warning: INFO would be gated by the root logger's default WARNING
         # level in the test env (production main() sets the root to INFO).
-        logging.getLogger("alb-agent").warning("post-mortem line")
+        logging.getLogger("dhands-bench").warning("post-mortem line")
         added[0].flush()
         text = (tmp_path / "logs" / "a.log").read_text(encoding="utf-8")
         assert "post-mortem line" in text
@@ -275,7 +275,7 @@ def _console_log(stream: _SelectedConsole) -> logging.Handler:
 
 
 def _record(msg: str) -> logging.LogRecord:
-    return logging.LogRecord("alb-agent", logging.INFO, __file__, 0, msg, None, None)
+    return logging.LogRecord("dhands-bench", logging.INFO, __file__, 0, msg, None, None)
 
 
 def _wait_for(cond, timeout: float = 5.0) -> None:
@@ -344,7 +344,7 @@ def test_exit_does_not_wait_for_a_window_that_stays_selected():
 # to argparse but not to `_CONFIG_KEYS`. An unknown key is a HARD ERROR by
 # design, so the agent refused to start and told the operator the key did not
 # exist — which reads as "this build cannot do fastboot", not "use the flag
-# instead". A flag nobody can put in agent.conf is a flag nobody uses.
+# instead". A flag nobody can put in bench.conf is a flag nobody uses.
 
 # dests that are deliberately command-line only.
 _CLI_ONLY_DESTS = {
@@ -358,13 +358,13 @@ _CLI_ONLY_DESTS = {
 
 
 def test_every_flag_is_settable_from_the_config_file(tmp_path):
-    cfg = tmp_path / "agent.conf"
+    cfg = tmp_path / "bench.conf"
     cfg.write_text("hub_url=ws://h/agent/connect\n", encoding="utf-8")
     args = agent._parse_args(["--config", str(cfg)])
     dests = {k for k in vars(args) if not k.startswith("_")}
     missing = dests - _CLI_ONLY_DESTS - set(agent._CONFIG_KEYS)
     assert not missing, (
-        f"these flags cannot be set from agent.conf: {sorted(missing)} — "
+        f"these flags cannot be set from bench.conf: {sorted(missing)} — "
         "add them to _CONFIG_KEYS or to _CLI_ONLY_DESTS"
     )
 
@@ -372,7 +372,7 @@ def test_every_flag_is_settable_from_the_config_file(tmp_path):
 def test_every_config_key_reaches_a_real_flag(tmp_path):
     """The other direction: a key in _CONFIG_KEYS with no matching argparse
     dest would be silently accepted and then ignored."""
-    cfg = tmp_path / "agent.conf"
+    cfg = tmp_path / "bench.conf"
     cfg.write_text("hub_url=ws://h/agent/connect\n", encoding="utf-8")
     args = agent._parse_args(["--config", str(cfg)])
     orphans = set(agent._CONFIG_KEYS) - set(vars(args))
@@ -380,7 +380,7 @@ def test_every_config_key_reaches_a_real_flag(tmp_path):
 
 
 def test_flash_keys_load_from_the_config_file(tmp_path):
-    cfg = tmp_path / "agent.conf"
+    cfg = tmp_path / "bench.conf"
     cfg.write_text(
         "hub_url=ws://h/agent/connect\n"
         "fastboot_path=D:\\platform-tools\\fastboot.exe\n"
@@ -397,7 +397,7 @@ def test_flash_config_reaches_the_module_globals(tmp_path, monkeypatch):
     hello frame reads — a value that stops at the Namespace changes nothing."""
     exe = tmp_path / "fastboot"
     exe.write_text("#!/bin/sh\n")
-    cfg = tmp_path / "agent.conf"
+    cfg = tmp_path / "bench.conf"
     cfg.write_text(
         f"hub_url=ws://h/agent/connect\nfastboot_path={exe}\nflash_partitions=boot, dtbo\n",
         encoding="utf-8",

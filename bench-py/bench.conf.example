@@ -1,6 +1,6 @@
-# alb device agent config.
-# Copy this file to agent.conf (same folder), fill in hub_url + token,
-# then double-click run-agent.bat.
+# DeviceHands bench config.
+# Copy this file to bench.conf (same folder), fill in hub_url + token,
+# then double-click run-bench.bat.
 #
 # Format: one KEY=VALUE per line. No quotes needed. Comments only on their
 # own line — a '#' inside a value is kept as-is. Command-line flags override
@@ -12,7 +12,7 @@
 #   wss://hub.example.com/agent/connect
 hub_url=ws://<hub-ip>:8775/agent/connect
 
-# Must match ALB_AGENT_TOKEN on the hub. Stick to letters/digits/_/- so the
+# Must match DHANDS_AGENT_TOKEN on the hub. Stick to letters/digits/_/- so the
 # same value pastes cleanly into the hub's hub.env too.
 # Generate one:  openssl rand -hex 16
 token=change-me
@@ -34,7 +34,7 @@ name=bench-01
 # Run log: every run appends here (rotates at ~5 MB, keeps 3 old files) so
 # problems can be analyzed after the console window is closed. Relative
 # paths are resolved next to this script. Set to none to disable.
-log_file=logs/agent.log
+log_file=logs/bench.log
 
 # ── fastboot / flashing (optional) ────────────────────────────────────
 # Path to fastboot on THIS machine. Leave unset to use whatever is on PATH;
@@ -46,14 +46,14 @@ log_file=logs/agent.log
 
 # Which partitions may be written is not set here (ADR-070): a package's
 # own manifest says which partitions it writes and with which file
-# (`alb flash plan --only`), and partition names are only shape-checked
+# (`dhands flash plan --only`), and partition names are only shape-checked
 # (no separators, no spaces, no leading dash — the name becomes an argv
 # element). flash_partitions / flash_partitions.<board> lines from older
 # configs are still read, ignored, and named in the start-up log.
 #
 # Which board is on the cable: fastboot_product.<board> is what
 # `fastboot getvar product` answers on that board (board names are the
-# hub's board table names, `alb bench board`). Once any board has one,
+# hub's board table names, `dhands bench board`). Once any board has one,
 # every write first asks the device, and is refused — nothing written —
 # when no board is chosen on the hub, when the chosen board has no
 # product here (FLASH_BOARD_NOT_LISTED), or when the answer differs
@@ -92,13 +92,13 @@ log_file=logs/agent.log
 # ── Other vendors' download-mode tools (optional, ADR-068) ────────────
 # Register a vendor's command-line flashing tool under a name of your choice
 # and the hub can run it with the tool's OWN arguments:
-#   alb flash tool <name> --pkg <package dir> -- <the tool's arguments>
+#   dhands flash tool <name> --pkg <package dir> -- <the tool's arguments>
 # Only tools registered here can run; the hub never names a program or a
 # path. Before running, the agent refuses any argument holding a drive path
 # (X:\ or X:/), a network path (\\server, //server), a path from the drive
 # root (\x) or '..' — name files relative to the package (the tool runs in
 # it) or write {pkg}. {com} becomes the COM port of the tool_usb device.
-# `alb flash tools` lists what is registered, with the usage text below.
+# `dhands flash tools` lists what is registered, with the usage text below.
 #
 # Name rule: 1-32 of a-z 0-9 _ -, starting with a letter or digit.
 #   tool_exe.<name>     REQUIRED. Absolute path of the tool's .exe.
@@ -117,7 +117,7 @@ log_file=logs/agent.log
 #                       (e.g. one line per partition written).
 #   tool_usb.<name>     VID:PID, comma-separated. Checked before running: the
 #                       board must be attached in that mode. Needed for {com}.
-#   tool_usage.<name>   notes shown by `alb flash tools`: how to enter the mode,
+#   tool_usage.<name>   notes shown by `dhands flash tools`: how to enter the mode,
 #                       which arguments to give. Repeat the line for more lines.
 # Files the tool writes into its working directory (its own logs) come back
 # to the hub next to the job's record. A missing tool_exe or tool_root file
@@ -129,5 +129,5 @@ log_file=logs/agent.log
 #   tool_exe.fb=D:\platform-tools\fastboot.exe
 #   tool_root.fb=D:\flash\board-a\packages
 #   tool_fail.fb=FAILED
-#   tool_usage.fb=board in fastboot first: alb power reboot fastboot
-#   tool_usage.fb=e.g. alb flash tool fb --pkg v12 -- flash boot boot.img
+#   tool_usage.fb=board in fastboot first: dhands power reboot fastboot
+#   tool_usage.fb=e.g. dhands flash tool fb --pkg v12 -- flash boot boot.img

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "setup_remote_start.py"
+_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "setup_remote_start.py"
 
 
 def _load():
@@ -117,7 +117,7 @@ def test_a_body_inside_another_token_is_not_taken_for_the_key():
 # ── the scheduled task ─────────────────────────────────────────────────
 
 
-def _task(user: str = "BENCH\\tester", agent_dir: str = r"D:\alb-windows-agent") -> ET.Element:
+def _task(user: str = "BENCH\\tester", agent_dir: str = r"D:\dhands-bench") -> ET.Element:
     return ET.fromstring(srs.task_xml(user, agent_dir).split("?>", 1)[1])
 
 
@@ -128,9 +128,9 @@ def test_the_task_runs_run_agent_bat_unattended_in_the_users_session():
     assert t.findtext("t:Principals/t:Principal/t:UserId", namespaces=NS) == "BENCH\\tester"
     assert t.findtext("t:Actions/t:Exec/t:Command", namespaces=NS) == "cmd.exe"
     args = t.findtext("t:Actions/t:Exec/t:Arguments", namespaces=NS)
-    assert args == '/c "set ALB_AGENT_NO_PAUSE=1&& run-agent.bat"'
+    assert args == '/c "set DHANDS_BENCH_NO_PAUSE=1&& run-bench.bat"'
     assert t.findtext("t:Actions/t:Exec/t:WorkingDirectory", namespaces=NS) == (
-        r"D:\alb-windows-agent"
+        r"D:\dhands-bench"
     )
 
 

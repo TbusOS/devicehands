@@ -1,6 +1,6 @@
 """The agent's vendor-tool ops (ADR-068): tool-run and tool-list.
 
-A vendor download-mode tool is registered in agent.conf and run with the
+A vendor download-mode tool is registered in bench.conf and run with the
 caller's own arguments. The tool here is a fake Python script that does what
 the environment tells it — print given bytes, exit with a code, sleep, write
 files into its working directory, start a child that keeps its output open —
@@ -8,7 +8,7 @@ so these tests run the agent's real subprocess path: argv without a shell,
 working directory, output relay and decoding, the three-way verdict, the
 timeout that ends the whole process tree, and the files brought back.
 
-DHANDS_AGENT_UNDER_TEST points the module at another copy of alb_agent.py: the
+DHANDS_AGENT_UNDER_TEST points the module at another copy of dhands_bench.py: the
 reverse runs feed it deliberately weakened copies, each of which must make
 at least one test here fail.
 """
@@ -29,12 +29,12 @@ from typing import Any
 
 import pytest
 
-_DEFAULT_AGENT = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_DEFAULT_AGENT = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent() -> Any:
     path = Path(os.environ.get("DHANDS_AGENT_UNDER_TEST") or _DEFAULT_AGENT)
-    spec = importlib.util.spec_from_file_location("alb_agent_tools_under_test", path)
+    spec = importlib.util.spec_from_file_location("dhands_bench_tools_under_test", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -233,11 +233,11 @@ def _gone(pid: int, wait_s: float = 3.0) -> bool:
     return False
 
 
-# ── registration: agent.conf ────────────────────────────────────────────
+# ── registration: bench.conf ────────────────────────────────────────────
 
 
 def _conf(tmp_path: Path, text: str) -> Path:
-    path = tmp_path / "agent.conf"
+    path = tmp_path / "bench.conf"
     path.write_text("hub_url=ws://h/agent/connect\n" + text, encoding="utf-8")
     return path
 
@@ -315,7 +315,7 @@ def test_a_missing_exe_or_root_is_a_problem_not_an_error(bench: _Bench) -> None:
 
 
 def test_windows_paths_count_as_absolute(bench: _Bench) -> None:
-    """A bench agent.conf names D:\\ paths; checked here they are absent,
+    """A bench.conf names D:\\ paths; checked here they are absent,
     not refused as relative."""
     tools, problems = agent._resolve_tools(
         {"w": {"tool_exe": "D:\\tools\\x.exe", "tool_root": "D:/flash"}}
@@ -927,9 +927,9 @@ async def test_the_window_gets_the_command_and_the_file_gets_the_folders(
     """2026-11-11: the console line was `job: tool vt: <exe path> ... (in <temp
     folder>)`. The window now shows the tool's name and its arguments; the
     log file keeps the full line."""
-    caplog.set_level("INFO", logger="alb-agent")
+    caplog.set_level("INFO", logger="dhands-bench")
     ws = await _run(bench.ops(), tool="vt", args=["-p", "x y"])
     assert ws.done()["ok"], ws.done()
     (rec,) = [r for r in caplog.records if r.getMessage().startswith("job: tool vt:")]
-    assert getattr(rec, "alb_short", None) == 'job   vt -p "x y"'
+    assert getattr(rec, "dhands_short", None) == 'job   vt -p "x y"'
     assert str(bench.exe) in rec.getMessage() and "(in " in rec.getMessage()

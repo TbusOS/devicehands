@@ -79,7 +79,7 @@ UNRUNNABLE = {
     "setvar": "fastboot on the agent host has no setvar command",
 }
 
-# Same shapes the agent enforces (alb_agent._PARTITION_RE / _GETVAR_RE /
+# Same shapes the agent enforces (dhands_bench._PARTITION_RE / _GETVAR_RE /
 # _OEM_RE). Checked here too so a bad name refuses the whole plan up front
 # instead of being refused by the agent halfway through it.
 # PARTITION_RE is imported from bench_ops — one copy for the hub side.
@@ -177,7 +177,7 @@ class AgentView:
     # board, and none is chosen or it has none for this one). Non-empty =
     # `partitions` is empty for that reason, NOT "any name".
     partitions_problem: str = ""
-    # The agent.conf key the list comes from, for the "add it to" hint.
+    # The bench.conf key the list comes from, for the "add it to" hint.
     partitions_key: str = "flash_partitions"
 
     def table(self) -> dict[str, OpSpec]:
@@ -479,7 +479,7 @@ def check_agent(rows: list[PlanRow], agent: AgentView | None) -> list[str]:
         if lines and op not in ops:
             problems.append(
                 f"the agent is too old to {action} (line {', '.join(map(str, lines))}) — "
-                "update alb_agent.py on the agent host"
+                "update dhands_bench.py on the agent host"
             )
     # The agent's own list of oem commands (and getvar's name shape), read
     # from its table: a row it would refuse is refused here, before row 1.
@@ -496,7 +496,7 @@ def check_agent(rows: list[PlanRow], agent: AgentView | None) -> list[str]:
         shown = ", ".join(f"line {r.line} {r.file} ({r.size} bytes)" for r in large)
         problems.append(
             f"the agent refuses images over {ceiling} bytes ({shown}) — "
-            "update alb_agent.py on the agent host"
+            "update dhands_bench.py on the agent host"
         )
     if agent.partitions_problem:
         lines = [r.line for r in running if r.partition]
@@ -510,7 +510,7 @@ def check_agent(rows: list[PlanRow], agent: AgentView | None) -> list[str]:
             where = ", ".join(f"{r.partition} (line {r.line})" for r in refused)
             problems.append(
                 f"not on the agent's partition allowlist: {where} — add "
-                f"{','.join(names)} to {agent.partitions_key} in agent.conf, or skip them"
+                f"{','.join(names)} to {agent.partitions_key} in bench.conf, or skip them"
             )
     return problems
 

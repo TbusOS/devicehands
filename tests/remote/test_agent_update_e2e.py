@@ -6,7 +6,7 @@ old agent self-checks the new build, starts the update helper and stops; the
 helper swaps the files and starts the new build. What the hub sees in the
 next hello decides each test.
 
-Only the Windows-specific parts (console windows, taskkill, run-agent.bat)
+Only the Windows-specific parts (console windows, taskkill, run-bench.bat)
 are out of reach here; they are checked on the bench.
 """
 
@@ -40,7 +40,7 @@ pytestmark = pytest.mark.skipif(
 websockets = pytest.importorskip("websockets")
 from websockets.asyncio.server import serve  # noqa: E402
 
-_SRC = Path(__file__).resolve().parents[2] / "clients" / "windows-agent"
+_SRC = Path(__file__).resolve().parents[2] / "bench-py"
 _HDR = struct.Struct(">cI")
 
 
@@ -62,7 +62,7 @@ def _agent_text(
     passes its self-check but can never get past the handshake;
     `exits_at_start` one that passes its self-check and then exits at once;
     `hangs_at_start` one that stops before its first log line (10-20 bench)."""
-    text = (_SRC / "alb_agent.py").read_text(encoding="utf-8")
+    text = (_SRC / "dhands_bench.py").read_text(encoding="utf-8")
     if fast:
         for old, new in (
             ("_UPDATE_HEALTH_TIMEOUT_S = 60.0", "_UPDATE_HEALTH_TIMEOUT_S = 8.0"),
@@ -243,15 +243,15 @@ def bench(tmp_path):
     install.mkdir()
     for name, data in _repo_files().items():
         (install / name).write_bytes(data)
-    conf = f"hub_url={hub.url}\nagent_id=bench-e2e\nname=e2e\nstatus_port=0\nlog_file=agent.log\n"
-    (install / "agent.conf").write_text(conf, encoding="utf-8")
+    conf = f"hub_url={hub.url}\nagent_id=bench-e2e\nname=e2e\nstatus_port=0\nlog_file=bench.log\n"
+    (install / "bench.conf").write_text(conf, encoding="utf-8")
     procs: list[subprocess.Popen[bytes]] = []
 
     def start(agent_bytes: bytes) -> subprocess.Popen[bytes]:
-        (install / "alb_agent.py").write_bytes(agent_bytes)
-        env = {k: v for k, v in os.environ.items() if k != "ALB_AGENT_LAUNCHER"}
+        (install / "dhands_bench.py").write_bytes(agent_bytes)
+        env = {k: v for k, v in os.environ.items() if k != "DHANDS_BENCH_LAUNCHER"}
         p = subprocess.Popen(
-            [sys.executable, str(install / "alb_agent.py")],
+            [sys.executable, str(install / "dhands_bench.py")],
             cwd=install,
             env=env,
             stdout=subprocess.DEVNULL,
@@ -279,7 +279,7 @@ def _update(hub: StandInHub, files: dict[str, bytes]) -> dict[str, Any]:
 
 
 def _log(install: Path) -> str:
-    p = install / ".alb-agent" / "update.log"
+    p = install / ".dhands-bench" / "update.log"
     return p.read_text(encoding="utf-8") if p.exists() else "(no update.log)"
 
 
@@ -290,20 +290,20 @@ def test_update_swaps_the_files_and_the_new_build_reconnects(bench):
     first = start(old)
     hub.wait_hello(lambda h: h.get("build") == _build(old))
 
-    done = _update(hub, {**_repo_files(), "alb_agent.py": new})
+    done = _update(hub, {**_repo_files(), "dhands_bench.py": new})
     assert done["ok"], done
     assert done["data"]["restarting"] is True
-    assert done["data"]["changed"] == ["alb_agent.py"]
+    assert done["data"]["changed"] == ["dhands_bench.py"]
 
     hello = hub.wait_hello(lambda h: h.get("build") == _build(new), timeout=40)
-    assert (install / "alb_agent.py").read_bytes() == new
+    assert (install / "dhands_bench.py").read_bytes() == new
     # the old process stopped on request (75), it was not killed
     assert first.wait(timeout=10) == 75
-    result = json.loads((install / ".alb-agent" / "update-result.json").read_text())
+    result = json.loads((install / ".dhands-bench" / "update-result.json").read_text())
     deadline = time.monotonic() + 15
     while result["outcome"] != "updated" and time.monotonic() < deadline:
         time.sleep(0.2)
-        result = json.loads((install / ".alb-agent" / "update-result.json").read_text())
+        result = json.loads((install / ".dhands-bench" / "update-result.json").read_text())
     assert result["outcome"] == "updated", _log(install)
     assert hello["update"]["id"] == done["data"]["update_id"]
     assert "updated: build" in _log(install)
@@ -312,7 +312,7 @@ def test_update_swaps_the_files_and_the_new_build_reconnects(bench):
     agent_log = ""
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
-        agent_log = (install / "agent.log").read_text(encoding="utf-8")
+        agent_log = (install / "bench.log").read_text(encoding="utf-8")
         if all(w in agent_log for w in wanted):
             break
         time.sleep(0.2)
@@ -327,12 +327,12 @@ def test_a_build_that_never_reaches_the_hub_is_rolled_back(bench):
     hub.wait_hello(lambda h: h.get("build") == _build(old))
     seen = len(hub.hellos)
 
-    done = _update(hub, {**_repo_files(), "alb_agent.py": broken})
+    done = _update(hub, {**_repo_files(), "dhands_bench.py": broken})
     assert done["ok"] and done["data"]["restarting"], done
 
     hello = hub.wait_hello(lambda h: h.get("build") == _build(old), timeout=60, after=seen)
     assert hello["update"]["outcome"] == "rolled_back", _log(install)
-    assert (install / "alb_agent.py").read_bytes() == old
+    assert (install / "dhands_bench.py").read_bytes() == old
     assert "rolling back" in _log(install)
 
 
@@ -347,7 +347,7 @@ def test_a_build_stuck_before_its_first_log_line_is_written_down_then_rolled_bac
     hub.wait_hello(lambda h: h.get("build") == _build(old))
     seen = len(hub.hellos)
 
-    done = _update(hub, {**_repo_files(), "alb_agent.py": stuck})
+    done = _update(hub, {**_repo_files(), "dhands_bench.py": stuck})
     assert done["ok"] and done["data"]["restarting"], done
 
     hello = hub.wait_hello(lambda h: h.get("build") == _build(old), timeout=60, after=seen)
@@ -356,8 +356,8 @@ def test_a_build_stuck_before_its_first_log_line_is_written_down_then_rolled_bac
     account = log[: log.index("rolling back")]
     assert "instance record: none — build " in account, log
     lines = account[account.index("processes under the start (pid ") :].splitlines()
-    assert str(install / "alb_agent.py") in lines[1], log
-    agent_log = (install / "agent.log").read_text(encoding="utf-8")
+    assert str(install / "dhands_bench.py") in lines[1], log
+    agent_log = (install / "bench.log").read_text(encoding="utf-8")
     assert f"build {_build(stuck)}" not in agent_log, "the stuck build logged nothing"
 
 
@@ -369,7 +369,7 @@ def test_a_build_that_exits_at_once_is_rolled_back_without_waiting_out_the_timeo
     hub.wait_hello(lambda h: h.get("build") == _build(old))
     seen = len(hub.hellos)
 
-    done = _update(hub, {**_repo_files(), "alb_agent.py": dead})
+    done = _update(hub, {**_repo_files(), "dhands_bench.py": dead})
     assert done["ok"] and done["data"]["restarting"], done
 
     hello = hub.wait_hello(lambda h: h.get("build") == _build(old), timeout=60, after=seen)
@@ -387,14 +387,14 @@ def test_a_bundle_that_fails_its_self_check_changes_nothing(bench):
     proc = start(old)
     hub.wait_hello(lambda h: h.get("build") == _build(old))
 
-    done = _update(hub, {**_repo_files(), "alb_agent.py": b"def broken(:\n"})
+    done = _update(hub, {**_repo_files(), "dhands_bench.py": b"def broken(:\n"})
     assert not done["ok"]
     assert done["code"] == "AGENT_UPDATE_CHECK_FAILED"
     assert "SyntaxError" in done["error"]
     time.sleep(1.5)
     assert proc.poll() is None, "the old build must keep running"
-    assert (install / "alb_agent.py").read_bytes() == old
-    assert not (install / ".alb-agent" / "update-plan.json").exists()
+    assert (install / "dhands_bench.py").read_bytes() == old
+    assert not (install / ".dhands-bench" / "update-plan.json").exists()
 
 
 def test_identical_files_do_not_restart_anything(bench):
@@ -427,12 +427,12 @@ def test_another_agent_with_its_own_folder_is_left_alone(bench, tmp_path):
     hub, install, start = bench
     other = tmp_path / "other"
     shutil.copytree(install, other)
-    conf = (other / "agent.conf").read_text().replace("bench-e2e", "bench-other")
-    (other / "agent.conf").write_text(conf)
+    conf = (other / "bench.conf").read_text().replace("bench-e2e", "bench-other")
+    (other / "bench.conf").write_text(conf)
     text = _agent_text(marker="a")
-    (other / "alb_agent.py").write_bytes(text)
+    (other / "dhands_bench.py").write_bytes(text)
     neighbour = subprocess.Popen(
-        [sys.executable, str(other / "alb_agent.py")],
+        [sys.executable, str(other / "dhands_bench.py")],
         cwd=other,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -454,9 +454,9 @@ def test_a_pushed_config_that_changes_the_agent_id_is_refused(bench):
     old = _agent_text(marker="old")
     proc = start(old)
     hub.wait_hello(lambda h: h.get("build") == _build(old))
-    conf = (install / "agent.conf").read_bytes().replace(b"bench-e2e", b"someone-else")
+    conf = (install / "bench.conf").read_bytes().replace(b"bench-e2e", b"someone-else")
 
-    done = _update(hub, {**_repo_files(), "alb_agent.py": old, "agent.conf": conf})
+    done = _update(hub, {**_repo_files(), "dhands_bench.py": old, "bench.conf": conf})
     assert not done["ok"] and done["code"] == "AGENT_UPDATE_REJECTED", done
     assert "keep agent_id the same" in done["error"]
     time.sleep(1.5)
@@ -469,10 +469,10 @@ def test_a_pushed_config_is_installed_and_read_on_restart(bench):
     start(old)
     hub.wait_hello(lambda h: h.get("build") == _build(old))
     seen = len(hub.hellos)
-    conf = (install / "agent.conf").read_bytes().replace(b"name=e2e", b"name=renamed")
+    conf = (install / "bench.conf").read_bytes().replace(b"name=e2e", b"name=renamed")
 
-    done = _update(hub, {**_repo_files(), "alb_agent.py": old, "agent.conf": conf})
-    assert done["ok"] and done["data"]["changed"] == ["agent.conf"], done
+    done = _update(hub, {**_repo_files(), "dhands_bench.py": old, "bench.conf": conf})
+    assert done["ok"] and done["data"]["changed"] == ["bench.conf"], done
     hello = hub.wait_hello(lambda h: h.get("name") == "renamed", timeout=40, after=seen)
     assert hello["agent_id"] == "bench-e2e"
-    assert (install / "agent.conf").read_bytes() == conf
+    assert (install / "bench.conf").read_bytes() == conf

@@ -30,7 +30,7 @@ from typing import Any
 
 from devicehands.remote.protocol import CAP_FASTBOOT, LEGACY_FLASH_MAX_BYTES
 
-# Same shape rule the agent applies (`_PARTITION_RE` in alb_agent.py). The
+# Same shape rule the agent applies (`_PARTITION_RE` in dhands_bench.py). The
 # leading-character class keeps a name from starting with `-`, which fastboot
 # would parse as a flag.
 PARTITION_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\Z")

@@ -4,7 +4,7 @@
 
 ```
 Linux(你)                 hub(dhands-hub)                     台架 Windows
-dhands flash write ──HTTP──> 查参数、开记录、排队一个 ──作业通道──> alb_agent.py
+dhands flash write ──HTTP──> 查参数、开记录、排队一个 ──作业通道──> dhands_bench.py
                           镜像从 hub 的工作目录读               │ 再查一遍参数
                           边跑边收输出 + 串口                   v
                                                          fastboot.exe / 9008 工具 /
@@ -13,21 +13,21 @@ dhands flash write ──HTTP──> 查参数、开记录、排队一个 ──
 
 - `dhands flash` 连的是 hub 的 HTTP 接口:默认 `http://127.0.0.1:8775`,hub 在别的机器上就设 `DHANDS_API_URL`(见 [configuration.md](./configuration.md))。
 - 一次只跑一个会改板子的作业。第二个**立刻拒绝**(`FASTBOOT_BUSY`),不排队。查询类(`status`、`devices`、`tools`)不受影响。
-- hub 只发「操作名 + 参数」,不发命令行;台架 agent 按自己 `agent.conf` 里的设置拼出要运行的命令,参数再查一遍。
+- hub 只发「操作名 + 参数」,不发命令行;台架 agent 按自己 `bench.conf` 里的设置拼出要运行的命令,参数再查一遍。
 
 ## 先准备什么
 
 | 要做的事 | 需要 | 在哪配 |
 |---|---|---|
 | 所有 `dhands flash` 命令 | hub 在跑,台架 agent 连上了 | [dial-home-runbook.md](./dial-home-runbook.md);`dhands flash status` 查 |
-| fastboot 类(`devices` `getvar` `reboot` `oem` `write` `erase` `plan`) | 台架上有 fastboot | `agent.conf` 的 `fastboot_path`,步骤见 [FASTBOOT-SETUP.md](../clients/windows-agent/FASTBOOT-SETUP.md) |
-| 写之前核对是哪块板 | 每块板在 fastboot 里报的 product | `fastboot_product.<板>`,见 [Windows agent README](../clients/windows-agent/README.md)「几块板接同一台电脑:写之前核对是哪块板」 |
-| 高通 9008 | 两个高通工具 + 刷机包目录 | `edl_sahara` `edl_firehose` `edl_root`,见 [Windows agent README](../clients/windows-agent/README.md)「高通 9008」 |
-| 其它厂商的下载工具 | 在台架上登记工具 | `tool_exe.<名>` 等,见 [Windows agent README](../clients/windows-agent/README.md)「其它厂商的下载工具」 |
+| fastboot 类(`devices` `getvar` `reboot` `oem` `write` `erase` `plan`) | 台架上有 fastboot | `bench.conf` 的 `fastboot_path`,步骤见 [FASTBOOT-SETUP.md](../bench-py/FASTBOOT-SETUP.md) |
+| 写之前核对是哪块板 | 每块板在 fastboot 里报的 product | `fastboot_product.<板>`,见 [Windows agent README](../bench-py/README.md)「几块板接同一台电脑:写之前核对是哪块板」 |
+| 高通 9008 | 两个高通工具 + 刷机包目录 | `edl_sahara` `edl_firehose` `edl_root`,见 [Windows agent README](../bench-py/README.md)「高通 9008」 |
+| 其它厂商的下载工具 | 在台架上登记工具 | `tool_exe.<名>` 等,见 [Windows agent README](../bench-py/README.md)「其它厂商的下载工具」 |
 
 几块板轮流接同一根线时,先用 `dhands bench board use <板名>` 选中这次的板子:串口跟着切,写分区前核对的也是这块板。
 
-哪些分区能写不设名单(ADR-070):写哪些、每个分区用哪个文件,以编译产物里厂商自己的烧录清单为准(见下面「整包烧:plan」,只烧几个分区用 `--only`)。旧 agent.conf 里的 `flash_partitions` 行还能读,但不再生效。
+哪些分区能写不设名单(ADR-070):写哪些、每个分区用哪个文件,以编译产物里厂商自己的烧录清单为准(见下面「整包烧:plan」,只烧几个分区用 `--only`)。旧 bench.conf 里的 `flash_partitions` 行还能读,但不再生效。
 
 ## 命令一览
 
@@ -82,7 +82,7 @@ dhands flash erase misc
 - **镜像在 hub 那台机器上**,路径相对 hub 的工作目录(hub 的 `DHANDS_WORKSPACE`)。路径跑出工作目录的拒绝。hub 先算 sha256,台架 agent 收完再核一次,对不上不写。
 - 分区名先在 hub 查,台架 agent 再查,只查形状(字母、数字、`_` `.` `-`,不能以 `-` 开头),不合规报 `FLASH_PARTITION_REJECTED`,什么都不写。板子上没有这个分区,由 bootloader 自己回 FAILED。
 - 写清单外的镜像(本地刚编的 boot.img、别人单独给的分区包)用这个命令;整包里的分区用 `plan --only`,文件由清单配好,不会把 boot 的镜像写进 recovery。
-- 台架 agent.conf 里只要有一块板配了 `fastboot_product.<板>`,写之前就先问板子 `getvar product`:没选板子、选的板子没配 product 报 `FLASH_BOARD_NOT_LISTED`,答案对不上报 `FLASH_BOARD_MISMATCH`,都什么都不写。
+- 台架 bench.conf 里只要有一块板配了 `fastboot_product.<板>`,写之前就先问板子 `getvar product`:没选板子、选的板子没配 product 报 `FLASH_BOARD_NOT_LISTED`,答案对不上报 `FLASH_BOARD_MISMATCH`,都什么都不写。
 - 写的时候串口一起录下来(见下面「结果和记录」)。
 
 ## 整包烧:plan
@@ -124,7 +124,7 @@ tool reboot-bootloader
 
 ## 其它厂商的下载工具:tools / tool
 
-台架上登记过的厂商命令行工具(登记方法见 [Windows agent README](../clients/windows-agent/README.md)「其它厂商的下载工具」),参数照厂商文档写,dhands 只负责转发和记录。
+台架上登记过的厂商命令行工具(登记方法见 [Windows agent README](../bench-py/README.md)「其它厂商的下载工具」),参数照厂商文档写,dhands 只负责转发和记录。
 
 ```bash
 dhands flash tools

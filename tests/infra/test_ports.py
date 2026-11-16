@@ -16,7 +16,7 @@ import pytest
 from devicehands.infra import ports
 
 _ROOT = Path(__file__).resolve().parents[2]
-_BENCH = _ROOT / "clients" / "windows-agent" / "alb_agent.py"
+_BENCH = _ROOT / "bench-py" / "dhands_bench.py"
 
 _OLD = {8765, 5037, 9001, 8731}
 

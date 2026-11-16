@@ -151,7 +151,7 @@ async def test_unknown_op_on_a_reporting_agent_lists_what_it_offers(recorded):
 async def test_a_new_op_on_an_old_agent_says_update_it(recorded):
     r = await FlashService(lambda: _Agent(reported=False)).run_op("usb-list")
     assert r.code == "BENCH_AGENT_TOO_OLD"
-    assert "update alb_agent.py" in r.error
+    assert "update dhands_bench.py" in r.error
 
 
 async def test_an_old_agent_without_fastboot_keeps_the_old_answer(recorded):

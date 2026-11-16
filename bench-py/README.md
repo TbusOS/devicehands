@@ -1,4 +1,4 @@
-# alb 设备 agent — Windows 端使用说明
+# DeviceHands 台架程序(dhands bench)— Windows 端使用说明
 
 （English version: [README.en.md](README.en.md)）
 
@@ -15,14 +15,14 @@ Windows 上（USB 线 + 串口线），跑起这个 agent 之后，Linux 那边�
 1. 确认这台 Windows 装了 **Python 3.11 或更高**（没装的话去
    https://www.python.org/downloads/ 下载，安装时勾上
    "Add python.exe to PATH"）。
-2. 把 `agent.conf.example` 复制为 `agent.conf`，填两个值：`hub_url`（hub 的
-   地址）和 `token`（和 hub 端 `hub.env` 里 `ALB_AGENT_TOKEN` 一致，问 hub
+2. 把 `bench.conf.example` 复制为 `bench.conf`，填两个值：`hub_url`（hub 的
+   地址）和 `token`（和 hub 端 `hub.env` 里 `DHANDS_AGENT_TOKEN` 一致，问 hub
    那边要）。
-3. **双击 `run-agent.bat`**。完事。
+3. **双击 `run-bench.bat`**。完事。
 
 窗口里看到 `connected to ws://... as win-xxxx (build xxxxxxxxxxxx)` 就是连上了。把窗口最小化挂着
 即可（关掉窗口 = 断开远程调试）。括号里的 build 号是这台机器跑的版本，启动时第一行
-`starting: build ...` 也会打出来，跟 `alb bench ops` 第二行对得上就是同一版。
+`starting: build ...` 也会打出来，跟 `dhands bench ops` 第二行对得上就是同一版。
 
 在窗口里选中文字（比如复制日志）时，窗口会停止滚动，但 agent 照常工作，adb、串口、
 烧录都不受影响；按 Esc 取消选中，这期间的日志会补打出来。日志文件不受影响。
@@ -30,13 +30,13 @@ Windows 上（USB 线 + 串口线），跑起这个 agent 之后，Linux 那边�
 
 ## 每次启动都会自动检查什么
 
-`run-agent.bat` 每次运行都把环境过一遍，逐项打印结果：
+`run-bench.bat` 每次运行都把环境过一遍，逐项打印结果：
 
 | 检查项 | 不通过时的行为 |
 |---|---|
 | Python 3.11+（`python` 或 `py -3`） | 停下并提示安装地址 |
 | websockets / pyserial 两个依赖库 | **自动安装**，装失败才停 |
-| `agent.conf` 是否存在 | 停下并提示先复制 `agent.conf.example` |
+| `bench.conf` 是否存在 | 停下并提示先复制 `bench.conf.example` |
 | adb 是否在 PATH + 当前设备列表 | 只提示不阻塞（不装 adb 串口功能照常用）；有 adb 时把 `adb devices` 看到的设备直接打出来 |
 | 本机能看到的串口列表 | 打印出来供核对，空列表会提示查线/驱动 |
 
@@ -49,7 +49,7 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
 
 - **hub 网页控制台的链接**（`web console` 一行，直接点开就是网页界面）。
   agent 窗口里也有：连上 hub 后打印一块摘要，最后两行 `>>> Web console` 就是这个地址；
-  窗口标题栏一直显示 `alb agent <名字> · connected · <地址>`，日志刷走了也看得到，
+  窗口标题栏一直显示 `dhands bench <名字> · connected · <地址>`，日志刷走了也看得到，
   断线时标题变成 `DISCONNECTED - retrying`
 - 连接状态（绿点 connected / 红点 disconnected）和最近一次错误原因
 - 这台电脑上枚举到的 **adb 设备** 和 **串口列表**（板子插没插好一眼看出）
@@ -67,7 +67,7 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
    没看到串口设备 —— 检查 USB 转串口线插没插在这台电脑、驱动装没装
    （设备管理器 → 端口(COM 和 LPT) 里应该能看到）。
 2. 列表里有口但号不对（比如是 COM5 不是 COM4）→ 告诉 Linux 侧改
-   `hub.env` 里的 `ALB_AGENT_SERIAL_COM` 后重启 hub（串口号是 Linux 侧配的，
+   `hub.env` 里的 `DHANDS_AGENT_SERIAL_COM` 后重启 hub（串口号是 Linux 侧配的，
    Windows 这边不用改）。
 3. 号对但打不开 → 有别的程序占着这个口（Xshell / SecureCRT / 串口助手），
    把它们关掉。串口同一时间只能被一个程序占用。
@@ -87,7 +87,7 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
 持有，标准 adb 每次打开都吃"拒绝访问"，设备列表永远是空的，而驱动看起来
 完全正常。这套工具的应对：
 
-- **启动自检**：`run-agent.bat` 在 devices 为 NONE 时会自动扫一遍进程表，
+- **启动自检**：`run-bench.bat` 在 devices 为 NONE 时会自动扫一遍进程表，
   把"名字里带独立 adb 字段（`xxx_adb`、`adb_server` 这类）但不是 adb 本尊"
   的进程连 pid 一起打出来，并给出处置命令（只认独立字段，名字中间碰巧连出
   a-d-b 三个字母的无辜进程不会被误伤）；
@@ -102,20 +102,20 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
   工具后顺手跑一遍处置命令即可，两边不会坏数据。
 
 **问：想换 hub 地址 / token / 显示名字？**
-编辑 `agent.conf`（记事本就行），改完重新双击 `run-agent.bat`。格式是
+编辑 `bench.conf`（记事本就行），改完重新双击 `run-bench.bat`。格式是
 `键=值` 一行一个，`#` 开头是注释。各字段：
 
 | 键 | 含义 |
 |---|---|
 | `hub_url` | hub 的地址，`ws://<Linux的IP>:8775/agent/connect` |
-| `token` | 和 hub 端 `hub.env` 里 `ALB_AGENT_TOKEN` 一致的口令 |
+| `token` | 和 hub 端 `hub.env` 里 `DHANDS_AGENT_TOKEN` 一致的口令 |
 | `name` | 在 hub 网页上显示的名字，随意 |
 | `agent_id` | 固定身份号，别改；删了的话每次重启 hub 会当成新设备 |
 | `status_port` | 状态页端口，默认 8741，写 0 关闭 |
 
 **问：能开机自动启动吗？**
-可以。任务计划程序（Task Scheduler）新建任务指向 `run-agent.bat`，并在任务的
-环境变量里加 `ALB_AGENT_NO_PAUSE=1`（不加的话出错时脚本会等按键，后台任务会
+可以。任务计划程序（Task Scheduler）新建任务指向 `run-bench.bat`，并在任务的
+环境变量里加 `DHANDS_BENCH_NO_PAUSE=1`（不加的话出错时脚本会等按键，后台任务会
 卡住）。
 
 **问：能从 Linux 那边远程启动 agent 吗？**
@@ -123,35 +123,35 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
 没有任何办法叫它起来；下面这一步给 hub 留一条安全的路：
 
 1. 在 hub 上生成一把专用密钥（私钥只留在 hub）：
-   `ssh-keygen -t ed25519 -N "" -C alb-hub-to-bench -f ~/.ssh/id_ed25519_albbench`，
-   把 `~/.ssh/id_ed25519_albbench.pub` 那一行（公钥，不是秘密）拿到 Windows 这边。
+   `ssh-keygen -t ed25519 -N "" -C dhands-hub-to-bench -f ~/.ssh/id_ed25519_dhandsbench`，
+   把 `~/.ssh/id_ed25519_dhandsbench.pub` 那一行（公钥，不是秘密）拿到 Windows 这边。
 2. 在本文件夹双击 **`setup-remote-start.bat`**，按提示粘贴那一行公钥。它做两件事：
    - 把公钥加进本账号的 SSH 授权文件。管理员账号用的是
      `C:\ProgramData\ssh\administrators_authorized_keys`（Windows 的 OpenSSH 只认这个，
      放在个人目录不起作用），并把它的权限收紧成只有管理员和 SYSTEM 能改；脚本
      会弹 UAC 要管理员权限。普通账号用 `%USERPROFILE%\.ssh\authorized_keys`。
-   - 建计划任务 `alb-agent`：在你的桌面会话里运行 `run-agent.bat`（窗口照常可见），
+   - 建计划任务 `dhands-bench`：在你的桌面会话里运行 `run-bench.bat`（窗口照常可见），
      登录时也自动启动，不受默认的「运行 3 天后停止」限制。
    最后它打印两行：Windows 用户名和本文件夹路径，交给管 hub 的人。
 3. hub 上加一条 `~/.ssh/config`：
 
    ```
-   Host alb-bench
+   Host dhands-bench-host
        HostName <这台 Windows 的地址>
        User <上面打印的用户名>
-       IdentityFile ~/.ssh/id_ed25519_albbench
+       IdentityFile ~/.ssh/id_ed25519_dhandsbench
        IdentitiesOnly yes
    ```
 
-4. hub 的 `deploy/hub/hub.env` 加一行 `ALB_BENCH_SSH_HOST=alb-bench`，重启 alb-api。
+4. hub 的 `deploy/hub/hub.env` 加一行 `DHANDS_BENCH_SSH_HOST=dhands-bench-host`，重启 dhands-hub。
 
-之后 agent 没在跑时，在 hub 上执行 **`alb bench agent-start`**：hub 经 ssh 启动这个
-计划任务，再等 agent 连上来；没连上时把本文件夹 `logs\agent.log` 的最后几行一起
-带回来。不想经 hub，也可以直接 `ssh alb-bench schtasks /Run /TN alb-agent`。
+之后 agent 没在跑时，在 hub 上执行 **`dhands bench agent-start`**：hub 经 ssh 启动这个
+计划任务，再等 agent 连上来；没连上时把本文件夹 `logs\bench.log` 的最后几行一起
+带回来。不想经 hub，也可以直接 `ssh dhands-bench-host schtasks /Run /TN dhands-bench`。
 
 **这不是重启。** 这个任务已经在跑时，Windows 不会再启动第二份（任务设的是
 「已在运行就忽略新请求」），`schtasks /Run` 照样回「成功」，但什么都没变。
-换版本用 hub 上的 `alb bench agent-update`（文件没变时它也不重启）；目前 hub 这边
+换版本用 hub 上的 `dhands bench agent-update`（文件没变时它也不重启）；目前 hub 这边
 没有单纯重启 agent 的命令。
 
 为什么经过计划任务，而不是用 ssh 直接启动：ssh 会话里启动的进程，桌面上看不到
@@ -173,18 +173,18 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
   标志，Ctrl+Break 也始终可用。
 
 **问：窗口关了会怎样？**
-远程调试断开，Linux 那边立刻看不到板子。重新双击 `run-agent.bat` 即可，断线
+远程调试断开，Linux 那边立刻看不到板子。重新双击 `run-bench.bat` 即可，断线
 也会自动重连（1/2/5/10 秒退避），不用手动干预。
 
 **问：工具本身出问题了怎么定位？**
-看日志文件：**`logs\agent.log`**（本文件夹下，`agent.conf` 里
-`log_file=logs/agent.log` 控制）。每次运行都往里追加，窗口关了记录也在：
+看日志文件：**`logs\bench.log`**（本文件夹下，`bench.conf` 里
+`log_file=logs/bench.log` 控制）。每次运行都往里追加，窗口关了记录也在：
 
 - 启动环境一行（Python / websockets / pyserial 版本、用的哪个配置文件）
 - 本机串口列表快照
 - 每次连接 / 断开 / 重连的原因，每条通道打开失败的原因
 
-文件到约 5 MB 自动轮转，最多保留 3 份旧的（`agent.log.1` ~ `.3`），不会
+文件到约 5 MB 自动轮转，最多保留 3 份旧的（`bench.log.1` ~ `.3`），不会
 撑爆磁盘。报告问题时把这个文件一起发过来最有用。写 `log_file=none` 可关闭。
 
 ---
@@ -194,7 +194,7 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
 板子进 fastboot 之后会从 adb 里消失，默认情况下 hub 那边就够不着它了 ——
 连"把它重启回系统"都做不到。要补上这条路，照
 **[FASTBOOT-SETUP.md](FASTBOOT-SETUP.md)** 配一遍（装 platform-tools +
-在 `agent.conf` 里写 `fastboot_path=`），几分钟的事。
+在 `bench.conf` 里写 `fastboot_path=`），几分钟的事。
 
 不配也不影响 adb 和串口，只是 hub 会直接告诉调用方"这台不能烧"。
 
@@ -214,7 +214,7 @@ agent 连上 hub 时（`hello`）会把自己会做的操作列成一张表报�
 | `log-tail` | 读本机日志的最后 N 行，可按关键字筛。来源只有名字：`agent`（本 agent 自己的日志，`log_file` 配了才有）、`setupapi`（Windows 的驱动安装日志）、`update`（上一次远程更新的经过，更新过才有） | 否 |
 | `agent-update` | 换这个 agent 自己的文件并重启，见下一节 | 否 |
 | `edl-sahara` / `edl-program` / `edl-reset` | 高通 9008（EDL）烧录，见下面「高通 9008」一节 | 否（要板子在 9008 里） |
-| `tool-run` / `tool-list` | 跑在 `agent.conf` 里登记过的厂商烧录工具，参数由调用方照厂商的写法给，见下面「其它厂商的下载工具」一节 | 否（要板子在那家的下载模式里） |
+| `tool-run` / `tool-list` | 跑在 `bench.conf` 里登记过的厂商烧录工具，参数由调用方照厂商的写法给，见下面「其它厂商的下载工具」一节 | 否（要板子在那家的下载模式里） |
 
 两条规矩不变：
 
@@ -230,7 +230,7 @@ fastboot 没配（见上一节）时，表里只有 `usb-list` / `log-tail` / `a
 ### 几块板接同一台电脑：写之前核对是哪块板
 
 不设分区名单（ADR-070，2026-11-12 起）：写哪些分区、每个分区用哪个文件，以厂商的
-烧录清单为准（`alb flash plan --only`），这里只查分区名的形状。旧配置里的
+烧录清单为准（`dhands flash plan --only`），这里只查分区名的形状。旧配置里的
 `flash_partitions` / `flash_partitions.<板>` 还能读，启动日志提示它们不再生效。
 
 要防的是写错板子。给每块板登记它在 fastboot 里报的 product：
@@ -240,7 +240,7 @@ fastboot_product.board-a=board_a_product
 fastboot_product.board-b=board_b_product
 ```
 
-板名就是 hub 板子表里的名字（`alb bench board`）。只要登记了任何一块：
+板名就是 hub 板子表里的名字（`dhands bench board`）。只要登记了任何一块：
 
 - hub 每个作业都带上它选中的板子；没选板、或选的板子没登记 product，作业在收镜像
   之前就被拒（`FLASH_BOARD_NOT_LISTED`）。所以这台电脑上的**每块板都要登记**。
@@ -252,7 +252,7 @@ fastboot_product.board-b=board_b_product
 ### 高通 9008（EDL）烧录
 
 有的板子只能在高通紧急下载模式里写（USB 05c6:9008，设备管理器里叫
-「Qualcomm HS-USB QDLoader 9008 (COMnn)」）。在 `agent.conf` 里配三行，agent 就多出三个操作：
+「Qualcomm HS-USB QDLoader 9008 (COMnn)」）。在 `bench.conf` 里配三行，agent 就多出三个操作：
 
 ```
 edl_sahara=D:\flash\board-a\tools\QSaharaServer.exe
@@ -291,7 +291,7 @@ D:\flash\board-a\
 
 ### 其它厂商的下载工具：登记后照厂商的参数跑
 
-别家芯片的下载模式工具，各家参数都不一样，alb 不去理解它们：在 `agent.conf` 里把工具登记一个名字，
+别家芯片的下载模式工具，各家参数都不一样，dhands 不去理解它们：在 `bench.conf` 里把工具登记一个名字，
 调用方照厂商文档写参数，agent 检查过路径后原样交给工具。厂商工具平时怎么跑，现在还怎么跑，只是换成在
 Linux 那边敲命令。
 
@@ -303,7 +303,7 @@ tool_fail.vt=(?i)fail|error
 tool_note.vt=^Write .* (ok|fail)
 tool_usb.vt=1a2b:3c4d
 tool_usage.vt=按住 recovery 键插 USB 进下载模式
-tool_usage.vt=例:alb flash tool vt --pkg v12 -- -p {com} -f update.img
+tool_usage.vt=例:dhands flash tool vt --pkg v12 -- -p {com} -f update.img
 ```
 
 `vt` 是自己起的名字（小写字母、数字、`_`、`-`，最长 32）。每个键的含义：
@@ -318,13 +318,13 @@ tool_usage.vt=例:alb flash tool vt --pkg v12 -- -p {com} -f update.img
 | `tool_fail.<名>` | 否 | 正则。有一行匹配就算失败，退出码是 0 也算 |
 | `tool_note.<名>` | 否 | 正则。匹配的行列进结果，比如每个分区一行 |
 | `tool_usb.<名>` | 否 | `VID:PID`，逗号分隔可写多个。运行前先查 USB 上有没有；参数里用 `{com}` 时必须写 |
-| `tool_usage.<名>` | 否 | 说明文字，`alb flash tools` 里显示。写多行就重复这一行 |
+| `tool_usage.<名>` | 否 | 说明文字，`dhands flash tools` 里显示。写多行就重复这一行 |
 
 调用（在 Linux 那边）：
 
 ```bash
-alb flash tools                                   # 登记了哪些工具、下载模式的设备在不在、说明
-alb flash tool vt --pkg v12 -- -p {com} -f update.img
+dhands flash tools                                   # 登记了哪些工具、下载模式的设备在不在、说明
+dhands flash tool vt --pkg v12 -- -p {com} -f update.img
 ```
 
 - `--` 后面的参数原样交给工具，不经过 cmd.exe，参数里的空格、`&`、`%` 都不会被解释。stdin 是空的，
@@ -345,42 +345,42 @@ alb flash tool vt --pkg v12 -- -p {com} -f update.img
   （很多 Windows 工具用 `/x` 当选项，所以放行）。这层检查防的是手误和 AI 拼错路径，不防故意。
 - 只有图形界面的工具不支持；要按键或短接才能进的下载模式，需要人到现场。
 
-建议先把已经会用的 `fastboot.exe` 登记成一个透传工具，用 `alb flash tool fb -- getvar product` 和
-`alb flash getvar product` 对照一次，确认这条路通了，再登记新厂商的工具。
+建议先把已经会用的 `fastboot.exe` 登记成一个透传工具，用 `dhands flash tool fb -- getvar product` 和
+`dhands flash getvar product` 对照一次，确认这条路通了，再登记新厂商的工具。
 
 ## 更新 agent：在 Linux 那边推，不用到这台机器上拷
 
-**只有第一次要手动装**：把整个文件夹拷到这台机器（比如 `D:\alb-windows-agent\`），
-关掉旧的 agent 窗口，双击 `run-agent.bat`。在这之前跑的旧版 agent 不认识远程更新。
+**只有第一次要手动装**：把整个文件夹拷到这台机器（比如 `D:\dhands-bench\`），
+关掉旧的 agent 窗口，双击 `run-bench.bat`。在这之前跑的旧版 agent 不认识远程更新。
 
 之后每次更新，在 Linux 那边跑：
 
 ```bash
-alb bench agent-update                      # 只换程序文件，这台机器上的 agent.conf 不动
-alb bench agent-update --config agent.conf  # 连 agent.conf 一起换
+dhands bench agent-update                      # 只换程序文件，这台机器上的 bench.conf 不动
+dhands bench agent-update --config bench.conf  # 连 bench.conf 一起换
 ```
 
-推过来的是 hub 自己那份 `clients/windows-agent/` 文件夹。这台机器上依次发生：
+推过来的是 hub 自己那份 `bench-py/` 文件夹。这台机器上依次发生：
 
 1. 收到压缩包，校验大小和 sha256；包里只许有平铺的文件名，带路径的一律拒绝。
-2. 用新代码跑一次自检（`alb_agent.py --self-check`：能不能编译、依赖在不在、
-   agent.conf 读不读得进）。不过就直接拒绝，旧版照常跑，什么都没换。
+2. 用新代码跑一次自检（`dhands_bench.py --self-check`：能不能编译、依赖在不在、
+   bench.conf 读不读得进）。不过就直接拒绝，旧版照常跑，什么都没换。
 3. 拉起一个换版进程，旧 agent 退出，它的窗口自动关掉。
-4. 换版进程把现有文件备份到 `.alb-agent\backup\`，换上新文件，在新窗口里启动新版。
+4. 换版进程把现有文件备份到 `.dhands-bench\backup\`，换上新文件，在新窗口里启动新版。
 5. 新版 60 秒内连上 hub 就算成功；没连上，就把旧文件放回去、重新启动旧版。
-   Linux 那边会报 `AGENT_UPDATE_ROLLED_BACK`，`alb bench log update` 能看到经过。
+   Linux 那边会报 `AGENT_UPDATE_ROLLED_BACK`，`dhands bench log update` 能看到经过。
 
-文件一样就什么都不做，不会重启。`alb bench ops` 的第二行会写出这台机器跑的是哪一版
+文件一样就什么都不做，不会重启。`dhands bench ops` 的第二行会写出这台机器跑的是哪一版
 （build 号），跟 hub 那份不一样时会提示你更新。
 
-文件夹里多出来的 `.alb-agent\` 放的是运行记录、更新暂存、备份和 `update.log`。
+文件夹里多出来的 `.dhands-bench\` 放的是运行记录、更新暂存、备份和 `update.log`。
 删掉也能用，下次启动会重新建；但最近一次更新的备份在里面，正在更新时别删。
 
 ### 同一个 agent 只会跑一份
 
-双击 `run-agent.bat` 时，如果这个 agent 已经在跑，会先让旧的退出（旧窗口自动关），
+双击 `run-bench.bat` 时，如果这个 agent 已经在跑，会先让旧的退出（旧窗口自动关），
 再启动新的。旧的正在烧录时，会等烧完再接手，不会把烧了一半的分区打断。
 
-"同一个"按 agent.conf 判断。要在一台机器上接两块板，就把整个文件夹再复制一份
-（比如 `D:\alb-windows-agent-2\`），改那份 agent.conf 里的 `agent_id`、`name`。
+"同一个"按 bench.conf 判断。要在一台机器上接两块板，就把整个文件夹再复制一份
+（比如 `D:\dhands-bench-2\`），改那份 bench.conf 里的 `agent_id`、`name`。
 两份各自更新、互不影响。

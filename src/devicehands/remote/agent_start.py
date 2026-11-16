@@ -1,12 +1,12 @@
 """Start the bench agent from the hub over ssh (ADR-061).
 
 The agent dials out, so while it is not running the hub has no way to reach
-it: someone had to double-click run-agent.bat on the bench host. With the
+it: someone had to double-click run-bench.bat on the bench host. With the
 bench host set up once (`setup-remote-start.bat` in the agent folder: hub key
-authorised for ssh, scheduled task `alb-agent` registered), the hub can ask
+authorised for ssh, scheduled task `dhands-bench` registered), the hub can ask
 Windows to start that task and then wait for the agent's hello:
 
-    hub ─ssh─> bench host ─Start-ScheduledTask─> alb-agent ─> run-agent.bat
+    hub ─ssh─> bench host ─Start-ScheduledTask─> dhands-bench ─> run-bench.bat
 
 The task, not ssh, starts the agent: a process started by an ssh session has
 no window and ends with the session.
@@ -42,7 +42,7 @@ from devicehands.remote.flash import EventSink, FlashEvent, FlashResult
 
 SSH_HOST_ENV = "DHANDS_BENCH_SSH_HOST"
 TASK_ENV = "DHANDS_BENCH_AGENT_TASK"
-DEFAULT_TASK = "alb-agent"  # what setup_remote_start.py registers
+DEFAULT_TASK = "dhands-bench"  # what setup_remote_start.py registers
 CONNECT_TIMEOUT_S = 60.0
 MIN_WAIT_S, MAX_WAIT_S = 5.0, 300.0
 SSH_CONNECT_TIMEOUT_S = 10
@@ -50,7 +50,7 @@ SSH_TIMEOUT_S = 45.0
 LOG_TAIL_LINES = 20
 _POLL_S = 0.5
 # Seconds the bench host waits after starting the task before reading its
-# state back: long enough for a run-agent.bat that fails at once to end.
+# state back: long enough for a run-bench.bat that fails at once to end.
 _SETTLE_S = 3
 
 # No quotes, no leading '-': the task name is pasted into the script between
@@ -81,9 +81,9 @@ $i = Get-ScheduledTaskInfo -TaskName $name
 'dhands-start: last-result=' + [string]$i.LastTaskResult
 """
 
-# The agent writes logs\\agent.log under its folder unless agent.conf says
+# The agent writes logs\\bench.log under its folder unless bench.conf says
 # otherwise (log_file); a different path is reported as no-log, not guessed.
-_TAIL = """$log = Join-Path $wd 'logs\\agent.log'
+_TAIL = """$log = Join-Path $wd 'logs\\bench.log'
 if (Test-Path -LiteralPath $log) {{
   'dhands-start: log=' + $log
   Get-Content -LiteralPath $log -Tail {lines} -Encoding UTF8 | ForEach-Object {{ 'dhands-log: ' + $_ }}
@@ -285,7 +285,7 @@ async def start_agent(
         data["state_after"] = marks.get("after", "")
         data["last_result"] = marks.get("last-result", "")
         if data["state_after"] != "Running":
-            # Ended within seconds (run-agent.bat failed), or never ran — the
+            # Ended within seconds (run-bench.bat failed), or never ran — the
             # task only runs in a logged-on user's desktop session.
             where, log = await _log_tail(runner, host, task)
             data["log"], data["log_tail"] = where, log
@@ -293,7 +293,7 @@ async def start_agent(
                 "AGENT_START_TASK_FAILED",
                 f"task {task} on {host} is {data['state_after'] or '?'} {_SETTLE_S}s after "
                 f"the start (last result {data['last_result'] or '?'}) — no one logged on "
-                "to the bench host, or run-agent.bat ended at once",
+                "to the bench host, or run-bench.bat ended at once",
                 data,
                 stdout="\n".join(log),
             )

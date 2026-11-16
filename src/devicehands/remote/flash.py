@@ -201,14 +201,14 @@ def _unknown_op(agent: Any, name: str, table: dict[str, OpSpec]) -> FlashResult:
         return _fail(
             "BENCH_AGENT_TOO_OLD",
             f"agent {agent.agent_id} predates the op table and cannot run {name!r} — "
-            "update alb_agent.py on the agent host",
+            "update dhands_bench.py on the agent host",
         )
     offered = ", ".join(sorted(table)) or "nothing"
     note = "" if CAP_FASTBOOT in caps else " (it has no fastboot executable, so no fastboot ops)"
     if name in ("tool-run", "tool-list"):
         note = (
             " (no vendor tool is registered there: add tool_exe.<name> and "
-            "tool_root.<name> to its agent.conf, see `dhands flash tools --help`)"
+            "tool_root.<name> to its bench.conf, see `dhands flash tools --help`)"
         )
     return _fail(
         "BENCH_OP_UNKNOWN", f"agent {agent.agent_id} has no op {name!r}{note}; it offers: {offered}"
@@ -340,7 +340,7 @@ class FlashService:
                 "code": "FASTBOOT_UNAVAILABLE",
                 "cause": "no_fastboot",
                 "message": f"agent {agent.agent_id} does not advertise the fastboot capability",
-                "suggestion": "set fastboot_path in that agent's agent.conf to the fastboot "
+                "suggestion": "set fastboot_path in that agent's bench.conf to the fastboot "
                 "executable, then restart the agent",
             }
         return None
@@ -430,7 +430,7 @@ class FlashService:
                 return _fail(
                     code,
                     f"the agent refuses images over {spec.max_image_bytes} bytes "
-                    f"({image} is {size}) — update alb_agent.py on the agent host",
+                    f"({image} is {size}) — update dhands_bench.py on the agent host",
                 )
             src = image
 

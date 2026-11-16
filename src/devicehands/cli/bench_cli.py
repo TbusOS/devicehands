@@ -127,7 +127,7 @@ def cmd_ops(as_json: bool = typer.Option(False, "--json", help="raw table")) -> 
     if not data.get("reported"):
         typer.echo(
             "  this agent predates the op table — the list below is inferred from its "
-            "caps; update alb_agent.py on the bench host for the full set"
+            "caps; update dhands_bench.py on the bench host for the full set"
         )
     for op in data.get("ops") or []:
         flags = []
@@ -265,13 +265,13 @@ def cmd_agent_update(
     config: Path | None = typer.Option(
         None,
         "--config",
-        help="also replace the bench agent's agent.conf with this file "
+        help="also replace the bench agent's bench.conf with this file "
         "(default: keep the one on the bench host)",
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="skip the confirmation"),
     as_json: bool = typer.Option(False, "--json", help="print the done frame as JSON"),
 ) -> None:
-    """Send the hub's clients/windows-agent files to the bench host and
+    """Send the hub's bench-py files to the bench host and
     restart the agent there (ADR-060).
 
     The bench host stops only THIS agent (another agent with its own folder
@@ -288,7 +288,7 @@ def cmd_agent_update(
             typer.echo(f"[fail] cannot read {config}: {e}", err=True)
             raise typer.Exit(code=2) from e
     if not yes:
-        what = " and its agent.conf" if config is not None else ""
+        what = " and its bench.conf" if config is not None else ""
         typer.echo(
             f"about to replace the bench agent's files{what} and restart it — "
             "the bench link drops for a few seconds"
@@ -319,7 +319,7 @@ def cmd_agent_start(
 ) -> None:
     """Start the bench agent over ssh when no agent is connected (ADR-061).
 
-    The hub runs the bench host's scheduled task `alb-agent` (set up once
+    The hub runs the bench host's scheduled task `dhands-bench` (set up once
     with setup-remote-start.bat there) and waits for the agent to connect.
     The ssh host is the hub's DHANDS_BENCH_SSH_HOST. A connected agent is left
     alone, and a task that is already running is not started again: this

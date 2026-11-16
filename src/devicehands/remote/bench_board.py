@@ -329,7 +329,7 @@ class PartitionList:
 
     names: list[str]
     problem: str = ""
-    # The agent.conf key the list comes from, for "add it to …" hints.
+    # The bench.conf key the list comes from, for "add it to …" hints.
     key: str = "flash_partitions"
     # The board whose list this is; None for an agent with one list for all.
     board: str | None = None
@@ -365,7 +365,7 @@ def partition_list(agent: Any, board: str | None) -> PartitionList:
             [],
             f"the agent has no fastboot_product for board {board!r} (it has: "
             f"{', '.join(products)}), so it cannot check that board is on the cable — add "
-            f"fastboot_product.{board}=<what `dhands flash getvar product` answers> to agent.conf",
+            f"fastboot_product.{board}=<what `dhands flash getvar product` answers> to bench.conf",
             f"fastboot_product.{board}",
             board,
         )
@@ -388,7 +388,7 @@ def partition_list(agent: Any, board: str | None) -> PartitionList:
         return PartitionList(
             [],
             f"the agent has no partition list for board {board!r} (it has: {', '.join(listed)})"
-            f" — add {key}=… to agent.conf on the bench host",
+            f" — add {key}=… to bench.conf on the bench host",
             key,
             board,
         )

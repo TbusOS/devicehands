@@ -176,7 +176,7 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, str]:
-        return {"ok": "true", "version": __version__, "api": "alb"}
+        return {"ok": "true", "version": __version__, "api": "devicehands"}
 
     app.include_router(adb_router)
     app.include_router(agent_router)

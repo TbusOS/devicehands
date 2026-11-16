@@ -13,7 +13,7 @@ from pathlib import Path
 
 from devicehands.infra.errors import ERROR_CODES
 
-_AGENT = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 # Any quoted literal shaped like one of the agent's code families. Matching
 # `code="..."` alone missed codes passed positionally (`_JobRejected("…")`).
 _CODE_RE = re.compile(r'"((?:FLASH|FASTBOOT|BENCH|SERIAL|ADB|AGENT|EDL)_[A-Z0-9_]+)"')

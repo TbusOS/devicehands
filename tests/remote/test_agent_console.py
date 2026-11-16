@@ -25,11 +25,11 @@ from typing import Any
 
 import pytest
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent() -> Any:
-    spec = importlib.util.spec_from_file_location("alb_agent_console_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_console_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -43,7 +43,7 @@ _WEB = "http://hub.example:8765/app/"
 
 
 def _record(msg: str, level: int = logging.INFO, **extra: Any) -> logging.LogRecord:
-    rec = logging.LogRecord("alb-agent", level, __file__, 0, msg, None, None)
+    rec = logging.LogRecord("dhands-bench", level, __file__, 0, msg, None, None)
     for k, v in extra.items():
         setattr(rec, k, v)
     return rec
@@ -71,7 +71,7 @@ def test_warnings_and_errors_are_spelled_out() -> None:
 
 def test_the_short_form_replaces_the_message_in_the_window() -> None:
     rec = _record(
-        "job: tool vt: D:\\t\\vt.exe -p x (in C:\\Temp\\alb-tool-vt-1)", alb_short="job   vt -p x"
+        "job: tool vt: D:\\t\\vt.exe -p x (in C:\\Temp\\dhands-tool-vt-1)", dhands_short="job   vt -p x"
     )
     assert agent._ConsoleFormatter().format(rec).endswith("  job   vt -p x")
 
@@ -120,15 +120,15 @@ def test_detail_goes_to_the_file_and_the_block_to_the_window(
     console = agent._ConsoleLog(stream)
     console.setFormatter(agent._ConsoleFormatter(console.color))
     root.addHandler(console)
-    log = logging.getLogger("alb-agent")
+    log = logging.getLogger("dhands-bench")
     old_level = log.level
     log.setLevel(logging.INFO)
     try:
-        agent._setup_file_logging(str(tmp_path / "agent.log"))
+        agent._setup_file_logging(str(tmp_path / "bench.log"))
         log.info("both places")
-        log.info("board board-a: partitions abl_a,abl_b", extra={"alb_where": "file"})
-        log.info("the block", extra={"alb_where": "console"})
-        log.info("job: tool vt: D:\\vt.exe x (in C:\\T)", extra={"alb_short": "job   vt x"})
+        log.info("board board-a: partitions abl_a,abl_b", extra={"dhands_where": "file"})
+        log.info("the block", extra={"dhands_where": "console"})
+        log.info("job: tool vt: D:\\vt.exe x (in C:\\T)", extra={"dhands_short": "job   vt x"})
         _wait_for(lambda: "job   vt x" in stream.getvalue())
     finally:
         for h in root.handlers[:]:
@@ -137,7 +137,7 @@ def test_detail_goes_to_the_file_and_the_block_to_the_window(
                 h.close()
         log.setLevel(old_level)
     window = stream.getvalue()
-    text = (tmp_path / "agent.log").read_text(encoding="utf-8")
+    text = (tmp_path / "bench.log").read_text(encoding="utf-8")
     assert "both places" in window and "both places" in text
     assert "the block" in window and "the block" not in text
     assert "abl_a" not in window and "board board-a: partitions abl_a,abl_b" in text
@@ -164,7 +164,7 @@ def _banner(**over: Any) -> list[tuple[str, str]]:
         "edl_problem": "",
         "tools": ["fb", "fh", "sahara"],
         "tool_problems": 0,
-        "log_path": "D:\\alb-windows-agent\\logs\\agent.log",
+        "log_path": "D:\\dhands-bench\\logs\\bench.log",
         "web_url": _WEB,
         "status_url": "http://127.0.0.1:8731",
     }
@@ -181,7 +181,7 @@ def test_the_block_ends_with_the_web_console_address() -> None:
     assert lines[web - 1] == ("  >>> Web console - open in a browser on any PC:", "green")
     assert texts[web + 1] == "      Local status page (this PC only): http://127.0.0.1:8731"
     assert texts[-1].startswith("====") and len(texts) - web <= 3, "the address is at the bottom"
-    assert "  alb agent bench-01 · build fe643f05717a · CONNECTED to hub" in texts
+    assert "  dhands bench bench-01 · build fe643f05717a · CONNECTED to hub" in texts
 
 
 def test_the_block_counts_partitions_instead_of_listing_them() -> None:
@@ -190,13 +190,13 @@ def test_the_block_counts_partitions_instead_of_listing_them() -> None:
     assert "            board-b   product not checked   3 partitions" in texts
     assert "            board-cc  product not checked  19 partitions" in texts
     assert "  9008      QSaharaServer.exe + fh_loader.exe" in texts
-    assert "  tools     fb, fh, sahara    (details: alb flash tools)" in texts
+    assert "  tools     fb, fh, sahara    (details: dhands flash tools)" in texts
     assert max(len(t) for t in texts) <= 100
 
 
 def test_the_block_for_a_bench_without_flashing() -> None:
     texts = [t for t, _ in _banner(fastboot="", boards={}, edl=None, tools=[], log_path="")]
-    assert "  fastboot  not found - flashing is off (fastboot_path in agent.conf)" in texts
+    assert "  fastboot  not found - flashing is off (fastboot_path in bench.conf)" in texts
     assert not any(t.startswith(("  boards", "  9008", "  tools", "  log file")) for t in texts)
 
 
@@ -263,7 +263,7 @@ def window(monkeypatch: pytest.MonkeyPatch) -> Any:
     console = agent._ConsoleLog(stream, color=False)
     console.setFormatter(agent._ConsoleFormatter())
     monkeypatch.setattr(agent, "_CONSOLE", console)
-    log = logging.getLogger("alb-agent")
+    log = logging.getLogger("dhands-bench")
     old_level = log.level
     log.setLevel(logging.INFO)
     log.addHandler(console)
@@ -298,7 +298,7 @@ async def test_the_block_and_the_title_when_the_hub_answers(
     out = stream.getvalue()
     assert f"  >>>     {_WEB}" in out
     assert "CONNECTED to hub" in out
-    assert titles == [f"alb agent bench-01 · connected · {_WEB}"]
+    assert titles == [f"dhands bench bench-01 · connected · {_WEB}"]
 
 
 async def test_the_title_says_when_the_hub_is_gone(
@@ -335,4 +335,4 @@ async def test_the_title_says_when_the_hub_is_gone(
     finally:
         agent._shutdown.clear()
     await asyncio.to_thread(_wait_for, lambda: titles)
-    assert titles[0] == f"alb agent bench-01 · DISCONNECTED - retrying · {_WEB}"
+    assert titles[0] == f"dhands bench bench-01 · DISCONNECTED - retrying · {_WEB}"

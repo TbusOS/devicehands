@@ -24,11 +24,11 @@ import pytest
 
 from devicehands.remote.registry import AgentConnection, AgentRegistry
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_partitions_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_partitions_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod

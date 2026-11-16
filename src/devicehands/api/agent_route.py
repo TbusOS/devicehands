@@ -88,7 +88,7 @@ def _channel_credentials(ws: WebSocket) -> tuple[str | None, str | None]:
         _warned_query_creds = True
         _log.warning(
             "agent dialed back with credentials in the query string — this "
-            "agent predates ADR-055; redeploy clients/windows-agent so the "
+            "agent predates ADR-055; redeploy bench-py so the "
             "token and channel secret ride headers instead"
         )
     return q_token, q_csecret

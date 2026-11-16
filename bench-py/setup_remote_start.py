@@ -2,14 +2,14 @@
 
 Why: the agent dials OUT to the hub, so nothing on the hub side can start it
 when it is not running — someone has to walk over and double-click
-run-agent.bat. This script sets up the one way in that is still safe:
+run-bench.bat. This script sets up the one way in that is still safe:
 
 1. authorizes ONE SSH public key (the hub's) for this Windows account, in the
    file the Windows OpenSSH server actually reads for it;
-2. registers a scheduled task "alb-agent" that runs run-agent.bat in this
+2. registers a scheduled task "dhands-bench" that runs run-bench.bat in this
    user's desktop session.
 
-The hub then runs `ssh <user>@<this host> schtasks /Run /TN alb-agent`. The
+The hub then runs `ssh <user>@<this host> schtasks /Run /TN dhands-bench`. The
 task, not ssh itself, starts the agent: a process started by an ssh session
 gets no visible window and dies with the session, while the task's runs in
 the logged-in desktop like a double-click (and also at every logon).
@@ -34,7 +34,7 @@ import tempfile
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-TASK_NAME = "alb-agent"
+TASK_NAME = "dhands-bench"
 # Well-known SIDs, not names: group names are localized on non-English Windows.
 ADMINISTRATORS_SID = "S-1-5-32-544"
 SYSTEM_SID = "S-1-5-18"
@@ -105,21 +105,21 @@ def is_admin_member(whoami_groups: str) -> bool:
 
 
 def task_xml(user: str, agent_dir: str) -> str:
-    """Task Scheduler XML for run-agent.bat in this user's desktop session.
+    """Task Scheduler XML for run-bench.bat in this user's desktop session.
 
     - InteractiveToken: runs only when the user is logged on, in that session,
       so the agent window is there to see and close like a double-click.
     - ExecutionTimeLimit PT0S: no limit. The default stops a task after three
       days, and the agent is meant to stay up.
     - not stopped / not refused on battery (laptop benches).
-    - ALB_AGENT_NO_PAUSE=1: run-agent.bat must never wait for a keypress
-      when nobody started it by hand (see run-agent.bat).
+    - DHANDS_BENCH_NO_PAUSE=1: run-bench.bat must never wait for a keypress
+      when nobody started it by hand (see run-bench.bat).
     """
     user_x, dir_x = escape(user), escape(agent_dir)
     return f"""<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>alb device agent (run-agent.bat); started from the hub over ssh</Description>
+    <Description>DeviceHands bench (run-bench.bat); started from the hub over ssh</Description>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>
@@ -146,7 +146,7 @@ def task_xml(user: str, agent_dir: str) -> str:
   <Actions Context="Author">
     <Exec>
       <Command>cmd.exe</Command>
-      <Arguments>/c "set ALB_AGENT_NO_PAUSE=1&amp;&amp; run-agent.bat"</Arguments>
+      <Arguments>/c "set DHANDS_BENCH_NO_PAUSE=1&amp;&amp; run-bench.bat"</Arguments>
       <WorkingDirectory>{dir_x}</WorkingDirectory>
     </Exec>
   </Actions>
@@ -219,7 +219,7 @@ def _account() -> str:
 def _register_task(agent_dir: Path) -> None:
     xml = task_xml(_account(), str(agent_dir))
     with tempfile.TemporaryDirectory() as tmp:
-        f = Path(tmp) / "alb-agent-task.xml"
+        f = Path(tmp) / "dhands-bench-task.xml"
         f.write_text(xml, encoding="utf-16")
         r = _run(["schtasks", "/Create", "/TN", TASK_NAME, "/XML", str(f), "/F"])
     if r.returncode != 0:
@@ -261,8 +261,8 @@ def _setup(args: argparse.Namespace, argv: list[str]) -> int:
         print("this script sets up a Windows agent host; run it there")
         return 2
     agent_dir = Path(args.agent_dir).resolve()
-    if not (agent_dir / "run-agent.bat").is_file():
-        print(f"no run-agent.bat in {agent_dir} - put this script in the agent folder")
+    if not (agent_dir / "run-bench.bat").is_file():
+        print(f"no run-bench.bat in {agent_dir} - put this script in the agent folder")
         return 2
     try:
         line, body = _ask_key(args.key)
@@ -299,7 +299,7 @@ def _setup(args: argparse.Namespace, argv: list[str]) -> int:
         return 1
 
     print(f"[v] key   :{'added to' if changed is not None else 'already in'} {key_file}")
-    print(f"[v] task  : {TASK_NAME} -> {agent_dir}\\run-agent.bat (also runs at logon)")
+    print(f"[v] task  : {TASK_NAME} -> {agent_dir}\\run-bench.bat (also runs at logon)")
     if sshd != "running":
         print(f"[!] OpenSSH Server (sshd) is {sshd}: the hub cannot log in until it runs.")
         print("    Settings > Apps > Optional features > OpenSSH Server, then in an")

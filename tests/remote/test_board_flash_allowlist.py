@@ -33,11 +33,11 @@ from devicehands.remote.flash_plan import AgentView, PlanRow, check_agent
 from tests.remote.bench_tables import new_agent_ops
 from tests.remote.test_flash_service import _Agent, _Channel, _ctl
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_boards_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_boards_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -72,19 +72,19 @@ def _per_board(monkeypatch, lists=LISTS, products=None):
     monkeypatch.setattr(agent, "_BOARD_PRODUCT", dict(products or {}))
 
 
-# ── agent.conf ──────────────────────────────────────────────────────────
+# ── bench.conf ──────────────────────────────────────────────────────────
 
 
 def _conf(tmp_path, body: str) -> Path:
     exe = tmp_path / "fastboot"
     exe.write_text("#!/bin/sh\n")
-    path = tmp_path / "agent.conf"
+    path = tmp_path / "bench.conf"
     path.write_text(f"hub_url=ws://h/agent/connect\nfastboot_path={exe}\n{body}", encoding="utf-8")
     return path
 
 
 def test_per_board_lines_are_read_and_only_products_are_reported(tmp_path):
-    """ADR-070: the partition lists are read (an agent.conf that has them
+    """ADR-070: the partition lists are read (an bench.conf that has them
     still starts) and limit nothing; what is reported per board is the
     product its identity is checked against."""
     path = _conf(
@@ -128,7 +128,7 @@ def test_a_wrong_per_board_line_is_a_hard_error(tmp_path, line, why):
     path = _conf(tmp_path, line + "\n")
     with pytest.raises(SystemExit) as e:
         agent._parse_args(["--config", str(path)])
-    assert why in str(e.value) and "agent.conf:3" in str(e.value)
+    assert why in str(e.value) and "bench.conf:3" in str(e.value)
 
 
 @pytest.mark.parametrize(
@@ -161,7 +161,7 @@ def test_a_refused_setting_leaves_the_running_agent_alone(tmp_path, monkeypatch)
 
     monkeypatch.setattr(agent, "_parse_args", lambda *a: args)
     monkeypatch.setattr(agent, "_claim_instance", claim)
-    monkeypatch.setattr(sys, "argv", ["alb_agent.py"])
+    monkeypatch.setattr(sys, "argv", ["dhands_bench.py"])
     root = logging.getLogger()
     handlers, level = list(root.handlers), root.level
     try:

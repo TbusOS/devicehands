@@ -274,7 +274,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "transport",
         "The connected agent has no fastboot executable",
         "Install platform-tools on the agent host, or set fastboot_path in "
-        "agent.conf, then restart the agent",
+        "bench.conf, then restart the agent",
     ),
     "FASTBOOT_BUSY": ErrorSpec(
         "FASTBOOT_BUSY",
@@ -325,17 +325,17 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "FLASH_BOARD_NOT_LISTED",
         "transport",
         "The agent checks which board is on the cable before a write (fastboot_product "
-        "in agent.conf), and cannot here: no bench board is chosen, or the chosen board "
+        "in bench.conf), and cannot here: no bench board is chosen, or the chosen board "
         "has no fastboot_product; nothing was written",
         "Choose the board on the cable with `dhands bench board use <name>`, or add "
-        "fastboot_product.<board>=<what `dhands flash getvar product` answers> to agent.conf "
+        "fastboot_product.<board>=<what `dhands flash getvar product` answers> to bench.conf "
         "on the bench host",
     ),
     "FLASH_BOARD_MISMATCH": ErrorSpec(
         "FLASH_BOARD_MISMATCH",
         "transport",
         "The board in fastboot is not the chosen bench board: `fastboot getvar "
-        "product` answered something other than its fastboot_product in agent.conf, "
+        "product` answered something other than its fastboot_product in bench.conf, "
         "or nothing; nothing was written",
         "Check which board is on the USB cable; switch with `dhands bench board use "
         "<name>` if the hub has the wrong one chosen",
@@ -348,7 +348,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "Any oem command is passed on; only these are refused: empty, starting "
         "with '-' (fastboot would read it as its own option) or whitespace, "
         "control characters, or longer than 256 characters (see _OEM_RE in "
-        "alb_agent.py). An agent older than 2026-11-05 still only passes "
+        "dhands_bench.py). An agent older than 2026-11-05 still only passes "
         "at-lock-vboot / at-unlock-vboot — update it with `dhands bench agent-update`",
     ),
     "FLASH_VAR_REJECTED": ErrorSpec(
@@ -566,7 +566,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "BENCH_AGENT_TOO_OLD",
         "transport",
         "The agent on the bench host predates this op",
-        "Copy the current alb_agent.py to the bench host and restart the agent",
+        "Copy the current dhands_bench.py to the bench host and restart the agent",
     ),
     "BENCH_LOG_UNAVAILABLE": ErrorSpec(
         "BENCH_LOG_UNAVAILABLE",
@@ -597,7 +597,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "transport",
         "The package directory or a file in it is not usable on the agent host: outside "
         "edl_root, missing, or not unique; nothing was sent to the board",
-        "dir is relative to edl_root in the bench agent.conf; xml and programmer are file "
+        "dir is relative to edl_root in the bench host's bench.conf; xml and programmer are file "
         "names inside dir",
     ),
     "EDL_SAHARA_FAILED": ErrorSpec(
@@ -623,7 +623,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "transport",
         "No vendor tool of that name is registered on the bench host",
         "`dhands flash tools` lists the registered tools; register one with "
-        "tool_exe.<name> and tool_root.<name> in the bench agent.conf",
+        "tool_exe.<name> and tool_root.<name> in the bench host's bench.conf",
     ),
     "BENCH_TOOL_PACKAGE_REJECTED": ErrorSpec(
         "BENCH_TOOL_PACKAGE_REJECTED",
@@ -638,7 +638,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "transport",
         "An argument for the vendor tool was refused; the tool was not started",
         "Name files relative to the package (the tool runs in it), or write {pkg}; no drive "
-        "paths, network paths or '..'; {com} needs tool_usb in agent.conf; the error says "
+        "paths, network paths or '..'; {com} needs tool_usb in bench.conf; the error says "
         "which argument and which rule",
     ),
     "BENCH_TOOL_NO_DEVICE": ErrorSpec(
@@ -661,7 +661,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "BENCH_TOOL_NOT_STARTED",
         "transport",
         "The vendor tool could not be started on the bench host",
-        "Check tool_exe in the bench agent.conf; a missing DLL or a tool that needs "
+        "Check tool_exe in the bench host's bench.conf; a missing DLL or a tool that needs "
         "administrator rights fails this way — run it once by hand on the bench host",
     ),
     "BENCH_TOOL_FAILED": ErrorSpec(
@@ -678,7 +678,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "The vendor tool did not finish within its tool_timeout and was ended, with "
         "everything it started",
         "Read the last lines: a tool waiting for a board that never entered download mode "
-        "looks like this; raise tool_timeout in agent.conf only for a tool that really "
+        "looks like this; raise tool_timeout in bench.conf only for a tool that really "
         "runs that long",
     ),
     # Remote agent update (ADR-060). Four codes because each points at a
@@ -688,14 +688,14 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "AGENT_UPDATE_REJECTED",
         "transport",
         "The agent refused the update bundle; it keeps running unchanged",
-        "Check the hub's clients/windows-agent folder (only flat file names, "
-        "alb_agent.py present) and that the agent was started with a config file",
+        "Check the hub's bench-py folder (only flat file names, "
+        "dhands_bench.py present) and that the agent was started with a config file",
     ),
     "AGENT_UPDATE_CHECK_FAILED": ErrorSpec(
         "AGENT_UPDATE_CHECK_FAILED",
         "transport",
         "The new agent build failed its self-check on the bench host; nothing was replaced",
-        "Read the error text (syntax error, missing Python package, bad agent.conf "
+        "Read the error text (syntax error, missing Python package, bad bench.conf "
         "key); fix it in the repo, or pip install the package on the bench host",
     ),
     "AGENT_UPDATE_ROLLED_BACK": ErrorSpec(
@@ -709,7 +709,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "AGENT_UPDATE_NO_RETURN",
         "transport",
         "The agent restarted for an update and has not reconnected",
-        "Look at the bench host: the agent window, and .alb-agent/update.log in "
+        "Look at the bench host: the agent window, and .dhands-bench/update.log in "
         "the agent's folder. It may still come back after its rollback finishes",
     ),
     # Starting the bench agent over ssh (ADR-061). One code per place to look:
@@ -740,13 +740,13 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "device",
         "The bench host's task did not start, or ended at once",
         "The task runs only while a user is logged on to the bench host; if one is, "
-        "the agent log lines shown say why run-agent.bat stopped",
+        "the agent log lines shown say why run-bench.bat stopped",
     ),
     "AGENT_START_NO_CONNECT": ErrorSpec(
         "AGENT_START_NO_CONNECT",
         "timeout",
         "The agent's task is running on the bench host but no agent reached this hub",
-        "Read the agent log lines shown: hub_url / token in agent.conf, or the "
+        "Read the agent log lines shown: hub_url / token in bench.conf, or the "
         "network between the bench host and this hub",
     ),
     # Which board the bench's serial console points at (ADR-063).

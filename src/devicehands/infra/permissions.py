@@ -7,7 +7,7 @@ these only made debugging impossible.
 
 What must stay protected is the Windows host the board is plugged into.
 That host never runs free-form commands from devicehands: its agent executes only
-the ops listed in its own op table (clients/windows-agent/alb_agent.py,
+the ops listed in its own op table (bench-py/dhands_bench.py,
 `_build_ops`), so there is no path for a board command to delete a host
 file. This module therefore has no rules today; `check_permissions` stays
 as the hook a future host-side rule would plug into.

@@ -14,11 +14,11 @@ from typing import Any
 
 import pytest
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_restart_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_restart_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -235,7 +235,7 @@ def test_uncaught_thread_exception_reaches_the_log_file(monkeypatch, tmp_path):
 
     monkeypatch.setattr(threading, "excepthook", threading.excepthook)
     monkeypatch.setattr(sys, "excepthook", sys.excepthook)
-    log_file = tmp_path / "agent.log"
+    log_file = tmp_path / "bench.log"
     handler = logging.FileHandler(log_file, encoding="utf-8")
     root = logging.getLogger()
     root.addHandler(handler)
@@ -266,6 +266,6 @@ def test_uncaught_main_thread_crash_is_logged(monkeypatch, caplog):
     try:
         raise RuntimeError("main loop died")
     except RuntimeError as e:
-        with caplog.at_level("CRITICAL", logger="alb-agent"):
+        with caplog.at_level("CRITICAL", logger="dhands-bench"):
             sys.excepthook(type(e), e, e.__traceback__)
     assert any("uncaught exception" in r.getMessage() and r.exc_info for r in caplog.records)

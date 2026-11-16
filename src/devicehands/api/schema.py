@@ -470,8 +470,8 @@ REST_ENDPOINTS: list[EndpointSpec] = [
     {
         "method": "POST",
         "path": "/api/bench/agent-update",
-        "description": "Send this hub's clients/windows-agent files (and, with "
-        "{config_text}, a new agent.conf) to the bench agent, which restarts on them "
+        "description": "Send this hub's bench-py files (and, with "
+        "{config_text}, a new bench.conf) to the bench agent, which restarts on them "
         "(ADR-060). NDJSON stream; waits for the agent to reconnect. done.data.outcome "
         "`updated`, or code AGENT_UPDATE_ROLLED_BACK / AGENT_UPDATE_NO_RETURN",
     },

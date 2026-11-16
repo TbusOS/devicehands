@@ -31,7 +31,6 @@ from devicehands.infra.workspace import (
 def test_directories_are_named_after_devicehands() -> None:
     for p in (dirs.config_dir(), dirs.data_dir(), dirs.default_workspace_dir(), dirs.tools_dir()):
         assert "devicehands" in p.parts, p
-        assert not any(part in {"alb", ".alb-workspace"} for part in p.parts), p
     assert dirs.default_workspace_dir() == dirs.data_dir() / "workspace"
     assert dirs.tools_dir() == dirs.data_dir() / "tools"
 

@@ -23,11 +23,11 @@ from devicehands.remote.bench_ops import ParamSpec, check_params, parse_ops
 from devicehands.remote.flash import FlashService, _label
 from devicehands.remote.flash_timeline import FlashTimeline
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent() -> Any:
-    spec = importlib.util.spec_from_file_location("alb_agent_tool_hub_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_tool_hub_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod

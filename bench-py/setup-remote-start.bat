@@ -1,6 +1,6 @@
 @echo off
 rem One-time setup so the Linux hub can start this agent over SSH:
-rem authorizes the hub's public key and registers the "alb-agent" task.
+rem authorizes the hub's public key and registers the "dhands-bench" task.
 rem Details and how to undo: README.md, "remote start".
 rem Extra arguments go to setup_remote_start.py (e.g. --remove).
 setlocal

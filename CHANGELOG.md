@@ -7,6 +7,39 @@
 
 ## [Unreleased]
 
+### 改名为 DeviceHands,能和旧的 alb 装在同一台电脑上(P1,2026-11-16)
+设计依据:`docs/devicehands-design.md` 5.10、5.11。新旧两套的名字、端口、目录全部不同,新程序不读旧程序的配置和数据。
+
+| 项 | 旧 | 新 |
+|---|---|---|
+| Python 包 / 模块 | `android-llm-bridge` / `alb` | `devicehands` / `devicehands` |
+| 命令 | `alb`、`alb-mcp`、`alb-api` | `devicehands` 和 `dhands`(同一个入口)、`dhands-mcp`、`dhands-hub` |
+| 环境变量前缀 | `ALB_` | `DHANDS_`(旧变量不再生效) |
+| MCP 服务名 / 工具前缀 | `alb` / `alb_` | `devicehands` / `dhands_` |
+| 网页和接口端口 | 8765 | 8775 |
+| adb 隧道(hub 本机转发口) | 5037 | 8776(不再占 adb 自己的 5037) |
+| 串口隧道(hub 本机转发口) | 9001 | 8777 |
+| 台架状态页 | 8731 | 8741 |
+| 全局配置 | `~/.config/alb/config.toml` | `platformdirs` 的配置目录下 `config.toml`(Linux:`~/.config/devicehands/config.toml`) |
+| 工作目录默认值 | 当前目录的 `workspace/`,否则 `~/.alb-workspace` | config.toml 的 `[workspace] root`,否则数据目录下 `workspace/`(Linux:`~/.local/share/devicehands/workspace`);不再看当前目录 |
+| 下载的 adb / fastboot | `~/.local/share/alb` | 数据目录下 `tools/` |
+| 设备子目录名 | 序列号原样(无线 adb 带 `:`) | `:` 换成 `+`;`COM5`、`NUL` 这类 Windows 保留名前后加 `+` |
+| 台架程序目录 / 主文件 | `clients/windows-agent/alb_agent.py` | `bench-py/dhands_bench.py` |
+| 台架启动脚本 / 配置 | `run-agent.bat` / `agent.conf` | `run-bench.bat` / `bench.conf` |
+| 台架状态目录 / 日志 | `.alb-agent/` / `logs/agent.log` | `.dhands-bench/` / `logs/bench.log` |
+| 台架计划任务名 | `alb-agent` | `dhands-bench` |
+| 台架环境变量 | `ALB_AGENT_NO_PAUSE`、`ALB_AGENT_LAUNCHER` | `DHANDS_BENCH_NO_PAUSE`、`DHANDS_BENCH_LAUNCHER` |
+| hub `/health` 的 `api` 字段 | `"alb"` | `"devicehands"` |
+
+- `dhands-hub` 现在认 `--help` 和 `--version`(打印后退出,不启动服务);不认识的参数报错退出(退出码 2),也不启动服务。不带参数时和以前一样。
+- 主程序在没有 `fcntl` / `termios` 的系统(Windows)上能导入;那里网页终端返回 `TERMINAL_UNSUPPORTED_OS`。
+- config.toml 的 `[workspace] root` 以前不生效,现在生效(`DHANDS_WORKSPACE` 仍优先)。
+- 不变:协议里的名字(HTTP 头 `x-alb-token` / `x-alb-csecret`、`/agent/connect`、帧字段),留到协议 v2。
+- 升级注意:
+  - 旧数据不迁移。要继续用旧工作目录,设 `DHANDS_WORKSPACE` 指向它。
+  - 已经部署的旧版台架程序不能用 `dhands bench agent-update` 升到新版(旧版要求更新包里有 `alb_agent.py`)。第一次要把 `bench-py/` 手工拷到台架主机,`agent.conf` 改名为 `bench.conf`,再运行一次 `setup-remote-start.bat` 注册 `dhands-bench` 任务;或在 hub 上设 `DHANDS_BENCH_AGENT_TASK` 指向旧任务名。
+  - 不经过 dhands 的 `adb` 命令默认连 5037,看不到台架上的设备;用 `dhands devices`,或 `adb -P 8776`。
+
 ### 许可证改为 Apache 2.0(2026-10-10)
 - `LICENSE` 换成 Apache License 2.0 全文,新增 `NOTICE`;`pyproject.toml`、`alb.__license__`、生成的 `SKILL.md`、README 和网页页脚同步改。
 - 原因:Apache 2.0 带明确的专利授权,设备厂商的法务评审更容易通过;和 AOSP、Gemma 4 用同一个许可证。

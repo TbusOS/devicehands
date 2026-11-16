@@ -29,7 +29,7 @@ Linux 机器(hub 所在)
       ^                .env.local / .env、config.toml、profiles
       |  WebSocket,agent 主动连 hub(hub_url + token)
 Windows 台架主机
-  alb_agent.py ....... agent.conf、命令行参数
+  dhands_bench.py ....... bench.conf、命令行参数
       |  本机 adb server(127.0.0.1:5037)、COM 口
       v
   板子
@@ -37,21 +37,21 @@ Windows 台架主机
 
 | 配置来源 | `dhands`(CLI) | `dhands-mcp` | `dhands-hub`(hub) | Windows agent |
 |---|---|---|---|---|
-| 进程的环境变量 | 读 | 读(只有 MCP 客户端配置里给的) | 读 | 只读 `ALB_AGENT_LAUNCHER`;`run-agent.bat` 另读 `ALB_AGENT_NO_PAUSE` |
+| 进程的环境变量 | 读 | 读(只有 MCP 客户端配置里给的) | 读 | 只读 `DHANDS_BENCH_LAUNCHER`;`run-bench.bat` 另读 `DHANDS_BENCH_NO_PAUSE` |
 | `.env.local` / `.env` | 读 | **不读** | 读 | 不读 |
 | `<配置目录>/config.toml`(见 9.1) | 读 | 读 | 读 | 不读 |
 | `<workspace>/profiles/<name>.toml` | 读 | 读 | 读 | 不读 |
 | `deploy/hub/hub.env` | 不读 | 不读 | 由 `run-hub.sh` 导入环境变量 | 不读 |
 | `boards.toml`(`DHANDS_BENCH_BOARDS` 指向它) | 不读 | 不读 | 读 | 不读 |
-| `clients/windows-agent/agent.conf` | 不读 | 不读 | 不读 | 读 |
+| `bench-py/bench.conf` | 不读 | 不读 | 不读 | 读 |
 
-出处:`.env` 文件由 `src/devicehands/infra/env_loader.py` 加载,只有 `src/devicehands/cli/main.py` 和 `src/devicehands/api/server.py` 调用它;`dhands-mcp` 的入口 `src/devicehands/mcp/server.py` 不加载。agent 的配置读取在 `clients/windows-agent/alb_agent.py`(`_load_config`)。
+出处:`.env` 文件由 `src/devicehands/infra/env_loader.py` 加载,只有 `src/devicehands/cli/main.py` 和 `src/devicehands/api/server.py` 调用它;`dhands-mcp` 的入口 `src/devicehands/mcp/server.py` 不加载。agent 的配置读取在 `bench-py/dhands_bench.py`(`_load_config`)。
 
 ### 1.1 改了配置要重启
 
 - `dhands` 每条命令是一个新进程,改完下一条命令就生效。
 - `dhands-mcp` 和 `dhands-hub` 是常驻进程。环境变量在进程启动时就定了;config.toml 和 profile 在第一次建传输时读一次,之后一直用这份(`src/devicehands/transport/factory.py` 的 `active_settings` 缓存)。**改完要重启这两个进程。**
-- Windows agent 改了 `agent.conf` 要重启 agent,或者用 `dhands bench agent-update` 推一份新的。
+- Windows agent 改了 `bench.conf` 要重启 agent,或者用 `dhands bench agent-update` 推一份新的。
 
 ### 1.2 优先级
 
@@ -65,7 +65,7 @@ Windows 台架主机
 | ssh 连哪台 | `DHANDS_SSH_HOST` > profile 里第一条 `transport = "ssh"` 的 `ssh_host` | `src/devicehands/transport/factory.py` |
 | ssh 端口 / 用户 / 密钥 | `DHANDS_SSH_*` > `[transport.ssh]` 的对应键 | `src/devicehands/transport/factory.py` |
 | hub 串口转发开哪个 COM | `dhands bench board use` 选中的板子 > `DHANDS_AGENT_SERIAL_COM` / `DHANDS_AGENT_SERIAL_BAUD` | `src/devicehands/remote/bench_board.py` |
-| Windows agent 的设置 | 命令行参数 > `agent.conf` > 内置默认值 | `clients/windows-agent/alb_agent.py` |
+| Windows agent 的设置 | 命令行参数 > `bench.conf` > 内置默认值 | `bench-py/dhands_bench.py` |
 | `dhands chat` 的模型后端 | 命令行参数 > 环境变量 > 后端默认值 | `src/devicehands/cli/chat_cli.py` |
 
 两个容易踩的地方:
@@ -237,14 +237,14 @@ hub 推荐用 `deploy/hub/run-hub.sh` 启动:它把同目录的 `hub.env` 导入
 
 | 变量 | 作用 | 默认值 | 代码 |
 |---|---|---|---|
-| `DHANDS_AGENT_TOKEN` | agent 连 hub 时要带的令牌,和 agent.conf 的 `token` 一致 | 不设:`/agent/*` 不校验令牌 | `src/devicehands/api/agent_route.py` |
+| `DHANDS_AGENT_TOKEN` | agent 连 hub 时要带的令牌,和 bench.conf 的 `token` 一致 | 不设:`/agent/*` 不校验令牌 | `src/devicehands/api/agent_route.py` |
 | `DHANDS_API_HOST` | hub 监听的地址 | `0.0.0.0`(所有网卡) | `src/devicehands/api/server.py` |
 | `DHANDS_API_PORT` | hub 监听的端口 | 8775 | `src/devicehands/api/server.py` |
 | `DHANDS_ADB_FORWARD_PORT` | adb 转发口的端口 | 8776 | `src/devicehands/remote/forwarder.py` |
 | `DHANDS_WS_DEFLATE` | 设成 `1` 打开 WebSocket 压缩 | 关 | `src/devicehands/api/server.py` |
 | `DHANDS_BENCH_SSH_HOST` | `dhands bench agent-start` 用来 ssh 到台架主机的 Host(hub 用户 `~/.ssh/config` 里的名字) | 不设:命令报 `AGENT_START_NOT_CONFIGURED` | `src/devicehands/remote/agent_start.py` |
-| `DHANDS_BENCH_AGENT_TASK` | 台架主机上启动 agent 的计划任务名 | `alb-agent` | `src/devicehands/remote/agent_start.py` |
-| `DHANDS_AGENT_BUNDLE_DIR` | `dhands bench agent-update` 推给 agent 的文件从哪个目录取 | 本仓库的 `clients/windows-agent` | `src/devicehands/remote/agent_update.py` |
+| `DHANDS_BENCH_AGENT_TASK` | 台架主机上启动 agent 的计划任务名 | `dhands-bench` | `src/devicehands/remote/agent_start.py` |
+| `DHANDS_AGENT_BUNDLE_DIR` | `dhands bench agent-update` 推给 agent 的文件从哪个目录取 | 本仓库的 `bench-py` | `src/devicehands/remote/agent_update.py` |
 | `DHANDS_LOG_LEVEL` | hub 日志级别,名字(`DEBUG`)或数字都行 | `INFO` | `src/devicehands/api/log_setup.py` |
 | `DHANDS_WARMUP` | 设成 `0` 关掉启动时的模型预热 | 开(只在设了 `DHANDS_OLLAMA_MODEL` 时预热) | `src/devicehands/api/server.py` |
 | `DHANDS_TPS_SAMPLE_INTERVAL_S` | 网页上模型生成速度(token/s)的采样间隔,秒;不是正数时用默认值 | 1.0 | `src/devicehands/infra/metric_sampler.py` |
@@ -273,11 +273,11 @@ hub 推荐用 `deploy/hub/run-hub.sh` 启动:它把同目录的 `hub.env` 导入
 
 ## 六、台架 Windows agent
 
-agent 是 `clients/windows-agent/` 里的 `alb_agent.py`,跑在插着板子的 Windows 主机上,主动连 hub。配置写在同目录的 `agent.conf`(从 `agent.conf.example` 复制),双击 `run-agent.bat` 启动。完整步骤见 [`dial-home-runbook.md`](./dial-home-runbook.md)。
+agent 是 `bench-py/` 里的 `dhands_bench.py`,跑在插着板子的 Windows 主机上,主动连 hub。配置写在同目录的 `bench.conf`(从 `bench.conf.example` 复制),双击 `run-bench.bat` 启动。完整步骤见 [`dial-home-runbook.md`](./dial-home-runbook.md)。
 
-### 6.1 agent.conf 的键
+### 6.1 bench.conf 的键
 
-代码:`clients/windows-agent/alb_agent.py` 的 `_CONFIG_KEYS`、`_TOOL_KEYS` 和 `_parse_args`。除了 `<key>.<board>` 和 `tool_*.<tool>` 这两类,每个键都有同名的命令行参数(下划线换成连字符,例如 `--hub-url`),命令行赢。`<key>.<board>` 和 `tool_*.<tool>` 只能写在文件里。
+代码:`bench-py/dhands_bench.py` 的 `_CONFIG_KEYS`、`_TOOL_KEYS` 和 `_parse_args`。除了 `<key>.<board>` 和 `tool_*.<tool>` 这两类,每个键都有同名的命令行参数(下划线换成连字符,例如 `--hub-url`),命令行赢。`<key>.<board>` 和 `tool_*.<tool>` 只能写在文件里。
 
 | 键 | 作用 | 默认值 |
 |---|---|---|
@@ -287,7 +287,7 @@ agent 是 `clients/windows-agent/` 里的 `alb_agent.py`,跑在插着板子的 W
 | `agent_id` | 固定的 agent 身份。不设时每次启动随机生成,hub 会当成一个新 agent;远程更新也要求设了它 | 每次随机 |
 | `status_port` | 本机状态页端口,`0` 关掉 | 8741 |
 | `status_host` | 状态页绑定的地址。改成别的会让状态页暴露到本机以外 | `127.0.0.1` |
-| `log_file` | 运行日志文件,相对路径相对脚本所在目录;写 `none` 关掉 | 不写日志文件(模板里写的是 `logs/agent.log`) |
+| `log_file` | 运行日志文件,相对路径相对脚本所在目录;写 `none` 关掉 | 不写日志文件(模板里写的是 `logs/bench.log`) |
 | `fastboot_path` | fastboot 程序路径 | PATH 上的 fastboot;找不到就不提供烧录能力 |
 | `flash_partitions` / `flash_partitions.<board>` | 不再生效(ADR-070):还能读,启动日志提示可以删掉。写哪些分区以厂商的烧录清单为准 | — |
 | `fastboot_product.<board>` | 这块板子 `fastboot getvar product` 应答的值,`<board>` 是 hub 板子表里的名字。任何一块板设了,写分区前就核对:没选板子、选的板子没设、答案不对,都拒绝写 | 不设 |
@@ -309,7 +309,7 @@ agent 是 `clients/windows-agent/` 里的 `alb_agent.py`,跑在插着板子的 W
 - 值两边的一对引号会去掉。空值等于没写,但 `<key>.<board>` 写空值是错误,agent 拒绝启动。
 - 写错键名,agent 拒绝启动,并列出所有合法键名。
 - `edl_sahara` / `edl_firehose` / `edl_root` 三个要一起写。少一个、或路径不存在,9008 的三个操作都不提供,启动日志里写明原因(`_resolve_edl`)。
-- `tool_*.<tool>`(`_resolve_tools`):缺 `tool_exe` 或 `tool_root`、写了相对路径、正则写错、超时不在 1-1700、`tool_usb` 不是 `VID:PID`,agent 拒绝启动;exe 或根目录此刻不存在,启动日志警告,这个工具不提供。用法见 [`clients/windows-agent/README.md`](../clients/windows-agent/README.md)「其它厂商的下载工具」。
+- `tool_*.<tool>`(`_resolve_tools`):缺 `tool_exe` 或 `tool_root`、写了相对路径、正则写错、超时不在 1-1700、`tool_usb` 不是 `VID:PID`,agent 拒绝启动;exe 或根目录此刻不存在,启动日志警告,这个工具不提供。用法见 [`bench-py/README.md`](../bench-py/README.md)「其它厂商的下载工具」。
 
 agent 连的 adb server 固定是台架主机上的 `127.0.0.1:5037`,不能改(`ADB_TARGET`)。
 
@@ -317,8 +317,8 @@ agent 连的 adb server 固定是台架主机上的 `127.0.0.1:5037`,不能改(`
 
 | 变量 | 作用 | 谁设 | 代码 |
 |---|---|---|---|
-| `ALB_AGENT_NO_PAUSE` | 设了以后 `run-agent.bat` 退出时不等按键。无人值守启动时用 | `setup_remote_start.py` 注册的计划任务会设 `1` | `clients/windows-agent/run-agent.bat`、`clients/windows-agent/setup_remote_start.py` |
-| `ALB_AGENT_LAUNCHER` | 告诉 agent 它是从 `run-agent.bat` 启动的,远程更新后按同样方式重启。**内部用,不要手动设** | `run-agent.bat` | `clients/windows-agent/alb_agent.py` |
+| `DHANDS_BENCH_NO_PAUSE` | 设了以后 `run-bench.bat` 退出时不等按键。无人值守启动时用 | `setup_remote_start.py` 注册的计划任务会设 `1` | `bench-py/run-bench.bat`、`bench-py/setup_remote_start.py` |
+| `DHANDS_BENCH_LAUNCHER` | 告诉 agent 它是从 `run-bench.bat` 启动的,远程更新后按同样方式重启。**内部用,不要手动设** | `run-bench.bat` | `bench-py/dhands_bench.py` |
 
 hub 那边和 agent 有关的变量(`DHANDS_AGENT_TOKEN`、`DHANDS_AGENT_SERIAL_COM`、`DHANDS_BENCH_SSH_HOST` 等)见第五节和 2.3。
 
@@ -367,7 +367,7 @@ hub 那边和 agent 有关的变量(`DHANDS_AGENT_TOKEN`、`DHANDS_AGENT_SERIAL_
 - **不看进程的当前目录。** 以前当前目录下有 `workspace/` 就用它,在不同目录下运行会用到不同的工作目录;现在不会。仓库里的 `workspace/` 目录只在设了 `DHANDS_WORKSPACE` 指向它时才用。
 - `[workspace] root` 写相对路径时,相对 config.toml 所在的目录。
 - 设备的子目录名由序列号得出,`:` 换成 `+`(无线 adb 的 `192.0.2.10:5555` → `devices/192.0.2.10+5555/`),Windows 保留的名字(`COM5`、`NUL` 等)和以 `.` 结尾的名字前后各加一个 `+`(`COM5` → `+COM5+`)。合法序列号里没有 `+`,所以不同序列号不会撞名,也能反推回序列号(`src/devicehands/infra/workspace.py` 的 `device_dir_name`)。
-- Windows agent 的日志由 agent.conf 的 `log_file` 决定,见 6.1。
+- Windows agent 的日志由 bench.conf 的 `log_file` 决定,见 6.1。
 
 ---
 
@@ -444,7 +444,7 @@ note = "左边排针上的调试串口"
 | `serial_baud` | 波特率 | 300 到 12000000 的整数 |
 | `note` | 备注,只用来显示 | 可不写 |
 
-写了别的键、名字或取值不合规定,会报 `BENCH_BOARDS_INVALID`,并指出是哪个文件的哪一条。agent.conf 里 `fastboot_product.<board>` 的 `<board>` 用的就是这里的名字。
+写了别的键、名字或取值不合规定,会报 `BENCH_BOARDS_INVALID`,并指出是哪个文件的哪一条。bench.conf 里 `fastboot_product.<board>` 的 `<board>` 用的就是这里的名字。
 
 ### 9.4 hub.env
 

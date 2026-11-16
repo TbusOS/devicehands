@@ -21,11 +21,11 @@ import pytest
 
 from devicehands.remote import agent_update as hub_side
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_update_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_update_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -50,12 +50,12 @@ def _zip(entries: dict[str, bytes]) -> bytes:
 @pytest.mark.parametrize(
     "name",
     [
-        "alb_agent.py",
-        "run-agent.bat",
+        "dhands_bench.py",
+        "run-bench.bat",
         "README.md",
         "requirements.txt",
-        "agent.conf.example",
-        "agent.conf",
+        "bench.conf.example",
+        "bench.conf",
         "FASTBOOT-SETUP.md",
     ],
 )
@@ -66,8 +66,8 @@ def test_every_file_the_folder_ships_is_allowed(name):
 @pytest.mark.parametrize(
     "name",
     [
-        "../alb_agent.py",
-        "sub/alb_agent.py",
+        "../dhands_bench.py",
+        "sub/dhands_bench.py",
         "sub\\x.py",
         ".hidden.py",
         "C:x.py",
@@ -101,17 +101,17 @@ def _unpack(tmp_path: Path, entries: dict[str, bytes]) -> list[str]:
 def test_unpack_empties_the_staging_folder_first(tmp_path):
     (tmp_path / "staged").mkdir()
     (tmp_path / "staged" / "stale.py").write_text("old")
-    names = _unpack(tmp_path, {"alb_agent.py": b"x", "README.md": b"y"})
-    assert names == ["README.md", "alb_agent.py"]
+    names = _unpack(tmp_path, {"dhands_bench.py": b"x", "README.md": b"y"})
+    assert names == ["README.md", "dhands_bench.py"]
     assert sorted(p.name for p in (tmp_path / "staged").iterdir()) == names
 
 
 @pytest.mark.parametrize(
     ("entries", "why"),
     [
-        ({"alb_agent.py": b"x", "../evil.py": b"y"}, "not an allowed file name"),
-        ({"README.md": b"y"}, "no alb_agent.py"),
-        ({"alb_agent.py": b"x", "ALB_AGENT.py": b"y"}, "appears twice"),
+        ({"dhands_bench.py": b"x", "../evil.py": b"y"}, "not an allowed file name"),
+        ({"README.md": b"y"}, "no dhands_bench.py"),
+        ({"dhands_bench.py": b"x", "DHANDS_BENCH.py": b"y"}, "appears twice"),
     ],
 )
 def test_a_bad_bundle_is_refused_whole(tmp_path, entries, why):
@@ -125,7 +125,7 @@ def test_a_bad_bundle_is_refused_whole(tmp_path, entries, why):
 def test_an_oversized_bundle_is_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(agent, "_BUNDLE_MAX_BYTES", 10)
     with pytest.raises(agent._JobRejected):
-        _unpack(tmp_path, {"alb_agent.py": b"x" * 11})
+        _unpack(tmp_path, {"dhands_bench.py": b"x" * 11})
 
 
 def test_not_a_zip_is_refused(tmp_path):
@@ -144,11 +144,11 @@ def test_changed_files_compares_contents_and_the_config_target(tmp_path):
         (staged / name).write_bytes(new)
         (install / name).write_bytes(old)
     (staged / "c.md").write_bytes(b"new file")
-    (staged / "agent.conf").write_bytes(b"hub_url=x\n")
+    (staged / "bench.conf").write_bytes(b"hub_url=x\n")
     conf = tmp_path / "elsewhere.conf"
     conf.write_bytes(b"hub_url=y\n")
     assert agent._changed_files(staged, install, ["a.py", "b.py", "c.md"], None) == ["b.py", "c.md"]
-    assert agent._changed_files(staged, install, ["a.py"], conf) == ["agent.conf"]
+    assert agent._changed_files(staged, install, ["a.py"], conf) == ["bench.conf"]
 
 
 # ── restart arguments ────────────────────────────────────────────────
@@ -165,7 +165,7 @@ def test_restart_keeps_the_arguments_with_an_absolute_config(monkeypatch, tmp_pa
     monkeypatch.setattr(agent, "_CONFIG_USED", "rel.conf")
     monkeypatch.setattr(agent, "_CONFIG_EXPLICIT", True)
     assert agent._relaunch_argv() == ["-v", "--config", str(tmp_path / "rel.conf")]
-    # the default config (agent.conf next to the script) is found again on
+    # the default config (bench.conf next to the script) is found again on
     # its own — naming it would be redundant
     monkeypatch.setattr(agent, "_LAUNCH_ARGV", ["-v"])
     monkeypatch.setattr(agent, "_CONFIG_EXPLICIT", False)
@@ -175,14 +175,14 @@ def test_restart_keeps_the_arguments_with_an_absolute_config(monkeypatch, tmp_pa
 def test_restart_goes_through_run_agent_bat_only_on_windows_when_it_started_there(
     monkeypatch, tmp_path
 ):
-    (tmp_path / "run-agent.bat").write_text("@echo off")
-    monkeypatch.setenv("ALB_AGENT_LAUNCHER", "run-agent.bat")
+    (tmp_path / "run-bench.bat").write_text("@echo off")
+    monkeypatch.setenv("DHANDS_BENCH_LAUNCHER", "run-bench.bat")
     monkeypatch.setattr(agent.sys, "platform", "win32")
     assert agent._relaunch_mode(tmp_path) == "bat"
-    monkeypatch.delenv("ALB_AGENT_LAUNCHER")
+    monkeypatch.delenv("DHANDS_BENCH_LAUNCHER")
     assert agent._relaunch_mode(tmp_path) == "python"
     monkeypatch.setattr(agent.sys, "platform", "linux")
-    monkeypatch.setenv("ALB_AGENT_LAUNCHER", "run-agent.bat")
+    monkeypatch.setenv("DHANDS_BENCH_LAUNCHER", "run-bench.bat")
     assert agent._relaunch_mode(tmp_path) == "python"
 
 
@@ -190,16 +190,16 @@ def test_restart_goes_through_run_agent_bat_only_on_windows_when_it_started_ther
 
 
 def test_one_config_file_is_one_agent(tmp_path):
-    a, b = tmp_path / "a" / "agent.conf", tmp_path / "b" / "agent.conf"
+    a, b = tmp_path / "a" / "bench.conf", tmp_path / "b" / "bench.conf"
     assert agent._instance_key(str(a), "id1") == agent._instance_key(str(a), "id2")
     assert agent._instance_key(str(a), "id1") != agent._instance_key(str(b), "id1")
     assert agent._instance_key("", "id1") != agent._instance_key("", "id2")
 
 
 def _child(code: str) -> subprocess.Popen[bytes]:
-    """A stand-in agent: its command line names alb_agent.py, which is what
+    """A stand-in agent: its command line names dhands_bench.py, which is what
     _same_process checks on POSIX."""
-    return subprocess.Popen([sys.executable, "-c", code, "alb_agent.py"])
+    return subprocess.Popen([sys.executable, "-c", code, "dhands_bench.py"])
 
 
 def _rec(p: subprocess.Popen[bytes]) -> dict:
@@ -231,7 +231,7 @@ sys.exit(75)
 def test_an_agent_that_honours_the_request_is_not_killed(tmp_path):
     flag_holder: list[Path] = []
     p = subprocess.Popen(
-        [sys.executable, "-c", _COOPERATIVE, "alb_agent.py", str(tmp_path / "pending")]
+        [sys.executable, "-c", _COOPERATIVE, "dhands_bench.py", str(tmp_path / "pending")]
     )
     try:
         # the stand-in watches the flag path for ITS pid; point it there
@@ -273,7 +273,7 @@ def test_an_agent_in_the_middle_of_a_job_is_waited_for_not_killed(tmp_path):
     """A flash in progress outlasts any grace period; killing fastboot then
     leaves a half-written partition."""
     p = subprocess.Popen(
-        [sys.executable, "-c", _BUSY, "alb_agent.py", str(tmp_path / "busy-marker")]
+        [sys.executable, "-c", _BUSY, "dhands_bench.py", str(tmp_path / "busy-marker")]
     )
     try:
         busy = agent._stop_flag(tmp_path, p.pid).with_name(f"stop-{p.pid}.busy")
@@ -345,15 +345,15 @@ def test_a_forced_stop_spares_the_caller_and_everything_it_started():
 
 def _plan(tmp_path: Path) -> Path:
     install = tmp_path / "install"
-    (install / ".alb-agent").mkdir(parents=True)
+    (install / ".dhands-bench").mkdir(parents=True)
     plan = {
         "id": "u1",
         "install_dir": str(install),
-        "staged_dir": str(install / ".alb-agent" / "staged"),
-        "files": ["alb_agent.py"],
-        "changed": ["alb_agent.py"],
+        "staged_dir": str(install / ".dhands-bench" / "staged"),
+        "files": ["dhands_bench.py"],
+        "changed": ["dhands_bench.py"],
         "config_target": "",
-        "instance_file": str(install / ".alb-agent" / "instance-x.json"),
+        "instance_file": str(install / ".dhands-bench" / "instance-x.json"),
         "old": {"pid": 1, "created": 0},
         "from_build": "old",
         "to_build": "new",
@@ -361,7 +361,7 @@ def _plan(tmp_path: Path) -> Path:
         "health_timeout_s": 1,
         "settle_s": 0,
     }
-    path = install / ".alb-agent" / "update-plan.json"
+    path = install / ".dhands-bench" / "update-plan.json"
     path.write_text(json.dumps(plan))
     return path
 
@@ -409,7 +409,7 @@ def test_no_start_time_means_no_record(tmp_path, monkeypatch):
     monkeypatch.setattr(agent, "_INSTANCE_PATH", None)
     agent._claim_instance(argparse.Namespace(config_used="", agent_id="a"))
     assert agent._INSTANCE_PATH is None
-    assert list((tmp_path / ".alb-agent").glob("instance-*.json")) == []
+    assert list((tmp_path / ".dhands-bench").glob("instance-*.json")) == []
 
 
 # ── a start that never reached the hub leaves an account (10-20 bench) ──
@@ -419,20 +419,20 @@ def test_the_tree_is_listed_parents_first_with_age_and_command_line():
     table = {
         10: (1, "cmd.exe"),  # the window the helper started
         11: (10, "conhost.exe"),
-        12: (10, "python.exe"),  # run-agent.bat's `python -c` check
+        12: (10, "python.exe"),  # run-bench.bat's `python -c` check
         13: (12, "adb.exe"),
         14: (10, "python.exe"),  # recycled pid: older than its "parent"
         20: (1, "explorer.exe"),
     }
     created = {10: 100.0, 11: 100.1, 12: 101.0, 13: 101.5, 14: 50.0}
     cmd = {
-        10: 'cmd.exe /c "run-agent.bat"',
+        10: 'cmd.exe /c "run-bench.bat"',
         12: "python  -c 'print(\"  [v]\")'\n",
         13: "adb devices",
     }
     lines = agent._describe_tree(table, 10, created.get, lambda p: cmd.get(p, ""), now=160.0)
     assert lines == [
-        'pid 10 cmd.exe, 60s old: cmd.exe /c "run-agent.bat"',
+        'pid 10 cmd.exe, 60s old: cmd.exe /c "run-bench.bat"',
         "  pid 11 conhost.exe, 60s old: (command line unreadable)",
         "  pid 12 python.exe, 59s old: python  -c 'print(\"  [v]\")'",
         "    pid 13 adb.exe, 58s old: adb devices",

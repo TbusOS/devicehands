@@ -9,7 +9,7 @@
 
 ## 0. 先搞清楚这在做什么
 
-板子进入 fastboot 之后会**从 adb 里消失**。alb 原本能把板子推进 fastboot，却够不着
+板子进入 fastboot 之后会**从 adb 里消失**。dhands 原本能把板子推进 fastboot，却够不着
 它出来 —— 唯一的恢复手段是有人走到这台机器跟前。这次配置就是把那条路补上。
 
 配好之后，hub 那边可以：
@@ -55,17 +55,17 @@ D:\platform-tools\fastboot.exe --version
 agent 的代码文件需要更新到含作业通道的版本，否则它**永远不会报告 fastboot 能力**，
 hub 那边会一直显示"不可用"。
 
-从 hub 导出的共享目录（映射的网络盘，目录名 `alb-windows-agent`）拷贝到本机 agent 目录：
+从 hub 导出的共享目录（映射的网络盘，目录名 `dhands-bench`）拷贝到本机 agent 目录：
 
 | 从共享目录 | 到本机 |
 |---|---|
-| `alb_agent.py` | `<agent目录>\alb_agent.py` **（必须）** |
-| `agent.conf.example` | `<agent目录>\agent.conf.example` （可选，只是键名参考） |
+| `dhands_bench.py` | `<agent目录>\dhands_bench.py` **（必须）** |
+| `bench.conf.example` | `<agent目录>\bench.conf.example` （可选，只是键名参考） |
 
-> ⚠ **不要拷 `agent.conf`**。共享目录里那份是留档，本机这份才是在用的真配置，
+> ⚠ **不要拷 `bench.conf`**。共享目录里那份是留档，本机这份才是在用的真配置，
 > 覆盖了会把 token 和 hub 地址弄丢。
 
-> ⚠ **顺序不能反：先拷程序，再改配置。** 旧版 `alb_agent.py` 不认识
+> ⚠ **顺序不能反：先拷程序，再改配置。** 旧版 `dhands_bench.py` 不认识
 > `fastboot_path` 这个键，而未知键是**硬错误**（拼错不该被静默忽略）——
 > 配置改在前面的话，agent 会直接拒绝启动，报
 > `unknown key 'fastboot_path'`，看起来像"这个功能不存在"。
@@ -78,9 +78,9 @@ hub 那边会一直显示"不可用"。
 
 ## 3. 改配置
 
-> 前提：第 2 步的 `alb_agent.py` 已经拷好。没拷就改配置，agent 会拒绝启动。
+> 前提：第 2 步的 `dhands_bench.py` 已经拷好。没拷就改配置，agent 会拒绝启动。
 
-编辑本机的 `agent.conf`（**不是** `agent.conf.example`），在文件末尾追加：
+编辑本机的 `bench.conf`（**不是** `bench.conf.example`），在文件末尾追加：
 
 ```
 fastboot_path=D:\platform-tools\fastboot.exe
@@ -96,7 +96,7 @@ fastboot_product.board-a=<这块板 fastboot getvar product 的回答>
 
 一台电脑接几块板时，每块都要登记：只要登记了一块，写到没登记的板子上就会被拒。
 不再设分区名单(`flash_partitions`,ADR-070):写哪些分区、用哪个文件，以厂商的
-烧录清单为准(`alb flash plan --only`)。旧配置里的 `flash_partitions` 行可以删，
+烧录清单为准(`dhands flash plan --only`)。旧配置里的 `flash_partitions` 行可以删，
 不删也能启动，启动日志会提示它不再生效。
 
 格式约定：一行一个 `KEY=VALUE`，不要加引号，注释单独占一行。
@@ -106,13 +106,13 @@ fastboot_product.board-a=<这块板 fastboot getvar product 的回答>
 ## 4. 重启 agent
 
 关掉正在跑的 agent 窗口（Ctrl+C 一次即可，正常退出不会打印异常堆栈），
-重新运行 `run-agent.bat`。
+重新运行 `run-bench.bat`。
 
 ---
 
 ## 5. 验证（**这一步必须做，别跳**）
 
-看 agent 的启动日志（控制台窗口，或 `logs\agent.log`），找这一行：
+看 agent 的启动日志（控制台窗口，或 `logs\bench.log`），找这一行：
 
 **成功长这样：**
 
@@ -130,10 +130,10 @@ fastboot: not found — this agent will NOT advertise the fastboot capability
 
 | 现象 | 原因 | 怎么改 |
 |---|---|---|
-| `not found`，但 `where fastboot` 有输出 | `agent.conf` 里的路径写错了，或指向一个不存在的文件 | 用 `where fastboot` 的原样输出，注意反斜杠不要转义 |
+| `not found`，但 `where fastboot` 有输出 | `bench.conf` 里的路径写错了，或指向一个不存在的文件 | 用 `where fastboot` 的原样输出，注意反斜杠不要转义 |
 | `not found`，`where fastboot` 也没输出 | 这台机器上确实没装 | 回第 1 步装 platform-tools |
-| 启动日志根本没有 `fastboot:` 这一行 | `alb_agent.py` 还是旧版 | 回第 2 步重新拷贝 |
-| agent 启动即退出，报 `agent.conf:N: unknown key 'fastboot_path'` | 同上 —— `alb_agent.py` 是旧版，它的合法键名单里还没有这个键 | 回第 2 步重新拷贝，**配置那行不用删**，拷完直接重启 |
+| 启动日志根本没有 `fastboot:` 这一行 | `dhands_bench.py` 还是旧版 | 回第 2 步重新拷贝 |
+| agent 启动即退出，报 `bench.conf:N: unknown key 'fastboot_path'` | 同上 —— `dhands_bench.py` 是旧版，它的合法键名单里还没有这个键 | 回第 2 步重新拷贝，**配置那行不用删**，拷完直接重启 |
 | 同上，但报的是 `unknown key 'flash_partitions'` 或 `'fastboot_product.<板>'` | 同上 | 同上 |
 
 另外确认这一行还在（说明和 hub 的连接正常）：

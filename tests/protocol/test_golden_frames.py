@@ -9,7 +9,7 @@ checks three things:
    sample needs no test change), and breaking a valid sample makes it fail.
 2. The hub (`alb.remote.protocol`, `alb.remote.jobframe`) produces and
    accepts what the description says.
-3. The bench program (clients/windows-agent/alb_agent.py, loaded in-process
+3. The bench program (bench-py/dhands_bench.py, loaded in-process
    by path because it cannot import alb) produces what the description says.
 
 A test that fails because the code really disagrees with the description is
@@ -45,7 +45,7 @@ _SCHEMA_DIR = _V1 / "schema"
 _FRAMES = _V1 / "frames"
 _BASE = "https://devicehands.invalid/protocol/v1/schema/"
 _GAPS = "protocol/v1/known-gaps.md"
-_AGENT_PATH = _REPO / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = _REPO / "bench-py" / "dhands_bench.py"
 
 _CID = "0123456789abcdef0123456789abcdef"
 _SHA = "ab" * 32

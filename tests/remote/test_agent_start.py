@@ -83,9 +83,9 @@ _STARTED = _out(
 )
 _TAIL = _out(
     r"dhands-start: dir=D:\agent",
-    r"dhands-start: log=D:\agent\logs\agent.log",
-    "dhands-log: 11:08:57 INFO alb-agent: starting",
-    "dhands-log: 11:08:59 WARNING alb-agent: session ended: [WinError 1225]",
+    r"dhands-start: log=D:\agent\logs\bench.log",
+    "dhands-log: 11:08:57 INFO dhands-bench: starting",
+    "dhands-log: 11:08:59 WARNING dhands-bench: session ended: [WinError 1225]",
 )
 
 
@@ -104,14 +104,14 @@ def test_the_host_is_an_ssh_argument_after_the_options_and_never_a_prompt():
 
 
 def test_the_script_travels_encoded_and_comes_back_byte_for_byte():
-    script = st.start_script("alb-agent")
+    script = st.start_script("dhands-bench")
     assert base64.b64decode(st.encode_ps(script)).decode("utf-16-le") == script
-    assert "$name = 'alb-agent'" in script and "$_.Exception.Message" in script
+    assert "$name = 'dhands-bench'" in script and "$_.Exception.Message" in script
 
 
 def test_a_running_task_is_left_alone_before_any_start():
     """IgnoreNew would drop a second start anyway; the script must not try."""
-    script = st.start_script("alb-agent")
+    script = st.start_script("dhands-bench")
     assert script.index("-eq 'Running'") < script.index("Start-ScheduledTask")
     assert "exit 0" in script[script.index("-eq 'Running'") : script.index("Start-ScheduledTask")]
 
@@ -124,7 +124,7 @@ def test_markers_are_read_by_key_and_flags_keep_the_rest_of_the_line():
         _out(
             r"dhands-start: dir=C:\a=b",
             "dhands-start: start-failed Access is denied. code=5",
-            r"dhands-start: no-log D:\agent\logs\agent.log",
+            r"dhands-start: no-log D:\agent\logs\bench.log",
             "dhands-log: one = two",
             "noise from the shell",
         )
@@ -132,7 +132,7 @@ def test_markers_are_read_by_key_and_flags_keep_the_rest_of_the_line():
     assert marks == {
         "dir": r"C:\a=b",
         "start-failed": "Access is denied. code=5",
-        "no-log": r"D:\agent\logs\agent.log",
+        "no-log": r"D:\agent\logs\bench.log",
     }
     assert log == ["one = two"]
 
@@ -239,7 +239,7 @@ def test_windows_refusing_the_start_is_passed_on():
 
 def test_a_task_that_ended_at_once_fails_now_with_the_agent_log():
     """Not after the full wait: Ready 3 s after the start means nothing is
-    going to connect (no one logged on, or run-agent.bat stopped)."""
+    going to connect (no one logged on, or run-bench.bat stopped)."""
     ended = _STARTED.replace("after=Running", "after=Ready").replace("267009", "1")
     runner = _Runner(_ok(ended), _ok(_TAIL))
     # 300 s of waiting allowed, 5 s given: an answer that waits fails here.
@@ -261,17 +261,17 @@ def test_no_agent_within_the_wait_fails_with_the_agent_log(already):
     runner = _Runner(_ok(first), _ok(_TAIL))
     r = _run(_Registry(), runner, wait_s=0.1)
     assert r.code == "AGENT_START_NO_CONNECT"
-    assert r.data["log"] == r"D:\agent\logs\agent.log" and len(r.data["log_tail"]) == 2
+    assert r.data["log"] == r"D:\agent\logs\bench.log" and len(r.data["log_tail"]) == 2
     assert ("would change nothing" in r.error) is already
 
 
 def test_a_missing_log_is_said_not_guessed():
     runner = _Runner(
         _ok(_STARTED),
-        _ok(_out(r"dhands-start: dir=D:\agent", r"dhands-start: no-log D:\agent\logs\agent.log")),
+        _ok(_out(r"dhands-start: dir=D:\agent", r"dhands-start: no-log D:\agent\logs\bench.log")),
     )
     r = _run(_Registry(), runner, wait_s=0.1)
-    assert r.data["log"] == r"no log at D:\agent\logs\agent.log" and r.data["log_tail"] == []
+    assert r.data["log"] == r"no log at D:\agent\logs\bench.log" and r.data["log_tail"] == []
 
 
 def test_every_code_this_returns_has_a_catalog_entry():
@@ -334,12 +334,12 @@ def test_cli_sends_the_wait_and_reports_the_start(hub):
         "ev": "done",
         "ok": True,
         "stdout": "agent bench-a connected (build b1) after 4.2s",
-        "data": {"outcome": "started", "task": "alb-agent", "host": "bench"},
+        "data": {"outcome": "started", "task": "dhands-bench", "host": "bench"},
     }
     r = runner.invoke(app, ["bench", "agent-start", "--wait", "30"])
     assert r.exit_code == 0, r.output
     assert hub["runs"] == [("/api/bench", "agent-start", {"wait_s": 30.0})]
-    assert "started task alb-agent on bench" in r.output and "after 4.2s" in r.output
+    assert "started task dhands-bench on bench" in r.output and "after 4.2s" in r.output
 
 
 def test_cli_shows_the_agent_log_under_its_own_heading(hub):
@@ -347,14 +347,14 @@ def test_cli_shows_the_agent_log_under_its_own_heading(hub):
         "ev": "done",
         "ok": False,
         "code": "AGENT_START_NO_CONNECT",
-        "error": "task alb-agent started on bench, but no agent reached this hub within 60s",
+        "error": "task dhands-bench started on bench, but no agent reached this hub within 60s",
         "stdout": "line a\nline b",
-        "data": {"log": r"D:\agent\logs\agent.log", "log_tail": ["line a", "line b"]},
+        "data": {"log": r"D:\agent\logs\bench.log", "log_tail": ["line a", "line b"]},
     }
     r = runner.invoke(app, ["bench", "agent-start"])
     assert r.exit_code == 1
     assert "AGENT_START_NO_CONNECT" in r.output and "hub_url / token" in r.output
-    assert r"agent log on the bench host (D:\agent\logs\agent.log)" in r.output
+    assert r"agent log on the bench host (D:\agent\logs\bench.log)" in r.output
     assert r.output.count("line a") == 1, "the tail is shown once, not also as stdout"
 
 

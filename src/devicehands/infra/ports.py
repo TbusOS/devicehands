@@ -15,7 +15,7 @@ not, and DeviceHands clients find it by asking the hub (infra.adb_endpoint).
     8741  bench program's local status page      --status-port / status_port
 
 The bench program is a standalone script and keeps its own copy of 8741
-(clients/windows-agent/alb_agent.py, DEFAULT_STATUS_PORT).
+(bench-py/dhands_bench.py, DEFAULT_STATUS_PORT).
 """
 
 from __future__ import annotations

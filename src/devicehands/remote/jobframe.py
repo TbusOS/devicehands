@@ -25,7 +25,7 @@ Wire format, repeated:
 
 Both ends are asymmetric in what they send but symmetric in framing, so the
 same reader serves the hub and the agent (the agent mirrors this module in
-clients/windows-agent/alb_agent.py — it cannot import devicehands).
+bench-py/dhands_bench.py — it cannot import devicehands).
 """
 
 from __future__ import annotations

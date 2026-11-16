@@ -20,8 +20,8 @@ the CLI and the web already use. Nothing here takes a command line or a path
 on the bench host — the agent builds the argv from its own table.
 
     POST /api/bench/agent-update
-        Body: {"config_text": <optional agent.conf text>}
-        Send this hub's clients/windows-agent folder to the bench agent, let it
+        Body: {"config_text": <optional bench.conf text>}
+        Send this hub's bench-py folder to the bench agent, let it
         restart on it, and wait until it reconnects (ADR-060). Same NDJSON
         stream; the done line's `data.outcome` says `updated`, and a failed
         line's code says whether the bench host rolled back
@@ -67,7 +67,7 @@ router = APIRouter(prefix="/api/bench", tags=["bench"])
 
 class AgentUpdateBody(BaseModel):
     config_text: str | None = Field(
-        None, description="replace the bench agent's agent.conf with this text"
+        None, description="replace the bench agent's bench.conf with this text"
     )
 
 

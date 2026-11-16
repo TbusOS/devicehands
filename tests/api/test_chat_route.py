@@ -51,7 +51,7 @@ def test_health(client):
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] == "true"
-    assert body["api"] == "alb"
+    assert body["api"] == "devicehands"
 
 
 def test_chat_happy_path_no_tools(client, fake_backend_patch):

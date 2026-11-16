@@ -8,7 +8,7 @@ it is given relative to its working directory. So these tests run the real
 subprocess path of the agent — argv, working directory, output relay,
 success lines, exit codes, timeout kill — with only the board missing.
 
-DHANDS_AGENT_UNDER_TEST points the module at another copy of alb_agent.py: the
+DHANDS_AGENT_UNDER_TEST points the module at another copy of dhands_bench.py: the
 reverse runs feed it deliberately weakened copies, each of which must make
 at least one test here fail.
 """
@@ -27,12 +27,12 @@ from typing import Any
 
 import pytest
 
-_DEFAULT_AGENT = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_DEFAULT_AGENT = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent() -> Any:
     path = Path(os.environ.get("DHANDS_AGENT_UNDER_TEST") or _DEFAULT_AGENT)
-    spec = importlib.util.spec_from_file_location("alb_agent_edl_under_test", path)
+    spec = importlib.util.spec_from_file_location("dhands_bench_edl_under_test", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -268,7 +268,7 @@ def test_resolve_edl_says_why_the_rows_are_absent(
 def test_agent_conf_keys_reach_the_table_and_hello(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bench: _Bench
 ) -> None:
-    conf = tmp_path / "agent.conf"
+    conf = tmp_path / "bench.conf"
     conf.write_text(
         "hub_url=ws://h/agent/connect\n"
         f"edl_sahara={bench.exe['QSaharaServer']}\n"

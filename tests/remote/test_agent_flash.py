@@ -21,11 +21,11 @@ from pathlib import Path
 
 import pytest
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_flash_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_flash_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
@@ -119,7 +119,7 @@ def test_partition_names_rejected(name):
 
 def test_a_leftover_allowlist_no_longer_narrows(monkeypatch):
     """ADR-070: which partitions a package writes is its manifest's to say.
-    A flash_partitions line still in agent.conf is read and ignored."""
+    A flash_partitions line still in bench.conf is read and ignored."""
     monkeypatch.setattr(agent, "_FLASH_PARTITIONS", frozenset({"vendor_cfg"}))
     assert agent._partition_allowed("vendor_cfg")
     assert agent._partition_allowed("boot")

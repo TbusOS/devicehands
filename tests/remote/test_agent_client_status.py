@@ -1,4 +1,4 @@
-"""Status surface of the standalone dial-home agent (clients/windows-agent).
+"""Status surface of the standalone dial-home agent (bench-py).
 
 The agent is a standalone script (not part of the devicehands package), so it's loaded
 by path. These cover the pure, thread-safe parts — the AgentStatus state
@@ -16,11 +16,11 @@ from pathlib import Path
 
 import pytest
 
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
 
 
 def _load_agent():
-    spec = importlib.util.spec_from_file_location("alb_agent_under_test", _AGENT_PATH)
+    spec = importlib.util.spec_from_file_location("dhands_bench_under_test", _AGENT_PATH)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     # Register BEFORE exec: dataclasses + `from __future__ import annotations`
@@ -168,7 +168,7 @@ def test_status_server_serves_json_and_html_over_a_real_socket(monkeypatch):
         assert data["name"] == "smoke"
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=3) as r:
             html = r.read().decode()
-        assert "alb device agent" in html
+        assert "DeviceHands bench" in html
         # unknown path → 404
         with pytest.raises(urllib.error.HTTPError) as ei:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/nope", timeout=3)
