@@ -51,7 +51,7 @@ tags: [errors, reference, llm-friendly]
 <!-- BEGIN GENERATED: scripts/gen_errors_doc.py -->
 <!-- 本段由脚本生成,不要手改。改了 src/devicehands/infra/errors.py 或返回错误码的代码后,运行:uv run python scripts/gen_errors_doc.py -->
 
-登记在 `ERROR_CODES` 里的码共 98 个,按 `category` 分 7 组,每组按码名字母排序。message 和 suggestion 是目录里的默认文字,原样照抄英文:`dhands_describe_errors` 返回的就是这两句。
+登记在 `ERROR_CODES` 里的码共 99 个,按 `category` 分 7 组,每组按码名字母排序。message 和 suggestion 是目录里的默认文字,原样照抄英文:`dhands_describe_errors` 返回的就是这两句。
 
 另有 61 个码代码里会返回、但没有登记,列在本节最后。
 
@@ -63,7 +63,7 @@ tags: [errors, reference, llm-friendly]
 | `timeout` | 超时 | 在限定时间内没等到预期的输出或状态 | 6 | `ADBD_*` `AGENT_*` `BREAKIN_*` `TIMEOUT_*` |
 | `io` | 本地文件 | 本地文件、工作目录、路径 | 4 | `FILE_*` `REMOTE_*` `WORKSPACE_*` |
 | `input` | 参数与配置 | 调用参数或 hub 配置不对,改了再试 | 10 | `AGENT_*` `BENCH_*` `BREAKIN_*` `INVALID_*` `PORT_*` |
-| `system` | 主机环境与 LLM | 主机缺依赖,或 LLM 后端的上下文 / 输出被截断 | 3 | `LLM_*` `SYSTEM_*` |
+| `system` | 主机环境与 LLM | 主机缺依赖,或 LLM 后端的上下文 / 输出被截断 | 4 | `LLM_*` `SYSTEM_*` `TERMINAL_*` |
 | `capability` | 业务层 | `fail()` 不传 category 时的默认值;目录里目前没有这一类的码 | 0 | — |
 
 ### transport · 通道与台架(59 个)
@@ -191,13 +191,14 @@ tags: [errors, reference, llm-friendly]
 | `INVALID_SOURCE` | unknown or empty log source list | Choose at least one of: logcat, dmesg, uart |
 | `PORT_BIND_NOT_LOOPBACK` | Refusing to expose a device port on a non-loopback address | Bind 127.0.0.1, or pass `--allow-remote` if sharing it on the network is intended |
 
-### system · 主机环境与 LLM(3 个)
+### system · 主机环境与 LLM(4 个)
 
 | Code | 默认 message | 默认 suggestion |
 |---|---|---|
 | `LLM_CONTEXT_TRUNCATED` | The request filled the model's whole context window; the LLM server cut the start off, so the model saw only part of it | Raise DHANDS_OLLAMA_NUM_CTX, turn tools off for this chat, or start a new session |
 | `LLM_OUTPUT_TRUNCATED` | The answer reached the agent's output limit per model turn (devicehands.agent.loop.DEFAULT_MAX_OUTPUT_TOKENS) and was cut off | Ask again or ask for a shorter answer; a reply that repeats itself until the limit is the model looping, a new session usually helps |
 | `SYSTEM_DEPENDENCY_MISSING` | Missing system dependency | Install the missing tool per error.details |
+| `TERMINAL_UNSUPPORTED_OS` | The web terminal is not supported on this operating system yet (it needs a PTY: Linux or macOS) | Run dhands-hub on Linux or macOS for the web terminal; on this system use `dhands shell` instead |
 
 ### 代码里会返回、但没有登记的码(61 个)
 

@@ -45,13 +45,9 @@ IMPORT_TIMEOUT_S = 120
 # (system, module) -> (reason, phase that plans the fix).
 # system is one of: "linux", "macos", "windows" (see current_system()).
 # Phases are the ones in docs/devicehands-design.md section 9.
-KNOWN_FAILURES: dict[tuple[str, str], tuple[str, str]] = {
-    ("windows", "devicehands.api.server"): (
-        "devicehands.api.server -> devicehands.api.terminal_route -> devicehands.transport.interactive, "
-        "which imports fcntl and termios at module level (POSIX only)",
-        "P1",
-    ),
-}
+# Empty since P1: devicehands.transport.interactive imports fcntl / termios
+# only where a PTY is opened, so devicehands.api.server imports on Windows.
+KNOWN_FAILURES: dict[tuple[str, str], tuple[str, str]] = {}
 
 
 @dataclass(frozen=True)

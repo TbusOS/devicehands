@@ -183,6 +183,14 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "Missing system dependency",
         "Install the missing tool per error.details",
     ),
+    "TERMINAL_UNSUPPORTED_OS": ErrorSpec(
+        "TERMINAL_UNSUPPORTED_OS",
+        "system",
+        "The web terminal is not supported on this operating system yet "
+        "(it needs a PTY: Linux or macOS)",
+        "Run dhands-hub on Linux or macOS for the web terminal; "
+        "on this system use `dhands shell` instead",
+    ),
     # chat / LLM backend (raised as BackendError, reported in the done event)
     "LLM_CONTEXT_TRUNCATED": ErrorSpec(
         "LLM_CONTEXT_TRUNCATED",

@@ -340,7 +340,9 @@ class SshTransport(Transport):
         if self.spec.known_hosts == "":
             ssh_parts += [
                 "-o", "StrictHostKeyChecking=no",
-                "-o", "UserKnownHostsFile=/dev/null",
+                # A local path: this option is read by the ssh client
+                # rsync starts on this machine ("nul" on Windows).
+                "-o", f"UserKnownHostsFile={os.devnull}",
             ]
         ssh_cmd = " ".join(ssh_parts)
 

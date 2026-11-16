@@ -9,6 +9,10 @@ import sys
 from typing import Any
 
 import pytest
+
+# Skip before the imports below: every test here drives a real PTY.
+pytest.importorskip("termios", reason="PTY tests need Unix")
+
 from fastapi.testclient import TestClient
 
 from devicehands.api.server import create_app

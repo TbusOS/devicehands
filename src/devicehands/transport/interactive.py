@@ -15,17 +15,40 @@ context manager. The instance presents one minimal interface:
 Reading from a PTY master fd inside asyncio: we use loop.add_reader()
 to feed an asyncio.Queue so consumers can `await shell.read()` without
 blocking on os.read directly.
+
+PTYs exist on Linux and macOS only. fcntl / termios / pty are imported
+where they are used, never at module level, so importing this module (and
+everything that imports it: the web terminal route, hence dhands-hub)
+works on Windows too. Callers ask :func:`pty_supported` first.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
-import fcntl
 import os
 import struct
-import termios
 from typing import Protocol
+
+
+def pty_supported() -> bool:
+    """True when this system has the modules a PTY session needs."""
+    try:
+        import fcntl  # noqa: F401
+        import pty  # noqa: F401
+        import termios  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _set_winsize(fd: int, rows: int, cols: int) -> None:
+    """TIOCSWINSZ on `fd`. Raises OSError when the tty refuses it."""
+    import fcntl
+    import termios
+
+    # struct: rows, cols, xpixel, ypixel — last two unused
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
 
 class InteractiveShell:
@@ -126,10 +149,8 @@ class InteractiveShell:
             return
         rows = max(1, min(500, int(rows)))
         cols = max(1, min(1000, int(cols)))
-        # struct: rows, cols, xpixel, ypixel — last two unused
-        size = struct.pack("HHHH", rows, cols, 0, 0)
         try:
-            fcntl.ioctl(self._master_fd, termios.TIOCSWINSZ, size)
+            _set_winsize(self._master_fd, rows, cols)
         except OSError:
             # Some tty emulations don't support TIOCSWINSZ — ignore
             # gracefully so the session keeps working.
@@ -186,9 +207,8 @@ async def open_pty_subprocess(
 
     master_fd, slave_fd = pty.openpty()
     # Set initial size before we exec so the child sees the right env.
-    size = struct.pack("HHHH", rows, cols, 0, 0)
     with contextlib.suppress(OSError):
-        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, size)
+        _set_winsize(master_fd, rows, cols)
 
     try:
         proc = await asyncio.create_subprocess_exec(

@@ -47,6 +47,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from devicehands.api.schema import API_VERSION
+from devicehands.infra.errors import ERROR_CODES
 from devicehands.infra.event_bus import get_bus, make_event
 from devicehands.infra.workspace import (
     InvalidSessionId,
@@ -57,7 +58,7 @@ from devicehands.infra.workspace import (
 from devicehands.transport.exit_marks import SETUP as EXIT_MARK_SETUP
 from devicehands.transport.exit_marks import ExitMarks
 from devicehands.transport.factory import build_transport
-from devicehands.transport.interactive import InteractiveShell
+from devicehands.transport.interactive import InteractiveShell, pty_supported
 from devicehands.transport.terminal_guard import TerminalGuard
 
 
@@ -81,6 +82,23 @@ router = APIRouter()
 @router.websocket("/terminal/ws")
 async def terminal_ws(ws: WebSocket) -> None:
     await ws.accept()
+
+    # No PTY on this system (Windows): say so in the usual close frame
+    # instead of failing somewhere inside the transport.
+    if not pty_supported():
+        spec = ERROR_CODES["TERMINAL_UNSUPPORTED_OS"]
+        await ws.send_json({
+            "type": "closed",
+            "exit_code": -1,
+            "error": {
+                "code": spec.code,
+                "message": spec.default_message,
+                "suggestion": spec.default_suggestion,
+            },
+        })
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return
 
     config = await _read_config(ws)
     config = config if isinstance(config, dict) else {}

@@ -12,8 +12,11 @@ import sys
 
 import pytest
 
-from devicehands.transport.interactive import InteractiveShell, open_pty_subprocess
+# Skip before importing anything PTY-related, so collection on Windows
+# never depends on what the imported module happens to import.
+pytest.importorskip("termios", reason="PTY tests need Unix")
 
+from devicehands.transport.interactive import InteractiveShell, open_pty_subprocess
 
 pytestmark = pytest.mark.skipif(
     sys.platform.startswith("win"),
