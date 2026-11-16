@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer run on the same pull request cancels the older one. Runs on main
+# are never cancelled, so every push to main keeps its own result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.11"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.12"
+    env:
+      # Overrides .python-version (3.11) so the matrix value is what uv uses.
+      UV_PYTHON: ${{ matrix.python-version }}
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        # --locked: fail if uv.lock does not match pyproject.toml.
+        run: uv sync --locked
+
+      - name: Import check (entry modules)
+        # Must pass on all three systems. Known failures are listed in
+        # scripts/ci_import_check.py (KNOWN_FAILURES) with the phase that fixes them.
+        run: uv run python scripts/ci_import_check.py
+
+      - name: Import check self-test
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: uv run python scripts/ci_import_check.py --self-test
+
+      - name: Import direction check (import-linter)
+        # Uses .importlinter in the repository root. One run is enough:
+        # the result does not depend on the operating system.
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: uv run lint-imports
+
+      - name: Unit tests
+        # TEMPORARY: macOS and Windows have never run the test suite, so test
+        # failures there do not fail the job yet. Tighten this (remove
+        # continue-on-error) once the results of the first runs are known.
+        # Ubuntu must pass.
+        #
+        # --continue-on-collection-errors: a test file that cannot be imported
+        # (on Windows, every file that imports alb.api.server until P1) is
+        # reported as an error, and the remaining tests still run. The exit
+        # code stays non-zero, so Ubuntu still fails on a collection error.
+        continue-on-error: ${{ matrix.os != 'ubuntu-latest' }}
+        run: uv run pytest -q --no-cov --continue-on-collection-errors
