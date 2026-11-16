@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="android-llm-bridge Web UI — debug Android devices via adb / ssh / UART, with optional local LLM chat. All resources are bundled locally; no external requests at runtime."
+    />
+    <title>alb · Web UI</title>
+    <!--
+      DEBT-015 fix · 2026-04-29 · spa-github-pages recovery.
+      Inline (no external resource) and runs BEFORE the React bundle,
+      so TanStack Router sees the correct path on first render. Only
+      activates when GH Pages bounced us here from docs/404.html with
+      ?spa=1&p=<encoded>. alb-api dev/local doesn't need this branch
+      (SPAStaticFiles already serves index.html for deep paths) but
+      the script is a no-op there since ?spa=1 isn't set.
+    -->
+    <script>
+      (function () {
+        var search = window.location.search || "";
+        if (search.indexOf("spa=1") === -1) return;
+        var params = new URLSearchParams(search);
+        if (params.get("spa") !== "1") return;
+        var p = params.get("p");
+        var pathname = window.location.pathname || "/";
+        // pathname === "/" only happens during local dev (vite serves
+        // root). Don't strip the leading slash to "" or we end up
+        // with a "//foo" double-slash url.
+        var basePath = pathname === "/" ? "" : pathname.replace(/\/$/, "");
+        if (p === null || p === "") {
+          // ?spa=1 set without a path payload — clean residual query
+          // so business code doesn't see "spa" as a real search param.
+          window.history.replaceState(
+            {},
+            "",
+            (pathname === "" ? "/" : pathname) + window.location.hash,
+          );
+          return;
+        }
+        var qs = params.get("qs");
+        var restored =
+          basePath +
+          "/" +
+          p +
+          (qs ? "?" + qs : "") +
+          window.location.hash;
+        window.history.replaceState({}, "", restored);
+      })();
+    </script>
+    <script type="module" crossorigin src="/app/assets/index-B27vpJrS.js"></script>
+    <link rel="stylesheet" crossorigin href="/app/assets/index-CrHrD9tB.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,400 @@
+/**
+ * useChatStream — turn-projection specs.
+ *
+ * The lifecycle race / settlement contract lives in
+ * useWsChatStream.test.ts (protocol layer). This file focuses on the
+ * Chat-specific projection: token append / tool_call_start+end /
+ * done with session_id / close-before-done turn marking / cancel
+ * turn marking.
+ */
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { WsClient, WsEvent } from "../../lib/ws";
+import { useChatStream } from "./useChatStream";
+
+const { mockConnect, currentClients } = vi.hoisted(() => {
+  const currentClients: Array<{
+    listeners: Set<(ev: WsEvent) => void>;
+    sentMessages: unknown[];
+    closed: boolean;
+  }> = [];
+  const mockConnect = vi.fn((_path: string): WsClient => {
+    const entry = {
+      listeners: new Set<(ev: WsEvent) => void>(),
+      sentMessages: [] as unknown[],
+      closed: false,
+    };
+    currentClients.push(entry);
+    return {
+      send(data) {
+        entry.sentMessages.push(data);
+      },
+      close() {
+        entry.closed = true;
+      },
+      subscribe(listener) {
+        entry.listeners.add(listener);
+        return () => entry.listeners.delete(listener);
+      },
+      get readyState() {
+        return entry.closed ? 3 : 1;
+      },
+    };
+  });
+  return { mockConnect, currentClients };
+});
+
+vi.mock("../../lib/ws", () => ({ connect: mockConnect }));
+
+function emit(idx: number, ev: WsEvent) {
+  const entry = currentClients[idx];
+  if (!entry) throw new Error(`no client at index ${idx}`);
+  for (const l of Array.from(entry.listeners)) l(ev);
+}
+
+beforeEach(() => {
+  mockConnect.mockClear();
+  currentClients.length = 0;
+});
+
+afterEach(() => {
+  currentClients.length = 0;
+});
+
+describe("useChatStream", () => {
+  it("initial state · empty turns · not streaming", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: "qwen2.5" }),
+    );
+    expect(result.current.turns).toEqual([]);
+    expect(result.current.isStreaming).toBe(false);
+    expect(result.current.sessionId).toBeNull();
+  });
+
+  it("send → 2 turns (user + assistant placeholder) → isStreaming=true", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: "qwen2.5" }),
+    );
+    act(() => result.current.send("hi"));
+    expect(result.current.turns).toHaveLength(2);
+    expect(result.current.turns[0]?.role).toBe("user");
+    expect(result.current.turns[0]?.content).toBe("hi");
+    expect(result.current.turns[1]?.role).toBe("assistant");
+    expect(result.current.turns[1]?.status).toBe("pending");
+    expect(result.current.isStreaming).toBe(true);
+    expect(mockConnect).toHaveBeenCalledWith("/chat/ws", { noReconnect: true });
+  });
+
+  it("token events append to assistant content + status → streaming", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null }),
+    );
+    act(() => result.current.send("hi"));
+    act(() => emit(0, { kind: "open" }));
+    act(() => emit(0, { kind: "json", data: { type: "token", delta: "Hel" } }));
+    act(() => emit(0, { kind: "json", data: { type: "token", delta: "lo" } }));
+
+    const ass = result.current.turns[1];
+    expect(ass?.content).toBe("Hello");
+    expect(ass?.status).toBe("streaming");
+  });
+
+  it("confirm_tools is sent only when asked for, and only with tools on", () => {
+    const off = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true }));
+    act(() => off.result.current.send("a"));
+    act(() => emit(0, { kind: "open" }));
+    expect(currentClients[0]?.sentMessages[0]).not.toHaveProperty("confirm_tools");
+
+    const on = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true, confirmTools: true }));
+    act(() => on.result.current.send("b"));
+    act(() => emit(1, { kind: "open" }));
+    expect(currentClients[1]?.sentMessages[0]).toMatchObject({ confirm_tools: true });
+
+    const noTools = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: false, confirmTools: true }));
+    act(() => noTools.result.current.send("c"));
+    act(() => emit(2, { kind: "open" }));
+    expect(currentClients[2]?.sentMessages[0]).not.toHaveProperty("confirm_tools");
+  });
+
+  it("a tool_confirm_request waits for an answer; the answer goes back on the socket", () => {
+    const { result } = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true, confirmTools: true }));
+    act(() => result.current.send("reboot it"));
+    act(() => emit(0, { kind: "open" }));
+    act(() =>
+      emit(0, { kind: "json", data: { type: "tool_confirm_request", id: "q1", name: "alb_reboot", arguments: { mode: "normal" } } }),
+    );
+    expect(result.current.confirmRequest).toEqual({ id: "q1", name: "alb_reboot", arguments: { mode: "normal" } });
+    act(() => result.current.answerConfirm(false));
+    expect(currentClients[0]?.sentMessages.at(-1)).toEqual({ type: "tool_confirm", id: "q1", approve: false });
+    expect(result.current.confirmRequest).toBeNull();
+  });
+
+  it("an unanswered question is dropped when the turn ends", () => {
+    const { result } = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true, confirmTools: true }));
+    act(() => result.current.send("reboot it"));
+    act(() => emit(0, { kind: "open" }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_confirm_request", id: "q1", name: "alb_reboot", arguments: {} } }));
+    act(() => result.current.cancel());
+    expect(result.current.confirmRequest).toBeNull();
+  });
+
+  it("tool_call_start adds entry · tool_call_end marks done with result", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null, tools: true }),
+    );
+    act(() => result.current.send("call a tool"));
+    act(() => emit(0, { kind: "open" }));
+    act(() =>
+      emit(0, {
+        kind: "json",
+        data: {
+          type: "tool_call_start",
+          id: "tc-1",
+          name: "alb_status",
+          arguments: { foo: 1 },
+        },
+      }),
+    );
+
+    let ass = result.current.turns[1];
+    expect(ass?.toolCalls).toHaveLength(1);
+    expect(ass?.toolCalls[0]).toMatchObject({
+      id: "tc-1",
+      name: "alb_status",
+      status: "running",
+    });
+
+    act(() =>
+      emit(0, {
+        kind: "json",
+        data: {
+          type: "tool_call_end",
+          id: "tc-1",
+          name: "alb_status",
+          result: { ok: true },
+        },
+      }),
+    );
+
+    ass = result.current.turns[1];
+    expect(ass?.toolCalls[0]?.status).toBe("done");
+    expect(ass?.toolCalls[0]?.result).toEqual({ ok: true });
+  });
+
+  it("tool_call_end's cut flag lands on the call; a whole result has none (2026-11-06)", () => {
+    const { result } = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true }));
+    act(() => result.current.send("有崩溃吗"));
+    act(() => emit(0, { kind: "open" }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "a", name: "alb_logcat", arguments: {} } }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "b", name: "alb_battery", arguments: {} } }));
+    act(() =>
+      emit(0, {
+        kind: "json",
+        data: { type: "tool_call_end", id: "a", name: "alb_logcat", result: { ok: true }, cut: { kept: 4000, total: 22512 } },
+      }),
+    );
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_end", id: "b", name: "alb_battery", result: { ok: true } } }));
+    const ass = result.current.turns[1];
+    expect(ass?.toolCalls[0]).toMatchObject({ status: "done", cut: { kept: 4000, total: 22512 } });
+    expect(ass?.toolCalls[1]?.status).toBe("done");
+    expect(ass?.toolCalls[1]).not.toHaveProperty("cut");
+  });
+
+  it("text before a tool call is pinned to that call; the answer starts afresh (2026-11-03)", () => {
+    const { result } = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true }));
+    act(() => result.current.send("有崩溃吗"));
+    act(() => emit(0, { kind: "open" }));
+    act(() => emit(0, { kind: "json", data: { type: "token", delta: "我先看" } }));
+    act(() => emit(0, { kind: "json", data: { type: "token", delta: "日志" } }));
+    act(() =>
+      emit(0, {
+        kind: "json",
+        data: { type: "tool_call_start", id: "a", name: "alb_logcat", arguments: {}, requested_name: "alb_logalb_logcat" },
+      }),
+    );
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "b", name: "alb_dmesg", arguments: {} } }));
+    let ass = result.current.turns[1];
+    expect(ass?.content).toBe("");
+    expect(ass?.toolCalls[0]).toMatchObject({ lead: "我先看日志", requestedName: "alb_logalb_logcat" });
+    // only the first call of the turn carries the text
+    expect(ass?.toolCalls[1]).not.toHaveProperty("lead");
+    expect(ass?.toolCalls[1]).not.toHaveProperty("requestedName");
+
+    act(() => emit(0, { kind: "json", data: { type: "token", delta: "没有崩溃" } }));
+    act(() => emit(0, { kind: "json", data: { type: "done", ok: true, data: "没有崩溃" } }));
+    ass = result.current.turns[1];
+    expect(ass?.content).toBe("没有崩溃");
+  });
+
+  it("the UI language goes with the request when given", () => {
+    const zh = renderHook(() => useChatStream({ backend: "ollama", model: null, lang: "zh" }));
+    act(() => zh.result.current.send("hello"));
+    act(() => emit(0, { kind: "open" }));
+    expect(currentClients[0]?.sentMessages[0]).toMatchObject({ lang: "zh" });
+
+    const none = renderHook(() => useChatStream({ backend: "ollama", model: null }));
+    act(() => none.result.current.send("hello"));
+    act(() => emit(1, { kind: "open" }));
+    expect(currentClients[1]?.sentMessages[0]).not.toHaveProperty("lang");
+  });
+
+  it("the board selected in the page goes with the request when there is one", () => {
+    // 2026-11-05: without it the model spent two tool calls finding the serial.
+    const one = renderHook(() => useChatStream({ backend: "ollama", model: null, device: "board-a" }));
+    act(() => one.result.current.send("电量多少"));
+    act(() => emit(0, { kind: "open" }));
+    expect(currentClients[0]?.sentMessages[0]).toMatchObject({ device: "board-a" });
+
+    const none = renderHook(() => useChatStream({ backend: "ollama", model: null, device: null }));
+    act(() => none.result.current.send("电量多少"));
+    act(() => emit(1, { kind: "open" }));
+    expect(currentClients[1]?.sentMessages[0]).not.toHaveProperty("device");
+  });
+
+  it("done(ok=true, session_id) → turn done + sessionId set + isStreaming=false", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: "qwen" }),
+    );
+    act(() => result.current.send("hi"));
+    act(() => emit(0, { kind: "open" }));
+    act(() => emit(0, { kind: "json", data: { type: "token", delta: "Hi" } }));
+    act(() =>
+      emit(0, {
+        kind: "json",
+        data: {
+          type: "done",
+          ok: true,
+          data: "Hi there",
+          session_id: "sess-xyz",
+          model: "qwen2.5",
+          timing_ms: 1234,
+        },
+      }),
+    );
+
+    expect(result.current.isStreaming).toBe(false);
+    expect(result.current.sessionId).toBe("sess-xyz");
+    const ass = result.current.turns[1];
+    expect(ass?.status).toBe("done");
+    expect(ass?.content).toBe("Hi there"); // server-supplied final overrides streamed delta
+    expect(ass?.timingMs).toBe(1234);
+    expect(ass?.model).toBe("qwen2.5");
+  });
+
+  it("done(ok=false, error) → turn error + isStreaming=false", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null }),
+    );
+    act(() => result.current.send("hi"));
+    act(() => emit(0, { kind: "open" }));
+    act(() =>
+      emit(0, {
+        kind: "json",
+        data: {
+          type: "done",
+          ok: false,
+          error: { code: "BACKEND_DOWN", message: "ollama unreachable" },
+        },
+      }),
+    );
+
+    expect(result.current.isStreaming).toBe(false);
+    const ass = result.current.turns[1];
+    expect(ass?.status).toBe("error");
+    expect(ass?.error).toMatchObject({ code: "BACKEND_DOWN" });
+  });
+
+  it("close-before-done marks turn CONNECTION_LOST (regression for AL-1 onSettled path)", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null }),
+    );
+    act(() => result.current.send("hi"));
+    act(() => emit(0, { kind: "open" }));
+    act(() =>
+      emit(0, { kind: "json", data: { type: "token", delta: "partial" } }),
+    );
+
+    act(() => emit(0, { kind: "close", code: 1006, reason: "abnormal" }));
+
+    expect(result.current.isStreaming).toBe(false);
+    const ass = result.current.turns[1];
+    expect(ass?.status).toBe("error");
+    expect(ass?.error?.code).toBe("CONNECTION_LOST");
+    expect(ass?.error?.message).toContain("abnormal");
+  });
+
+  it("cancel during streaming marks turn CANCELLED (regression for AL-1 onSettled path)", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null }),
+    );
+    act(() => result.current.send("hi"));
+    act(() => emit(0, { kind: "open" }));
+    act(() =>
+      emit(0, { kind: "json", data: { type: "token", delta: "partial" } }),
+    );
+
+    act(() => result.current.cancel());
+
+    expect(result.current.isStreaming).toBe(false);
+    const ass = result.current.turns[1];
+    expect(ass?.status).toBe("cancelled");
+    expect(ass?.error?.code).toBe("CANCELLED");
+    expect(currentClients[0]?.closed).toBe(true);
+  });
+
+  it("session_id from first done is sent as session_id in second send", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null }),
+    );
+    act(() => result.current.send("first"));
+    act(() => emit(0, { kind: "open" }));
+    act(() =>
+      emit(0, {
+        kind: "json",
+        data: { type: "done", ok: true, session_id: "sess-1" },
+      }),
+    );
+
+    act(() => result.current.send("second"));
+    expect(mockConnect).toHaveBeenCalledTimes(2);
+    // payload is sent after the WS opens; emit `open` to flush it.
+    act(() => emit(1, { kind: "open" }));
+    expect(currentClients[1]?.sentMessages[0]).toMatchObject({
+      message: "second",
+      session_id: "sess-1",
+    });
+  });
+
+  it("retry resends the last user prompt", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null }),
+    );
+    act(() => result.current.send("the prompt"));
+    act(() => emit(0, { kind: "open" }));
+    act(() =>
+      emit(0, { kind: "json", data: { type: "done", ok: false, error: { code: "X", message: "y" } } }),
+    );
+
+    act(() => result.current.retry());
+    expect(mockConnect).toHaveBeenCalledTimes(2);
+    act(() => emit(1, { kind: "open" }));
+    expect(currentClients[1]?.sentMessages[0]).toMatchObject({
+      message: "the prompt",
+    });
+  });
+
+  it("reset clears turns + sessionId + tears down any live socket", () => {
+    const { result } = renderHook(() =>
+      useChatStream({ backend: "ollama", model: null }),
+    );
+    act(() => result.current.send("hi"));
+    act(() => emit(0, { kind: "open" }));
+
+    act(() => result.current.reset());
+    expect(result.current.turns).toEqual([]);
+    expect(result.current.sessionId).toBeNull();
+    expect(result.current.isStreaming).toBe(false);
+    expect(currentClients[0]?.closed).toBe(true);
+  });
+});

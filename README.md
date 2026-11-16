@@ -1,70 +1,330 @@
-# DeviceHands
+# DeviceHands(原 android-llm-bridge)
 
-**给 AI 用的硬件调试工具包。** 云端的大模型、你身边的本地模型、设备里的小模型,一起调试真实硬件:亲自进到设备里去查,互相商量,再把结论画给你看。
+> **本项目正在改名为 DeviceHands。** `android-llm-bridge` 仓库的代码和全部提交历史已并入本仓库,以后在这里开发。
+> 命令行工具目前仍叫 `alb`,下文出现的 `android-llm-bridge` / `alb` 暂时照旧有效。
+> 新主页:<https://doc.tbusos.com/devicehands/> · 首页 3D 故事怎么维护见 [`tools/README.md`](tools/README.md)。
 
-**A hardware debugging toolkit for AI.** A large cloud model, a local model near you and a small model on the device debug real hardware together: they go inside the device, talk it over, and draw you the answer.
+> **让 LLM Agent 直接在线调试安卓设备** —— 一套可扩展的统一调试桥，抽象 adb / ssh / UART 串口多种传输，通过 MCP / CLI / Web API 三层接入大模型。
 
-- 主页 / Home page: <https://doc.tbusos.com/devicehands/>
-- 代码 / Code: <https://github.com/TbusOS/android-llm-bridge>(正在改名为 DeviceHands / being renamed to DeviceHands)
-- 许可证 / License: Apache 2.0
+<p align="center">
+  <em>for Claude Code · Cursor · Codex · 任意支持 MCP 的 Agent</em>
+</p>
 
-## 这个仓库里有什么
+<p align="center">
+  <a href="https://doc.tbusos.com/android-llm-bridge/"><b>项目主页</b></a> ·
+  <a href="#-快速开始">快速开始</a> ·
+  <a href="#-支持的调试方案">方案对比</a> ·
+  <a href="#-文档导航">文档</a> ·
+  <a href="./README.en.md">English</a>
+</p>
 
-现在只有项目主页(GitHub Pages)。代码还在 `android-llm-bridge` 仓库,命令行工具叫 `alb`。
+<p align="center">
+  <a href="https://doc.tbusos.com/android-llm-bridge/#topology">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/site/readme/topology-zh-dark.png">
+      <img src="docs/assets/site/readme/topology-zh-light.png" width="900" alt="整体拓扑：编译机上跑 AI 编程助手和 alb hub；台架电脑上的 agent 主动连回 hub，经 USB、串口连板子；模型可以是云端 API、本地模型或板上模型">
+    </picture>
+  </a>
+  <br>
+  <sub>实线已实现，虚线规划中。点图打开项目主页，可以一步步看一次调试流程怎么走。</sub>
+</p>
+
+---
+
+## 这是什么
+
+**android-llm-bridge**（简称 **alb**）是一个**面向大模型**的安卓设备在线调试桥。核心定位：
+
+> 让 AI Agent 像使用普通函数一样，安全、结构化地操作真实安卓设备 —— 不论设备怎么连接（USB adb / 无线 adb / 板子跑 sshd / 还是只有 UART 串口）。
+
+### 为什么需要它
+
+传统 adb/ssh 命令行给人用很好，但**给大模型用**会踩一堆坑：
+
+- 输出是自由文本，LLM 解析容易出错
+- 出错只有 `stderr` 一串英文，没有结构化 error code
+- 长会话积累大量 logcat，context 一下塞爆
+- 多种连接方式（USB/WiFi/串口）各有各的命令，LLM 要记一堆
+- 跑分、ANR、性能采集这些高级能力每次都要 LLM 自己拼命令
+
+**alb 解决这些问题**：
+- 统一命令（`alb shell` / `alb logcat` / `alb fs pull` 等），自动选最合适的传输通道
+- 所有输出 `--json` 可选，返回 `{ok, data, error, artifacts}` 结构化
+- 长日志走 workspace 分层存储 + 换页机制，LLM 按需读取
+- MCP server 原生支持，Claude Code / Cursor 一行配置即可用
+
+---
+
+## 核心特性
+
+| 特性 | 说明 |
+|-----|------|
+| **多传输抽象** | adb USB / adb WiFi / 板子 sshd / UART 串口 —— 上层命令一致，底层自动路由 |
+| **LLM-first API** | 结构化返回、错误码、自描述 CLI、`SKILL.md` 自动生成 |
+| **三层接入** | CLI (`alb`) · MCP server (`alb-mcp`) · Web API (FastAPI)，共享同一套业务层 |
+| **权限与安全** | 板子上的命令不拦截；Windows 主机只执行 agent 操作表里登记过的操作 |
+| **产物规范化** | logcat / ANR / bugreport / 性能数据 全部入 `workspace/devices/<serial>/...` |
+| **长日志友好** | 分层存储（热/温/冷）+ 搜索 + 归档，LLM 不怕 context 爆 |
+| **Web 可视化**（后续） | 浏览器看设备状态、实时 log、性能曲线 |
+
+---
+
+## 支持的调试方案
+
+第一版落地 **A / B / C / G** 四种方案，**D / E / F 接口预留**。
+
+| 方案 | 通道 | 启动log | u-boot | 板子无网 | 板子死机 | 一句话定位 |
+|------|------|:----:|:----:|:----:|:----:|----------|
+| **A · adb USB（+ SSH 反向隧道）** | adb 协议 | ❌ | ❌ | ✅ | ❌ | 系统级基础，必装 |
+| **B · adb WiFi** | TCP | ❌ | ❌ | ❌ | ❌ | 无线临时调试 |
+| **C · 板子内 sshd** | ssh | ❌ | ❌ | ❌ | ❌ | 开发增强（rsync/tmux/sshfs） |
+| **G · UART 串口** | 串口 | ✅ | ✅ | ✅ | ✅ | **最后底牌**，bringup / panic 救援 |
+| D · USB 网络共享 | IP-USB | - | - | - | - | _预留_ |
+| E · scrcpy 屏幕镜像 | adb | - | - | - | - | _预留_ |
+| F · frp / 云中转 | 公网 | - | - | - | - | _预留_ |
+
+**按使用场景选**：
+
+| 场景 | 推荐方案 | 理由 |
+|------|---------|------|
+| 系统刷机 / 进 recovery / 进 fastboot | A | adb 在 recovery 下仍可用，sshd 不可 |
+| 开发日常：改代码 → 推板子 → 看效果 | C + A | rsync 增量快、长 session；A 兜底 |
+| 大量设备 CI / 自动化 | B + C | 无线省线、多设备并发 |
+| 板子起不来 / 内核 panic / u-boot 调试 | **G** | 只有串口能看到底层日志 |
+| 客户现场远程调试 | **远程 agent（dial-home）** | 设备侧主动拨出 wss，hub 公网/反代可达即可 |
+| 板子在 Windows 上，Linux 服务器调 | **远程 agent（dial-home）** | Windows 双击 `run-agent.bat` 拨出，免隧道、免入站端口 |
+
+详见 [`docs/methods/00-comparison.md`](./docs/methods/00-comparison.md)。
+
+### 板子插在别的电脑上？→ 远程设备 agent（dial-home）
+
+板子物理插在 Windows（或任何别的机器）上时，不需要 SSH 隧道、设备侧不用开
+任何入站端口——agent **主动拨出**连 hub：
+
+1. **hub（跑 alb 的 Linux）**：`cd deploy/hub && cp hub.env.example hub.env`
+   （填共享 token；要串口再填 COM + 波特率）→ `./run-hub.sh`
+2. **设备侧（Windows）**：把 `clients/windows-agent/` 拷过去，
+   `agent.conf.example` 复制为 `agent.conf` 填 hub 地址 + token →
+   **双击 `run-agent.bat`**（每次启动自检环境，缺依赖自动装）
+
+之后 adb / UART 串口 / Web 控制台 / MCP 全部从 hub 侧驱动，跟板子直接插在
+hub 上一样。从 hub 到板子每一跳的连接说明和排障：[docs/dial-home-runbook.md](./docs/dial-home-runbook.md)；
+设备侧操作手册（中文）：[clients/windows-agent/README.md](./clients/windows-agent/README.md)。
+
+两台机器**不用在同一网段**：只要台架电脑能连到 hub 的地址和端口。跨公网用 VPN 或带 TLS 的反向代理，不要把 8765 端口直接暴露到公网（网页和 HTTP 接口没有登录）。做法和反向代理示例见
+[跨网络部署](./docs/dial-home-runbook.md#5-across-networks)。
+
+---
+
+## 架构概览
 
 ```
-docs/                        GitHub Pages 根目录
-  index.html                 主页,中英双语(右上角切换,或 ?lang=en / ?lang=zh)
-  assets/css/site.css        样式
-  assets/js/site.js          滚动、语言切换、圆桌对话回放、图表
-  assets/js/scene.js         首屏 3D 故事的源码
-  assets/js/scene.bundle.js  页面实际加载的文件,由 `npm run build` 生成
-  assets/img/                poster.jpg(不支持 WebGL 时的替代图)· og.jpg(分享卡片)· favicon.svg
-  assets/fonts/              IBM Plex Mono(SIL OFL 1.1,许可证在同目录)
-  assets/vendor/three/       three.js 0.170.0(MIT,许可证在同目录)
-tools/build-scene.mjs        把 scene.js 和 three.js 合并成一个脚本
-tools/check-sharpness.mjs    检查每一幕里角色是否清晰
-archive/                     早期版本的首屏,留作参考,不在主页上
+┌────────────────────────────────────────────────────────┐
+│  接入层（壳）                                          │
+│  ├─ CLI (typer)          给人 / LLM 直接用             │
+│  ├─ MCP Server           给 Claude/Cursor/Codex 调用   │
+│  ├─ Web API (FastAPI)    给 Web UI / 外部集成          │
+│  └─ Web UI (Material 3)  板子/日志/时间轴/烧录/助手    │
+├────────────────────────────────────────────────────────┤
+│  业务能力层 Capabilities（M1 六个）                    │
+│  shell │ logging │ filesync │ diagnose │ power │ app   │
+├────────────────────────────────────────────────────────┤
+│  ⭐ 传输抽象层 Transport                               │
+│  interface: shell / stream_read / push / pull /        │
+│             forward / reboot / check_permissions       │
+│  ├─ AdbTransport       (方案 A / B)                    │
+│  ├─ SshTransport       (方案 C / D / F)                │
+│  ├─ SerialTransport    (方案 G)                        │
+│  └─ HybridTransport    (智能路由：按命令类型选通道)    │
+├────────────────────────────────────────────────────────┤
+│  底层驱动 Drivers                                      │
+│  adb · ssh · scp · rsync · pyserial · socat · 隧道管理 │
+├────────────────────────────────────────────────────────┤
+│  基础设施 Infra                                        │
+│  config · workspace · profile · permissions · errors   │
+│  event-bus · prompt-builder · memory (M2+)             │
+└────────────────────────────────────────────────────────┘
 ```
 
-## 首屏讲的故事
+关键设计：**上层业务 / MCP server / Web API 共享同一 Python 函数定义**，三层只是薄壳 —— 详见 [`docs/architecture.md`](./docs/architecture.md)。
 
-一段跟着滚动走的 3D 故事,九幕:外地一台设备死机 → 实验室电脑里的本地 AI 接手 → 在家的主脑连上来 →
-三个 AI 讨论 → 飞进设备里面 → 打开 DeviceHands 工具包 → 找到 PC 指针和调用栈 →
-主脑亲自进来把线索连起来 → 把报告交给人。
+---
 
-故事里的 bug、调用栈、函数名、时间都是编的,用来演示流程。每一幕下面的小标签标了对应能力是「现在能用」还是「规划中」。
-画面里的电路板和产品(手机、音箱、电视、电脑、服务器)是为演示画的,不对应任何真实产品。
+## 快速开始
 
-## 本地预览
+> **当前状态(2026-11-09)**:四种传输(adb USB / adb 网络 / sshd / 串口)、16 个能力模块、28 个 `alb` 命令组、36 个 MCP 工具、Web 界面 v3,以及远程调试台架(板子插在另一台 Windows 上，经 adb / 串口 / fastboot / 高通 9008 调试)都能用。详见 [`docs/project-plan.md`](./docs/project-plan.md)。
 
-直接双击 `docs/index.html` 就能看,3D 也会起来。
+### 一键部署（推荐，完全用户态）
 
-## 改了 3D 场景之后
+**不需要 root，不碰系统 Python**。uv 和 Python 3.11 装到 `~/.local/`，其他用户和其他项目完全不受影响。
 
-页面加载的是 `docs/assets/js/scene.bundle.js`,它由 `scene.js` 和 three.js 合并而成。
-改了 `scene.js` 要重新合并,否则页面还是旧的:
+uv 是 Python 的安装工具（一个现成的程序，不用编译），install.sh 用它免 root 拿到 Python 3.11、按 `uv.lock` 装依赖。没装 uv 时脚本自动装：官方安装脚本不通就改用 pip 从 PyPI 下载；都失败会打印原因和解决命令（代理、镜像、离线手动装）。机器上已经有 Python 3.11 也可以不用 uv。uv 的作用、不用 uv 怎么装、各种失败怎么办，见 [`docs/install.md`](./docs/install.md)「先说 uv」和「故障排查」。
 
 ```bash
-npm install      # 只需一次,装 esbuild
-npm run build    # 生成 docs/assets/js/scene.bundle.js
+git clone https://github.com/<your>/android-llm-bridge
+cd android-llm-bridge
+./scripts/install.sh              # 要跑测试再加 --dev
 ```
 
-为什么要合并:浏览器不允许从本地文件(file://)打开的页面加载 ES module,不合并的话双击打开时 3D 场景起不来。
+install.sh 最后一步是 `alb setup deps --install`，查 pip 装不了的外部工具：
+缺 adb / fastboot 就下载 Android Platform-Tools 装进家目录（下载前问一次，`--yes` 不问）；
+ssh、rsync、picocom、socat 要 sudo，Ollama 常装在别的机器上，这几样只列出安装命令。
+加 `--dev` 再装跑测试要的 `web/` npm 包和 Playwright 的 Chromium。
+下载失败时命令会打印手动安装的办法；完整清单见 [`docs/install.md`](./docs/install.md)「外部工具」。
 
-合并后跑一遍清晰度检查。它逐幕把每个角色的头部裁出来,比较开景深和关景深时的锐度,低于 0.8 就失败:
+装好后：
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+
+uv run alb describe          # 列出所有 transport 和 capability
+uv run alb status            # 环境健康检查
+uv run alb devices           # 列连接的设备
+```
+
+一键卸载：
+```bash
+./scripts/uninstall.sh               # 只删 .venv/ 和缓存
+./scripts/uninstall.sh --purge-workspace --remove-uv  # 彻底清理
+```
+
+详细隔离原理 + 故障排查见 [`docs/install.md`](./docs/install.md)。
+
+### 手动部署（如果已有 uv + Python 3.11）
 
 ```bash
-PLAYWRIGHT_PATH=/path/to/playwright/index.mjs node tools/check-sharpness.mjs
-PLAYWRIGHT_PATH=/path/to/playwright/index.mjs node tools/check-sharpness.mjs --self-test   # 故意对不准焦,必须报失败
+cd android-llm-bridge
+uv sync                    # 装依赖
+uv run alb setup deps --install   # 查 / 装 adb 等外部工具（加 --dev 连测试工具）
+uv run alb --help          # 看看能做什么
+uv run pytest -q           # 跑测试（60+ 用例）
 ```
 
-## 页面上的数字从哪来
+不用 uv（已有 Python 3.11+）：`python3.11 -m venv .venv && .venv/bin/pip install -e .`，之后命令写成 `.venv/bin/alb …`，
+MCP 登记 `.venv/bin/alb-mcp` 的绝对路径。详见 [`docs/install.md`](./docs/install.md)「不用 uv 安装」。
 
-| 页面上写的 | 出处 | 核对日期 |
-|---|---|---|
-| 36 个 MCP 工具 | 代码仓库 `src/alb/mcp` 里 `@mcp.tool` 装饰器计数 | 2026-11-13 |
-| 3,037 条自动测试 | 代码仓库 `uv run pytest --collect-only -q` | 2026-11-13 |
-| 现在能用 / 正在做 / 规划中的划分 | 代码仓库 `docs/models.html`、`docs/roundtable.html` | 2026-11-13 |
+### 配一种传输方案
 
-圆桌对话、内存曲线、火焰图是概念示意,数据是编的,页面上已标「规划中 · 示意」。
+```bash
+# 方案 A — adb USB（本地；或含 Xshell 反向隧道）
+export ADB_SERVER_SOCKET=tcp:localhost:5037   # 仅远程 Xshell 场景需要
+uv run alb setup adb                           # 引导式体检 + 验证
+uv run alb devices
+uv run alb shell "getprop ro.build.version.sdk"
+uv run alb logcat --duration 30 --filter "*:E"
+uv run alb diag bugreport
+
+# 方案 B — adb WiFi（先经方案 A 授权一次）
+uv run alb setup wifi 192.168.1.42            # 自动跑 tcpip + connect
+
+# 方案 C — 板子内 sshd
+uv run alb setup ssh 192.168.1.42 --key ~/.ssh/alb-device
+ALB_SSH_HOST=192.168.1.42 uv run alb --transport ssh shell 'uname -a'
+uv run alb fs rsync ~/out/system/ /system-dev/   # 方案 C 独占
+
+# 方案 G — UART 串口（TCP via ser2net + Xshell）
+uv run alb setup serial --tcp-host localhost --tcp-port 9001
+uv run alb serial capture --duration 30       # 抓启动 / panic / u-boot 日志
+uv run alb serial shell "dmesg | tail"
+```
+
+配置方式详见 [`docs/methods/`](./docs/methods/)。全部环境变量和配置文件见 [`docs/configuration.md`](./docs/configuration.md)。
+
+### 接入 Claude Code / Codex（MCP）
+
+在仓库目录里登记一次即可：
+
+```bash
+claude mcp add alb -- uv run --project "$PWD" alb-mcp   # Claude Code
+codex mcp add alb -- uv run --project "$PWD" alb-mcp    # Codex CLI,写进 ~/.codex/config.toml
+```
+
+Cursor 等用 JSON 配置的客户端见 [`llm/mcp-config-examples/`](./llm/mcp-config-examples/)。
+
+在 Claude Code 里直接让它"帮我看看板子最近的 ANR"、"拉一份 bugreport"、"监控 15 分钟的 CPU 占用"即可，无需手写 adb 命令。
+
+---
+
+## 文档导航
+
+### 按要做的事找文档(第一次用从这里开始)
+
+| 你要做什么 | 按顺序看 |
+|---|---|
+| 第一次安装 | [docs/install.md](./docs/install.md);装不上看它的「故障排查」,uv 是什么看「先说 uv」 |
+| 板子用 USB 插在本机,走 adb | 本页「配一种传输方案」→ [docs/configuration.md](./docs/configuration.md)「三、USB / adb」;adb 经 ssh 隧道看 [docs/methods/01-ssh-tunnel-adb.md](./docs/methods/01-ssh-tunnel-adb.md) |
+| 板子接串口(UART) | [docs/methods/07-uart-serial.md](./docs/methods/07-uart-serial.md) → [docs/configuration.md](./docs/configuration.md)「二、串口 UART」 |
+| 板子插在另一台 Windows 电脑上(远程台架) | [docs/dial-home-runbook.md](./docs/dial-home-runbook.md)(Linux 这边)→ [clients/windows-agent/README.md](./clients/windows-agent/README.md)(Windows 那边) |
+| 远程烧录(fastboot / 高通 9008 / 其它厂商工具) | 命令用法:[docs/flash.md](./docs/flash.md);台架上怎么配:[clients/windows-agent/README.md](./clients/windows-agent/README.md)「操作表」「高通 9008」「其它厂商的下载工具」三节、[FASTBOOT-SETUP.md](./clients/windows-agent/FASTBOOT-SETUP.md) |
+| 接 Claude Code / Codex / Cursor | [docs/llm-integration.md](./docs/llm-integration.md) |
+| 用网页或 HTTP 接口 | [docs/web-api.md](./docs/web-api.md) |
+| 查某个环境变量、配置项 | [docs/configuration.md](./docs/configuration.md)(全部环境变量和配置文件的键,含「设了无效的项」) |
+| 看到一个错误码 | [docs/errors.md](./docs/errors.md),或命令返回里的 `suggestion` |
+
+**AI 从哪看**:接上 MCP 后先调 `alb_status`、`alb_describe`;出错时读返回里的 `suggestion`,或调
+`alb_describe_errors`;给 AI 的使用规则在 [llm/CLAUDE.md](./llm/CLAUDE.md) 和 [llm/AGENTS.md](./llm/AGENTS.md),
+配置项在 [docs/configuration.md](./docs/configuration.md)「十一、AI 怎么查配置」。
+
+### 全部文档
+
+| 类别 | 文档 | 给谁看 |
+|-----|------|-------|
+| **起步** | [README.md](./README.md) / [README.en.md](./README.en.md) | 所有人 |
+| **安装 / 卸载** | [docs/install.md](./docs/install.md) | 部署 / 运维 |
+| **配置参考** | [docs/configuration.md](./docs/configuration.md) | 查环境变量和配置文件 |
+| **总览** | [docs/00-overview.md](./docs/00-overview.md) | 先看这个 |
+| **架构** | [docs/architecture.md](./docs/architecture.md) | 想了解内部设计 |
+| **设计决策** | [docs/design-decisions.md](./docs/design-decisions.md) | 想知道为啥这么做 |
+| **LLM 集成** | [docs/llm-integration.md](./docs/llm-integration.md) | Agent / AI 开发者 |
+| **Agent 层设计** | [docs/agent.md](./docs/agent.md) | 宿主端 agent / backend 选型 |
+| **设备端模型选型** | [docs/on-device-model-selection.md](./docs/on-device-model-selection.md) | 全球商用场景选型(许可 + SoC 硬件) |
+| **远程设备调试** | [docs/dial-home-runbook.md](./docs/dial-home-runbook.md) | 板子在另一台电脑上：端到端搭建 + 排障 |
+| **Windows 设备端 agent** | [clients/windows-agent/README.md](./clients/windows-agent/README.md) | 板子所在 Windows 的操作者（中文） |
+| **权限系统** | [docs/permissions.md](./docs/permissions.md) | 安全 / 部署人员 |
+| **错误码** | [docs/errors.md](./docs/errors.md) | LLM / 排错时查表 |
+| **Tool 写法** | [docs/tool-writing-guide.md](./docs/tool-writing-guide.md) | 贡献者 |
+| **项目计划** | [docs/project-plan.md](./docs/project-plan.md) | 想了解里程碑进度 |
+| **贡献指南** | [docs/contributing.md](./docs/contributing.md) | 贡献者 |
+| **调试方案** | [docs/methods/](./docs/methods/) | 按方案查手册 |
+| **业务能力** | [docs/capabilities/](./docs/capabilities/) | 按能力查手册 |
+
+---
+
+## 路线图
+
+| 里程碑 | 交付内容 | 状态 |
+|-------|---------|-----|
+| **M0** | 仓库骨架 + 完整技术方案文档 + 架构图 + 里程碑规划 | ✅ 完成 |
+| **M1** | 四种传输（A/B/C/G）+ 六能力（shell/logging/filesync/diagnose/power/app）+ 权限系统 + CLI + MCP 骨架 | ✅ 完成 |
+| **M2** | Web API ✅ + 长任务框架（流式 logcat ✅ / 大文件传输 ✅）+ 模型后端与 `alb chat` ✅ + 性能采集 ✅ + 子 Agent 并行 📋 + 跑分（benchmark）📋 | 🚧 部分完成 |
+| **M3** | Web UI v3（Material 3：板子总览 / 控制台 / 日志 / 时间轴 / 烧录 / 台架 / 助手 / 性能曲线）✅ + LLM-assisted 日志分析（助手调用 alb 工具）✅ + 方案 D/E/F 📋 | 🚧 部分完成 |
+| **远程台架** | 板子插在 Windows 上，Linux 侧经 hub 用 adb / 串口 / fastboot / 高通 9008 调试;台架 agent 远程换版、远程拉起(原计划没有这一项) | ✅ |
+
+详见 [`docs/project-plan.md`](./docs/project-plan.md)。
+
+---
+
+## 贡献
+
+欢迎贡献新的传输方案、业务能力、LLM 集成示例！开始前请阅读：
+
+1. [`docs/contributing.md`](./docs/contributing.md) —— 开发流程 / 代码风格 / PR checklist
+2. [`docs/tool-writing-guide.md`](./docs/tool-writing-guide.md) —— LLM 友好 tool 怎么写
+3. [`llm/CLAUDE.md`](./llm/CLAUDE.md) —— 如果用 Claude Code 协作开发
+
+---
+
+## 致谢
+
+本项目在设计阶段参考了以下优秀项目的理念：
+
+- [Claude Code](https://claude.com/claude-code) —— 权限系统分层设计、tool schema、session memory 思想
+- [MCP](https://modelcontextprotocol.io) —— Anthropic Model Context Protocol，本项目的 LLM 接入标准
+- [CLI-Anything](https://github.com/cli-anything) —— SKILL.md 自动生成、core/CLI 解耦思路
+- 学术思想：MemGPT（分层上下文）、Evo-Memory（失败学习）、MemoryBank（衰减归档）
+
+---
+
+## License
+
+[Apache License 2.0](./LICENSE) © 2026 sky &lt;skyzhangbinghua@gmail.com&gt;,另见 [NOTICE](./NOTICE)。
+2026-10-10 之前发布的版本采用 MIT 许可,已经拿到的副本仍按 MIT 使用。

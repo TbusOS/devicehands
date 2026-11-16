@@ -1,0 +1,329 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const router = vi.hoisted(() => ({ search: {} as Record<string, string> }));
+vi.mock("@tanstack/react-router", () => ({
+  useSearch: () => router.search,
+  useNavigate: () => vi.fn(),
+  Link: ({ children, to, className }: { children: ReactNode; to: string; className?: string }) => (
+    <a href={to} className={className}>{children}</a>
+  ),
+}));
+
+import { useSnack } from "../../../components/v3/ui";
+import { useApp } from "../../../stores/app";
+import { useShell } from "../../../stores/shell";
+import { TimelinePage } from "./TimelinePage";
+
+const DEVICE = "0123456789ABCDEF";
+const CAP = { name: "capture-2026-10-28T09-30-58", started_at: "2026-10-28T09:30:58", duration_s: 90, sources: { logcat: 3, dmesg: 2, uart: 1 }, size_bytes: 1000, has_boot: true };
+const zeros = (n: number) => Array.from({ length: n }, () => 0);
+const DENSITY = {
+  t0: 0,
+  t1: 90,
+  bucket_s: 0.15,
+  tracks: { uart: zeros(601), dmesg: zeros(601), logcat: { V: zeros(601), D: zeros(601), I: zeros(601), W: zeros(601), E: zeros(601), F: zeros(601) } },
+  markers: [
+    { t: 63.2, src: "dmesg", kind: "panic", text: "Kernel panic - not syncing" },
+    { t: 10, src: "dmesg", kind: "avc", text: "avc: denied { read }" },
+  ],
+};
+const LINES = [
+  { t: 62.9, ts: null, src: "logcat", text: "open failed: Permission denied", level: "E", tag: "SensorsHal", pid: 12 },
+  { t: 63.2, ts: null, src: "dmesg", text: "Kernel panic - not syncing: Oops", level: null, tag: null, pid: null },
+  { t: 63.5, ts: null, src: "uart", text: "Rebooting in 3 seconds..", level: null, tag: null, pid: null },
+];
+const BOOT = { found: true, total_s: 20, milestones: [{ key: "kernel", label: "kernel start", src: "dmesg", t: 2 }], stages: [{ key: "kernel", src: "dmesg", t0: 0, t1: 2 }], previous: null };
+
+type Routes = Record<string, (url: string, init?: RequestInit) => Response | Promise<Response>>;
+const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
+
+function mockFetch(routes: Routes) {
+  const f = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    for (const [k, h] of Object.entries(routes)) if (url.includes(k)) return h(url, init);
+    return json({}, 404);
+  });
+  vi.stubGlobal("fetch", f);
+  return f;
+}
+
+function renderPage() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}><TimelinePage /></QueryClientProvider>);
+}
+
+const full: Routes = {
+  "/api/timeline/captures?": () => json({ ok: true, data: [CAP] }),
+  "/density": () => json({ ok: true, data: DENSITY }),
+  "/lines": () => json({ ok: true, data: { lines: LINES, truncated: false } }),
+  "/boot": () => json({ ok: true, data: BOOT }),
+  "/api/flash/jobs": () => json({ ok: true, running: null, jobs: [] }),
+};
+
+beforeEach(() => {
+  router.search = {};
+  useApp.setState({ device: DEVICE, lang: "en" });
+  useShell.setState({ sheetOpen: false, context: null });
+});
+afterEach(() => vi.unstubAllGlobals());
+
+describe("TimelinePage", () => {
+  it("with no adb device and no bench serial port, says what is missing", async () => {
+    useApp.setState({ device: null });
+    mockFetch({ "/api/bench/board": () => json({ ok: true, active: null, boards: [], serial: { com: null, baud: null, bound: false, readers: 0 } }) });
+    renderPage();
+    expect(await screen.findByText("No device, and no bench serial port")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Record$/ })).toBeDisabled();
+  });
+
+  it("with no adb device but a bench serial port, lists and records the serial console only", async () => {
+    useApp.setState({ device: null });
+    let body: unknown;
+    let captureUrl = "";
+    const f = mockFetch({
+      "/api/bench/board": () => json({ ok: true, active: "board-a", boards: [], serial: { com: "COM7", baud: 115200, bound: true, readers: 0 } }),
+      "/api/timeline/captures?": () => json({ ok: true, data: [] }),
+      "/api/timeline/captures": () => json({ ok: true, data: [] }),
+      "/api/timeline/capture": (url, init) => {
+        captureUrl = url;
+        body = JSON.parse(String(init?.body));
+        return new Response(`${JSON.stringify({ ev: "done", ok: true, name: "capture-x" })}\n`, { headers: { "content-type": "application/x-ndjson" } });
+      },
+      "/api/flash/jobs": () => json({ ok: true, running: null, jobs: [] }),
+    });
+    renderPage();
+    expect(await screen.findByText("No serial recordings yet")).toBeInTheDocument();
+    expect(screen.getByText(/only the serial console is recorded/)).toBeInTheDocument();
+    expect(f.mock.calls.some(([u]) => String(u).startsWith("/api/timeline/captures"))).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /^Record$/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /30 seconds/ }));
+    await waitFor(() => expect(body).toMatchObject({ duration_s: 30, sources: ["uart"] }));
+    expect(captureUrl).not.toContain("device=");
+  });
+
+  it("shows the empty state when the device has no recordings", async () => {
+    mockFetch({ "/api/timeline/captures?": () => json({ ok: true, data: [] }) });
+    renderPage();
+    expect(await screen.findByText("No recordings for this device yet")).toBeInTheDocument();
+  });
+
+  it("shows an error banner when the list cannot be read", async () => {
+    mockFetch({ "/api/timeline/captures?": () => json({ detail: "boom" }, 500) });
+    renderPage();
+    expect(await screen.findByText(/Could not read the recordings/)).toBeInTheDocument();
+  });
+
+  it("draws the lanes, lists lines, and a marker click selects its line", async () => {
+    mockFetch(full);
+    renderPage();
+    expect(await screen.findByText("Kernel panic - not syncing: Oops")).toBeInTheDocument();
+    expect(screen.getByText("Boot breakdown")).toBeInTheDocument();
+    expect(screen.getByTestId("overview")).toBeInTheDocument();
+    // default selection is the first problem line (the E line)
+    expect(screen.getAllByText("open failed: Permission denied").length).toBeGreaterThan(0);
+    const panic = await screen.findAllByRole("button", { name: /^panic/ });
+    fireEvent.click(panic[0] as HTMLElement);
+    await waitFor(() => {
+      const sel = document.querySelector('.log[aria-pressed="true"]');
+      expect(sel?.textContent).toContain("Kernel panic");
+    });
+    expect(screen.getByText(/into the recording/)).toHaveTextContent("+63.20 s");
+  });
+
+  it("a search covers the whole recording, and a match outside the range brings the range to it (2026-11-05)", async () => {
+    const urls: string[] = [];
+    const MATCH = { t: 5, ts: null, src: "uart", text: "alb-mark-1", level: null, tag: null, pid: null };
+    mockFetch({
+      ...full,
+      "/lines": (url) => {
+        urls.push(url);
+        const lines = new URL(url, "http://x").searchParams.get("grep") ? [MATCH] : LINES;
+        return json({ ok: true, data: { lines, truncated: false } });
+      },
+    });
+    renderPage();
+    const range = (u: string) => {
+      const p = new URL(u, "http://x").searchParams;
+      return [Number(p.get("t0")), Number(p.get("t1"))];
+    };
+    // once the markers are in, it opens on the 10 s around the panic at 63.2 s
+    await waitFor(() => expect(screen.getByText(/, 10\.0 s of 90 s/)).toHaveTextContent(/^09:31:57 – 09:32:07/));
+    await waitFor(() => expect(range(urls.at(-1) as string)).toEqual([59.2, 69.2]));
+    fireEvent.change(screen.getByRole("textbox", { name: "search" }), { target: { value: "alb-mark-1" } });
+    expect(await screen.findByText("Matches in the whole recording")).toBeInTheDocument();
+    const searched = urls.filter((u) => u.includes("grep=alb-mark-1"));
+    expect(searched.length).toBeGreaterThan(0);
+    expect(range(searched.at(-1) as string)).toEqual([0, 90]);
+    const row = (await screen.findAllByText("alb-mark-1")).find((el) => el.closest("button.log")) as HTMLElement;
+    fireEvent.click(row);
+    expect(await screen.findByText(/, 10\.0 s of 90 s/)).toHaveTextContent(/^09:30:58 – 09:31:08/);
+  });
+
+  it("opens the assistant with the lines around the selection", async () => {
+    mockFetch(full);
+    renderPage();
+    await screen.findByText("Kernel panic - not syncing: Oops");
+    fireEvent.click(screen.getByRole("button", { name: /Ask about these 2 s/ }));
+    const ctx = useShell.getState().context;
+    expect(useShell.getState().sheetOpen).toBe(true);
+    expect(ctx?.detail).toContain("Kernel panic");
+  });
+
+  it("asks before rebooting and then records a boot", async () => {
+    router.search = { record: "boot" };
+    const f = mockFetch({
+      ...full,
+      "/api/timeline/capture?": () =>
+        new Response('{"ev":"progress","elapsed_s":1,"lines":{"uart":2}}\n{"ev":"done","ok":true,"name":"capture-2026-10-28T10-00-00"}\n', {
+          headers: { "content-type": "application/x-ndjson" },
+        }),
+    });
+    renderPage();
+    const go = await screen.findByRole("button", { name: "Reboot and record" });
+    // nothing was sent before the confirmation
+    expect(f.mock.calls.some(([u, i]) => String(u).includes("/api/timeline/capture?") && (i as RequestInit | undefined)?.method === "POST")).toBe(false);
+    fireEvent.click(go);
+    await waitFor(() => {
+      const call = f.mock.calls.find(([u]) => String(u).includes("/api/timeline/capture?"));
+      expect(call).toBeTruthy();
+      const body = JSON.parse(String((call?.[1] as RequestInit).body));
+      expect(body).toMatchObject({ duration_s: 60, reboot: "system" });
+    });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Reboot and record" })).not.toBeInTheDocument());
+  });
+
+  it("zoom out works until the whole recording is shown, then turns off", async () => {
+    mockFetch(full);
+    renderPage();
+    // 90 s recording: it opens on a 10 s window around the first problem
+    const out = await screen.findByRole("button", { name: "Zoom out" });
+    expect(out).toBeEnabled();
+    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Zoom out" })); // 10 → 20 → 40 → 80 → 90 s
+    await waitFor(() => expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeEnabled();
+  });
+
+  it("lines that share a timestamp can each be selected (a serial command and its output)", async () => {
+    const same = [
+      { t: 63.5, ts: null, src: "uart", text: "echo hello", level: null, tag: null, pid: null },
+      { t: 63.5, ts: null, src: "uart", text: "hello", level: null, tag: null, pid: null },
+    ];
+    mockFetch({ ...full, "/lines": () => json({ ok: true, data: { lines: same, truncated: false } }) });
+    renderPage();
+    const second = (await screen.findByText("hello", { selector: ".log__msg" })).closest("button") as HTMLElement;
+    const first = (screen.getByText("echo hello", { selector: ".log__msg" })).closest("button") as HTMLElement;
+    fireEvent.click(second);
+    expect(second).toHaveAttribute("aria-pressed", "true");
+    expect(first).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("lists a flash job's timeline, reads its job lines, and does not ask for logcat there", async () => {
+    const FLASH = { name: "reboot-normal-2026-10-28T09-40-00", kind: "flash", label: "reboot normal", ok: false, started_at: "2026-10-28T09:40:00+00:00", duration_s: 1, sources: { logcat: 0, dmesg: 0, uart: 1, job: 2 }, size_bytes: 200, has_boot: false };
+    const f = mockFetch({
+      ...full,
+      "/api/timeline/captures?": () => json({ ok: true, data: [FLASH, CAP] }),
+      "/lines": () => json({ ok: true, data: { lines: [{ t: 0.5, ts: null, src: "job", text: "job failed: FLASH_FAILED no device in 0.5s", level: null, tag: null, pid: null }], truncated: false } }),
+    });
+    renderPage();
+    expect(await screen.findByRole("option", { name: /flash · reboot normal · failed/ })).toBeInTheDocument();
+    expect(await screen.findByText("job failed: FLASH_FAILED no device in 0.5s")).toBeInTheDocument();
+    // every source on: no `sources` filter, so the job lines come back too
+    const linesUrl = f.mock.calls.map((c) => String(c[0])).find((u) => u.includes("/lines")) ?? "";
+    expect(new URL(linesUrl, "http://x").searchParams.has("sources")).toBe(false);
+    // a flash job watches only the serial console: no "is adb online?" here
+    expect(screen.queryByText(/is adb online/)).not.toBeInTheDocument();
+  });
+
+  it("says so when a source recorded nothing", async () => {
+    mockFetch({ ...full, "/api/timeline/captures?": () => json({ ok: true, data: [{ ...CAP, sources: { logcat: 3, dmesg: 2, uart: 0 }, has_boot: false }] }) });
+    renderPage();
+    expect(await screen.findByText(/no serial lines/)).toBeInTheDocument();
+  });
+});
+
+
+describe("reset and delete (2026-11-03)", () => {
+  const rangeOf = () => screen.getByText(/ s of 90 s$/).textContent ?? "";
+
+  it("Reset puts back the range, selection and filters it opened with", async () => {
+    mockFetch(full);
+    renderPage();
+    await screen.findByText("Kernel panic - not syncing: Oops");
+    const reset = screen.getByRole("button", { name: "Reset" });
+    expect(reset).toBeDisabled(); // nothing changed yet
+    const start = rangeOf();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Problems only" }));
+    await waitFor(() => expect(rangeOf()).not.toBe(start));
+    expect(reset).toBeEnabled();
+    fireEvent.click(reset);
+    await waitFor(() => expect(rangeOf()).toBe(start));
+    expect(screen.getByRole("button", { name: "Problems only" })).toHaveAttribute("aria-pressed", "false");
+    expect(reset).toBeDisabled();
+  });
+
+  it("deletes the recording on screen only after asking", async () => {
+    let listed = [CAP];
+    let deleted = "";
+    mockFetch({
+      ...full,
+      "/api/timeline/captures?": () => json({ ok: true, data: listed }),
+      "/api/timeline/captures/capture-": (url, init) => {
+        if (init?.method !== "DELETE") return json({}, 404);
+        deleted = url;
+        listed = [];
+        return json({ ok: true, data: { deleted: [CAP.name] } });
+      },
+    });
+    renderPage();
+    await screen.findByText("Kernel panic - not syncing: Oops");
+    fireEvent.click(screen.getByRole("button", { name: "Delete recordings" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete this recording" }));
+    expect(deleted).toBe(""); // asked first
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleted).toContain(`/api/timeline/captures/${CAP.name}`));
+    expect(new URL(deleted, "http://x").searchParams.get("device")).toBe(DEVICE);
+    expect(await screen.findByText("No recordings for this device yet")).toBeInTheDocument();
+    expect(useSnack.getState().text).toBe("Recording deleted.");
+  });
+
+  it("Delete all asks, sends all=true and reports recordings it had to keep", async () => {
+    let call = "";
+    mockFetch({
+      ...full,
+      "/api/timeline/captures?": (url, init) => {
+        if (init?.method === "DELETE") {
+          call = url;
+          return json({ ok: true, data: { deleted: [CAP.name], skipped_running: ["capture-2026-10-28T10-00-00"], failed: [] } });
+        }
+        return json({ ok: true, data: [CAP] });
+      },
+    });
+    renderPage();
+    await screen.findByText("Kernel panic - not syncing: Oops");
+    fireEvent.click(screen.getByRole("button", { name: "Delete recordings" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Delete all recordings of this device \(1\)/ }));
+    expect(screen.getByText(/Flash jobs are kept/)).toBeInTheDocument();
+    expect(call).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Delete all" }));
+    await waitFor(() => expect(call).not.toBe(""));
+    const u = new URL(call, "http://x");
+    expect(u.searchParams.get("all")).toBe("true");
+    expect(u.searchParams.get("device")).toBe(DEVICE);
+    await waitFor(() => expect(useSnack.getState().text).toBe("Deleted 1 recordings; 1 still recording, kept."));
+  });
+
+  it("a flash job in the list cannot be deleted from here", async () => {
+    const FLASH = { name: "reboot-normal-2026-10-28T09-40-00", kind: "flash", label: "reboot normal", ok: false, started_at: "2026-10-28T09:40:00+00:00", duration_s: 1, sources: { logcat: 0, dmesg: 0, uart: 1, job: 2 }, size_bytes: 200, has_boot: false };
+    mockFetch({ ...full, "/api/timeline/captures?": () => json({ ok: true, data: [FLASH, CAP] }) });
+    renderPage();
+    await screen.findByRole("option", { name: /flash · reboot normal/ });
+    fireEvent.click(screen.getByRole("button", { name: "Delete recordings" }));
+    expect(await screen.findByRole("menuitem", { name: /A flash job: kept/ })).toBeDisabled();
+    // the timeline recording next to it still counts for Delete all
+    expect(screen.getByRole("menuitem", { name: /Delete all recordings of this device \(1\)/ })).toBeInTheDocument();
+  });
+});

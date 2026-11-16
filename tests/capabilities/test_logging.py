@@ -1,0 +1,325 @@
+"""Tests for the logging capability."""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock
+
+import pytest
+
+from alb.capabilities.logging import (
+    collect_dmesg,
+    collect_logcat,
+    search_logs,
+    tail_log,
+)
+from alb.infra.permissions import PermissionResult
+
+
+async def _stream(chunks: list[bytes]) -> AsyncIterator[bytes]:
+    for c in chunks:
+        yield c
+
+
+def _mk_transport(
+    perm_behavior: str = "allow",
+    stream_chunks: list[bytes] | None = None,
+) -> AsyncMock:
+    t = AsyncMock()
+    t.check_permissions = AsyncMock(
+        return_value=PermissionResult(behavior=perm_behavior)
+    )
+    # stream_read is a regular async generator, not AsyncMock
+    chunks = stream_chunks or []
+    t.stream_read = lambda *a, **kw: _stream(chunks)
+    return t
+
+
+@pytest.mark.asyncio
+async def test_collect_logcat_invalid_duration() -> None:
+    r = await collect_logcat(_mk_transport(), duration=0)
+    assert not r.ok
+    assert r.error is not None
+    assert r.error.code == "INVALID_DURATION"
+
+
+@pytest.mark.asyncio
+async def test_collect_logcat_permission_denied() -> None:
+    r = await collect_logcat(_mk_transport(perm_behavior="deny"), duration=5)
+    assert not r.ok
+    assert r.error is not None
+    assert r.error.code == "PERMISSION_DENIED"
+
+
+@pytest.mark.asyncio
+async def test_collect_logcat_happy_path(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    chunks = [
+        b"04-15 10:30:00.123 1000 1001 I ActivityManager: started app\n",
+        b"04-15 10:30:01.456 1000 1002 E ActivityManager: crash!\n",
+        b"04-15 10:30:02.789 1000 1003 W WindowManager: something\n",
+    ]
+    t = _mk_transport(stream_chunks=chunks)
+
+    r = await collect_logcat(t, duration=1)
+    assert r.ok
+    assert r.data is not None
+    assert r.data.lines == 3
+    assert r.data.errors == 1
+    assert r.data.warnings == 1
+    tags = dict(r.data.top_tags)
+    assert tags.get("ActivityManager") == 2
+    assert len(r.artifacts) == 1
+    assert r.artifacts[0].exists()
+
+
+@pytest.mark.asyncio
+async def test_collect_dmesg_counts_errors(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    chunks = [
+        b"[    0.123] normal boot message\n",
+        b"[    1.234] kernel BUG: NULL pointer\n",
+        b"[    2.345] panic: something failed\n",
+    ]
+    t = _mk_transport(stream_chunks=chunks)
+    r = await collect_dmesg(t, duration=1)
+    assert r.ok
+    assert r.data is not None
+    assert r.data.lines == 3
+    assert r.data.errors >= 2  # "BUG:" + "panic" + "failed" pattern
+
+
+# ─── --output / -o overrides (parity with capture_uart) ─────────────
+
+
+@pytest.mark.asyncio
+async def test_collect_logcat_passes_buffers_only_when_asked(tmp_path: Path) -> None:
+    seen: list[dict[str, Any]] = []
+    t = _mk_transport()
+
+    def _record(*a: Any, **kw: Any) -> AsyncIterator[bytes]:
+        seen.append(kw)
+        return _stream([b"04-15 10:30:00.123 1 1 I A: hi\n"])
+
+    t.stream_read = _record
+    assert (await collect_logcat(t, duration=1, output=tmp_path / "a.txt", buffers=["events"])).ok
+    assert (await collect_logcat(t, duration=1, output=tmp_path / "b.txt")).ok
+    assert seen[0]["buffers"] == ["events"]
+    # no buffers asked for: the key is not passed at all (ssh / other transports)
+    assert "buffers" not in seen[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", [["Events"], ["main -c"], ["x"] * 9])
+async def test_collect_logcat_rejects_bad_buffers(bad: list[str]) -> None:
+    r = await collect_logcat(_mk_transport(), duration=5, buffers=bad)
+    assert not r.ok and r.error is not None
+    assert r.error.code == "INVALID_FILTER"
+
+
+@pytest.mark.asyncio
+async def test_collect_logcat_output_as_file_path(tmp_path: Path) -> None:
+    """--output <file>: log written to that exact file (parent auto-created)."""
+    chunks = [b"04-15 10:30:00.123 1 1 I A: hi\n"]
+    t = _mk_transport(stream_chunks=chunks)
+    target = tmp_path / "subdir" / "my-run.txt"  # parent doesn't exist
+    r = await collect_logcat(t, duration=1, output=target)
+    assert r.ok
+    art = Path(r.artifacts[0])
+    assert art == target
+    assert art.exists()
+    assert target.parent.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_collect_logcat_output_as_directory(tmp_path: Path) -> None:
+    """--output <dir>/: trailing slash → auto-create dir + <ts>-logcat.txt."""
+    chunks = [b"04-15 10:30:00.123 1 1 I A: hi\n"]
+    t = _mk_transport(stream_chunks=chunks)
+    out_dir = tmp_path / "my_logs"
+    r = await collect_logcat(t, duration=1, output=str(out_dir) + "/")
+    assert r.ok
+    art = Path(r.artifacts[0])
+    assert art.parent == out_dir
+    assert art.name.endswith("-logcat.txt")
+    assert art.exists()
+
+
+@pytest.mark.asyncio
+async def test_collect_dmesg_output_as_file_path(tmp_path: Path) -> None:
+    """--output <file>: dmesg written to exact file (parent auto-created)."""
+    chunks = [b"[ 0.0 ] msg\n"]
+    t = _mk_transport(stream_chunks=chunks)
+    target = tmp_path / "deep" / "boot.log"
+    r = await collect_dmesg(t, duration=1, output=target)
+    assert r.ok
+    art = Path(r.artifacts[0])
+    assert art == target
+    assert art.exists()
+
+
+@pytest.mark.asyncio
+async def test_collect_dmesg_output_as_existing_directory(tmp_path: Path) -> None:
+    """--output <existing-dir>: dmesg lands inside (no trailing slash needed)."""
+    (tmp_path / "exists").mkdir()
+    chunks = [b"[ 0.0 ] msg\n"]
+    t = _mk_transport(stream_chunks=chunks)
+    r = await collect_dmesg(t, duration=1, output=tmp_path / "exists")
+    assert r.ok
+    art = Path(r.artifacts[0])
+    assert art.parent == tmp_path / "exists"
+    assert art.name.endswith("-dmesg.txt")
+
+
+@pytest.mark.asyncio
+async def test_search_logs_rejects_traversal_in_device(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """L-035: `device='../etc'` must return fail Result, not escape rglob.
+
+    Plants a *.txt in the escaped target so we'd see results if the bug
+    were unfixed.
+    """
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    escaped = tmp_path / "etc" / "logs"
+    escaped.mkdir(parents=True)
+    (escaped / "leaked.txt").write_text("API_KEY=xyz\n")
+
+    r = await search_logs("API_KEY", device="../etc")
+    assert not r.ok
+    assert r.error is not None
+    assert r.error.code == "INVALID_DEVICE"
+
+
+@pytest.mark.asyncio
+async def test_search_logs_rejects_bad_regex() -> None:
+    r = await search_logs(pattern="[unclosed")
+    assert not r.ok
+    assert r.error is not None
+    assert r.error.code == "INVALID_FILTER"
+
+
+@pytest.mark.asyncio
+async def test_search_logs_finds_matches(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    log_dir = tmp_path / "devices" / "abc" / "logs"
+    log_dir.mkdir(parents=True)
+    (log_dir / "one.txt").write_text("foo\nbar FATAL thing\nbaz\n")
+    (log_dir / "two.txt").write_text("FATAL nothing here\nhello\n")
+
+    r = await search_logs("FATAL")
+    assert r.ok
+    assert r.data is not None
+    assert len(r.data.matches) == 2
+
+
+@pytest.mark.asyncio
+async def test_search_logs_since_keeps_files_written_after_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import os
+    import time
+
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    log_dir = tmp_path / "devices" / "abc" / "logs"
+    log_dir.mkdir(parents=True)
+    old, new = log_dir / "old.txt", log_dir / "new.txt"
+    old.write_text("FATAL last week\n")
+    new.write_text("FATAL just now\n")
+    week_ago = time.time() - 7 * 86400
+    os.utime(old, (week_ago, week_ago))
+
+    r = await search_logs("FATAL", since="1h")
+    assert r.ok and r.data is not None
+    assert [Path(m.path).name for m in r.data.matches] == ["new.txt"]
+    assert (r.data.files_searched, r.data.files_older) == (1, 1)
+    assert r.data.since is not None
+
+    everything = await search_logs("FATAL")
+    assert everything.ok and everything.data is not None
+    assert len(everything.data.matches) == 2 and everything.data.files_older == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["5", "yesterday", "2w"])
+async def test_search_logs_rejects_a_bad_since(bad: str) -> None:
+    r = await search_logs("x", since=bad)
+    assert not r.ok and r.error is not None
+    assert r.error.code == "INVALID_FILTER"
+
+
+def test_parse_since_forms() -> None:
+    from alb.capabilities.logging import parse_since
+
+    assert parse_since("2h", now=10_000.0) == 2_800.0
+    assert parse_since("30m", now=10_000.0) == 8_200.0
+    assert parse_since("1761800000") == 1761800000.0
+    assert parse_since("2026-10-30T09:00:00+00:00") == 1793350800.0
+
+
+@pytest.mark.asyncio
+async def test_search_logs_covers_serial_and_timeline_recordings(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Serial captures are *.log and timeline recordings keep uart.log; a
+    board with no adb device records into logs/ and timeline/ at the
+    workspace root. All of them must be searchable, the JSON copies not."""
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    (tmp_path / "devices" / "abc" / "logs").mkdir(parents=True)
+    (tmp_path / "devices" / "abc" / "logs" / "1-logcat.txt").write_text("MARK in logcat\n")
+    (tmp_path / "devices" / "abc" / "logs" / "2-uart.log").write_text("MARK on serial\n")
+    (tmp_path / "devices" / "abc" / "timeline" / "capture-1").mkdir(parents=True)
+    (tmp_path / "devices" / "abc" / "timeline" / "capture-1" / "uart.log").write_text("MARK rec\n")
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "3-uart.log").write_text("MARK no device\n")
+    rec = tmp_path / "timeline" / "capture-2"
+    rec.mkdir(parents=True)
+    (rec / "uart.log").write_text("MARK serial-only recording\n")
+    (rec / "timeline.jsonl").write_text('{"text": "MARK serial-only recording"}\n')
+    (tmp_path / "hub.log").write_text("MARK hub log at the root is not a recording\n")
+
+    everything = await search_logs("MARK")
+    assert everything.ok and everything.data is not None
+    found = sorted(Path(m.path).name for m in everything.data.matches)
+    assert found == ["1-logcat.txt", "2-uart.log", "3-uart.log", "uart.log", "uart.log"]
+
+    one = await search_logs("MARK", device="abc")
+    assert one.ok and one.data is not None
+    assert len(one.data.matches) == 3  # that board's logs + its recordings only
+
+
+@pytest.mark.asyncio
+async def test_tail_log_rejects_path_traversal(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    outside = tmp_path.parent / "secret.txt"
+    outside.write_text("confidential\n")
+    r = await tail_log(outside)
+    assert not r.ok
+    assert r.error is not None
+    assert r.error.code == "REMOTE_PATH_INVALID"
+
+
+@pytest.mark.asyncio
+async def test_tail_log_returns_last_n(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    p = tmp_path / "devices" / "abc" / "logs" / "a.txt"
+    p.parent.mkdir(parents=True)
+    p.write_text("".join(f"line {i}\n" for i in range(1, 11)))
+    r = await tail_log(p, lines=3)
+    assert r.ok
+    assert r.data is not None
+    assert r.data.strip().splitlines() == ["line 8", "line 9", "line 10"]
+
+
+@pytest.mark.asyncio
+async def test_tail_log_range(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    p = tmp_path / "devices" / "abc" / "logs" / "b.txt"
+    p.parent.mkdir(parents=True)
+    p.write_text("".join(f"line {i}\n" for i in range(1, 11)))
+    r = await tail_log(p, from_line=3, to_line=5)
+    assert r.ok
+    assert r.data is not None
+    assert r.data.strip().splitlines() == ["line 3", "line 4", "line 5"]

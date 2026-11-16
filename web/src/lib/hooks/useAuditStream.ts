@@ -1,0 +1,332 @@
+/**
+ * Audit live-stream hook (raw).
+ *
+ * Connects to `WS /audit/stream`, which delivers a one-shot snapshot
+ * followed by live increments. Auto-reconnect is handled by the
+ * shared `lib/ws.ts` client; the server resends the snapshot on
+ * every reconnect so React state always converges.
+ *
+ * Exposes raw `AuditEvent[]` (split into business + metric buffers
+ * to honour DEBT-011 isolation). **No view-model projection here** —
+ * feature consumers do their own shaping:
+ *
+ *   - `features/dashboard/DashboardPage.tsx` maps `businessRaw` →
+ *     `TimelineEventData` via inline `useMemo` + `features/dashboard/
+ *     mappers.ts::mapAuditToTimeline` (ADR-043 · N=1 consumer · no
+ *     wrapper hook)
+ *   - `features/dashboard/useLiveSession.ts` folds `metricRaw` into
+ *     a live-session spark
+ *   - `features/audit/AuditPage.tsx` reads `rawEvents` (merged) and
+ *     does its own table projection
+ *
+ * Why DashboardPage opens TWO instances of this hook (one with
+ * includeMetrics=false for the timeline, one with =true for the
+ * LiveSession spark): see ADR-022 in .claude/knowledge/decisions.md —
+ * timeline's pause/resume must NOT freeze the metric stream.
+ *
+ * Hook contract: options must contain only **primitive** values
+ * (boolean / number / string). Passing functions or arrays will
+ * trigger unbounded reconnects via the useEffect deps array.
+ *
+ * Layering invariant: lib/hooks/ MUST NOT import features/. The earlier
+ * version imported `TimelineEventData` + `mapAuditToTimeline` — 5/25
+ * arch HIGH-4 surfaced the residual reverse-dep, fixed here.
+ *
+ * Security contract (5/25 sec LOW-3): events returned by this hook
+ * pass through to `ActivityTimeline` / consumer view models which
+ * render via React string children — React auto-escapes, so the
+ * `summary` / `data` fields are safe even if the producer emits raw
+ * shell command lines / model output. If any future consumer wants to
+ * render HTML / Markdown, escape at the mapping layer
+ * (e.g. `mapAuditToTimeline` in `features/dashboard/mappers.ts`).
+ * DO NOT assume downstream sanitizes — the hook is the trust
+ * boundary because it's the WS edge.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import type { AuditEvent } from "../api";
+import { connect, type WsClient } from "../ws";
+
+export type AuditStreamStatus = "connecting" | "open" | "closed" | "error";
+
+/** Business-kind cap. Drives the visible Timeline length. */
+const BUSINESS_CAP = 200;
+/** Metric-kind cap. Aligned with SPARK_WINDOW in useLiveSession so the
+ *  reducer always has enough samples to render a 60 s spark, but a
+ *  long-running session's 1Hz tps_sample stream cannot push business
+ *  events out of the buffer (DEBT-011 fix, F.7). */
+const METRIC_CAP = 60;
+
+/** Server-side authoritative set is `audit_route.METRIC_KINDS`
+ *  (src/alb/api/audit_route.py — verified 2026-05-25). When ADR-021
+ *  grows to add cmd_rate / push_rate, **double-write here** — missing
+ *  it makes server treat the new kind as metric (filtered) while client
+ *  treats it as business (eats into business cap, evicting real
+ *  user/done events under sustained load). DEBT-013 candidate tracks
+ *  pushing this list down from the server when `|kinds| ≥ 3`. */
+const METRIC_KINDS: ReadonlySet<string> = new Set(["tps_sample"]);
+
+function isMetricKind(kind: string): boolean {
+  return METRIC_KINDS.has(kind);
+}
+
+interface SnapshotMessage {
+  type: "snapshot";
+  since: string;
+  until: string;
+  events: AuditEvent[];
+}
+
+interface EventMessage {
+  type: "event";
+  data: AuditEvent;
+}
+
+interface ControlAckMessage {
+  type: "control_ack";
+  action: string;
+  paused: boolean;
+}
+
+type ServerMessage = SnapshotMessage | EventMessage | ControlAckMessage;
+
+function isSnapshot(m: unknown): m is SnapshotMessage {
+  return !!m && typeof m === "object" && (m as ServerMessage).type === "snapshot";
+}
+function isEvent(m: unknown): m is EventMessage {
+  return !!m && typeof m === "object" && (m as ServerMessage).type === "event";
+}
+function isControlAck(m: unknown): m is ControlAckMessage {
+  return !!m && typeof m === "object" && (m as ServerMessage).type === "control_ack";
+}
+
+export interface UseAuditStreamOptions {
+  /** Opt in to metric kinds (e.g. tps_sample). Default false → server
+   *  filters them out so the timeline UI stays readable. The Live
+   *  session card opens a separate `useAuditStream({includeMetrics: true})`
+   *  so its 1Hz tps_sample flow doesn't fight the timeline's pause. */
+  includeMetrics?: boolean;
+  /** Snapshot window in minutes. Default 30 (matches server default). */
+  minutes?: number;
+  /** Cached-snapshot age ceiling (ms) before the late-joiner microtask
+   *  refuses to replay and forces a fresh server-side snapshot. Passed
+   *  through to `lib/ws.connect` (see Options.staleSnapshotMs · ADR-046
+   *  AT-2 / AT-3).
+   *
+   *  **Default**: `AUDIT_STREAM_DEFAULT_STALE_MS` (30 min · AV-2).
+   *  Audit timelines commonly sit idle in a background tab for the
+   *  workday; the default is tuned for that case. Override only for
+   *  high-freshness panels (pass `0` to force fresh on every late-
+   *  join).
+   *
+   *  **First-caller-wins (ADR-047)**: the FIRST useAuditStream call
+   *  to create a given (path, shareKey) pool entry pins the value;
+   *  later callers with different `staleSnapshotMs` are silently
+   *  ignored. The hook owns its own default so all caller sites
+   *  agree by default without coordination. Override only when you
+   *  know you're the first caller (and document why).
+   *
+   *  **Reactivity caveat** (AV-3 / 5/26 第八轮 code MID-4): this is
+   *  in the `useEffect` deps array, but changing the value at
+   *  runtime is a reactive no-op while other views still hold the
+   *  same pool entry — the cleanup decrement refCount but doesn't
+   *  reach 0, so the entry (and its locked-in staleSnapshotMs)
+   *  survive. Only when this hook instance is the SOLE remaining
+   *  consumer does the reconnect actually rebuild the entry with
+   *  the new value. */
+  staleSnapshotMs?: number;
+}
+
+/** Default cached-snapshot age ceiling for ALL audit-stream callers.
+ *  AV-2 (5/26 第八轮 MID-3): owning the default in the hook (vs each
+ *  caller passing `30 * 60 * 1000` independently) means cross-caller
+ *  coordination is free — every Dashboard / AuditPage / future audit
+ *  consumer gets the same first-caller-wins entry value without any
+ *  caller having to remember the magic number. Override per-caller
+ *  only when there's a documented reason to diverge. */
+export const AUDIT_STREAM_DEFAULT_STALE_MS = 30 * 60 * 1000;
+
+export interface AuditStreamRawViewModel {
+  /** Business-only buffer (newest first, capped at BUSINESS_CAP). The
+   *  timeline wrapper maps this to `TimelineEventData[]`. */
+  businessRaw: AuditEvent[];
+  /** Metric-only buffer (newest first, capped at METRIC_CAP). The
+   *  live-session reducer fold this to tps spark + tool-call state. */
+  metricRaw: AuditEvent[];
+  /** Merged buffer (business + metric), newest first by ts. */
+  rawEvents: AuditEvent[];
+  since: string | null;
+  until: string | null;
+  status: AuditStreamStatus;
+  paused: boolean;
+  pause: () => void;
+  resume: () => void;
+}
+
+export function useAuditStream(
+  options: UseAuditStreamOptions = {},
+): AuditStreamRawViewModel {
+  const {
+    includeMetrics = false,
+    minutes = 30,
+    staleSnapshotMs = AUDIT_STREAM_DEFAULT_STALE_MS,
+  } = options;
+
+  // Two parallel buffers so a high-rate metric stream cannot evict
+  // business events (DEBT-011). Caps are tuned so each kind keeps
+  // enough history for its own UI consumer:
+  //   business → ActivityTimeline (200 rows)
+  //   metric   → useLiveSession spark (60 samples ≈ 60 s @ 1 Hz)
+  const [businessRaw, setBusinessRaw] = useState<AuditEvent[]>([]);
+  const [metricRaw, setMetricRaw] = useState<AuditEvent[]>([]);
+  const [since, setSince] = useState<string | null>(null);
+  const [until, setUntil] = useState<string | null>(null);
+  const [status, setStatus] = useState<AuditStreamStatus>("connecting");
+  const [paused, setPaused] = useState(false);
+  const clientRef = useRef<WsClient | null>(null);
+
+  useEffect(() => {
+    // shareKey reserved for DEBT-047 pool. Encode ONLY the config
+    // knobs that change socket contents: two callers with different
+    // includeMetrics MUST NOT share (ADR-022 — metric streams follow
+    // device lifetime, not user pause). `staleSnapshotMs` is
+    // deliberately EXCLUDED — it's a per-entry preference (ADR-047
+    // first-caller-wins), not a wire-shape divergence, so keeping it
+    // out of shareKey lets two callers with different staleSnapshotMs
+    // still share one socket (first wins).
+    const shareKey = JSON.stringify({ minutes, includeMetrics });
+    const client = connect("/audit/stream", { shareKey, staleSnapshotMs });
+    clientRef.current = client;
+
+    const unsubscribe = client.subscribe((wsEv) => {
+      switch (wsEv.kind) {
+        case "open":
+          // Send the configuration message after EVERY open (including
+          // reconnects). This relies on lib/ws.ts re-emitting "open"
+          // to existing subscribers when the underlying socket
+          // reconnects — if that contract changes, this re-config
+          // breaks silently. The deps array below ensures the closure
+          // captures the latest minutes / includeMetrics; reconnects
+          // re-use the closure created by the most recent effect run.
+          client.send({ minutes, include_metrics: includeMetrics });
+          setStatus("open");
+          break;
+        case "close":
+          setStatus("closed");
+          break;
+        case "error":
+          setStatus("error");
+          break;
+        case "json": {
+          const msg = wsEv.data;
+          if (isSnapshot(msg)) {
+            const business: AuditEvent[] = [];
+            const metric: AuditEvent[] = [];
+            for (const e of msg.events) {
+              if (isMetricKind(e.kind)) metric.push(e);
+              else business.push(e);
+            }
+            // Both setBusinessRaw + setMetricRaw + setSince + setUntil
+            // fire in the same tick. React 18 batches these into a
+            // single render, and the merged-rawEvents useMemo runs
+            // exactly once per render, not per setState call.
+            setBusinessRaw(business.slice(0, BUSINESS_CAP));
+            setMetricRaw(metric.slice(0, METRIC_CAP));
+            setSince(msg.since);
+            setUntil(msg.until);
+          } else if (isEvent(msg)) {
+            const raw = msg.data;
+            if (isMetricKind(raw.kind)) {
+              setMetricRaw((prev) => [raw, ...prev].slice(0, METRIC_CAP));
+            } else {
+              setBusinessRaw((prev) => [raw, ...prev].slice(0, BUSINESS_CAP));
+            }
+          } else if (isControlAck(msg)) {
+            setPaused(msg.paused);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      client.close();
+      clientRef.current = null;
+    };
+    // Re-create the connection if include_metrics or minutes changes —
+    // simpler than sending control messages, and we don't expect these
+    // to change at runtime. staleSnapshotMs is in deps so a caller
+    // that swaps the value at runtime gets the new pool entry (though
+    // first-caller-wins means the new entry's value only applies if
+    // it's the first caller for a fresh (path, shareKey) pair).
+  }, [includeMetrics, minutes, staleSnapshotMs]);
+
+  const pause = useCallback(() => {
+    if (includeMetrics) {
+      // ADR-022: metric streams must follow device lifetime, not user
+      // pause control. If you find yourself wanting this, you probably
+      // want to gate the rendering, not the stream.
+      console.warn(
+        "useAuditStream({includeMetrics:true}).pause(): metric streams " +
+          "should not be user-pausable; ignored.",
+      );
+      return;
+    }
+    clientRef.current?.send({ type: "control", action: "pause" });
+  }, [includeMetrics]);
+  const resume = useCallback(() => {
+    if (includeMetrics) {
+      console.warn(
+        "useAuditStream({includeMetrics:true}).resume(): no-op (was never paused).",
+      );
+      return;
+    }
+    clientRef.current?.send({ type: "control", action: "resume" });
+  }, [includeMetrics]);
+
+  // Reducer-friendly merged list (newest first by ts). With caps 200 +
+  // 60 the merged array is ≤ 260 entries — sort cost is negligible.
+  const rawEvents = useMemo(() => {
+    if (metricRaw.length === 0) return businessRaw;
+    if (businessRaw.length === 0) return metricRaw;
+    const merged = [...businessRaw, ...metricRaw];
+    merged.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+    return merged;
+  }, [businessRaw, metricRaw]);
+
+  // 5/25 第三轮 arch HIGH-1: previously returned a raw object literal
+  // which made every render a new reference. DashboardPage was
+  // wrapping the return in `useMemo([auditStream])` — that memo never
+  // hit cache. Wrap here so all consumers (DashboardPage useMemo /
+  // AuditPage destructure / useLiveSession reducer deps) see a stable
+  // ref while the underlying state hasn't changed.
+  // Deps mirror exactly what the return object reads. pause / resume
+  // are useCallback already (line 217 / 230), stable.
+  return useMemo<AuditStreamRawViewModel>(
+    () => ({
+      businessRaw,
+      metricRaw,
+      rawEvents,
+      since,
+      until,
+      status,
+      paused,
+      pause,
+      resume,
+    }),
+    [
+      businessRaw,
+      metricRaw,
+      rawEvents,
+      since,
+      until,
+      status,
+      paused,
+      pause,
+      resume,
+    ],
+  );
+}

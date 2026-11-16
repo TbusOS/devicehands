@@ -1,0 +1,295 @@
+# 当前架构快照 · 2026-06-16
+
+> 每次重大重构 / 新模块 ship 后由主对话更新。agents 评审时这是它们
+> 拿到的"项目地图"。
+>
+> **权威端点列表**：本文档的树是导览，不是合约。REST/WS 的真实清单见
+> `src/alb/api/schema.py`（`REST_ENDPOINTS` / `WS_ENDPOINTS`）+ 运行时
+> `GET /api/version`；反向 parity test（`tests/api/test_meta_route.py`
+> `test_mounted_routes_are_documented`）保证"已挂载即已登记"。
+
+## 2026-06-16 刷新增量（round11 后）
+
+04-28 那版已显著过时，本次据代码核对更正：
+
+- **api 路由 21 个模块**（不是早期的 ~10）：chat / audit / sessions /
+  devices / metrics / metrics_summary / playground / terminal / meta /
+  doctor / tools / app / diag / power / files / screenshots / log_search /
+  **info（round11 新增 · GET /api/info/{panel}）** / uart / uart_stream /
+  logcat_stream。schema.py `REST_ENDPOINTS` 当前 ~46 条。新端点一律
+  `/api/<domain>/*`，根路径端点为 v1 冻结（ADR · round10 AR9-1）。
+- **inspect 12 个 sub tab**（不是 5）：System Info / Charts / Logcat /
+  Log Search / Shell / UART / Screenshot / UI Dump / App / Files / Power /
+  Diag，走 InspectPage 嵌套路由。
+- **5 个 inspect 流式 hook 直接裸用 WebSocket**（useUartStream /
+  useLogcatStream / useTerminalSession / useMetricsStream /
+  useFileTransferStream），绕过 `lib/ws.ts` 池化客户端；都带 stale-socket
+  身份守护（round10 CR-1 + round11 UI-3）。该边界尚无 ADR（AR9-4 backlog）。
+- **`lib/ws.ts` 双模**（DEBT-047/065/078 · ADR-046/047）：SoloOptions
+  （一 socket 一 connect，可 noReconnect）vs PoolOptions（shareKey 去重 +
+  cached-snapshot late-join），按 shareKey 是否存在分流；useAuditStream 用池。
+- **MCP 33 tools**（不是 21）。
+- round11 还补了 **POST /api/log/dmesg**（web 端 dmesg 采集入口）。
+
+## 顶层组成
+
+```
+android-llm-bridge/
+├── src/alb/                          # Python 后端（核心）
+│   ├── agent/                        # LLM agent 层（M1.5 + M2）
+│   │   ├── backend.py                # LLMBackend ABC + Message + ToolCall
+│   │   ├── backends/                 # OllamaBackend (+ OpenAICompatBackend M3)
+│   │   ├── loop.py                   # AgentLoop（ReAct-lite + run_stream）
+│   │   ├── session.py                # ChatSession（messages.jsonl + meta.json）
+│   │   ├── playground.py             # raw chat（不走 agent loop）
+│   │   └── token_sampler.py          # ★ F.1 计划：1Hz token 聚合器
+│   ├── api/                          # FastAPI 路由
+│   │   ├── server.py                 # create_app + include_router
+│   │   ├── chat_route.py             # POST /chat + WS /chat/ws
+│   │   ├── audit_route.py            # GET /audit + WS /audit/stream
+│   │   ├── sessions_route.py         # GET /sessions
+│   │   ├── devices_route.py          # GET /devices
+│   │   ├── metrics_route.py          # WS /metrics/stream
+│   │   ├── playground_route.py       # /playground/backends + /chat
+│   │   ├── terminal_route.py         # WS /terminal/ws (PTY + HITL)
+│   │   ├── meta_route.py             # /api/version + /api/ping
+│   │   ├── ui_static.py              # mount /app
+│   │   └── schema.py                 # API_VERSION + REST/WS endpoint list
+│   ├── capabilities/                 # 业务能力层（M1）
+│   │   ├── shell.py logging.py filesync.py diagnose.py power.py app.py metrics.py
+│   ├── transport/                    # 传输抽象 + 4 实现
+│   │   ├── base.py adb.py ssh.py serial.py hybrid.py
+│   │   ├── interactive.py            # PTY 抽象
+│   │   └── terminal_guard.py         # HITL 命令拦截
+│   ├── infra/                        # 基础设施（不依赖业务）
+│   │   ├── event_bus.py              # ★ EventBroadcaster（C.1 ship）
+│   │   ├── workspace.py              # workspace_root + session_path
+│   │   ├── errors.py                 # 错误码 catalog
+│   │   ├── permissions.py            # 命令拦截规则
+│   │   ├── prompt_builder.py         # 静态/动态 prompt 分界
+│   │   ├── env_loader.py             # .env / .env.local
+│   │   ├── config.py registry.py process.py
+│   ├── mcp/                          # MCP server（33 tools）
+│   │   ├── server.py executor.py transport_factory.py（→ shim，工厂已迁 transport/factory.py · AR9-5）
+│   │   └── tools/                    # shell / logging / info / diagnose / app / power / metrics / ui / devices
+│   └── cli.py                        # alb CLI（typer）
+├── web/                              # 前端（React 18.3 + Vite + TS strict）
+│   └── src/
+│       ├── lib/                      # ws.ts api.ts
+│       ├── stores/app.ts             # Zustand 全局 state（lang / theme / device）
+│       ├── features/                 # 按模块组织
+│       │   ├── chat/ playground/ audit/ sessions/ doctor/
+│       │   ├── dashboard/            # DashboardPage + 6 卡 + hooks（real，含 useBackends 健康探测）
+│       │   └── inspect/              # InspectPage + 12 sub tabs + 5 流式 hook（裸 WS）
+│       ├── components/SubNav.tsx     # 模块内子导航（共享）
+│       ├── styles/components.css     # class-based 样式（不引 Tailwind）
+│       └── routes/                   # TanStack Router
+├── docs/                             # GitHub Pages 站
+│   ├── index.html                    # 项目首页（anthropic 风格）
+│   ├── webui-preview-v2.html         # ★ React UI 视觉基线（mockup）
+│   ├── on-device-*.html              # 设备端 Agent 介绍
+│   ├── methods/                      # 技术方法论 markdown
+│   └── app/                          # 编译后 React UI
+├── tests/                            # pytest（1095 passed）+ web vitest（218 passed），全 green
+├── scripts/                          # check_sensitive_words.sh / check_offline_purity.sh / smoke_*
+└── workspace/                        # 运行时数据（gitignore）
+    └── sessions/<sid>/
+        ├── messages.jsonl            # 单 session chat 落盘
+        ├── meta.json                 # session_id / created / backend / model / device
+        └── terminal.jsonl            # 终端 audit
+    └── events.jsonl                  # ★ 跨 session 事件总线持久化（C.1 ship）
+```
+
+## 核心架构决策（速览，详见 decisions.md）
+
+1. **Transport 抽象 + 4 实现**：adb / ssh / serial / hybrid，由 build_transport
+   工厂选择
+2. **MCP 33 tools 是 capability layer 的 tool 化包装**，不是独立实现
+3. **Agent 层 ABC + 多 backend**：当前 Ollama，未来 OpenAI-compat / Llama.cpp
+4. **Result envelope 全局**：`{ok, data?, error?}` 跨 CLI/MCP/HTTP 一致
+5. **事件总线（C 档重构）**：in-process EventBroadcaster + events.jsonl 持久化 +
+   WS /audit/stream 实时订阅。chat / terminal 是 producer，前端 timeline /
+   LiveSession 是 consumer
+6. **前端：React 18.3 + Vite + TS strict + TanStack Query + Zustand + WS**，
+   不引 Tailwind（沿用 anthropic.css token + class-based css）
+7. **mockup 优先**：所有 React 视觉改动必须先有 `docs/webui-preview-v*.html`
+   静态稿走三道闸
+8. **审计双写**：terminal.jsonl per-session 落盘 + events.jsonl 全局总线（互
+   不依赖）
+
+## 数据流图（C 档之后）
+
+```
+ChatRequest ──┐
+              ↓
+       chat_route._build_agent
+              ↓
+       AgentLoop.run_stream
+              ↓
+       OllamaBackend.stream
+              ↓ (token / tool_call_start / tool_call_end / done)
+       chat_route stream loop
+              ├──→ ws.send_json (to chat client)
+              └──→ EventBroadcaster.publish (filtered: skip token)
+                          ↓
+                  +────────┴────────+
+                  ↓                 ↓
+          events.jsonl        all subscribers Queue
+            (持久化)          ↓
+                       audit_stream WS / GET /audit
+                              ↓
+                  Web UI ActivityTimeline / LiveSessionCard
+```
+
+## 关键不变量
+
+- `event_bus` schema 是合约，**不再变**：`{ts, session_id, source, kind, summary, data?}`
+- `event_bus` event kind 分两类（ADR-021）：
+  - **business kinds**：user / assistant / tool_call_start / tool_call_end /
+    done / error / command / deny / hitl_*
+  - **metric kinds**：tps_sample（1Hz 周期采样，未来可加 cmd_rate / push_rate）
+  - 订阅方默认只收 business kinds；GET /audit `?include_metrics=true`
+    或 WS 首条 `{include_metrics: true}` opt-in 收 metric kinds
+- `API_VERSION` 字符串："1"。schema 改动若 break 客户端 → 必须 bump
+- `workspace/events.jsonl` append-only，绝不就地改写已有行
+- `docs/webui-preview-v*.html` 改版 → 必须走三道闸再合入
+- React class 名要照搬 mockup（feedback_react_ui_design_baseline 规则）
+- **SPA route 路径段不能含 `.`**（DEBT-014 fix，2026-04-29）：
+  TanStack Router 路由（`web/src/router.tsx createRoute path:`）任何
+  段都不能有点。后端 SPA fallback 启发式（`src/alb/api/ui_static.py
+  SPAStaticFiles`）以"最后一段含 `.`" 判断"看起来是 asset"→ 真 404
+  propagate；不含点 → fallback 到 index.html。路由含点会被误判成
+  asset，浏览器深链 / 刷新 404。
+- **SPA route 路径段不能含 `?` `#` `&`**（DEBT-015 fix，2026-04-29）：
+  `docs/404.html` redirect script 把原 path 用 `encodeURIComponent`
+  拼到 `?spa=1&p=<encoded>` 协议，路径里出现裸 query/hash 字符会
+  让 spa-github-pages 协议 ambiguity。
+- **SPA route 不能以 `assets/` 开头**（DEBT-015 fix，2026-04-29）：
+  与 vite build 产物 `/app/assets/index-*.js` 命名空间冲突。后端
+  SPAStaticFiles 会优先服务真实文件，路由 `/app/assets/foo` 永远
+  404。
+- **GH Pages 协议保留 query 名**（DEBT-015 fix）：`spa` / `p` / `qs`
+  三个 query 名被 spa-github-pages 套路占用；TanStack Router 业务
+  search params 不可用这三个名。共享 SPA fallback 协议见 ADR-023。
+
+## REST envelope 三态约定（DEBT-034 close 2026-05-08）
+
+新加 REST endpoint 时**必须**按以下三态选 response 形态。前端
+`useQuery` 行为依赖此约定（200 + ok 走 isSuccess + 渲染 error 文案；
+HTTPException 触发 onError）。
+
+### (a) 200 + `{ok: true, ...payload}` — list / read 成功
+适用：endpoint 自身逻辑成功，向客户端交付结构化数据。
+
+```python
+return {"ok": True, "serial": serial, "screenshots": entries}
+return {"ok": True, "name": name, "size_bytes": size, "text": text}
+```
+
+实例：`screenshots_route.list_screenshots`、`uart_route.read_capture`、
+`files_route.list_device_files (success branch)`。
+
+### (b) 200 + `{ok: false, error: "..."}` — device-side / 上游失败
+适用：endpoint 路径执行了但**上游 device / adb / build_transport
+返回了业务级失败**（非真错）。前端拿到 isSuccess=true + ok=false →
+渲染"业务失败"文案而不触发 onError。
+
+```python
+try:
+    t = build_transport(device_serial=serial)
+except Exception as exc:
+    return {
+        "ok": False,
+        "serial": serial,
+        "transport": None,
+        "error": f"{type(exc).__name__}: {exc}",
+    }
+```
+
+实例：`devices_route.device_screenshot`、`uart_route.trigger_capture`
+（capture_uart 返失败时）、`files_route.list_device_files`（adb ls
+失败时）。
+
+### (c) `HTTPException(4xx/5xx)` — 输入不合法 / 真错
+适用：路由层 reject（path traversal / 名字校验 / max_bytes < 1）或
+代码内部 OSError / 资源不存在。前端 onError 触发。
+
+```python
+if not _is_valid_name(name):
+    raise HTTPException(status_code=400, detail="invalid name")
+if not target.exists():
+    raise HTTPException(status_code=404, detail="not found")
+except OSError as exc:
+    raise HTTPException(status_code=500, detail="filesystem read failed") from exc
+```
+
+实例：`screenshots_route.read_screenshot`（path traversal / not found）、
+`files_route.workspace_download`、`files_route.workspace_preview`。
+
+### 例外：FileResponse / WebSocket
+- **FileResponse** 是二进制流，envelope 不适用（直接返字节流 +
+  Content-Type）。错误仍走 (c) HTTPException。
+- **WebSocket** 长连接 envelope 不适用，走自己的 frame 协议
+  （`{v, type: "ready"}` / `{type: "closed", reason}` 见 ADR-022 +
+  L-026）。
+
+### 5xx detail 不能 leak 路径
+500 detail 必须用 generic message（"filesystem read failed"），**不
+能** `str(exc)` 直接 raise——OSError 文本含绝对路径泄露 workspace
+布局。完整 traceback 走 server log（uvicorn 自动）。
+2026-05-08 part 118 修了 3 处历史漏检（files_route + uart_route × 2）。
+
+## 测试地图
+
+- `tests/api/` — FastAPI 端点（含 WS）
+- `tests/agent/` — AgentLoop / Backend / Session
+- `tests/transport/` — 4 transport
+- `tests/capabilities/` — 6 业务能力
+- `tests/mcp/` — MCP tools + executor
+- `tests/cli/` — typer CLI
+- `tests/infra/` — event_bus / process / errors / config
+
+## 当前里程碑状态
+
+- M1: ✓ 全完
+- M2: agent 层 ✓ ship；Web Tier 1 ✓ ship
+- M3: step 1 ✓ OpenAICompatBackend (2026-04-30, commit `344fb47`)
+       · step 2 ✓ AnthropicBackend (2026-05-02, commits 81~84)
+       · step 3 LlamaCpp **deferred** —— 4 footgun（sync→async 桥 / 50MB
+         binary wheel / GGUF 测试 / 同 CPU 类抽象验证弱）；用户可改用
+         openai-compat backend 接 llama.cpp 自带的 /v1 server
+- C 档（audit 重构）：✓ ship（5 commits, HEAD a03cbab）
+- B 档（后端 GET 端点）：✓ ship（3 commits）
+- D 档（Dashboard 真数据）：✓ ship（4 commits）
+- F 档（tps_sample + KPI 全真）：✓ ship
+- G 档：✓ ship
+- DEBT-022 batch 9/9 ship · 4-agent audit 9 HIGH 全修 · functional MID 4
+  收头 · L-030 v2 修订 · ADR-027 升正
+
+### 2026-05-06 → 5/08 跨 3 天 27 commits（part 94~120 · audit batch + knowledge garden）
+
+- functional audit 5/02 batch 全收尾（HEAD `90f812a`）：HIGH 4 真修 +
+  1 virtual / MID 4 真修 + 4 virtual / LOW 5 全 ship（screenshot history
+  sidebar / UI Dump filter counter / Logcat debounced auto-reconnect /
+  UART per-capture delete / Files inline preview）
+- DEBT-018 SectionPlaceholder 抽组件（`acc747e`）+ DEBT-031 BEM 统一
+  （`5af675c`）+ DEBT-032 抽 `infra/safe_path.resolve_under` (`ee1de9c`)
+  + DEBT-035 L-meta-001 入档（`fc337dd`）
+- 6 reviewer agent audit 全闭环：code (1H+2M) / security (1M+DEBT-021) /
+  ui-fluency (3H+4M+3L) / perf (1M+2L) / arch (1抽 base+3 backlog) /
+  mockup-baseline (1抽 utility+1 大 backlog) = 19 finding 全清
+- audit fix 类：HIGH 1 symlink leak（`bbf9264`）+ MID device sanitize +
+  L-031 suppress + NUL sniff bypass + io_to_thread sweep（`eebcc8d`）
+- L-meta-001 落地 + 自循环 3 次（formatBytes / NoDeviceCard / OSError
+  detail leak），证明 meta-pattern 主动扫能持续补 reviewer 漏检
+- agent grep checklist 同步 L-031/032/033（`e185b4a`）—— "reviewer
+  越用越聪明"机制持续维护
+- Knowledge garden 三件套全索引化（lessons.md / decisions.md / debts.md）
+- 累计：21→22 lessons + L-meta · 32→33 关 DEBT + 2 候选 · 主 bundle
+  110.32→110.52 KB gzip（92% 预算守住）· 869 pytest pass
+
+候选未关（需用户决策）：DEBT-033 (high) mockup v3 扩 inspect baseline
+· DEBT-034 (low) architecture.md REST envelope 三态约定
+
+详见 `~/.claude/projects/<project>/memory/project_status.md` 或本目录
+`decisions.md`。

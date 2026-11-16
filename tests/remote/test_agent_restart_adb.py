@@ -1,0 +1,271 @@
+"""The agent's restart_adb handler: restart the LOCAL adb server, then
+re-report devices. The subprocess calls are faked — what's pinned is the
+command sequence (kill-server → start-server), that a missing adb aborts the
+restart but still re-reports, and that the reply always goes out."""
+
+from __future__ import annotations
+
+import asyncio
+import importlib.util
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+_AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
+
+
+def _load_agent():
+    spec = importlib.util.spec_from_file_location("alb_agent_restart_under_test", _AGENT_PATH)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+agent = _load_agent()
+
+
+class _FakeProc:
+    async def wait(self) -> int:
+        return 0
+
+
+async def test_restarts_then_reports(monkeypatch):
+    calls: list[tuple[str, ...]] = []
+    replied: list[object] = []
+
+    async def fake_exec(*args, **_kw):
+        calls.append(args)
+        return _FakeProc()
+
+    async def fake_reply(ws):
+        replied.append(ws)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(agent, "_reply_adb_list", fake_reply)
+    await agent._restart_adb_and_report(ws := object())
+    assert calls == [("adb", "kill-server"), ("adb", "start-server")]
+    assert replied == [ws]
+
+
+async def test_missing_adb_aborts_but_still_reports(monkeypatch):
+    calls: list[tuple[str, ...]] = []
+    replied: list[object] = []
+
+    async def fake_exec(*args, **_kw):
+        calls.append(args)
+        raise FileNotFoundError("adb not on PATH")
+
+    async def fake_reply(ws):
+        replied.append(ws)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(agent, "_reply_adb_list", fake_reply)
+    await agent._restart_adb_and_report(object())
+    assert calls == [("adb", "kill-server")]  # aborted after the first failure
+    assert len(replied) == 1  # the (empty) enumeration still goes back
+
+
+# ── conflict detection (exclusive USB interface takeover) ───────────────
+
+
+def test_conflicts_token_match_excludes_real_adb_and_bystanders():
+    # Precision is a safety property: the same list feeds the kill path, so a
+    # mid-word substring hit (real case: AcutaDBCore.exe, 2026-07-06) would
+    # get an innocent process force-killed by kill_conflicts=true.
+    hits = agent._adb_conflicts_from_listing(
+        [
+            ("adb.exe", "100"),  # the real thing — not a conflict
+            ("ADB.EXE", "101"),  # case variant of the real thing
+            ("vendor_adb.exe", "200"),  # renamed vendor build (…_adb)
+            ("HD-Adb.exe", "201"),  # renamed build, dash separator
+            ("adb_server.exe", "202"),  # renamed build, adb up front
+            ("notepad.exe", "300"),  # unrelated
+            ("AcutaDBCore.exe", "301"),  # 'adb' mid-word — must NOT match
+            ("adbd", "400"),  # fused token — not a renamed adb build
+        ]
+    )
+    assert hits == [
+        "vendor_adb.exe pid=200",
+        "HD-Adb.exe pid=201",
+        "adb_server.exe pid=202",
+    ]
+
+
+def test_reply_adb_list_reports_conflicts_when_empty(monkeypatch):
+    frames: list[str] = []
+
+    class _Ws:
+        async def send(self, text):
+            frames.append(text)
+
+    async def fake_devices():
+        return []
+
+    monkeypatch.setattr(agent, "_adb_devices", fake_devices)
+    monkeypatch.setattr(agent, "_find_adb_conflicts", lambda: ["vendor_adb.exe pid=7"])
+    asyncio.run(agent._reply_adb_list(_Ws()))
+    frame = json.loads(frames[0])
+    assert frame["devices"] == []
+    assert frame["conflicts"] == ["vendor_adb.exe pid=7"]
+    assert agent._STATUS.snapshot()["adb_conflicts"] == ["vendor_adb.exe pid=7"]
+
+
+def test_reply_adb_list_skips_conflict_scan_when_devices_present(monkeypatch):
+    frames: list[str] = []
+
+    class _Ws:
+        async def send(self, text):
+            frames.append(text)
+
+    async def fake_devices():
+        return ["serial-1"]
+
+    def boom():
+        raise AssertionError("must not scan when devices are present")
+
+    monkeypatch.setattr(agent, "_adb_devices", fake_devices)
+    monkeypatch.setattr(agent, "_find_adb_conflicts", boom)
+    asyncio.run(agent._reply_adb_list(_Ws()))
+    frame = json.loads(frames[0])
+    assert frame["devices"] == ["serial-1"]
+    assert frame["conflicts"] == []
+
+
+async def test_kill_conflicts_only_when_asked(monkeypatch):
+    killed_calls: list[bool] = []
+
+    def fake_kill():
+        killed_calls.append(True)
+        return ["vendor_adb.exe pid=7"]
+
+    async def fake_exec(*_args, **_kw):
+        return _FakeProc()
+
+    async def fake_reply(_ws):
+        return None
+
+    monkeypatch.setattr(agent, "_kill_adb_conflicts", fake_kill)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(agent, "_reply_adb_list", fake_reply)
+    await agent._restart_adb_and_report(object())  # default: no kill
+    assert killed_calls == []
+    await agent._restart_adb_and_report(object(), kill_conflicts=True)
+    assert killed_calls == [True]
+
+
+def test_kill_adb_conflicts_posix_path(monkeypatch):
+    sent: list[tuple[int, int]] = []
+    monkeypatch.setattr(agent, "_find_adb_conflicts", lambda: ["vendor_adb pid=4242", "bad pid=x"])
+    monkeypatch.setattr(agent.os, "kill", lambda pid, sig: sent.append((pid, sig)))
+    killed = agent._kill_adb_conflicts()
+    assert killed == ["vendor_adb pid=4242"]  # unparsable pid skipped
+    assert sent == [(4242, agent.signal.SIGTERM)]
+
+
+def test_list_processes_survives_bytes_the_locale_cannot_decode(monkeypatch):
+    """A bench with a GBK console printed a process name tasklist's code
+    page could not round-trip; the strict decode killed subprocess's reader
+    thread and the adb_list reply with it. One bad name must cost one
+    garbled name, not the listing."""
+    import subprocess
+
+    real_run = subprocess.run
+    script = "import sys; sys.stdout.buffer.write(b'vendor_adb 4242\\n\\xff\\xfe\\xad 7\\n')"
+
+    def fake_run(_cmd, **kw):
+        return real_run([sys.executable, "-c", script], **kw)
+
+    monkeypatch.setattr(agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(agent.sys, "platform", "linux")
+    procs = agent._list_processes()
+    assert ("vendor_adb", "4242") in procs
+    assert len(procs) == 2
+    assert agent._find_adb_conflicts() == ["vendor_adb pid=4242"]
+
+
+def test_list_processes_on_windows_gets_a_console_of_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """tasklist writes in the code page of the console it is attached to.
+    The agent's console had been left on UTF-8 by a PowerShell child, so the
+    listing came back undecodable as the locale's GBK. On Windows it runs in
+    a console of its own, which starts on the OEM code page, and is read as
+    that. (Off Windows neither option may be passed — the test above runs the
+    real subprocess.run there and would fail on either.)"""
+    import subprocess
+
+    seen: dict[str, Any] = {}
+
+    def fake_run(cmd: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+        seen["cmd"] = cmd
+        seen.update(kw)
+        return subprocess.CompletedProcess(cmd, 0, stdout='"vendor_adb.exe","4242","Console","1","5 K"\n')
+
+    monkeypatch.setattr(agent.subprocess, "run", fake_run)
+    monkeypatch.setattr(agent.sys, "platform", "win32")
+    assert agent._list_processes() == [("vendor_adb.exe", "4242")]
+    assert seen["cmd"][0] == "tasklist"
+    assert seen.get("creationflags", 0) & agent._CREATE_NO_WINDOW
+    assert seen.get("encoding") == "oem"
+    assert seen.get("errors") == "replace"
+
+
+def test_list_processes_treats_missing_stdout_as_empty(monkeypatch):
+    """subprocess hands back stdout=None when its reader thread died; that
+    is "no listing", not an AttributeError in the reply task."""
+    import subprocess
+
+    monkeypatch.setattr(
+        agent.subprocess, "run", lambda cmd, **_kw: subprocess.CompletedProcess(cmd, 0, stdout=None)
+    )
+    assert agent._list_processes() == []
+
+
+def test_uncaught_thread_exception_reaches_the_log_file(monkeypatch, tmp_path):
+    """A traceback that escapes a thread used to go to the console window
+    only; the hub reads the log FILE, so it was invisible remotely. After
+    _route_uncaught_to_log it must be in the file, with its traceback."""
+    import logging
+    import threading
+
+    monkeypatch.setattr(threading, "excepthook", threading.excepthook)
+    monkeypatch.setattr(sys, "excepthook", sys.excepthook)
+    log_file = tmp_path / "agent.log"
+    handler = logging.FileHandler(log_file, encoding="utf-8")
+    root = logging.getLogger()
+    root.addHandler(handler)
+    try:
+        agent._route_uncaught_to_log()
+
+        def boom():
+            b"\xad\xff".decode("gbk")
+
+        t = threading.Thread(target=boom, name="_readerthread")
+        t.start()
+        t.join()
+        handler.flush()
+    finally:
+        root.removeHandler(handler)
+        handler.close()
+    text = log_file.read_text(encoding="utf-8")
+    assert "uncaught exception in thread _readerthread" in text
+    assert "UnicodeDecodeError" in text  # the traceback itself, not just the line
+
+
+def test_uncaught_main_thread_crash_is_logged(monkeypatch, caplog):
+    monkeypatch.setattr(sys, "excepthook", sys.excepthook)
+    import threading
+
+    monkeypatch.setattr(threading, "excepthook", threading.excepthook)
+    agent._route_uncaught_to_log()
+    try:
+        raise RuntimeError("main loop died")
+    except RuntimeError as e:
+        with caplog.at_level("CRITICAL", logger="alb-agent"):
+            sys.excepthook(type(e), e, e.__traceback__)
+    assert any("uncaught exception" in r.getMessage() and r.exc_info for r in caplog.records)

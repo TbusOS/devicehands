@@ -1,0 +1,461 @@
+"""CLI: `alb setup <method>` — guided setup for each transport.
+
+Does NOT magically install system packages or auto-configure the device
+side (that's inherently manual). What it does:
+
+    1. Probe the host for required binaries / env vars.
+    2. Print concrete, copy-pasteable next steps for the user.
+    3. Run a verification probe and print the outcome.
+    4. Optionally persist verified parameters to ~/.config/alb/config.toml
+       (`--save`).
+    5. Point the user at the relevant docs/methods/*.md file.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tomllib
+from pathlib import Path
+from typing import Any
+
+import tomli_w
+import typer
+from rich.console import Console
+from rich.markup import escape
+from rich.panel import Panel
+from rich.table import Table
+
+from alb.cli._probes import check_binary as _check_binary
+from alb.cli._probes import check_tcp_listen as _check_tcp_listen
+from alb.cli.common import load_active_friendly, run_async
+from alb.infra import host_deps
+from alb.infra.adb_endpoint import resolve_endpoint
+from alb.infra.config import global_config_path, load_config
+from alb.transport.adb import AdbTransport
+from alb.transport.serial import SerialTransport
+
+app = typer.Typer(help="Guided setup for each transport method.")
+console = Console()
+
+
+# ─── Shared helpers ───────────────────────────────────────────────
+# `check_binary` and `check_tcp_listen` live in `cli/_probes.py` (shared
+# with `alb doctor`). The aliases above keep this module's call sites
+# unchanged.
+
+
+def _probe(label: str, ok: bool, detail: str = "") -> None:
+    mark = "[green]✓[/]" if ok else "[red]✗[/]"
+    line = f"  {mark} {label}"
+    if detail:
+        line += f" [dim]{detail}[/]"
+    console.print(line)
+
+
+def _persist_serial_config(updates: dict[str, Any]) -> Path:
+    """Merge `updates` into [transport.serial] in the global config.toml.
+
+    Reads any existing file (preserving sibling sections like
+    [transport.adb] / [permissions] / etc), updates only the serial keys
+    that are passed in, and writes back. Creates parent dir if missing.
+
+    Returns the path that was written, so the caller can echo it.
+    """
+    path = global_config_path()
+    raw: dict[str, Any] = {}
+    if path.exists():
+        try:
+            with path.open("rb") as f:
+                raw = tomllib.load(f)
+        except (OSError, tomllib.TOMLDecodeError):
+            # Don't silently destroy a broken file; refuse to overwrite.
+            raise typer.BadParameter(
+                f"Existing {path} is not valid TOML; refusing to overwrite. "
+                "Fix or remove it manually, then re-run with --save."
+            )
+
+    transport = raw.setdefault("transport", {})
+    serial = transport.setdefault("serial", {})
+    for k, v in updates.items():
+        if v is None:
+            serial.pop(k, None)
+        else:
+            serial[k] = v
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as f:
+        tomli_w.dump(raw, f)
+    return path
+
+
+# ─── adb ──────────────────────────────────────────────────────────
+@app.command("adb")
+def setup_adb() -> None:
+    """Verify adb setup (USB, method A; optionally via SSH reverse tunnel)."""
+    console.print(Panel.fit("Checking adb / method A setup", border_style="blue"))
+
+    ok_bin, detail = _check_binary(load_config().adb.bin_path)
+    _probe("adb binary", ok_bin, detail)
+
+    server_sock = os.environ.get("ADB_SERVER_SOCKET", "")
+    if server_sock:
+        _probe("ADB_SERVER_SOCKET set", True, server_sock)
+        # Check tunnel target
+        if server_sock.startswith("tcp:"):
+            rest = server_sock.split(":", 1)[1]
+            host_port = rest.split(":") if ":" in rest else [rest, "5037"]
+            host, port = host_port[0] or "localhost", int(host_port[1])
+            ok_tcp = _check_tcp_listen(host, port)
+            _probe(f"tunnel {host}:{port} listening", ok_tcp,
+                   "" if ok_tcp else "Xshell tunnel not active?")
+    else:
+        # Not a defect. Since ADR-057 an unset variable is the *preferred*
+        # state: alb then follows its own forwarder wherever it is bound,
+        # instead of trusting a hand-copied port that cannot report going stale.
+        _probe("ADB_SERVER_SOCKET not set", True,
+               "(alb will resolve the endpoint itself — see `adb endpoint` below)")
+
+    # Probe devices
+    if ok_bin:
+        try:
+            settings = load_active_friendly()
+            endpoint = resolve_endpoint(settings.config.adb.server_socket)
+            _probe("adb endpoint", True, endpoint.described)
+            t = AdbTransport(
+                bin_path=settings.config.adb.bin_path,
+                server_socket=endpoint.socket,
+                server_socket_source=endpoint.source,
+            )
+            health = run_async(t.health())
+            devs = health.get("devices", [])
+            _probe("adb reachable", bool(health.get("server_reachable")))
+            _probe(f"{len(devs)} device(s) visible", bool(devs), health.get("hint", ""))
+            if devs:
+                table = Table(title="Devices")
+                table.add_column("serial")
+                table.add_column("state")
+                table.add_column("model")
+                for d in devs:
+                    table.add_row(d.serial, d.state, d.model or "—")
+                console.print(table)
+        except Exception as e:  # noqa: BLE001
+            _probe("probe", False, str(e))
+
+    # Next steps
+    console.print()
+    console.print(
+        Panel.fit(
+            "[bold]Next steps if something is off:[/]\n\n"
+            "  1. Install platform-tools: https://developer.android.com/tools/adb\n"
+            "     (adb not on PATH? set ALB_ADB_PATH to the adb executable)\n"
+            "  2. On the device: Settings → Developer options → USB debugging\n"
+            "  3. Remote bench (alb forwarder): leave ADB_SERVER_SOCKET UNSET —\n"
+            "     alb reads the port from the running hub, so it stays correct\n"
+            "     even when the forwarder moves. Only set it by hand for an\n"
+            "     SSH reverse tunnel alb did not create, and then point it at\n"
+            "     that tunnel's port (docs/methods/01-ssh-tunnel-adb.md).\n\n"
+            "[dim]Docs: docs/methods/01-ssh-tunnel-adb.md[/]",
+            border_style="yellow",
+        )
+    )
+
+
+# ─── wifi ─────────────────────────────────────────────────────────
+@app.command("wifi")
+def setup_wifi(
+    host: str = typer.Argument(..., help="Device IP address"),
+    port: int = typer.Option(5555, "--port"),
+) -> None:
+    """Switch a USB-connected device into TCP mode and connect over WiFi."""
+    console.print(Panel.fit(f"Setting up adb-WiFi to {host}:{port}", border_style="blue"))
+
+    ok_bin, _ = _check_binary(load_config().adb.bin_path)
+    _probe("adb binary", ok_bin)
+    if not ok_bin:
+        raise typer.Exit(1)
+
+    settings = load_active_friendly()
+    endpoint = resolve_endpoint(settings.config.adb.server_socket)
+    t = AdbTransport(
+        bin_path=settings.config.adb.bin_path,
+        server_socket=endpoint.socket,
+        server_socket_source=endpoint.source,
+    )
+
+    # 1. Make sure device is visible first (USB-connected presumably).
+    health = run_async(t.health())
+    if not health.get("devices"):
+        console.print(
+            "[red]✗ No USB device visible.[/]\n"
+            "Connect a USB-authorised device first (method B requires one-time\n"
+            "USB authorisation before going wireless)."
+        )
+        raise typer.Exit(1)
+    _probe("USB device visible", True)
+
+    # 2. Put the device into TCP mode.
+    console.print(f"[blue]→[/] running: adb tcpip {port}")
+    r = run_async(t._run(["tcpip", str(port)]))
+    if not r.ok:
+        _probe("adb tcpip", False, r.stderr.strip())
+        raise typer.Exit(1)
+    _probe("adb tcpip", True, r.stdout.strip() or "ok")
+
+    # 3. Connect over the network.
+    console.print(f"[blue]→[/] running: adb connect {host}:{port}")
+    r = run_async(t._run(["connect", f"{host}:{port}"]))
+    if not r.ok or "unable" in r.stdout.lower() or "failed" in r.stdout.lower():
+        _probe("adb connect", False, r.stdout.strip() or r.stderr.strip())
+        raise typer.Exit(1)
+    _probe("adb connect", True, r.stdout.strip())
+
+    console.print(
+        Panel.fit(
+            f"[bold green]Done.[/] Try:\n\n"
+            f"  alb devices\n"
+            f"  alb shell 'getprop ro.build.version.sdk' --device {host}:{port}\n\n"
+            "[dim]Docs: docs/methods/02-adb-wifi.md[/]",
+            border_style="green",
+        )
+    )
+
+
+# ─── ssh ──────────────────────────────────────────────────────────
+@app.command("ssh")
+def setup_ssh(
+    host: str = typer.Argument(..., help="Device host / IP"),
+    port: int = typer.Option(22, "--port"),
+    user: str = typer.Option("root", "--user"),
+    key: str = typer.Option("~/.ssh/alb-device", "--key"),
+) -> None:
+    """Verify ssh reachability and print key-deployment instructions."""
+    console.print(Panel.fit(f"Setting up ssh to {user}@{host}:{port}", border_style="blue"))
+
+    for binary in ("ssh", "ssh-keygen", "scp"):
+        ok, detail = _check_binary(binary)
+        _probe(f"{binary} binary", ok, detail)
+
+    key_path = Path(os.path.expanduser(key))
+    if not key_path.exists():
+        console.print(
+            f"[yellow]key {key_path} not found. To generate:[/]\n"
+            f"  ssh-keygen -t ed25519 -f {key_path} -C 'alb-android-bridge'\n"
+        )
+    else:
+        _probe(f"key present at {key_path}", True)
+
+    ok_tcp = _check_tcp_listen(host, port)
+    _probe(f"TCP {host}:{port} reachable", ok_tcp)
+
+    console.print()
+    console.print(
+        Panel.fit(
+            "[bold]Next steps:[/]\n\n"
+            "  1. Ensure dropbear / Termux openssh is running on the device.\n"
+            f"  2. Copy the public key to the device (over adb or scp):\n"
+            f"       adb push {key_path}.pub /data/local/tmp/auth\n"
+            "       adb shell 'mkdir -p /data/local/ssh && "
+            "mv /data/local/tmp/auth /data/local/ssh/authorized_keys && "
+            "chmod 600 /data/local/ssh/authorized_keys'\n"
+            "  3. Add an ssh profile entry in workspace/profiles/*.toml:\n"
+            "       [[devices]]\n"
+            f"       serial = \"{host}\"\n"
+            "       transport = \"ssh\"\n"
+            f"       ssh_host = \"{host}\"\n"
+            f"       ssh_port = {port}\n"
+            "  4. Try it:\n"
+            f"       ALB_SSH_HOST={host} ALB_SSH_USER={user} "
+            f"ALB_SSH_KEY={key} alb --transport ssh shell 'uname -a'\n\n"
+            "[dim]Docs: docs/methods/03-android-sshd.md[/]",
+            border_style="yellow",
+        )
+    )
+
+
+# ─── serial ───────────────────────────────────────────────────────
+@app.command("serial")
+def setup_serial(
+    tcp_host: str = typer.Option("localhost", "--tcp-host"),
+    tcp_port: int = typer.Option(9001, "--tcp-port"),
+    device: str | None = typer.Option(None, "--device", "-d", help="Local /dev/ttyUSB0 etc."),
+    baud: int = typer.Option(115200, "--baud"),
+    save: bool = typer.Option(
+        False,
+        "--save",
+        help="After probes pass, persist tcp_host/tcp_port/baud/device to "
+        "~/.config/alb/config.toml under \\[transport.serial].",
+    ),
+) -> None:
+    """Verify UART reachability (TCP via ser2net or local /dev/tty*).
+
+    Pass --save to write verified parameters to the global config so
+    subsequent `alb serial *` commands pick them up automatically.
+    """
+    console.print(Panel.fit("Checking serial / method G setup", border_style="blue"))
+
+    # Picocom / socat presence (optional but nice to have)
+    for binary in ("picocom", "socat"):
+        ok, detail = _check_binary(binary)
+        _probe(f"{binary} binary", ok,
+               "" if ok else "(optional; alb doesn't strictly need it)")
+
+    if device:
+        # Local mode
+        ok_dev = Path(device).exists()
+        _probe(f"device {device}", ok_dev)
+        if not ok_dev:
+            console.print(
+                f"[yellow]Possible fixes:[/]\n"
+                f"  - plug in the USB-to-serial cable\n"
+                f"  - add yourself to the dialout group:\n"
+                f"      sudo usermod -aG dialout $USER   (requires re-login)\n"
+            )
+            raise typer.Exit(1)
+        t = SerialTransport(device=device, baud=baud)
+    else:
+        ok_tcp = _check_tcp_listen(tcp_host, tcp_port)
+        _probe(f"tcp {tcp_host}:{tcp_port} listening", ok_tcp)
+        if not ok_tcp:
+            console.print(
+                "[yellow]Possible fixes:[/]\n"
+                "  - make sure ser2net is running on the Windows side\n"
+                "  - confirm the Xshell reverse-tunnel rule (Remote, 9001→9001) is active\n"
+            )
+            raise typer.Exit(1)
+        t = SerialTransport(tcp_host=tcp_host, tcp_port=tcp_port, baud=baud)
+
+    info = run_async(t.health())
+    connected = bool(info.get("connected"))
+    _probe("serial endpoint open", connected)
+    if not connected:
+        console.print(f"  [dim]error: {info.get('error')}[/]")
+
+    if save:
+        if not connected:
+            console.print(
+                "\n[yellow]✗ probe failed — refusing to persist invalid "
+                "parameters to config.toml[/]"
+            )
+            raise typer.Exit(1)
+        # Only persist what the user actually expressed.  Untouched keys
+        # (pty_link_dir / handshake_timeout / prompts) keep whatever the
+        # user previously configured — `_persist_serial_config` merges,
+        # never blanket-replaces.
+        if device:
+            updates: dict[str, Any] = {
+                "default_baud": baud,
+            }
+        else:
+            updates = {
+                "default_tcp_host": tcp_host,
+                "default_tcp_port": tcp_port,
+                "default_baud": baud,
+            }
+        path = _persist_serial_config(updates)
+        _probe(f"saved → {path}", True)
+
+    console.print()
+    console.print(
+        Panel.fit(
+            "[bold green]Serial ready.[/] Try:\n\n"
+            "  alb serial capture --duration 30\n"
+            "  alb serial shell 'dmesg | tail'\n"
+            "  alb --transport serial logcat --duration 10   # maps to UART stream\n\n"
+            "[dim]Docs: docs/methods/07-uart-serial.md[/]",
+            border_style="green",
+        )
+    )
+
+
+# ─── deps ─────────────────────────────────────────────────────────
+_TIER_TITLES = {
+    "required": "required",
+    "optional": "optional (one feature each)",
+    "dev": "for running the tests (--dev)",
+    "dev-optional": "nice to have for developers",
+}
+
+
+@app.command("deps")
+def setup_deps(
+    install: bool = typer.Option(
+        False, "--install",
+        help="Install what can be installed without root: Android Platform-Tools, "
+             "and with --dev the npm packages, Playwright's Chromium, pytest and mksh.",
+    ),
+    dev: bool = typer.Option(
+        False, "--dev", help="Also cover the tools for running the tests (Node.js, Playwright, ...).",
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Do not ask before downloading."),
+    platform_tools_zip: Path | None = typer.Option(
+        None, "--platform-tools-zip",
+        help="A Platform-Tools zip you downloaded yourself; unpacked instead of downloading.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print the result as JSON."),
+) -> None:
+    """Check the outside tools alb needs — pip / uv cannot install these.
+
+    Exit code 1 when a required tool (or, with --dev, a test tool) is missing.
+    """
+    tiers = host_deps.BASE_TIERS + (host_deps.DEV_TIERS if dev else ())
+    install = install or platform_tools_zip is not None
+
+    def confirm(question: str) -> bool:
+        # JSON mode must keep stdout clean: no prompt, pass --yes instead.
+        return not as_json and sys.stdin.isatty() and typer.confirm(question, default=False)
+
+    def echo(line: str) -> None:
+        console.print(f"      [dim]{escape(line)}[/]")
+
+    def log(msg: str) -> None:
+        console.print(f"  [cyan]→[/] {escape(msg)}")
+
+    env = host_deps.default_env(
+        assume_yes=yes, confirm=confirm, platform_tools_zip=platform_tools_zip,
+        echo=None if as_json else echo, log=(lambda _m: None) if as_json else log,
+    )
+    if not as_json:
+        console.print(Panel.fit(
+            "Outside tools alb needs (pip / uv cannot install these)", border_style="blue",
+        ))
+    results = host_deps.install_missing(tiers, env) if install else host_deps.check_all(tiers, env)
+    bad = host_deps.blocking(results, tiers)
+    if as_json:
+        print(json.dumps({"ok": not bad, "results": [r.to_dict() for r in results]}, indent=2))
+    else:
+        _render_deps(results, install)
+    raise typer.Exit(1 if bad else 0)
+
+
+def _render_deps(results: list[host_deps.DepResult], installed: bool) -> None:
+    for tier, title in _TIER_TITLES.items():
+        rows = [r for r in results if r.tier == tier]
+        if not rows:
+            continue
+        console.print(f"\n[bold]{title}[/]")
+        hard = tier in ("required", "dev")
+        for r in rows:
+            if r.ok:
+                mark = "[green]✓[/]"
+            elif hard:
+                mark = "[red]✗[/]"
+            else:
+                mark = "[yellow]○[/]"
+            extra = ""
+            if r.status == "installed":
+                extra = " [green](installed just now)[/]"
+            elif not r.ok and r.auto and not installed:
+                extra = " [cyan](--install can fetch it)[/]"
+            console.print(f"  {mark} {r.name:<20} [dim]{escape(r.detail)}[/]{extra}")
+    missing = [r for r in results if not r.ok]
+    if not missing:
+        console.print("\n[green]Everything listed is in place.[/]")
+        return
+    console.print("\n[bold]How to install what is missing[/]")
+    for r in missing:
+        console.print(f"\n  [bold]{r.name}[/] [dim]({r.tier}) — {escape(r.purpose)}[/]")
+        for line in r.manual:
+            console.print(f"    • {escape(line)}")
+

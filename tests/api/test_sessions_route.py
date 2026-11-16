@@ -1,0 +1,314 @@
+"""Tests for GET /sessions."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from alb.api.server import create_app
+
+
+@pytest.fixture
+def workspace(monkeypatch, tmp_path) -> Path:
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    return tmp_path
+
+
+@pytest.fixture
+def client(workspace):
+    app = create_app()
+    with TestClient(app) as c:
+        yield c
+
+
+def _make_session(
+    workspace: Path,
+    sid: str,
+    *,
+    created: str,
+    backend: str = "ollama",
+    model: str = "qwen2.5:7b",
+    device: str | None = None,
+    turns: int = 0,
+    bad_meta: bool = False,
+) -> Path:
+    sdir = workspace / "sessions" / sid
+    sdir.mkdir(parents=True)
+    meta = {
+        "session_id": sid,
+        "created": created,
+        "backend": backend,
+        "model": model,
+        "device": device,
+    }
+    if bad_meta:
+        (sdir / "meta.json").write_text("not-json{")
+    else:
+        (sdir / "meta.json").write_text(json.dumps(meta))
+    if turns:
+        with (sdir / "messages.jsonl").open("w", encoding="utf-8") as f:
+            for i in range(turns):
+                f.write(json.dumps({"role": "user", "content": f"line {i}"}) + "\n")
+    return sdir
+
+
+def test_empty_workspace_returns_empty_list(client) -> None:
+    r = client.get("/sessions")
+    assert r.status_code == 200
+    body = r.json()
+    assert body == {"ok": True, "sessions": []}
+
+
+def test_lists_sessions_newest_first(client, workspace) -> None:
+    _make_session(workspace, "20260101-aaaa", created="2026-01-01T00:00:00+00:00", turns=3)
+    _make_session(workspace, "20260427-bbbb", created="2026-04-27T10:00:00+00:00", turns=7)
+    _make_session(workspace, "20260315-cccc", created="2026-03-15T12:00:00+00:00", turns=1)
+
+    r = client.get("/sessions")
+    assert r.status_code == 200
+    sessions = r.json()["sessions"]
+    assert [s["session_id"] for s in sessions] == [
+        "20260427-bbbb",
+        "20260315-cccc",
+        "20260101-aaaa",
+    ]
+    bbbb = sessions[0]
+    assert bbbb["turns"] == 7
+    assert bbbb["backend"] == "ollama"
+    assert bbbb["model"] == "qwen2.5:7b"
+    assert bbbb["last_event_ts"] is not None  # mtime of messages.jsonl
+
+
+def _make_terminal_dir(workspace: Path, sid: str, *, record: bool) -> Path:
+    """What the web terminal leaves under sessions/: terminal.jsonl when a
+    command ran, or (before 2026-11-06) an empty directory."""
+    tdir = workspace / "sessions" / sid
+    tdir.mkdir(parents=True)
+    if record:
+        (tdir / "terminal.jsonl").write_text('{"event": "command", "line": "ls"}\n')
+    return tdir
+
+
+def test_terminal_directories_are_not_chat_sessions(client: TestClient, workspace: Path) -> None:
+    """2026-11-06: 100 terminal directories (named term-<time>, sorting after
+    every date) filled the chat page's history and no conversation showed."""
+    _make_session(workspace, "20261106-aaaa", created="2026-11-06T02:00:00+00:00", turns=2)
+    for i in range(70):
+        _make_terminal_dir(workspace, f"term-2026-11-05T03-19-{i:02d}", record=i % 2 == 0)
+    r = client.get("/sessions?limit=60")
+    assert [s["session_id"] for s in r.json()["sessions"]] == ["20261106-aaaa"]
+
+
+def test_sessions_without_created_sort_by_time_not_by_name(client: TestClient, workspace: Path) -> None:
+    """No (or broken) meta.created: the directory's time decides, never its
+    name compared with an ISO time."""
+    _make_session(workspace, "20261106-meta", created="2026-11-06T02:00:00+00:00", turns=1)
+    old = _make_session(workspace, "zz-old", created="x", bad_meta=True, turns=1)
+    os.utime(old, (1767225600, 1767225600))  # 2026-01-01
+    new = workspace / "sessions" / "aa-new"  # from before meta.json existed
+    new.mkdir()
+    (new / "messages.jsonl").write_text('{"role": "user", "content": "hi"}\n')
+    os.utime(new, (1794268800, 1794268800))  # 2026-11-10
+    r = client.get("/sessions")
+    assert [s["session_id"] for s in r.json()["sessions"]] == ["aa-new", "20261106-meta", "zz-old"]
+
+
+def test_limit_param(client, workspace) -> None:
+    for i in range(5):
+        _make_session(
+            workspace, f"2026042{i}-aaaa", created=f"2026-04-2{i}T00:00:00+00:00"
+        )
+    r = client.get("/sessions?limit=2")
+    assert r.status_code == 200
+    assert len(r.json()["sessions"]) == 2
+
+
+def test_limit_out_of_range_rejected(client) -> None:
+    assert client.get("/sessions?limit=0").status_code == 422
+    assert client.get("/sessions?limit=200").status_code == 422
+
+
+def test_malformed_meta_tolerated(client, workspace) -> None:
+    """A session with broken meta.json should still appear, with empty fields
+    and the directory name as session_id."""
+    _make_session(
+        workspace, "20260427-broken", created="ignored", bad_meta=True, turns=2
+    )
+    r = client.get("/sessions")
+    sessions = r.json()["sessions"]
+    assert len(sessions) == 1
+    s = sessions[0]
+    assert s["session_id"] == "20260427-broken"
+    assert s["backend"] == ""
+    assert s["model"] == ""
+    assert s["turns"] == 2
+    assert s["created"] is None
+
+
+def test_no_messages_file_means_zero_turns(client, workspace) -> None:
+    _make_session(workspace, "20260427-empty", created="2026-04-27T00:00:00+00:00")
+    r = client.get("/sessions")
+    sessions = r.json()["sessions"]
+    assert len(sessions) == 1
+    assert sessions[0]["turns"] == 0
+    assert sessions[0]["last_event_ts"] is None
+
+
+def test_endpoint_listed_in_schema(client) -> None:
+    body = client.get("/api/version").json()
+    paths = [(e["method"], e["path"]) for e in body["rest"]]
+    assert ("GET", "/sessions") in paths
+
+
+def test_scan_runs_in_worker_thread_l033(monkeypatch, client, workspace) -> None:
+    """Verify L-033: sync FS scan goes through asyncio.to_thread.
+
+    Records every to_thread call during the request; the sessions scan
+    must show up at least once.
+    """
+    seen: list[str] = []
+    import asyncio as _asyncio
+
+    real_to_thread = _asyncio.to_thread
+
+    async def tracking_to_thread(fn, /, *args, **kwargs):
+        seen.append(getattr(fn, "__name__", repr(fn)))
+        return await real_to_thread(fn, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "alb.api.sessions_route.asyncio.to_thread", tracking_to_thread
+    )
+
+    _make_session(workspace, "20260511-thr", created="2026-05-11T00:00:00+00:00")
+    r = client.get("/sessions")
+    assert r.status_code == 200
+    assert "_scan_sessions_in_thread" in seen
+
+
+# ─── GET /sessions/{session_id} ──────────────────────────────────────
+def test_detail_returns_meta_and_messages(client, workspace) -> None:
+    sid = "20260518-detail0"
+    _make_session(workspace, sid, created="2026-05-18T00:00:00+00:00", turns=3)
+    r = client.get(f"/sessions/{sid}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["session_id"] == sid
+    assert body["backend"] == "ollama"
+    assert body["model"] == "qwen2.5:7b"
+    assert body["turns"] == 3
+    assert len(body["messages"]) == 3
+    for i, m in enumerate(body["messages"]):
+        assert m["role"] == "user"
+        assert m["content"] == f"line {i}"
+
+
+def test_detail_no_messages_returns_empty_list(client, workspace) -> None:
+    sid = "20260518-empty"
+    _make_session(workspace, sid, created="2026-05-18T00:00:00+00:00")
+    r = client.get(f"/sessions/{sid}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["messages"] == []
+    assert body["turns"] == 0
+
+
+def test_detail_missing_returns_404(client) -> None:
+    r = client.get("/sessions/20260518-doesnotexist")
+    assert r.status_code == 404
+    assert "not found" in r.json()["detail"]
+
+
+def test_detail_path_traversal_rejected_400(client) -> None:
+    """L-035: ../etc should be rejected at the route layer, not reach FS."""
+    r = client.get("/sessions/..%2Fetc")
+    # FastAPI url-decodes path params, so ..%2Fetc → ../etc → is_safe_session_id rejects
+    assert r.status_code in (400, 404)  # 404 if FastAPI 404s before route handler
+
+
+def test_detail_bad_chars_rejected_400(client) -> None:
+    """L-035: session id with space / special chars rejected at root layer."""
+    r = client.get("/sessions/has space")
+    assert r.status_code == 400
+    assert "invalid" in r.json()["detail"].lower()
+
+
+def test_detail_tolerates_malformed_jsonl_lines(client, workspace) -> None:
+    """One bad jsonl line shouldn't 500 the whole detail fetch."""
+    sid = "20260518-badline"
+    sdir = workspace / "sessions" / sid
+    sdir.mkdir(parents=True)
+    (sdir / "meta.json").write_text(
+        json.dumps({"session_id": sid, "created": "x"})
+    )
+    (sdir / "messages.jsonl").write_text(
+        '{"role":"user","content":"ok"}\n'
+        "not json at all\n"
+        '{"role":"assistant","content":"hi"}\n'
+    )
+    r = client.get(f"/sessions/{sid}")
+    assert r.status_code == 200
+    msgs = r.json()["messages"]
+    assert len(msgs) == 2
+    assert msgs[0]["role"] == "user"
+    assert msgs[1]["role"] == "assistant"
+
+
+def test_detail_scan_runs_in_worker_thread_l033(monkeypatch, client, workspace) -> None:
+    """L-033: detail load also runs through asyncio.to_thread."""
+    seen: list[str] = []
+    import asyncio as _asyncio
+
+    real_to_thread = _asyncio.to_thread
+
+    async def tracking_to_thread(fn, /, *args, **kwargs):
+        seen.append(getattr(fn, "__name__", repr(fn)))
+        return await real_to_thread(fn, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "alb.api.sessions_route.asyncio.to_thread", tracking_to_thread
+    )
+
+    sid = "20260518-thread"
+    _make_session(workspace, sid, created="2026-05-18T00:00:00+00:00", turns=1)
+    r = client.get(f"/sessions/{sid}")
+    assert r.status_code == 200
+    assert "_load_detail_in_thread" in seen
+
+
+def test_title_is_the_first_user_line_and_source_is_reported(
+    client: TestClient, workspace: Path
+) -> None:
+    sdir = _make_session(workspace, "20261030-titled", created="2026-10-30T08:00:00+00:00")
+    meta = json.loads((sdir / "meta.json").read_text())
+    (sdir / "meta.json").write_text(json.dumps({**meta, "source": "cli"}))
+    long_line = "抓 30 秒 logcat 看开机卡在哪 " + "x" * 100
+    with (sdir / "messages.jsonl").open("w", encoding="utf-8") as f:
+        f.write(json.dumps({"role": "system", "content": "you are alb"}) + "\n")
+        f.write("not json\n")
+        f.write(json.dumps({"role": "user", "content": "   "}) + "\n")
+        f.write(json.dumps({"role": "user", "content": long_line + "\nsecond line"}) + "\n")
+        f.write(json.dumps({"role": "user", "content": "later question"}) + "\n")
+    s = client.get("/sessions").json()["sessions"][0]
+    assert s["source"] == "cli"
+    assert s["title"].startswith("抓 30 秒 logcat 看开机卡在哪")
+    assert len(s["title"]) == 80 and s["title"].endswith("…")
+    assert "second line" not in s["title"]
+
+
+def test_old_sessions_have_empty_title_and_source(client: TestClient, workspace: Path) -> None:
+    _make_session(workspace, "20260427-old", created="2026-04-27T00:00:00+00:00")
+    s = client.get("/sessions").json()["sessions"][0]
+    assert s["title"] == "" and s["source"] == ""
+
+
+def test_new_sessions_record_their_source(workspace: Path) -> None:
+    from alb.agent.session import ChatSession
+
+    s = ChatSession.create(backend="ollama", model="m", source="web")
+    assert json.loads(s.meta_file.read_text())["source"] == "web"
+    assert ChatSession.load(s.session_id).source == "web"

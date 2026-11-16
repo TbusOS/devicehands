@@ -1,0 +1,1262 @@
+"""Tests for SerialTransport — TCP (ser2net) mode using a local echo server."""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import AsyncIterator, Callable, Coroutine
+from contextlib import asynccontextmanager
+
+import pytest
+
+from alb.transport.serial import (
+    SerialTransport,
+    _extract_between_markers,
+    _read_until_any,
+    _split_printk,
+    _strip_echo_and_prompt,
+)
+
+
+# ─── Test fixture: a tiny fake ser2net ─────────────────────────────
+@asynccontextmanager
+async def _fake_ser2net(
+    handler: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Coroutine],
+) -> AsyncIterator[tuple[str, int]]:
+    """Spawn an asyncio server on an ephemeral port; yield (host, port)."""
+    server = await asyncio.start_server(handler, host="127.0.0.1", port=0)
+    sock = server.sockets[0].getsockname()
+    host, port = sock[0], sock[1]
+    try:
+        yield host, port
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+# ─── Construction ──────────────────────────────────────────────────
+def test_requires_either_device_or_tcp() -> None:
+    with pytest.raises(ValueError):
+        SerialTransport()
+
+
+def test_rejects_both_device_and_tcp() -> None:
+    with pytest.raises(ValueError):
+        SerialTransport(device="/dev/ttyUSB0", tcp_host="localhost", tcp_port=9001)
+
+
+# ─── Helpers ───────────────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_read_until_any_hits_first_token() -> None:
+    r = asyncio.StreamReader()
+    r.feed_data(b"hello $ world")
+    r.feed_eof()
+    out = await _read_until_any(r, (b"$ ", b"# "))
+    assert out == b"hello $ "
+
+
+@pytest.mark.asyncio
+async def test_read_until_any_returns_all_on_eof() -> None:
+    r = asyncio.StreamReader()
+    r.feed_data(b"no prompt here")
+    r.feed_eof()
+    out = await _read_until_any(r, (b"$ ",))
+    assert out == b"no prompt here"
+
+
+def test_strip_echo_and_prompt_removes_echo_and_prompt() -> None:
+    raw = "ls /data\nfoo\nbar\n$ "
+    out = _strip_echo_and_prompt(raw, "ls /data", (b"$ ",))
+    # echo 'ls /data' removed from start, '$ ' removed from end
+    assert "ls /data" not in out.splitlines()[0]
+    assert "foo" in out
+    assert "bar" in out
+    assert "$" not in out[-3:]
+
+
+# ─── Health (no real endpoint) ─────────────────────────────────────
+@pytest.mark.asyncio
+async def test_health_reports_failure_when_endpoint_dead() -> None:
+    # Port 1 is reserved, never listening.
+    t = SerialTransport(tcp_host="127.0.0.1", tcp_port=1)
+    info = await t.health()
+    assert info["ok"] is False
+    assert info["transport"] == "serial"
+    assert info["mode"] == "tcp"
+    assert "error" in info
+
+
+# ─── Shell round-trip over TCP (simulates a real POSIX shell) ──────
+@pytest.mark.asyncio
+async def test_shell_roundtrip_over_tcp() -> None:
+    """POSIX-shell state path: marker wrapper + real exit code extraction.
+
+    The fake server pretends to be a real ``sh``: it echoes the
+    wrapped command line, then prints the BEG marker, the user
+    output, and the END marker with ``=0`` (because ``echo``
+    succeeded).
+    """
+    import re as _re
+
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        warmup = await reader.readline()
+        assert warmup == b"\n"
+        writer.write(b"$ ")                  # triggers SHELL_USER state
+        await writer.drain()
+
+        line = await reader.readline()       # wrapped command
+        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", line)
+        assert m, f"expected a BEG marker in {line!r}"
+        nonce = m.group(1)
+        beg = b"__ALB_BEG_" + nonce + b"__"
+        end = b"__ALB_END_" + nonce + b"__"
+
+        writer.write(line)                   # echo the command line
+        writer.write(beg + b"\n")            # echo BEG sentinel
+        writer.write(b"output from fake shell\n")
+        writer.write(end + b"=0\n")          # echo END=0 sentinel
+        writer.write(b"$ ")
+        await writer.drain()
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("echo hi", timeout=5)
+
+    assert r.ok
+    assert r.exit_code == 0
+    assert "output from fake shell" in r.stdout
+
+
+@pytest.mark.asyncio
+async def test_shell_fails_fast_when_endpoint_silent() -> None:
+    """An endpoint that sends zero bytes during handshake is IDLE,
+    which shell() must reject with ``BOARD_UNREACHABLE`` — a far more
+    useful diagnosis than a generic timeout.
+    """
+    async def handler(reader, writer):  # noqa: ANN001
+        # Read warmup + command, but never send anything back.
+        try:
+            await reader.readline()
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=0.5,
+        )
+        r = await t.shell("whatever", timeout=2)
+
+    assert not r.ok
+    assert r.error_code == "BOARD_UNREACHABLE"
+
+
+# ─── stream_read yields bytes until server closes ──────────────────
+@pytest.mark.asyncio
+async def test_stream_read_yields_until_close() -> None:
+    async def handler(reader, writer):  # noqa: ANN001
+        writer.write(b"[boot] step 1\n")
+        writer.write(b"[boot] step 2\n")
+        await writer.drain()
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port)
+        out = b""
+        async for chunk in t.stream_read("uart"):
+            out += chunk
+
+    assert b"[boot] step 1" in out
+    assert b"[boot] step 2" in out
+
+
+@pytest.mark.asyncio
+async def test_stream_read_yields_marker_when_endpoint_dead() -> None:
+    t = SerialTransport(tcp_host="127.0.0.1", tcp_port=1)
+    collected = b""
+    async for chunk in t.stream_read("uart"):
+        collected += chunk
+    # Should have yielded a single diagnostic marker, not raised.
+    assert b"[alb serial open failed" in collected
+
+
+# ─── Unsupported operations ────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_push_unsupported() -> None:
+    from pathlib import Path
+
+    t = SerialTransport(tcp_host="127.0.0.1", tcp_port=1)
+    r = await t.push(Path("/etc/hosts"), "/tmp/x")
+    assert not r.ok
+    assert r.error_code == "TRANSPORT_NOT_SUPPORTED"
+
+
+# ─── State-based routing (Phase 1 — handshake + reject) ────────────
+
+
+@pytest.mark.asyncio
+async def test_shell_rejects_when_board_is_panicked() -> None:
+    """Handshake sees a kernel panic → shell() fails with BOARD_PANICKED
+    and includes the panic tail in stdout for diagnostics.
+    """
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()  # swallow the handshake nudge
+        writer.write(
+            b"[   42.112345] BUG: unable to handle page fault\n"
+            b"[   42.113456] Kernel panic - not syncing: Fatal exception\n"
+            b"[   42.114567] CPU: 0 PID: 1 Comm: init\n"
+        )
+        await writer.drain()
+        await asyncio.sleep(5)
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=1.0,
+        )
+        r = await t.shell("echo hi", timeout=3)
+
+    assert not r.ok
+    assert r.error_code == "BOARD_PANICKED"
+    assert "Kernel panic" in r.stdout
+
+
+@pytest.mark.asyncio
+async def test_shell_rejects_when_board_is_booting() -> None:
+    """Handshake sees kernel-boot markers → BOARD_BOOTING, no command sent."""
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(
+            b"[    0.000000] Booting Linux on physical CPU 0x0\n"
+            b"[    0.012345] Linux version 6.1\n"
+            b"[    0.023456] CPU features: detected: DCP\n"
+        )
+        await writer.drain()
+        await asyncio.sleep(5)
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=1.0,
+        )
+        r = await t.shell("echo hi", timeout=3)
+
+    assert not r.ok
+    assert r.error_code == "BOARD_BOOTING"
+
+
+@pytest.mark.asyncio
+async def test_shell_rejects_when_baud_corrupted() -> None:
+    """Non-printable garbage → SERIAL_BAUD_MISMATCH."""
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(bytes(range(128, 200)) * 20)  # high-byte noise
+        await writer.drain()
+        await asyncio.sleep(5)
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=1.0,
+        )
+        r = await t.shell("echo hi", timeout=3)
+
+    assert not r.ok
+    assert r.error_code == "SERIAL_BAUD_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_shell_rejects_when_login_prompt_waiting() -> None:
+    """login: prompt → BOARD_NEEDS_LOGIN (not a generic error)."""
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(b"Debian GNU/Linux 12 host ttyS0\nlogin: ")
+        await writer.drain()
+        await asyncio.sleep(5)
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=1.0,
+        )
+        r = await t.shell("uptime", timeout=3)
+
+    assert not r.ok
+    assert r.error_code == "BOARD_NEEDS_LOGIN"
+
+
+@pytest.mark.asyncio
+async def test_shell_proceeds_when_uboot_prompt_present() -> None:
+    """U-Boot prompt → handshake passes, u-boot command runs."""
+
+    async def handler(reader, writer):  # noqa: ANN001
+        # Swallow the handshake nudge + respond with u-boot prompt
+        await reader.readline()
+        writer.write(b"\n=> ")
+        await writer.drain()
+        # Read the real command
+        cmd_line = await reader.readline()
+        assert b"printenv" in cmd_line
+        writer.write(cmd_line)  # echo
+        writer.write(b"bootargs=console=ttyS0,1500000 root=/dev/mmcblk0p7\n")
+        writer.write(b"=> ")  # final prompt
+        await writer.drain()
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=1.0,
+        )
+        r = await t.shell("printenv bootargs", timeout=5)
+
+    assert r.ok
+    assert "bootargs=console=ttyS0" in r.stdout
+
+
+# ─── Marker extraction helper ──────────────────────────────────────
+
+
+def test_extract_between_markers_strips_echo_and_end_line() -> None:
+    """The echoed command line (which contains both markers as substrings)
+    must be skipped; only the lines between marker OUTPUT lines count.
+    """
+    raw = (
+        "echo __ALB_BEG_abc__; ls /; echo __ALB_END_abc__=$?\n"   # echoed cmd
+        "__ALB_BEG_abc__\n"                                       # BEG echo output
+        "bin\n"
+        "etc\n"
+        "usr\n"
+        "__ALB_END_abc__=0\n"                                     # END output
+        "root@h:/ # "                                             # next prompt
+    )
+    out = _extract_between_markers(raw, "__ALB_BEG_abc__", "__ALB_END_abc__")
+    assert out == "bin\netc\nusr"
+
+
+def test_extract_between_markers_missing_end() -> None:
+    """When END marker is missing, return everything after BEG."""
+    raw = "__ALB_BEG_x__\nstuff\nmore stuff\n"
+    out = _extract_between_markers(raw, "__ALB_BEG_x__", "__ALB_END_x__")
+    assert out == "stuff\nmore stuff"
+
+
+def test_extract_between_markers_no_beg_returns_empty() -> None:
+    raw = "no markers at all\njust text\n"
+    out = _extract_between_markers(raw, "__ALB_BEG_x__", "__ALB_END_x__")
+    assert out == ""
+
+
+def test_extract_between_markers_handles_crlf() -> None:
+    raw = (
+        "__ALB_BEG_zz__\r\n"
+        "windows line endings\r\n"
+        "__ALB_END_zz__=7\r\n"
+    )
+    out = _extract_between_markers(raw, "__ALB_BEG_zz__", "__ALB_END_zz__")
+    assert out == "windows line endings"
+
+
+# ─── Marker-based command execution ────────────────────────────────
+
+
+async def _fake_posix_shell_handler(
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    *,
+    body: bytes = b"",
+    exit_code: int = 0,
+    injection: bytes = b"",
+) -> None:
+    """Fake shell server that honours BEG/END marker protocol.
+
+    - body:       bytes returned as the user command's stdout
+    - exit_code:  emitted as ``=N`` after the END marker
+    - injection:  printk-style bytes emitted BEFORE the BEG line
+                  (simulates kernel messages interleaving with command
+                  output — real boards do this constantly)
+    """
+    import re as _re
+
+    await reader.readline()  # handshake nudge
+    writer.write(b"$ ")
+    await writer.drain()
+
+    wrapped = await reader.readline()
+    m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+    nonce = m.group(1) if m else b"xxx"
+    beg = b"__ALB_BEG_" + nonce + b"__"
+    end = b"__ALB_END_" + nonce + b"__"
+
+    writer.write(wrapped)                                 # echo
+    if injection:
+        writer.write(injection)
+    writer.write(beg + b"\n")
+    writer.write(body)
+    writer.write(end + b"=" + str(exit_code).encode() + b"\n")
+    writer.write(b"$ ")
+    await writer.drain()
+    writer.close()
+
+
+@pytest.mark.asyncio
+async def test_shell_returns_real_exit_code_on_success() -> None:
+    async def handler(r, w):  # noqa: ANN001
+        await _fake_posix_shell_handler(r, w, body=b"hello\n", exit_code=0)
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("true", timeout=5)
+
+    assert r.ok
+    assert r.exit_code == 0
+    assert r.stdout == "hello"
+
+
+@pytest.mark.asyncio
+async def test_shell_returns_real_exit_code_on_failure() -> None:
+    """Non-zero exit → ok=False AND the specific exit code is surfaced."""
+    async def handler(r, w):  # noqa: ANN001
+        await _fake_posix_shell_handler(r, w, body=b"not found\n", exit_code=127)
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("nonexistent_cmd", timeout=5)
+
+    assert not r.ok
+    assert r.exit_code == 127
+    assert "not found" in r.stdout
+
+
+@pytest.mark.asyncio
+async def test_shell_printk_injection_does_not_break_output_extraction() -> None:
+    """Simulated kernel printk lines interleaving should not confuse
+    marker extraction — the extracted stdout comes only from between
+    BEG and END markers, not before BEG.
+    """
+    async def handler(r, w):  # noqa: ANN001
+        await _fake_posix_shell_handler(
+            r, w,
+            body=b"my real output\n",
+            exit_code=0,
+            injection=b"[   42.123456] wlan0: link up\n",
+        )
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("ls", timeout=5)
+
+    assert r.ok
+    # The printk line must not be in the extracted stdout
+    assert "wlan0" not in r.stdout
+    assert r.stdout == "my real output"
+
+
+@pytest.mark.asyncio
+async def test_shell_multiline_command_roundtrips_cleanly() -> None:
+    """Commands with semicolons / multi-line output work end-to-end."""
+    async def handler(r, w):  # noqa: ANN001
+        await _fake_posix_shell_handler(
+            r, w,
+            body=b"line-1\nline-2\nline-3\n",
+            exit_code=0,
+        )
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("for i in 1 2 3; do echo line-$i; done", timeout=5)
+
+    assert r.ok
+    assert r.stdout == "line-1\nline-2\nline-3"
+
+
+@pytest.mark.asyncio
+async def test_shell_uses_fresh_nonce_per_call() -> None:
+    """Two back-to-back calls must use independent marker nonces."""
+    nonces: list[bytes] = []
+
+    async def handler(r, w):  # noqa: ANN001
+        import re as _re
+        await r.readline()
+        w.write(b"$ ")
+        await w.drain()
+        wrapped = await r.readline()
+        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        nonce = m.group(1) if m else b"xxx"
+        nonces.append(nonce)
+        beg = b"__ALB_BEG_" + nonce + b"__"
+        end = b"__ALB_END_" + nonce + b"__"
+        w.write(wrapped)
+        w.write(beg + b"\nok\n" + end + b"=0\n")
+        w.write(b"$ ")
+        await w.drain()
+        w.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        await t.shell("echo 1", timeout=5)
+        await t.shell("echo 2", timeout=5)
+
+    assert len(nonces) == 2
+    assert nonces[0] != nonces[1]
+
+
+# ─── printk filtering (C5) ─────────────────────────────────────────
+
+
+def test_split_printk_extracts_kernel_lines() -> None:
+    body = (
+        "real stdout line 1\n"
+        "[   42.123456] wlan0: link up\n"
+        "real stdout line 2\n"
+        "[   42.234567] cfg80211: regulatory\n"
+        "real stdout line 3\n"
+    )
+    stdout, kernel = _split_printk(body)
+    assert stdout == "real stdout line 1\nreal stdout line 2\nreal stdout line 3"
+    assert "wlan0: link up" in kernel
+    assert "cfg80211: regulatory" in kernel
+    # kernel lines preserve their printk prefix
+    assert "[   42.123456]" in kernel
+
+
+def test_split_printk_all_stdout_when_no_kernel() -> None:
+    body = "one\ntwo\nthree"
+    stdout, kernel = _split_printk(body)
+    assert stdout == body
+    assert kernel == ""
+
+
+def test_split_printk_all_kernel_when_no_stdout() -> None:
+    body = (
+        "[    1.234567] msg 1\n"
+        "[    2.345678] msg 2\n"
+    )
+    stdout, kernel = _split_printk(body)
+    assert stdout == ""
+    assert "msg 1" in kernel and "msg 2" in kernel
+
+
+def test_split_printk_ignores_lookalike_lines() -> None:
+    """Lines that vaguely resemble printk (but lack 6-digit fraction
+    or non-space after the bracket) must NOT be treated as kernel."""
+    body = (
+        "[1.23] not printk\n"
+        "[   10.123] not printk either (5 digits)\n"
+        "[INFO] not printk (word not number)\n"
+    )
+    stdout, kernel = _split_printk(body)
+    assert kernel == ""
+    assert stdout == body.rstrip("\n")
+
+
+@pytest.mark.asyncio
+async def test_shell_isolates_printk_into_stderr() -> None:
+    """End-to-end: kernel printk interleaved between BEG and END markers
+    must NOT appear in stdout; instead it's annotated into stderr.
+    """
+    import re as _re
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(b"$ ")
+        await writer.drain()
+
+        wrapped = await reader.readline()
+        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        nonce = m.group(1)
+        beg = b"__ALB_BEG_" + nonce + b"__"
+        end = b"__ALB_END_" + nonce + b"__"
+
+        writer.write(wrapped)                          # echo
+        writer.write(beg + b"\n")
+        writer.write(b"real line 1\n")
+        writer.write(b"[   50.123456] kernel noise A\n")
+        writer.write(b"real line 2\n")
+        writer.write(b"[   50.234567] kernel noise B\n")
+        writer.write(end + b"=0\n")
+        writer.write(b"$ ")
+        await writer.drain()
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("whatever", timeout=5)
+
+    assert r.ok
+    assert r.exit_code == 0
+    assert r.stdout == "real line 1\nreal line 2"
+    assert "kernel noise A" in r.stderr
+    assert "kernel noise B" in r.stderr
+
+
+# ─── Ctrl-C abort on timeout (C5) ──────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_shell_sends_ctrl_c_when_command_times_out() -> None:
+    """On TIMEOUT_SHELL, the transport sends 0x03 to the board. The
+    fake server here acknowledges the Ctrl-C by returning a prompt,
+    so the stderr annotation says "board acknowledged".
+    """
+    import re as _re
+
+    ctrl_c_seen = asyncio.Event()
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(b"$ ")
+        await writer.drain()
+
+        # Read the wrapped command — begin a slow/stuck fake response
+        wrapped = await reader.readline()
+        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        nonce = m.group(1)
+        beg = b"__ALB_BEG_" + nonce + b"__"
+        writer.write(wrapped)                 # echo
+        writer.write(beg + b"\n")             # BEG only — no END
+        await writer.drain()
+
+        # Now listen for Ctrl-C (0x03)
+        while True:
+            byte = await reader.read(1)
+            if not byte:
+                return
+            if byte == b"\x03":
+                ctrl_c_seen.set()
+                # Pretend the shell interrupted and re-printed a prompt
+                writer.write(b"^C\n$ ")
+                await writer.drain()
+                return
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("sleep 999", timeout=1)
+
+    assert not r.ok
+    assert r.error_code == "TIMEOUT_SHELL"
+    assert ctrl_c_seen.is_set(), "transport did not send Ctrl-C to board"
+    assert "Ctrl-C (board acknowledged)" in r.stderr
+
+
+@pytest.mark.asyncio
+async def test_shell_sends_ctrl_c_when_cancelled() -> None:
+    """Cancelling shell() (the chat's Stop button) interrupts the command
+    on the board the way a timeout does, so the next command finds a free
+    shell, and the cancel still reaches the caller."""
+    import re as _re
+
+    running = asyncio.Event()
+    ctrl_c_seen = asyncio.Event()
+
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        await reader.readline()
+        writer.write(b"$ ")
+        await writer.drain()
+        wrapped = await reader.readline()
+        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        assert m is not None
+        nonce = m.group(1)
+        writer.write(wrapped + b"__ALB_BEG_" + nonce + b"__\n")  # BEG only — still running
+        await writer.drain()
+        running.set()
+        while byte := await reader.read(1):
+            if byte == b"\x03":
+                ctrl_c_seen.set()
+                writer.write(b"^C\n$ ")
+                await writer.drain()
+                return
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        task = asyncio.create_task(t.shell("sleep 999", timeout=60))
+        await asyncio.wait_for(running.wait(), 5)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert ctrl_c_seen.is_set(), "transport did not send Ctrl-C to the board"
+
+
+@pytest.mark.asyncio
+async def test_shell_reports_when_board_ignores_ctrl_c() -> None:
+    """When Ctrl-C is sent but the board does NOT respond with a
+    prompt, stderr annotates that so the user knows a reboot is likely.
+    """
+    import re as _re
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(b"$ ")
+        await writer.drain()
+
+        wrapped = await reader.readline()
+        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        nonce = m.group(1)
+        beg = b"__ALB_BEG_" + nonce + b"__"
+        writer.write(wrapped)
+        writer.write(beg + b"\n")
+        await writer.drain()
+
+        # Swallow Ctrl-C but never reply
+        try:
+            while True:
+                byte = await reader.read(1)
+                if not byte:
+                    return
+                # ignore
+        except Exception:
+            pass
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.shell("sleep 999", timeout=1)
+
+    assert not r.ok
+    assert r.error_code == "TIMEOUT_SHELL"
+    assert "did not acknowledge" in r.stderr
+
+
+# ─── detect_state() API ────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_detect_state_reports_shell_ready() -> None:
+    """When the endpoint offers a root prompt, detect_state() classifies it."""
+
+    async def handler(reader, writer):  # noqa: ANN001
+        # Wait for the handshake nudge, then respond with a root prompt
+        await reader.readline()
+        writer.write(b"\nroot@host:/ # ")
+        await writer.drain()
+        await asyncio.sleep(0.3)
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=1.0,
+        )
+        info = await t.detect_state()
+
+    assert info["ok"]
+    assert info["connected"]
+    assert info["state"] == "shell_root"
+    assert "#" in info["tail"]
+    assert info["duration_ms"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_detect_state_classifies_kernel_boot() -> None:
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(b"[    0.000000] Booting Linux on physical CPU 0x0\n")
+        await writer.drain()
+        await asyncio.sleep(0.5)
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port, handshake_timeout=1.0,
+        )
+        info = await t.detect_state()
+
+    assert info["state"] == "kernel_boot"
+
+
+@pytest.mark.asyncio
+async def test_detect_state_reports_connect_error() -> None:
+    """A closed port → info['ok'] = False with structured error."""
+    t = SerialTransport(
+        tcp_host="127.0.0.1", tcp_port=59, handshake_timeout=0.5,
+    )
+    info = await t.detect_state()
+    assert info["ok"] is False
+    assert info["connected"] is False
+    assert info["error_code"] in {"SERIAL_PORT_NOT_FOUND", "SYSTEM_DEPENDENCY_MISSING"}
+
+
+# ─── Pattern overrides from config ────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_custom_patterns_make_handshake_recognize_board_prompt() -> None:
+    """Custom prompt regex lets a non-standard shell be classified as SHELL_ROOT."""
+    from alb.transport.serial_state import PatternSet
+
+    async def handler(reader, writer):  # noqa: ANN001
+        await reader.readline()
+        writer.write(b"myboard:~# ")
+        await writer.drain()
+        await asyncio.sleep(0.3)
+        writer.close()
+
+    # Default shell_root pattern would still match this (ends in #)
+    # so we force override to something stricter that ONLY matches
+    # "myboard:~#" to prove the override path works.
+    patterns = PatternSet.from_mapping(
+        {"shell_root": r"myboard:~\s*#\s*$"}
+    )
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(
+            tcp_host=host, tcp_port=port,
+            patterns=patterns, handshake_timeout=1.0,
+        )
+        info = await t.detect_state()
+
+    assert info["state"] == "shell_root"
+
+
+# ─── Bug-1: ser2net back-to-back connect retry ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_open_tcp_retries_transient_reset_then_succeeds(monkeypatch) -> None:
+    """First connect raises ConnectionResetError, second succeeds → returns link."""
+    calls = {"n": 0}
+    fake_reader = asyncio.StreamReader()
+    fake_writer_obj = type(
+        "W", (), {
+            "close": lambda self: None,
+            "wait_closed": staticmethod(lambda: asyncio.sleep(0)),
+        },
+    )()
+
+    async def fake_open(host, port):  # noqa: ANN001
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ConnectionResetError(104, "Connection reset by peer")
+        return fake_reader, fake_writer_obj
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+
+    t = SerialTransport(tcp_host="localhost", tcp_port=9001)
+    # Speed up the test (real defaults sleep 0.1s+0.3s+0.6s)
+    t._CONNECT_BACKOFF_S = (0.0, 0.0, 0.0)
+    link = await t._open_tcp_with_retry()
+    assert link.mode == "tcp"
+    assert calls["n"] == 2  # one fail, one success
+
+
+@pytest.mark.asyncio
+async def test_open_tcp_exhausts_budget_raises_connection_error(monkeypatch) -> None:
+    """All attempts reset → raises ConnectionError, exhausted attempts in message.
+
+    With N backoff entries, total attempts = N+1 (each entry is a *gap*
+    between attempts). N=3 backoff → 4 attempts.
+    """
+    calls = {"n": 0}
+
+    async def fake_open(host, port):  # noqa: ANN001
+        calls["n"] += 1
+        raise ConnectionResetError(104, "reset")
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+
+    t = SerialTransport(tcp_host="localhost", tcp_port=9001)
+    t._CONNECT_BACKOFF_S = (0.0, 0.0, 0.0)
+    with pytest.raises(ConnectionError, match="kept resetting after 4 attempts"):
+        await t._open_tcp_with_retry()
+    assert calls["n"] == 4  # 3 backoff entries → 4 attempts
+
+
+@pytest.mark.asyncio
+async def test_open_tcp_does_not_retry_refused(monkeypatch) -> None:
+    """ConnectionRefusedError = real misconfig → fail fast on first attempt."""
+    calls = {"n": 0}
+
+    async def fake_open(host, port):  # noqa: ANN001
+        calls["n"] += 1
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+
+    t = SerialTransport(tcp_host="localhost", tcp_port=9001)
+    t._CONNECT_BACKOFF_S = (0.0, 0.0, 0.0)
+    with pytest.raises(ConnectionError, match="Cannot reach"):
+        await t._open_tcp_with_retry()
+    assert calls["n"] == 1  # no retry
+
+
+@pytest.mark.asyncio
+async def test_open_tcp_does_not_retry_timeout(monkeypatch) -> None:
+    """Timeout = network problem → fail fast."""
+    calls = {"n": 0}
+
+    async def fake_open(host, port):  # noqa: ANN001
+        calls["n"] += 1
+        raise asyncio.TimeoutError("connect timeout")
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+
+    t = SerialTransport(tcp_host="localhost", tcp_port=9001)
+    t._CONNECT_BACKOFF_S = (0.0, 0.0, 0.0)
+    with pytest.raises(ConnectionError, match="Cannot reach"):
+        await t._open_tcp_with_retry()
+    assert calls["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_open_tcp_consumes_every_backoff_entry(monkeypatch) -> None:
+    """All N backoff entries get sleep'd between the N+1 attempts.
+
+    Locks against a previous off-by-one where the last entry was never
+    consumed, so the documented "cumulative ~1.0s" was actually ~0.4s.
+    """
+    sleeps: list[float] = []
+    real_sleep = asyncio.sleep
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        await real_sleep(0)  # yield without actual delay
+
+    async def fake_open(host, port):  # noqa: ANN001
+        raise ConnectionResetError(104, "reset")
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    t = SerialTransport(tcp_host="localhost", tcp_port=9001)
+    t._CONNECT_BACKOFF_S = (0.1, 0.3, 0.6)  # default
+    with pytest.raises(ConnectionError):
+        await t._open_tcp_with_retry()
+    assert sleeps == [0.1, 0.3, 0.6]  # every entry consumed in order
+
+
+@pytest.mark.asyncio
+async def test_open_tcp_succeeds_first_attempt(monkeypatch) -> None:
+    """No race → no retry penalty; one open_connection call."""
+    calls = {"n": 0}
+    fake_reader = asyncio.StreamReader()
+    fake_writer_obj = type(
+        "W", (), {
+            "close": lambda self: None,
+            "wait_closed": staticmethod(lambda: asyncio.sleep(0)),
+        },
+    )()
+
+    async def fake_open(host, port):  # noqa: ANN001
+        calls["n"] += 1
+        return fake_reader, fake_writer_obj
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+
+    t = SerialTransport(tcp_host="localhost", tcp_port=9001)
+    link = await t._open_tcp_with_retry()
+    assert link.mode == "tcp"
+    assert calls["n"] == 1
+
+
+# ─── send_raw honesty (issue #4) ───────────────────────────────────
+@pytest.mark.asyncio
+async def test_send_raw_ok_when_the_link_stays_up() -> None:
+    """A quiet console is not a failure — the write is reported ok once the
+    confirm window passes without the endpoint hanging up."""
+
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        await reader.read(4096)
+        await asyncio.sleep(1.0)  # stay connected, say nothing
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port)
+        t._SEND_CONFIRM_S = 0.1
+        r = await t.send_raw(b"reboot\n")
+    assert r.ok is True
+    assert r.error_code is None
+
+
+@pytest.mark.asyncio
+async def test_send_raw_ok_immediately_when_the_console_is_chatty() -> None:
+    """A board that is printing confirms the link instantly — no dwell, so
+    time-critical sends (u-boot autoboot interrupt) keep their timing."""
+
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        await reader.read(4096)
+        writer.write(b"Hit any key to stop autoboot:  2 \r")
+        await writer.drain()
+        await asyncio.sleep(1.0)
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port)
+        t._SEND_CONFIRM_S = 5.0  # would dominate the timing if we ever waited it out
+        r = await t.send_raw(b"\x03")
+    assert r.ok is True
+    assert r.duration_ms < 2000
+
+
+@pytest.mark.asyncio
+async def test_send_raw_reports_failure_when_the_endpoint_hangs_up() -> None:
+    """The issue #4 silent failure: the bridge could not reach the UART, so it
+    closes the connection and our bytes are discarded. Reporting
+    `[ok] wrote N bytes` there cost two 3-minute captures in the field."""
+
+    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        await reader.read(4096)
+        writer.close()  # drop it, exactly as the forwarder does with no channel
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port)
+        r = await t.send_raw(b"reboot\n")
+    assert r.ok is False
+    assert r.error_code == "SERIAL_SEND_UNCONFIRMED"
+    assert "never reached the UART" in r.stderr
+
+
+def test_classify_connect_error_separates_busy_from_missing() -> None:
+    """pyserial raises a plain SerialException (an OSError) for BOTH "no such
+    port" and "someone else has it" — only the message tells them apart, and
+    they need different fixes."""
+    from serial import SerialException  # type: ignore[import-not-found]
+
+    from alb.transport.serial import _classify_connect_error
+
+    win = SerialException("could not open port COM4: Access is denied.")
+    lnx = SerialException("Could not exclusively lock port /dev/ttyUSB0: [Errno 11]")
+    assert _classify_connect_error(win) == "SERIAL_PORT_BUSY"
+    assert _classify_connect_error(lnx) == "SERIAL_PORT_BUSY"
+    assert _classify_connect_error(FileNotFoundError("no such device")) == "SERIAL_PORT_NOT_FOUND"
+    assert _classify_connect_error(PermissionError("nope")) == "SERIAL_PERMISSION_DENIED"
+
+
+# ─── hang-up vs silence (issue #4 follow-up) ───────────────────────
+@pytest.mark.asyncio
+async def test_shell_reports_link_refused_when_endpoint_hangs_up() -> None:
+    """An endpoint that accepts then immediately closes is NOT an unreachable
+    board — it is a bridge that could not reach the port (another program holds
+    it, the COM vanished). Blaming the board sends people to the bench to debug
+    a problem that lives on the other host. Observed for real on 2026-08-05.
+    """
+
+    async def handler(reader, writer) -> None:
+        writer.close()  # hang up without a byte
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=0.5)
+        r = await t.shell("echo ping", timeout=2)
+
+    assert not r.ok
+    assert r.error_code == "SERIAL_LINK_REFUSED"
+    assert "says nothing about the board" in r.stderr
+
+
+@pytest.mark.asyncio
+async def test_silent_but_open_endpoint_is_still_idle_not_refused() -> None:
+    """The other side of the split: an endpoint that stays connected and says
+    nothing is still the board's problem (BOARD_UNREACHABLE)."""
+
+    async def handler(reader, writer) -> None:
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=0.5)
+        r = await t.shell("echo ping", timeout=2)
+
+    assert r.error_code == "BOARD_UNREACHABLE"
+
+
+def test_classified_bytes_beat_a_hang_up() -> None:
+    """What we read outranks how the socket ended: a real prompt (or a panic)
+    must not be overwritten by LINK_REFUSED just because the peer then closed."""
+    from alb.transport.serial_state import SerialState, SerialStateMachine
+
+    sm = SerialStateMachine()
+    sm.feed(b"\nconsole:/ $ ")
+    assert SerialTransport._empty_buffer_state(sm, hung_up=True) is SerialState.SHELL_USER
+
+    empty = SerialStateMachine()
+    assert SerialTransport._empty_buffer_state(empty, hung_up=True) is SerialState.LINK_REFUSED
+    assert SerialTransport._empty_buffer_state(empty, hung_up=False) is SerialState.IDLE
+
+
+# ─── the bench agent's reason for a hang-up (2026-10-19) ───────────
+# On the hub path a port the agent cannot open reaches us only as a hang-up;
+# the agent's own text, kept by the hub, is what tells the causes apart.
+WIN_ZH_BUSY = (
+    "cannot open COM27 @ 1500000: could not open port 'COM27': "
+    "PermissionError(13, '拒绝访问。', None, 5)"
+)
+
+
+@pytest.mark.parametrize(
+    "reason, code",
+    [
+        (WIN_ZH_BUSY, "SERIAL_PORT_BUSY"),  # a Chinese Windows, the bench case
+        (
+            "could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)",
+            "SERIAL_PORT_BUSY",
+        ),
+        ("Could not exclusively lock port /dev/ttyUSB0: [Errno 11]", "SERIAL_PORT_BUSY"),
+        (
+            "could not open port 'COM99': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)",
+            "SERIAL_PORT_NOT_FOUND",
+        ),
+        (
+            "[Errno 2] could not open port /dev/ttyUSB9: [Errno 2] No such file or directory",
+            "SERIAL_PORT_NOT_FOUND",
+        ),
+        (
+            "[Errno 13] could not open port /dev/ttyUSB0: [Errno 13] Permission denied",
+            "SERIAL_PERMISSION_DENIED",
+        ),
+        ("no agent connected", "SERIAL_LINK_REFUSED"),
+        ("agent reported channel open failure", "SERIAL_LINK_REFUSED"),
+    ],
+)
+def test_the_agents_reason_is_sorted_by_what_fixes_it(reason: str, code: str) -> None:
+    """Windows words it in the system language; the Win32 error number in the
+    last slot (5 access denied, 2 not found) is what does not change. Linux's
+    "[Errno 13] Permission denied" is a missing group, not a busy port."""
+    from alb.transport.serial import classify_open_failure
+
+    assert classify_open_failure(reason) == code
+
+
+def test_a_local_open_on_a_chinese_windows_is_busy_too() -> None:
+    from serial import SerialException  # type: ignore[import-not-found]
+
+    from alb.transport.serial import _classify_connect_error
+
+    exc = SerialException("could not open port 'COM27': PermissionError(13, '拒绝访问。', None, 5)")
+    assert _classify_connect_error(exc) == "SERIAL_PORT_BUSY"
+
+
+@pytest.mark.asyncio
+async def test_a_hang_up_carries_the_bench_agents_reason(monkeypatch) -> None:
+    """The bench, 2026-10-19: COM27 held by another program. Before, every
+    command said only SERIAL_LINK_REFUSED."""
+    asked: list[tuple[object, object]] = []
+
+    def hub(host, port, *, within_s):  # type: ignore[no-untyped-def]
+        asked.append((host, port))
+        return WIN_ZH_BUSY
+
+    monkeypatch.setattr("alb.transport.serial.hub_serial_open_failure", hub)
+
+    async def handler(reader, writer) -> None:
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=0.5)
+        r = await t.shell("echo ping", timeout=2)
+
+    assert asked == [(host, port)], "the endpoint actually used is the one asked about"
+    assert (r.ok, r.error_code) == (False, "SERIAL_PORT_BUSY")
+    assert "could not open the serial port" in r.stderr and "拒绝访问" in r.stderr
+
+
+@pytest.mark.asyncio
+async def test_a_hang_up_without_a_hub_reason_stays_a_link_refusal(monkeypatch) -> None:
+    monkeypatch.setattr("alb.transport.serial.hub_serial_open_failure", lambda *a, **k: None)
+
+    async def handler(reader, writer) -> None:
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=0.5)
+        r = await t.shell("echo ping", timeout=2)
+    assert r.error_code == "SERIAL_LINK_REFUSED"
+    assert "says nothing about the board" in r.stderr
+
+
+@pytest.mark.asyncio
+async def test_a_send_that_was_dropped_carries_the_bench_agents_reason(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "alb.transport.serial.hub_serial_open_failure", lambda *a, **k: WIN_ZH_BUSY
+    )
+
+    async def handler(reader, writer) -> None:
+        await reader.read(4096)
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port)
+        r = await t.send_raw(b"reboot\n")
+    assert (r.ok, r.error_code) == (False, "SERIAL_PORT_BUSY")
+    assert "拒绝访问" in r.stderr
+
+
+# ─── reboot: detached so the bootloader never gets our Ctrl-C ──────
+async def _fake_shell_recording(reader, writer, seen: list[bytes]) -> None:
+    """POSIX shell that records the wrapped command and, like a real shell,
+    prints the bare token only when the command line echoes it."""
+    import re as _re
+
+    await reader.readline()
+    writer.write(b"# ")
+    await writer.drain()
+    wrapped = await reader.readline()
+    seen.append(wrapped)
+    nonce = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped).group(1)
+    writer.write(wrapped)
+    writer.write(b"__ALB_BEG_" + nonce + b"__\n")
+    tok = _re.search(rb"echo (__ALB_REBOOT_QUEUED__);", wrapped)
+    if tok:
+        writer.write(tok.group(1) + b"\n")
+    writer.write(b"__ALB_END_" + nonce + b"__=0\n# ")
+    await writer.drain()
+    writer.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mode", "target"),
+    [
+        ("bootloader", b"reboot bootloader"),
+        ("recovery", b"reboot recovery"),
+        ("fastboot", b"reboot fastboot"),
+        ("normal", b"reboot)"),
+    ],
+)
+async def test_reboot_runs_detached_and_returns_at_once(mode: str, target: bytes) -> None:
+    seen: list[bytes] = []
+
+    async def handler(r, w):
+        await _fake_shell_recording(r, w, seen)
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.reboot(mode)
+
+    assert r.ok, r.stderr
+    # Backgrounded behind a sleep: the shell answers before the board goes down.
+    assert b"(sleep 1; " + target in seen[0]
+    assert b") </dev/null >/dev/null 2>&1 & echo __ALB_REBOOT_QUEUED__" in seen[0]
+
+
+@pytest.mark.asyncio
+async def test_reboot_at_uboot_is_not_reported_as_done() -> None:
+    """U-Boot rejects the line; the board stays put, so no ok=True."""
+
+    async def handler(reader, writer):
+        await reader.readline()
+        writer.write(b"\n=> ")
+        await writer.drain()
+        cmd_line = await reader.readline()
+        writer.write(cmd_line)
+        writer.write(b"Unknown command '(sleep' - try 'help'\n=> ")
+        await writer.drain()
+        writer.close()
+
+    async with _fake_ser2net(handler) as (host, port):
+        t = SerialTransport(tcp_host=host, tcp_port=port, handshake_timeout=1.0)
+        r = await t.reboot("bootloader")
+
+    assert (r.ok, r.error_code) == (False, "TRANSPORT_NOT_SUPPORTED")
+    assert "not at a Linux shell" in r.stderr
+
+
+@pytest.mark.asyncio
+async def test_reboot_sideload_needs_adb() -> None:
+    t = SerialTransport(tcp_host="127.0.0.1", tcp_port=1)
+    r = await t.reboot("sideload")
+    assert (r.ok, r.error_code) == (False, "TRANSPORT_NOT_SUPPORTED")

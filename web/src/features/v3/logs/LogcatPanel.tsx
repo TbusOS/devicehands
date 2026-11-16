@@ -1,0 +1,274 @@
+/** Logs page: the live logcat tab. Baseline: docs/webui-preview-v3-logs.html (#p-logcat). */
+import { Link } from "@tanstack/react-router";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+
+import { Icon } from "../../../components/v3/Icon";
+import { Dot, Empty, ErrorBanner, toast } from "../../../components/v3/ui";
+import { copyText } from "../../../lib/clipboard";
+import { useT } from "../../../lib/i18n";
+import { useShell } from "../../../stores/shell";
+import { badSpecTokens, LEVELS, LOGCAT_BUFFERS, type Level, type LogEntry, makeMatcher, parseQuery, type useLogcat } from "./logcatModel";
+
+const PAGE = 1000;
+
+export function LogcatPanel({ lc, device }: { lc: ReturnType<typeof useLogcat>; device: string | null }) {
+  const t = useT();
+  const openSheet = useShell((s) => s.openSheet);
+  const [levels, setLevels] = useState<Set<Level>>(new Set(["I", "W", "E", "F"]));
+  const [q, setQ] = useState("");
+  const [regex, setRegex] = useState(false);
+  const [wrap, setWrap] = useState(false);
+  const [follow, setFollow] = useState(true);
+  const [limit, setLimit] = useState(PAGE);
+  const [selId, setSelId] = useState<number | null>(null);
+  const [draft, setDraft] = useState(lc.spec);
+  const pane = useRef<HTMLDivElement>(null);
+  const badSpec = badSpecTokens(draft);
+  const specChanged = draft.trim().split(/\s+/).filter(Boolean).join(" ") !== lc.spec;
+
+  const matcher = useMemo(() => makeMatcher(q, levels, regex), [q, levels, regex]);
+  const filtered = useMemo(() => lc.visible.filter(matcher.test), [lc.visible, matcher]);
+  const shown = filtered.length > limit ? filtered.slice(filtered.length - limit) : filtered;
+  const hidden = lc.visible.length - filtered.length;
+  const parsed = parseQuery(q);
+
+  const lastId = shown.length ? (shown[shown.length - 1] as LogEntry).id : 0;
+  useEffect(() => {
+    const el = pane.current;
+    if (follow && el) el.scrollTop = el.scrollHeight;
+  }, [follow, lastId, selId]);
+
+  const toggleLevel = (l: Level) =>
+    setLevels((p) => {
+      const n = new Set(p);
+      if (n.has(l)) n.delete(l);
+      else n.add(l);
+      return n;
+    });
+  const dropToken = (tok: string) => setQ((p) => p.split(/\s+/).filter((x) => x && x !== tok).join(" "));
+
+  const rowText = (e: LogEntry) => `${e.ts} ${e.pid} ${e.level} ${e.tag}: ${e.msg}${e.cont.length ? `\n${e.cont.join("\n")}` : ""}`;
+  const ask = (e: LogEntry) => {
+    const i = filtered.findIndex((x) => x.id === e.id);
+    const near = filtered.slice(Math.max(0, i - 10), i + 11).map(rowText).join("\n").slice(0, 6000);
+    openSheet({ zh: `日志 · ${e.tag}`, en: `Log · ${e.tag}`, detail: `Live logcat on device ${device}. Selected line and its neighbours:\n${near}` });
+  };
+  const copy = async (e: LogEntry) => {
+    toast((await copyText(rowText(e))) ? t("已复制。", "Copied.") : t("复制失败。", "Copy failed."));
+  };
+
+  const max = Math.max(1, ...lc.histogram.map((b) => b.d + b.i + b.w + b.e));
+  const w = 1000 / lc.histogram.length;
+  const live = lc.state === "ready";
+  const stateTone = live ? "live" : lc.state === "connecting" ? "busy" : lc.state === "error" ? "bad" : "idle";
+
+  return (
+    <div id="p-logcat" role="tabpanel">
+      <div className="log-pad stack">
+        <div className="log-tools">
+          <form
+            className="log-spec"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!badSpec.length && specChanged) lc.applySpec(draft);
+            }}
+          >
+            <label
+              className="input--search"
+              title={t(
+                "交给 adb logcat 的过滤表达式。*:E 只收错误;Tag:V *:S 只收这一个 tag。不符合的行板子上就丢了,不占这里的 5000 行缓冲。应用时会清屏重连,板子会把缓存里符合的日志重发一遍。",
+                "Filter spec handed to adb logcat. *:E keeps errors only; Tag:V *:S keeps one tag. Lines it drops never reach this page, so they do not use up the 5000-line buffer. Applying clears the view and reconnects; the board resends what still matches in its buffer.",
+              )}
+            >
+              <Icon name="filter" size="sm" />
+              <input
+                className="mono"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                aria-label={t("板上过滤", "Filter on the board")}
+                aria-invalid={badSpec.length > 0}
+                placeholder={t("板上过滤,如 *:E", "Board filter, e.g. *:E")}
+              />
+            </label>
+            <button type="submit" className="btn btn--tonal btn--sm" disabled={badSpec.length > 0 || !specChanged}>
+              {t("应用", "Apply")}
+            </button>
+          </form>
+          <select
+            className="select"
+            style={{ width: "auto" }}
+            value={lc.buffer}
+            onChange={(e) => lc.applyBuffer(e.target.value)}
+            aria-label={t("缓冲区", "Buffer")}
+            title={t(
+              "交给 adb logcat -b 的缓冲区。默认是板子自己的那组(多数是 main、system、crash);events 是系统事件,radio 是基带,kernel 是内核日志(要板子支持),all 是全部。切换时清屏重连。",
+              "Buffer handed to adb logcat -b. Default is the board's own set (main, system and crash on most boards); events holds system events, radio the modem, kernel the kernel log (if the board has it), all every buffer. Switching clears the view and reconnects.",
+            )}
+          >
+            {LOGCAT_BUFFERS.map((b) => (
+              <option key={b} value={b}>{b ? b : t("默认缓冲区", "default buffers")}</option>
+            ))}
+          </select>
+          <div className="seg seg--sm" role="group" aria-label={t("级别", "levels")}>
+            {LEVELS.map((l) => (
+              <button key={l} type="button" aria-pressed={levels.has(l)} onClick={() => toggleLevel(l)}>{l}</button>
+            ))}
+          </div>
+          <label className="input--search">
+            <Icon name="search" size="sm" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label={t("过滤", "filter")}
+              placeholder={t("搜索内容;tag:Sensor* pid:1234", "Search text; tag:Sensor* pid:1234")}
+            />
+            <button type="button" className="chip chip--sm" aria-pressed={regex} onClick={() => setRegex((v) => !v)} title={t("正则", "regex")}>.*</button>
+          </label>
+          {parsed.tags.map((x) => (
+            <button key={`t-${x}`} type="button" className="chip" aria-pressed="true" title={t("点一下去掉", "click to remove")} onClick={() => dropToken(`tag:${x}`)}>
+              <Icon name="filter" size="sm" />tag: {x}
+            </button>
+          ))}
+          {parsed.pids.map((x) => (
+            <button key={`p-${x}`} type="button" className="chip" aria-pressed="true" title={t("点一下去掉", "click to remove")} onClick={() => dropToken(`pid:${x}`)}>
+              <Icon name="filter" size="sm" />pid: {x}
+            </button>
+          ))}
+          <button type="button" className="chip" aria-pressed={wrap} onClick={() => setWrap((v) => !v)}>{t("自动换行", "Wrap lines")}</button>
+          <button type="button" className="chip" aria-pressed={follow} onClick={() => setFollow((v) => !v)}>{t("跟随最新", "Follow")}</button>
+          {matcher.badRegex ? <span className="t-body-small" style={{ color: "var(--md-sys-color-error)" }}>{t("正则写得不对,先不按文字过滤。", "Invalid regex; text filter ignored.")}</span> : null}
+        </div>
+        {badSpec.length ? (
+          <span className="t-body-small" aria-live="polite" style={{ color: "var(--md-sys-color-error)" }}>
+            {t(
+              `板上过滤写法不对:${badSpec.slice(0, 3).join("、")}。每一项写成「tag:级别」,级别是 V D I W E F S 中的一个,tag 可以用 *。`,
+              `Board filter not valid: ${badSpec.slice(0, 3).join(", ")}. Write each item as tag:level, where level is one of V D I W E F S and the tag may be *.`,
+            )}
+          </span>
+        ) : null}
+        <div>
+          <div className="row row--between t-body-small t-muted">
+            <span>{t("每 2 秒行数,最近 5 分钟", "Lines per 2 s, last 5 minutes")}</span>
+            <span className="legend">
+              <span style={{ "--src": "var(--alb-color-log-e)" } as CSSProperties}><i />E/F</span>
+              <span style={{ "--src": "var(--alb-color-log-w)" } as CSSProperties}><i />W</span>
+              <span style={{ "--src": "var(--alb-color-log-i)" } as CSSProperties}><i />I</span>
+              <span style={{ "--src": "var(--alb-color-log-d)" } as CSSProperties}><i />D/V</span>
+            </span>
+          </div>
+          <svg className="histo" role="img" aria-label={t("每 2 秒行数", "lines per 2 s")} viewBox="0 0 1000 56" preserveAspectRatio="none">
+            {lc.histogram.map((b, i) => {
+              let y = 56;
+              return (
+                [
+                  [b.d, "--alb-color-log-d"],
+                  [b.i, "--alb-color-log-i"],
+                  [b.w, "--alb-color-log-w"],
+                  [b.e, "--alb-color-log-e"],
+                ] as const
+              ).map(([v, c]) => {
+                if (!v) return null;
+                const h = (v / max) * 54;
+                y -= h;
+                return <rect key={`${i}-${c}`} x={(i * w + 0.5).toFixed(1)} width={(w - 1).toFixed(1)} y={y.toFixed(1)} height={h.toFixed(1)} style={{ fill: `var(${c})` }} />;
+              });
+            })}
+          </svg>
+        </div>
+      </div>
+
+      {lc.state === "error" ? (
+        <div style={{ padding: "0 16px 8px" }}>
+          <ErrorBanner action={<button type="button" className="btn btn--text btn--sm" onClick={lc.start}>{t("清屏并重连", "Clear and reconnect")}</button>}>
+            {t("logcat 流断了:", "The logcat stream failed: ")}{lc.error}
+          </ErrorBanner>
+        </div>
+      ) : null}
+
+      {!device ? (
+        <Empty icon="logs" title={t("还没有选设备", "No device selected")}>{t("在顶栏选一台设备后,这里会开始显示它的 logcat。", "Pick a device in the top bar to see its logcat here.")}</Empty>
+      ) : shown.length === 0 && lc.stopped ? (
+        <Empty icon="logs" title={t("logcat 已停止", "logcat is stopped")}>{t("点下面的「开始」重新接收。", "Press Start below to receive it again.")}</Empty>
+      ) : shown.length === 0 ? (
+        <Empty icon="logs" title={lc.received === 0 ? (live ? t("连上了,还没有新日志", "Connected, no lines yet") : t("等待 logcat", "Waiting for logcat")) : t("过滤条件把所有行都滤掉了", "The filters hide every line")}>
+          {lc.received === 0 ? t("板子有输出时这里会自动出现。", "Lines appear here as soon as the board prints.") : t("放开级别或清掉搜索词。", "Turn on more levels or clear the search.")}
+        </Empty>
+      ) : (
+        <div className={`logs log-pane${wrap ? "" : " logs--nowrap"}`} ref={pane} onScroll={(ev) => {
+          const el = ev.currentTarget;
+          if (follow && el.scrollTop + el.clientHeight < el.scrollHeight - 40) setFollow(false);
+        }}>
+          {filtered.length > shown.length ? (
+            <div className="log-more">
+              <button type="button" className="btn btn--text btn--sm" onClick={() => { setFollow(false); setLimit((n) => n + PAGE); }}>
+                {t(`再显示 ${PAGE} 条更早的`, `Show ${PAGE} older lines`)}
+              </button>
+            </div>
+          ) : null}
+          {shown.map((e) => {
+            const sel = e.id === selId;
+            const cls = e.level === "E" || e.level === "F" ? "E" : e.level === "W" ? "W" : "";
+            return (
+              <div key={e.id}>
+                <button type="button" className={`log${cls ? ` log--${cls}` : ""}`} aria-expanded={sel} onClick={() => setSelId(sel ? null : e.id)}>
+                  <span className="log__t">{e.ts.slice(6)}</span>
+                  <span className="log__pid t-muted">{e.pid}</span>
+                  <span className={`lvl lvl--${e.level}`}>{e.level}</span>
+                  <span className="log__tag">{e.tag}</span>
+                  <span className="log__msg">{e.msg}</span>
+                </button>
+                {sel ? (
+                  <div className="log-detail">
+                    {e.cont.length ? e.cont.join("\n") : `${e.ts}  pid ${e.pid}  tid ${e.tid}\n${e.tag}: ${e.msg}`}
+                    <div className="row">
+                      <button type="button" className="btn btn--tonal btn--sm" onClick={() => ask(e)}><Icon name="spark" size="sm" /><span>{t("问助手", "Ask the assistant")}</span></button>
+                      <Link className="btn btn--text btn--sm" to="/timeline">{t("在时间轴中看", "Open in timeline")}</Link>
+                      <button type="button" className="btn btn--text btn--sm" onClick={() => void copy(e)}>{t("复制", "Copy")}</button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="log-status">
+        <span>
+          <Dot tone={stateTone} inline />
+          {live
+            ? t(`实时 · 每分钟 ${lc.perMinute.toLocaleString()} 行`, `Live · ${lc.perMinute.toLocaleString()} lines/min`)
+            : lc.state === "connecting"
+              ? t("连接中…", "Connecting…")
+              : lc.stopped
+                ? t("已停止", "Stopped")
+                : lc.state === "ended"
+                  ? t("流已结束", "Stream ended")
+                  : t("未连接", "Not connected")}
+          {lc.paused ? t(` · 已暂停,缓存 ${lc.buffered} 行`, ` · paused, ${lc.buffered} buffered`) : ""}
+          {lc.paused && lc.dropped > 0 ? t(`,另有 ${lc.dropped} 行已挤出缓冲`, `, ${lc.dropped} more pushed out of the buffer`) : ""}
+        </span>
+        <span>{t(`显示 ${shown.length.toLocaleString()} / ${lc.visible.length.toLocaleString()} 行 · 过滤掉 ${hidden.toLocaleString()} 行`, `Showing ${shown.length.toLocaleString()} of ${lc.visible.length.toLocaleString()} lines · ${hidden.toLocaleString()} hidden by filters`)}</span>
+        {lc.spec ? <span className="mono">{t(`板上过滤 ${lc.spec}`, `Board filter ${lc.spec}`)}</span> : null}
+        <span>{selId === null ? t("没有选中的行", "No line selected") : t("已选 1 行", "Selected: 1 line")}</span>
+        {lc.state === "ready" || lc.state === "connecting" ? (
+          <button type="button" className="btn btn--text btn--sm" onClick={lc.stop}>
+            <Icon name="stop" size="sm" />
+            {t("停止", "Stop")}
+          </button>
+        ) : lc.state !== "error" ? (
+          <button
+            type="button"
+            className="btn btn--text btn--sm"
+            onClick={lc.start}
+            disabled={!device}
+            title={t("板子会先把缓存里的日志重发一遍,所以先清屏。", "The board first resends its buffered log, so the view is cleared first.")}
+          >
+            <Icon name="play" size="sm" />
+            {lc.state === "ended" && !lc.stopped ? t("清屏并重连", "Clear and reconnect") : t("开始", "Start")}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}

@@ -1,1 +1,161 @@
+# ─────────────────────────────────────────────
+# Python
+# ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 分发 / 打包产物
+build/
+dist/
+wheels/
+*.whl
+*.tar.gz
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 测试 / 覆盖率
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+coverage.xml
+*.cover
+
+# 类型检查 / lint 缓存
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ─────────────────────────────────────────────
+# uv
+# ─────────────────────────────────────────────
+# uv.lock 是必须提交的（锁版本),不要忽略
+# .python-version 是必须提交的（锁 Python 版本）
+# 唯一忽略的是 uv 的缓存
+.uv_cache/
+
+# ─────────────────────────────────────────────
+# IDE / 编辑器
+# ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─────────────────────────────────────────────
+# 项目运行时产物（核心）
+# ─────────────────────────────────────────────
+# workspace 是运行时目录：日志、拉下来的文件、快照、临时 PTY 等
+# 保留 workspace/ 目录本身（用 .gitkeep），但所有内容不提交
+workspace/*
+!workspace/.gitkeep
+
+# profile / 配置中的本地状态
+*.local.toml
+*.local.yaml
+config.local.*
+.alb-state
+
+# SSH key / 证书（严禁误提交）
+*.pem
+*.key
+*_rsa
+*_ed25519
+*_ecdsa
+!*.pub.example
+id_rsa*
+id_ed25519*
+
+# 下载的 platform-tools 等二进制（按需本地放）
+platform-tools/
+*.apk
+*.img
+
+# ─────────────────────────────────────────────
+# 日志 / 临时文件
+# ─────────────────────────────────────────────
+*.log
+logs/
+tmp/
+*.tmp
+
+# ─────────────────────────────────────────────
+# 前端（未来 Web UI 加进来时）
+# ─────────────────────────────────────────────
 node_modules/
+.next/
+.nuxt/
+.vite/
+.parcel-cache/
+
+# ─────────────────────────────────────────────
+# 文档构建产物（如果后续接 mkdocs/sphinx）
+# ─────────────────────────────────────────────
+docs/_build/
+docs/.cache/
+# mkdocs output at the repo root only; docs/assets/site/ is the project site's own assets
+/site/
+
+# ─────────────────────────────────────────────
+# 第三方设计素材（仅本机参考，不进 git）
+# ─────────────────────────────────────────────
+docs/reference/
+
+# ─────────────────────────────────────────────
+# 本地部署配置（真实 IP / 模型 / 密钥等 — 绝不提交）
+# ─────────────────────────────────────────────
+.env.local
+.env.*.local
+# 远程调试真配置：只提交 *.example，填了真 token/IP 的实体不入仓
+# **/ 前缀：目录被复制（deploy/hub-bench2/）或文件被挪到仓根调试时同样兜住
+# （同 2026-05-02 web/.claude/ 漏 ignore 的教训 — secret 类 ignore 一律 depth-agnostic）
+**/agent.conf
+# the agent's runtime state: instance records, update staging/backup/log (ADR-060)
+**/.alb-agent/
+**/hub.env
+
+# ─────────────────────────────────────────────
+# Secrets / personal / machine-specific — NEVER commit
+# ─────────────────────────────────────────────
+# Claude Code local settings (may contain internal IPs, hosts, paths)
+# - settings.local.json / scheduled_tasks.lock 是机器/用户私有的，禁止入仓
+# - agents/commands/knowledge/reports 是团队工程方法论的一部分，必须入仓
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+# Use **/ prefix so the rules apply at any depth — running
+# scripts/web_check.mjs from web/ creates web/.claude/reports/web-check/
+# that the bare `.claude/reports/...` pattern would NOT match (gitignore
+# rules without leading slash still anchor to repo root for directory
+# components). 2026-05-02 audit revealed device serials / SoC names in
+# those screenshots; making the rule depth-agnostic prevents the leak.
+**/.claude/reports/screenshots/
+**/.claude/reports/web-check/
+# Sweep 全文报告：finding 证据里引用敏感串原文（清理前的旧引文），只留本机
+**/.claude/reports/round*-sweep-*.json
+# Personal operating guides kept out of the open-source repo
+adb-via-ssh-tunnel-guide*.md
+# Anything in a user's home directory tree
+**/home/*/
+
+# Misc local log outputs
+logs/
+# the web UI's Logs page lives in a directory called logs; keep it tracked
+!web/src/features/v3/logs/
+*.jsonl

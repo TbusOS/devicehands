@@ -1,0 +1,230 @@
+"""Config + profile loading.
+
+Two layers:
+    ~/.config/alb/config.toml          — global defaults
+    <workspace>/profiles/<name>.toml   — profile-specific (multi-device / env)
+
+Env overrides:
+    ALB_CONFIG   — absolute path to alternative config.toml
+    ALB_PROFILE  — profile name to activate (default: "default")
+    ALB_WORKSPACE — workspace root (see infra.workspace)
+    ALB_ADB_PATH — adb executable to use; wins over [transport.adb] bin_path
+"""
+
+from __future__ import annotations
+
+import os
+import tomllib
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import Any
+
+from alb.infra.workspace import (
+    InvalidProfileName,
+    is_safe_profile_name,
+    workspace_root,
+)
+
+
+# ─── Data model ────────────────────────────────────────────────────
+@dataclass(frozen=True)
+class AdbConfig:
+    bin_path: str = "adb"
+    # Which adb server to talk to, e.g. "tcp:127.0.0.1:15037". Highest
+    # precedence, above ADB_SERVER_SOCKET (ADR-057) — set it only to override a
+    # machine deliberately, since a hand-written port cannot report going
+    # stale. Left None, alb discovers its own forwarder at runtime instead.
+    server_socket: str | None = None
+
+
+@dataclass(frozen=True)
+class SshConfig:
+    default_user: str = "root"
+    default_port: int = 22
+    key_path: str | None = None
+    known_hosts: str | None = None
+    connect_timeout: int = 15
+
+
+@dataclass(frozen=True)
+class SerialConfig:
+    default_baud: int = 115200
+    default_tcp_host: str = "localhost"
+    default_tcp_port: int = 9001
+    pty_link_dir: str = ""  # resolves to workspace/cache/pty if empty
+    # Per-state prompt regex overrides. Populated from
+    # ``[transport.serial.prompts]`` in config.toml. Keys must match one
+    # of :data:`alb.transport.serial_state.DEFAULT_PATTERNS`; invalid
+    # keys cause load_config() to raise at startup so typos are caught
+    # early rather than silently falling back to defaults.
+    prompts: dict[str, str] = field(default_factory=dict)
+    # How long :meth:`SerialTransport._handshake` waits before declaring
+    # UNKNOWN. 2s is enough for a ser2net endpoint; bump for very
+    # remote links.
+    handshake_timeout: float = 2.0
+
+
+@dataclass(frozen=True)
+class PermissionConfig:
+    mode: str = "standard"  # strict | standard | permissive
+    ask_on_ambiguous: bool = True
+    log_denied: bool = True
+    allow: list[dict[str, str]] = field(default_factory=list)
+    deny: list[dict[str, str]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DeviceEntry:
+    serial: str
+    alias: str = ""
+    transport: str = "adb"  # adb | ssh | serial
+    ssh_host: str | None = None
+    ssh_port: int | None = None
+    serial_tcp_port: int | None = None
+
+
+@dataclass(frozen=True)
+class Profile:
+    name: str
+    primary_transport: str = "adb"  # which transport to default to
+    devices: list[DeviceEntry] = field(default_factory=list)
+    permissions: PermissionConfig = field(default_factory=PermissionConfig)
+
+
+@dataclass(frozen=True)
+class Config:
+    default_profile: str = "default"
+    workspace_root: Path = field(default_factory=workspace_root)
+    adb: AdbConfig = field(default_factory=AdbConfig)
+    ssh: SshConfig = field(default_factory=SshConfig)
+    serial: SerialConfig = field(default_factory=SerialConfig)
+    permissions: PermissionConfig = field(default_factory=PermissionConfig)
+
+
+# ─── Path resolution ───────────────────────────────────────────────
+def global_config_path() -> Path:
+    env = os.environ.get("ALB_CONFIG")
+    if env:
+        return Path(env).expanduser()
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg).expanduser() if xdg else Path.home() / ".config"
+    return base / "alb" / "config.toml"
+
+
+def profile_path(name: str) -> Path:
+    """Build the path for a named profile under workspace/profiles/.
+
+    Raises `InvalidProfileName` on `..` / absolute paths / separators /
+    non-ASCII / > 64 chars. Mirrors the L-035 root-layer-enforce pattern
+    from `session_path` and `workspace_path` device validation. A bad
+    profile name otherwise lets `f"{name}.toml"` escape via `..` and
+    load attacker-planted TOML as alb config (since attackers may set
+    `ALB_PROFILE` env / inject into `--profile`).
+    """
+    if not is_safe_profile_name(name):
+        raise InvalidProfileName(
+            f"invalid profile name {name!r}: must match [A-Za-z0-9][A-Za-z0-9_-]* "
+            f"(<= 64 chars); rejected to prevent path traversal"
+        )
+    return workspace_root() / "profiles" / f"{name}.toml"
+
+
+# ─── Loaders ───────────────────────────────────────────────────────
+def load_config() -> Config:
+    """Load the global config. Returns defaults if file missing.
+
+    ``ALB_ADB_PATH`` (path to the adb executable), when set, wins over
+    ``[transport.adb] bin_path``. A script that pins PATH to the system
+    directories can then point alb at its adb without writing a config
+    file. The transport, ``alb doctor`` and ``alb setup`` all take the adb
+    path from ``bin_path``, so applying the variable here covers them all.
+    """
+    cfg = _load_config_file()
+    adb_path = os.environ.get("ALB_ADB_PATH")
+    if adb_path:
+        cfg = replace(cfg, adb=replace(cfg.adb, bin_path=os.path.expanduser(adb_path)))
+    return cfg
+
+
+def _load_config_file() -> Config:
+    path = global_config_path()
+    if not path.exists():
+        return Config()
+
+    try:
+        with path.open("rb") as f:
+            raw = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        # Fall back to defaults rather than crashing; caller can re-run `alb init`.
+        return Config()
+
+    return Config(
+        default_profile=raw.get("default_profile", "default"),
+        workspace_root=Path(raw.get("workspace", {}).get("root") or workspace_root()).expanduser(),
+        adb=AdbConfig(**(raw.get("transport", {}).get("adb") or {})),
+        ssh=SshConfig(**(raw.get("transport", {}).get("ssh") or {})),
+        serial=SerialConfig(**(raw.get("transport", {}).get("serial") or {})),
+        permissions=_parse_perm(raw.get("permissions") or {}),
+    )
+
+
+def load_profile(name: str | None = None) -> Profile:
+    """Load a profile by name. If name is None, uses env ALB_PROFILE or config.default_profile."""
+    if name is None:
+        name = os.environ.get("ALB_PROFILE") or load_config().default_profile
+
+    path = profile_path(name)
+    if not path.exists():
+        # Profile absent is OK — return an empty profile with just the name.
+        return Profile(name=name)
+
+    try:
+        with path.open("rb") as f:
+            raw = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return Profile(name=name)
+
+    prof_section = raw.get("profile") or {}
+    devices_raw = raw.get("devices") or []
+    devices = [DeviceEntry(**d) for d in devices_raw if "serial" in d]
+
+    return Profile(
+        name=prof_section.get("name", name),
+        primary_transport=prof_section.get("primary_transport", "adb"),
+        devices=devices,
+        permissions=_parse_perm(raw.get("permissions") or {}),
+    )
+
+
+def _parse_perm(raw: dict[str, Any]) -> PermissionConfig:
+    return PermissionConfig(
+        mode=raw.get("mode", "standard"),
+        ask_on_ambiguous=bool(raw.get("ask_on_ambiguous", True)),
+        log_denied=bool(raw.get("log_denied", True)),
+        allow=list(raw.get("allow") or []),
+        deny=list(raw.get("deny") or []),
+    )
+
+
+# ─── Compose active settings (config + profile) ────────────────────
+@dataclass(frozen=True)
+class ActiveSettings:
+    config: Config
+    profile: Profile
+
+    @property
+    def primary_transport(self) -> str:
+        return self.profile.primary_transport
+
+    @property
+    def permissions(self) -> PermissionConfig:
+        # profile overrides config
+        if self.profile.permissions.mode != "standard" or self.profile.permissions.allow:
+            return self.profile.permissions
+        return self.config.permissions
+
+
+def load_active(profile_name: str | None = None) -> ActiveSettings:
+    cfg = load_config()
+    prof = load_profile(profile_name)
+    return ActiveSettings(config=cfg, profile=prof)

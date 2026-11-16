@@ -1,0 +1,257 @@
+# DeviceHands (formerly android-llm-bridge)
+
+> **This project is being renamed to DeviceHands.** The code and full commit history of the `android-llm-bridge` repository now live here, and development continues in this repository.
+> The command-line tool is still called `alb` for now; `android-llm-bridge` / `alb` below remain valid for the time being.
+> New home page: <https://doc.tbusos.com/devicehands/> · maintaining the 3D story on the home page: [`tools/README.md`](tools/README.md).
+
+> **A unified Android debugging bridge designed for LLM agents** — abstracts adb / ssh / UART over a single interface, accessible via MCP, CLI, or Web API.
+
+<p align="center">
+  <em>for Claude Code · Cursor · Codex · any MCP-compatible agent</em>
+</p>
+
+<p align="center">
+  <a href="https://doc.tbusos.com/android-llm-bridge/"><b>Website</b></a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#supported-methods">Methods</a> ·
+  <a href="#documentation">Docs</a> ·
+  <a href="./README.md">中文</a>
+</p>
+
+<p align="center">
+  <a href="https://doc.tbusos.com/android-llm-bridge/#topology">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/site/readme/topology-en-dark.png">
+      <img src="docs/assets/site/readme/topology-en-light.png" width="900" alt="Topology: the AI coding agent and the alb hub run on the build server; a bench agent on each PC with boards dials out to the hub and reaches boards over USB and UART; models can be cloud APIs, local models or on-device models">
+    </picture>
+  </a>
+  <br>
+  <sub>Solid lines ship today, dashed lines are planned. Click the picture to walk through one debugging loop on the website.</sub>
+</p>
+
+---
+
+## What is this
+
+**android-llm-bridge** (`alb` for short) lets an AI agent safely and reliably operate a real Android device, regardless of how it is connected (USB adb, wireless adb, on-device sshd, or only UART serial).
+
+### Why
+
+Traditional `adb` / `ssh` works great for humans but is painful for LLMs:
+
+- Free-form text output → parsing errors
+- Errors are unstructured → agent can't recover
+- Long logcat floods the context window
+- Each transport (USB / WiFi / serial) has its own commands to memorize
+
+**alb fixes these**:
+- Unified commands (`alb shell` / `alb logcat` / `alb pull`), transport auto-routed
+- Structured JSON output with stable error codes
+- Tiered workspace storage for long logs (hot / warm / cold) with search
+- First-class MCP server — one line of config for Claude Code, Cursor, etc.
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-transport abstraction** | adb USB · adb WiFi · on-device sshd · UART serial — same upper API, auto-routed |
+| **LLM-first API** | Structured return, error catalog, self-describing CLI, auto-generated `SKILL.md` |
+| **Three interfaces** | CLI (`alb`) · MCP server (`alb-mcp`) · Web API (FastAPI), sharing one business layer |
+| **Permissions & safety** | Board-side commands run unrestricted; the Windows host runs only the ops listed in its agent's op table |
+| **Workspace conventions** | All artifacts under `workspace/devices/<serial>/...` — predictable paths |
+| **Long-log friendly** | Tiered storage + paged access — no context overflow |
+| **Web visualization** (later) | Device dashboard, live logs, perf charts |
+
+---
+
+## Supported Methods
+
+M1 ships **A / B / C / G**. D / E / F are scaffolded for later.
+
+| Method | Channel | Boot log | u-boot | Offline | Device hung | One-liner |
+|--------|---------|:----:|:----:|:----:|:----:|-----------|
+| **A · adb USB (with SSH reverse tunnel)** | adb | ❌ | ❌ | ✅ | ❌ | System-level baseline, must-have |
+| **B · adb WiFi** | TCP | ❌ | ❌ | ❌ | ❌ | Wireless, ad-hoc |
+| **C · On-device sshd** | ssh | ❌ | ❌ | ❌ | ❌ | Dev boost (rsync / tmux / sshfs) |
+| **G · UART serial** | serial | ✅ | ✅ | ✅ | ✅ | **Last resort** — bringup / panic rescue |
+| D · USB networking | IP-over-USB | - | - | - | - | _planned_ |
+| E · scrcpy mirror | adb | - | - | - | - | _planned_ |
+| F · frp / cloud relay | public net | - | - | - | - | _planned_ |
+
+See [`docs/methods/00-comparison.md`](./docs/methods/00-comparison.md) for the full matrix.
+
+### Board attached to a different machine? → remote device agent (dial-home)
+
+When the board is physically attached to a Windows host (or any other
+machine), no SSH tunnel and no inbound port on the device side — the agent
+**dials out** to the hub:
+
+1. **hub (the Linux box running alb)**: `cd deploy/hub && cp hub.env.example
+   hub.env` (fill in the shared token, plus COM + baud for serial) →
+   `./run-hub.sh`
+2. **device side (Windows)**: copy `clients/windows-agent/` over, copy
+   `agent.conf.example` to `agent.conf`, fill in the hub URL + token →
+   **double-click `run-agent.bat`** (it re-checks the environment on every
+   run and auto-installs its two dependencies)
+
+adb, the UART console, the web UI and MCP are then all driven from the hub
+side, as if the board were plugged in locally. Full bring-up + per-hop
+troubleshooting: [docs/dial-home-runbook.md](./docs/dial-home-runbook.md).
+
+The two machines **need not share a subnet**: the bench PC only has to reach the hub's address and port.
+Across the internet, use a VPN or a TLS reverse proxy, and never publish port 8765 as it is (the web UI and
+HTTP API have no login). See [Across networks](./docs/dial-home-runbook.md#5-across-networks).
+
+---
+
+## Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│  Interface layer                                       │
+│  ├─ CLI (typer)          human or LLM direct use       │
+│  ├─ MCP server           Claude Code / Cursor / Codex  │
+│  ├─ Web API (FastAPI)    UI / external integrations    │
+│  └─ Web UI (Material 3)  board/logs/timeline/flash/AI  │
+├────────────────────────────────────────────────────────┤
+│  Capabilities (M1 ships 6)                             │
+│  shell │ logging │ filesync │ diagnose │ power │ app   │
+├────────────────────────────────────────────────────────┤
+│  ⭐ Transport abstraction                              │
+│  shell / stream_read / push / pull /                   │
+│  forward / reboot / check_permissions                  │
+│  ├─ AdbTransport       (A / B)                         │
+│  ├─ SshTransport       (C / D / F)                     │
+│  ├─ SerialTransport    (G)                             │
+│  └─ HybridTransport    (smart routing)                 │
+├────────────────────────────────────────────────────────┤
+│  Drivers                                               │
+│  adb · ssh · scp · rsync · pyserial · socat · tunnels  │
+├────────────────────────────────────────────────────────┤
+│  Infra                                                 │
+│  config · workspace · profile · permissions · errors   │
+│  event-bus · prompt-builder · memory (M2+)             │
+└────────────────────────────────────────────────────────┘
+```
+
+See [`docs/architecture.md`](./docs/architecture.md) for the details.
+
+---
+
+## Quick start
+
+> **Current state (2026-11-09):** four transports (adb USB / adb over the network / sshd / UART), 16 capability modules, 28 `alb` command groups, 36 MCP tools, the v3 web UI, and the remote debug bench (the board is plugged into another Windows machine and debugged over adb / UART / fastboot / Qualcomm 9008) all work. See [`docs/project-plan.md`](./docs/project-plan.md) (Chinese) for the roadmap.
+
+### Requirements
+
+- Python 3.11+ and [uv](https://github.com/astral-sh/uv) — `scripts/install.sh` installs both into your home directory.
+  uv is the Python installer the script relies on: one prebuilt program (nothing is compiled) that fetches
+  Python 3.11 without root and installs the locked dependencies from `uv.lock`. If uv is missing the script
+  installs it (official installer, falling back to pip from PyPI); if both fail it prints why and the commands
+  that fix it (proxy, mirrors, offline copy). Already have Python 3.11+? uv is optional:
+  `python3.11 -m venv .venv && .venv/bin/pip install -e .`, then run `.venv/bin/alb` and register
+  `.venv/bin/alb-mcp` (absolute path) with your MCP client. Details: [`docs/install.md`](./docs/install.md) (Chinese).
+- adb (Android SDK Platform-Tools) — `alb setup deps --install` downloads it if missing
+- An Android device reachable via at least one channel
+
+### Install
+
+```bash
+git clone https://github.com/<your>/android-llm-bridge
+cd android-llm-bridge
+./scripts/install.sh              # add --dev to also set up what the tests need
+uv run alb --help
+```
+
+The last step of `install.sh` is `alb setup deps --install`, which checks the outside tools pip
+cannot install. Missing adb / fastboot are downloaded (Android SDK Platform-Tools) into your home
+directory — it asks first, `--yes` skips the question. ssh, rsync, picocom and socat need sudo,
+and Ollama usually runs on another machine, so for those it prints the install commands.
+`--dev` also installs the npm packages in `web/` and Playwright's Chromium. When a download fails,
+the command prints how to install by hand. Already have uv? `uv sync && uv run alb setup deps
+--install` does the same. Full list: [`docs/install.md`](./docs/install.md) (Chinese), section 外部工具.
+
+### Set up a transport
+
+```bash
+uv run alb setup adb         # Method A (USB)
+uv run alb setup ssh <host>  # Method C (on-device sshd)
+uv run alb setup serial      # Method G (UART)
+uv run alb setup wifi <host> # Method B
+```
+
+Every environment variable and config file: [`docs/configuration.md`](./docs/configuration.md).
+
+### Hook into Claude Code
+
+```json
+{
+  "mcpServers": {
+    "alb": {
+      "command": "uv",
+      "args": ["run", "--project", "/path/to/android-llm-bridge", "alb-mcp"]
+    }
+  }
+}
+```
+
+---
+
+## Documentation
+
+### Where to start (by task)
+
+| You want to | Read, in order |
+|---|---|
+| Install | [docs/install.md](./docs/install.md) (Chinese) — troubleshooting at the end; what uv is in 「先说 uv」 |
+| Board on USB at this machine (adb) | "Set up a transport" above → [docs/configuration.md](./docs/configuration.md) (Chinese), section 三 USB / adb |
+| Board on a serial console (UART) | [docs/methods/07-uart-serial.md](./docs/methods/07-uart-serial.md) → [docs/configuration.md](./docs/configuration.md), section 二 |
+| Board plugged into another (Windows) machine | [docs/dial-home-runbook.md](./docs/dial-home-runbook.md) (hub side) → [clients/windows-agent/README.en.md](./clients/windows-agent/README.en.md) (Windows side) |
+| Flash remotely (fastboot / Qualcomm 9008 / other vendors' tools) | commands: [docs/flash.md](./docs/flash.md) (Chinese) and `alb flash --help`; bench-side setup: [clients/windows-agent/README.en.md](./clients/windows-agent/README.en.md), op table, 9008 and "Other vendors' download tools" sections |
+| Connect Claude Code / Codex / Cursor | [docs/llm-integration.md](./docs/llm-integration.md) |
+| Web UI / HTTP API | [docs/web-api.md](./docs/web-api.md) |
+| Look up an env var or config key | [docs/configuration.md](./docs/configuration.md) — every variable and config-file key, including the ones that currently have no effect |
+| An error code | [docs/errors.md](./docs/errors.md), or the `suggestion` field of the result |
+
+**For AI agents**: after connecting over MCP call `alb_status` and `alb_describe`; on errors read `suggestion` or call
+`alb_describe_errors`; usage rules for agents are in [llm/CLAUDE.md](./llm/CLAUDE.md) and [llm/AGENTS.md](./llm/AGENTS.md).
+
+
+| Category | Doc | Audience |
+|----------|-----|----------|
+| Start here | [README.md](./README.md) / README.en.md | Everyone |
+| Overview | [docs/00-overview.md](./docs/00-overview.md) | Start here |
+| Architecture | [docs/architecture.md](./docs/architecture.md) | Internals |
+| Design decisions | [docs/design-decisions.md](./docs/design-decisions.md) | Why this way |
+| Configuration | [docs/configuration.md](./docs/configuration.md) | Env vars and config files |
+| Remote device debugging | [docs/dial-home-runbook.md](./docs/dial-home-runbook.md) | Board on another machine: bring-up + troubleshooting |
+| Windows device agent | [clients/windows-agent/README.en.md](./clients/windows-agent/README.en.md) | Operator of the Windows host holding the board |
+| LLM integration | [docs/llm-integration.md](./docs/llm-integration.md) | Agent devs |
+| Permissions | [docs/permissions.md](./docs/permissions.md) | Ops / safety |
+| Error catalog | [docs/errors.md](./docs/errors.md) | LLMs, debugging |
+| Tool writing | [docs/tool-writing-guide.md](./docs/tool-writing-guide.md) | Contributors |
+| Project plan | [docs/project-plan.md](./docs/project-plan.md) | Roadmap |
+| Contributing | [docs/contributing.md](./docs/contributing.md) | Contributors |
+| Methods | [docs/methods/](./docs/methods/) | Per-transport |
+| Capabilities | [docs/capabilities/](./docs/capabilities/) | Per-feature |
+
+---
+
+## Roadmap
+
+| Milestone | Deliverables | Status |
+|-----------|--------------|--------|
+| **M0** | Skeleton + complete design docs + architecture + roadmap | ✅ done |
+| **M1** | 4 transports (A/B/C/G) + 6 capabilities + permissions + CLI + MCP skeleton | ✅ done |
+| **M2** | Web API ✅ + streaming / long-task framework (streaming logcat ✅ / large file transfer ✅) + model backends and `alb chat` ✅ + perf capture ✅ + sub-agent parallel 📋 + benchmark 📋 | 🚧 partly done |
+| **M3** | Web UI v3 (Material 3: board overview / console / logs / timeline / flash / bench / assistant / perf charts) ✅ + LLM-assisted log analysis (the assistant runs alb tools) ✅ + methods D/E/F 📋 | 🚧 partly done |
+| **Remote bench** | The board sits on a Windows machine; Linux reaches it through the hub over adb / UART / fastboot / Qualcomm 9008; the bench agent can be updated and started remotely (not in the original plan) | ✅ done |
+
+---
+
+## License
+
+[Apache License 2.0](./LICENSE) © 2026 sky &lt;skyzhangbinghua@gmail.com&gt; — see also [NOTICE](./NOTICE).
+Releases before 2026-10-10 were MIT-licensed; copies obtained under those terms remain MIT.

@@ -1,0 +1,553 @@
+/**
+ * The shared conversation (components/v3/Assistant): what came back from the
+ * old chat page. Files a turn produced, retry, Esc stops a reply (and only
+ * then keeps the shell from closing the sheet), full tool arguments / output
+ * with the large view, session id, stopped vs failed, the growing composer
+ * and focus coming back. The conversation hook is faked.
+ */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const chat = vi.hoisted(() => ({
+  state: { turns: [], sessionId: null, isStreaming: false } as { turns: unknown[]; sessionId: string | null; isStreaming: boolean; confirmRequest?: unknown },
+  answerConfirm: vi.fn(),
+  /** What the provider asked useChatStream for, newest last. */
+  args: [] as Record<string, unknown>[],
+  send: vi.fn(),
+  reset: vi.fn(),
+  cancel: vi.fn(),
+  retry: vi.fn(),
+}));
+const clip = vi.hoisted(() => ({ copyText: vi.fn(async (_: string) => true) }));
+
+vi.mock("../../chat/useChatStream", () => ({
+  useChatStream: (args: Record<string, unknown>) => (chat.args.push(args), { ...chat.state, send: chat.send, reset: chat.reset, cancel: chat.cancel, retry: chat.retry, answerConfirm: chat.answerConfirm }),
+}));
+vi.mock("../../../lib/clipboard", () => clip);
+
+import { AssistantProvider, AssistantSheet, COMPOSER_MAX_PX, Composer, ConfirmToolsSwitch, Conversation } from "../../../components/v3/Assistant";
+import { SnackbarHost, useSnack } from "../../../components/v3/ui";
+import { useApp } from "../../../stores/app";
+import { useShell } from "../../../stores/shell";
+
+const ROOT = "/srv/alb-ws";
+
+function mockFetch(root: string | null = ROOT) {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.startsWith("/workspace/files?path=")) {
+        return root ? Response.json({ ok: true, path: "", absolute_path: root, entries: [] }) : new Response("x", { status: 500 });
+      }
+      if (url.startsWith("/workspace/files/preview/devices/board-a/logs/logcat-1.txt")) {
+        return Response.json({ ok: true, path: "x", size_bytes: 30, is_binary: false, truncated: false, text: "first line\nE fatal thing\n", encoding: "utf-8" });
+      }
+      return Response.json({ ok: false }, { status: 404 });
+    }),
+  );
+  return calls;
+}
+
+let qc: QueryClient;
+
+function tree() {
+  return (
+    <QueryClientProvider client={qc}>
+      <AssistantProvider>
+        <Conversation />
+        <Composer />
+        <SnackbarHost />
+      </AssistantProvider>
+    </QueryClientProvider>
+  );
+}
+
+const user = (id: string, content: string) => ({ id, role: "user", content, toolCalls: [], artifacts: [], status: "done" });
+const ai = (id: string, over: object) => ({ id, role: "assistant", content: "", toolCalls: [], artifacts: [], status: "done", ...over });
+
+beforeEach(() => {
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  chat.state = { turns: [], sessionId: null, isStreaming: false, confirmRequest: null };
+  chat.args = [];
+  for (const f of [chat.send, chat.reset, chat.cancel, chat.retry, chat.answerConfirm, clip.copyText]) f.mockClear();
+  useApp.setState({ lang: "zh", device: "board-a", backend: "ollama", model: null });
+  useShell.setState({ source: "host", agentMode: true, context: null, sheetOpen: false });
+  useSnack.setState({ text: null }); // a toast from the previous test is also role=status
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe("files a turn produced", () => {
+  it("shows each file; workspace files open or download, others offer their path", async () => {
+    chat.state.turns = [
+      user("u1", "grab logs and a screenshot"),
+      ai("a1", {
+        content: "Saved both.",
+        artifacts: [`${ROOT}/devices/board-a/logs/logcat-1.txt`, `${ROOT}/devices/board-a/screenshots/s1.png`, "/tmp/elsewhere/report.zip"],
+      }),
+    ];
+    const calls = mockFetch();
+    render(tree());
+    expect(screen.getByText("产出文件")).toBeInTheDocument();
+    // full path on hover
+    expect(screen.getByText("report.zip").closest(".chat__file")?.getAttribute("title")).toBe("/tmp/elsewhere/report.zip");
+
+    const dl = await screen.findByRole("link", { name: "下载 logcat-1.txt" });
+    expect(dl.getAttribute("href")).toBe("/workspace/files/download/devices/board-a/logs/logcat-1.txt");
+    const shot = screen.getByRole("link", { name: "打开 s1.png" });
+    expect(shot.getAttribute("href")).toBe("/devices/board-a/screenshots/s1.png");
+    expect(shot.getAttribute("target")).toBe("_blank");
+    // outside the workspace: no download, the path can be copied
+    expect(screen.queryByRole("link", { name: "下载 report.zip" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "复制 report.zip 的路径" }));
+    await waitFor(() => expect(clip.copyText).toHaveBeenCalledWith("/tmp/elsewhere/report.zip"));
+
+    // a text file opens in the log dialog
+    fireEvent.click(screen.getByRole("button", { name: "打开 logcat-1.txt" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("E fatal thing")).toBeInTheDocument();
+    expect(within(dialog).getByText("devices/board-a/logs/logcat-1.txt")).toBeInTheDocument();
+    expect(calls.some((u) => u === "/workspace/files/preview/devices/board-a/logs/logcat-1.txt?max_bytes=1048576")).toBe(true);
+  });
+
+  it("when the workspace root cannot be read, files are listed without links", async () => {
+    chat.state.turns = [user("u1", "q"), ai("a1", { content: "ok", artifacts: [`${ROOT}/devices/board-a/logs/logcat-1.txt`] })];
+    mockFetch(null);
+    render(tree());
+    expect(await screen.findByRole("button", { name: "复制 logcat-1.txt 的路径" })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("retry", () => {
+  it("a failed or stopped last reply offers retry; a finished or running one does not", () => {
+    mockFetch();
+    chat.state.turns = [user("u1", "q"), ai("a1", { status: "error", error: { code: "CONNECTION_LOST", message: "socket closed" } })];
+    const r = render(tree());
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(chat.retry).toHaveBeenCalledTimes(1);
+
+    chat.state.turns = [user("u1", "q"), ai("a1", { status: "cancelled", content: "half", error: { code: "CANCELLED", message: "x" } })];
+    r.rerender(tree());
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+
+    chat.state.isStreaming = true;
+    r.rerender(tree());
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
+
+    chat.state = { turns: [user("u1", "q"), ai("a1", { content: "fine" })], sessionId: null, isStreaming: false };
+    r.rerender(tree());
+    expect(screen.queryByRole("button", { name: "重试" })).toBeNull();
+  });
+
+  it("only the last turn offers it", () => {
+    mockFetch();
+    chat.state.turns = [
+      user("u1", "q1"),
+      ai("a1", { status: "error", error: { code: "E1", message: "old" } }),
+      user("u2", "q2"),
+      ai("a2", { status: "error", error: { code: "E2", message: "new" } }),
+    ];
+    render(tree());
+    expect(screen.getAllByRole("button", { name: "重试" }).length).toBe(1);
+  });
+});
+
+describe("Esc", () => {
+  // Same listener as layouts/AppShell: Esc on the window closes the sheet.
+  function shellEsc() {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") useShell.getState().closeSheet();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }
+
+  it("stops a reply being generated and keeps the sheet open", () => {
+    mockFetch();
+    chat.state = { turns: [user("u1", "q"), ai("a1", { status: "streaming", content: "par" })], sessionId: null, isStreaming: true };
+    useShell.setState({ sheetOpen: true });
+    const off = shellEsc();
+    render(tree());
+    fireEvent.keyDown(screen.getByLabelText("消息"), { key: "Escape" });
+    expect(chat.cancel).toHaveBeenCalledTimes(1);
+    expect(useShell.getState().sheetOpen).toBe(true);
+    // also from the Stop button, which has focus after a click
+    fireEvent.keyDown(screen.getByRole("button", { name: "停止" }), { key: "Escape" });
+    expect(chat.cancel).toHaveBeenCalledTimes(2);
+    expect(useShell.getState().sheetOpen).toBe(true);
+    off();
+  });
+
+  it("falls through to the shell when nothing is generating", () => {
+    mockFetch();
+    useShell.setState({ sheetOpen: true });
+    const off = shellEsc();
+    render(tree());
+    fireEvent.keyDown(screen.getByLabelText("消息"), { key: "Escape" });
+    expect(chat.cancel).not.toHaveBeenCalled();
+    expect(useShell.getState().sheetOpen).toBe(false);
+    off();
+  });
+
+  it("does nothing while an input method is composing", () => {
+    mockFetch();
+    chat.state.isStreaming = true;
+    render(tree());
+    fireEvent.keyDown(screen.getByLabelText("消息"), { key: "Escape", isComposing: true });
+    expect(chat.cancel).not.toHaveBeenCalled();
+  });
+});
+
+describe("tool calls", () => {
+  const LOG = Array.from({ length: 3000 }, (_, i) => `line ${i}`).join("\n");
+
+  it("compact by default; expand shows the full arguments and the whole output; JSON and copy", async () => {
+    mockFetch();
+    chat.state.turns = [
+      user("u1", "tail it"),
+      ai("a1", {
+        content: "done",
+        toolCalls: [{ id: "c1", name: "alb_log_tail", arguments: { path: "/srv/alb-ws/devices/board-a/logs/x.txt", lines: 3000, opts: { from_line: 1 } }, result: { ok: true, data: LOG, artifacts: [] }, status: "done", startedAt: 0, endedAt: 1200 }],
+      }),
+    ];
+    render(tree());
+    const head = screen.getByText(/^alb_log_tail /);
+    expect(head.textContent).toContain("lines=3000");
+    expect(screen.getByText("1.2 s")).toBeInTheDocument();
+    expect(screen.getByText("line 0")).toBeInTheDocument(); // first output line, collapsed
+    expect(screen.queryByLabelText("alb_log_tail 的输出")).toBeNull();
+
+    const toggle = screen.getByRole("button", { name: /参数和输出/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByLabelText("alb_log_tail 的参数").textContent).toContain('"opts": {\n    "from_line": 1\n  }');
+    const out = screen.getByLabelText("alb_log_tail 的输出");
+    expect(out.textContent?.length).toBe(LOG.length); // nothing cut (the old v3 card stopped at 4000 chars)
+    expect(out.textContent).toContain("line 2999");
+    expect(screen.getByText(/输出 · 3000 行/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "JSON" }));
+    expect(screen.getByLabelText("alb_log_tail 的输出").textContent).toContain('"ok": true');
+    fireEvent.click(screen.getByRole("button", { name: "文本" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "复制输出" }));
+    await waitFor(() => expect(clip.copyText).toHaveBeenCalledWith(LOG));
+    expect(await screen.findByText("已复制输出。")).toBeInTheDocument();
+  });
+
+  it("Open large shows the output as numbered lines in the log dialog; Esc closes only the dialog", () => {
+    mockFetch();
+    chat.state.turns = [user("u1", "q"), ai("a1", { content: "x", toolCalls: [{ id: "c1", name: "alb_shell", arguments: { cmd: "dmesg" }, result: { ok: true, data: { stdout: LOG, stderr: "", exit_code: 0 } }, status: "done", startedAt: 0, endedAt: 10 }] })];
+    useShell.setState({ sheetOpen: true });
+    render(tree());
+    fireEvent.click(screen.getByRole("button", { name: /放大查看/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("3000 行")).toBeInTheDocument();
+    expect(within(dialog).getByText("line 2999")).toBeInTheDocument();
+    expect(within(dialog).getByText("cmd=dmesg")).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("a failed call is marked with its error code; a running call has no output yet", () => {
+    mockFetch();
+    chat.state = {
+      turns: [
+        user("u1", "q"),
+        ai("a1", {
+          status: "streaming",
+          toolCalls: [
+            { id: "c1", name: "alb_devinfo", arguments: {}, result: { ok: false, error: { code: "DEVICE_NOT_FOUND", message: "no such device" } }, status: "done", startedAt: 0, endedAt: 5 },
+            { id: "c2", name: "alb_logcat", arguments: { duration: 5 }, status: "running", startedAt: 0 },
+          ],
+        }),
+      ],
+      sessionId: null,
+      isStreaming: true,
+    };
+    render(tree());
+    expect(screen.getByText("DEVICE_NOT_FOUND: no such device")).toBeInTheDocument();
+    expect(screen.getByText("运行中")).toBeInTheDocument();
+    const toggles = screen.getAllByRole("button", { name: /^参数/ });
+    expect(toggles.map((b) => b.textContent)).toEqual(["参数和输出", "参数"]);
+    expect(screen.getAllByRole("button", { name: /放大查看/ }).length).toBe(1);
+  });
+});
+
+describe("small things", () => {
+  it("shows the session id, short, with the full id on hover", () => {
+    mockFetch();
+    chat.state.sessionId = "20261028-aaaa1111bbbb";
+    render(tree());
+    const meta = screen.getByText(/会话 20261028…bbbb/);
+    expect(meta.getAttribute("title")).toBe("会话 20261028-aaaa1111bbbb");
+  });
+
+  it("a stopped reply looks different from a failed one", () => {
+    mockFetch();
+    chat.state.turns = [
+      user("u1", "q1"),
+      ai("a1", { status: "cancelled", content: "partial answer", error: { code: "CANCELLED", message: "已取消" } }),
+      user("u2", "q2"),
+      ai("a2", { status: "error", error: { code: "BACKEND_UNREACHABLE", message: "refused", suggestion: "start the server" } }),
+    ];
+    render(tree());
+    const stopped = screen.getByRole("status");
+    expect(stopped.className).not.toContain("banner--error");
+    expect(stopped.textContent).toContain("已停止,这次回答没有说完。");
+    expect(stopped.textContent).not.toContain("CANCELLED");
+    expect(screen.getByText("partial answer")).toBeInTheDocument();
+    const failed = screen.getByRole("alert");
+    expect(failed.className).toContain("banner--error");
+    expect(failed.textContent).toContain("BACKEND_UNREACHABLE");
+    expect(failed.textContent).toContain("提示:start the server");
+  });
+
+  it("the composer grows with its text up to a limit", () => {
+    mockFetch();
+    let h = 0;
+    const spy = vi.spyOn(HTMLTextAreaElement.prototype, "scrollHeight", "get").mockImplementation(() => h);
+    render(tree());
+    const box = screen.getByLabelText("消息") as HTMLTextAreaElement;
+    h = 96;
+    fireEvent.change(box, { target: { value: "one\ntwo\nthree" } });
+    expect(box.style.height).toBe("96px");
+    h = 900;
+    fireEvent.change(box, { target: { value: "x\n".repeat(60) } });
+    expect(box.style.height).toBe(`${COMPOSER_MAX_PX}px`);
+    h = 0; // hidden: back to the rows height
+    fireEvent.change(box, { target: { value: "" } });
+    expect(box.style.height).toBe("");
+    spy.mockRestore();
+  });
+
+  it("focus comes back to the composer when a reply finishes, unless the user moved to another field", () => {
+    mockFetch();
+    chat.state.isStreaming = true;
+    const r = render(
+      <>
+        {tree()}
+        <input aria-label="elsewhere" />
+      </>,
+    );
+    const box = screen.getByLabelText("消息");
+    (document.activeElement as HTMLElement | null)?.blur();
+    chat.state.isStreaming = false;
+    r.rerender(
+      <>
+        {tree()}
+        <input aria-label="elsewhere" />
+      </>,
+    );
+    expect(document.activeElement).toBe(box);
+
+    chat.state.isStreaming = true;
+    r.rerender(
+      <>
+        {tree()}
+        <input aria-label="elsewhere" />
+      </>,
+    );
+    screen.getByLabelText("elsewhere").focus();
+    chat.state.isStreaming = false;
+    r.rerender(
+      <>
+        {tree()}
+        <input aria-label="elsewhere" />
+      </>,
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText("elsewhere"));
+  });
+
+  it("sending keeps focus in the box so Esc can stop the reply", () => {
+    mockFetch();
+    render(tree());
+    const box = screen.getByLabelText("消息");
+    fireEvent.change(box, { target: { value: "why?" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    expect(chat.send).toHaveBeenCalledWith("why?");
+    expect(document.activeElement).toBe(box);
+  });
+});
+
+describe("ask before each tool call", () => {
+  it("a held tool call shows its name and arguments; Run and Skip answer it", () => {
+    chat.state = { ...chat.state, isStreaming: true, confirmRequest: { id: "q1", name: "alb_reboot", arguments: { mode: "normal" } } };
+    render(tree());
+    const card = screen.getByRole("alertdialog");
+    expect(card.textContent).toContain("alb_reboot");
+    expect(card.textContent).toContain('"mode": "normal"');
+    fireEvent.click(within(card).getByRole("button", { name: "执行" }));
+    expect(chat.answerConfirm).toHaveBeenCalledWith(true);
+    fireEvent.click(within(card).getByRole("button", { name: "不执行" }));
+    expect(chat.answerConfirm).toHaveBeenLastCalledWith(false);
+  });
+
+  it("the switch is off by default and only usable in agent mode", () => {
+    useShell.setState({ confirmTools: false, agentMode: false });
+    const { unmount } = render(<ConfirmToolsSwitch />);
+    const box = screen.getByRole("checkbox", { name: "调工具前先问我" }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    expect(box.disabled).toBe(true);
+    unmount();
+    useShell.setState({ agentMode: true });
+    render(<ConfirmToolsSwitch />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "调工具前先问我" }));
+    expect(useShell.getState().confirmTools).toBe(true);
+  });
+});
+
+describe("streamed answers (2026-11-03)", () => {
+  it("answers render as Markdown; what the model said before a call sits above that call", () => {
+    chat.state.turns = [
+      user("u1", "hello"),
+      ai("a1", {
+        content: "设备在线:\n\n- **型号**:A\n- **状态**:device",
+        toolCalls: [
+          { id: "c1", name: "alb_devices", requestedName: "alb_devalb_devices", lead: "我先查一下设备", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 },
+        ],
+      }),
+    ];
+    const { container } = render(tree());
+    const lead = container.querySelector(".msg--lead");
+    expect(lead?.textContent).toBe("我先查一下设备");
+    // the lead comes before the tool card in the page
+    const card = container.querySelector(".tool");
+    expect(lead && card && lead.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelectorAll(".msg--ai ul li strong")).toHaveLength(2);
+    expect(container.textContent).not.toContain("**");
+    expect(screen.getByText("alb_devalb_devices")).toBeTruthy();
+  });
+
+  it("a call whose result the model read cut says so on the card (2026-11-06)", () => {
+    chat.state.turns = [
+      user("u1", "有崩溃吗"),
+      ai("a1", {
+        content: "没有崩溃",
+        toolCalls: [
+          { id: "c1", name: "alb_logcat", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5, cut: { kept: 4000, total: 22512 } },
+          { id: "c2", name: "alb_battery", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 },
+        ],
+      }),
+    ];
+    const { container } = render(tree());
+    const notes = container.querySelectorAll(".tool__cut");
+    expect(notes).toHaveLength(1); // only the cut one
+    expect(notes[0]?.textContent).toContain("模型只看到这份输出的 4000 / 22512 字符");
+    expect(notes[0]?.textContent).toContain("下面「参数和输出」里是全文");
+  });
+
+  it("after the tools ran, it says it is thinking until the answer starts", () => {
+    const call = { id: "c1", name: "alb_status", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 };
+    chat.state.turns = [user("u1", "q"), ai("a1", { status: "streaming", toolCalls: [call] })];
+    const r = render(tree());
+    expect(screen.getByText("思考中…")).toBeTruthy();
+    chat.state.turns = [user("u1", "q"), ai("a1", { status: "streaming", content: "好", toolCalls: [call] })];
+    r.rerender(tree());
+    expect(screen.queryByText("思考中…")).toBeNull();
+    // still running a tool: the card's own spinner says so, no second one
+    chat.state.turns = [user("u1", "q"), ai("a1", { status: "streaming", toolCalls: [{ ...call, status: "running", result: undefined, endedAt: undefined }] })];
+    r.rerender(tree());
+    expect(screen.queryByText("思考中…")).toBeNull();
+  });
+});
+
+
+describe("reading settings: sheet width and text size (2026-11-03)", () => {
+  function sheet() {
+    useShell.setState({ sheetOpen: true, sheetWidth: 400, chatFontPx: 14 });
+    return render(
+      <QueryClientProvider client={qc}>
+        <AssistantProvider>
+          <AssistantSheet onOpenFull={() => {}} />
+          <SnackbarHost />
+        </AssistantProvider>
+      </QueryClientProvider>,
+    );
+  }
+  const cssVar = (name: string) => document.documentElement.style.getPropertyValue(name);
+
+  it("A+ / A− change the conversation text size, within 12–22 px", () => {
+    sheet();
+    expect(cssVar("--alb-chat-font")).toBe("14px");
+    fireEvent.click(screen.getByRole("button", { name: "放大字体" }));
+    expect(useShell.getState().chatFontPx).toBe(15);
+    expect(cssVar("--alb-chat-font")).toBe("15px");
+    for (let i = 0; i < 20; i++) fireEvent.click(screen.getByRole("button", { name: "放大字体" }));
+    expect(useShell.getState().chatFontPx).toBe(22);
+    expect(screen.getByRole("button", { name: "放大字体" })).toHaveProperty("disabled", true);
+    for (let i = 0; i < 20; i++) fireEvent.click(screen.getByRole("button", { name: "缩小字体" }));
+    expect(useShell.getState().chatFontPx).toBe(12);
+    expect(screen.getByRole("button", { name: "缩小字体" })).toHaveProperty("disabled", true);
+  });
+
+  it("dragging the left edge left makes the sheet wider; the page keeps 480 px", () => {
+    sheet();
+    const edge = screen.getByRole("separator", { name: /拖动调整助手宽度/ });
+    fireEvent.pointerDown(edge, { button: 0, clientX: 600, pointerId: 1 });
+    fireEvent.pointerMove(edge, { clientX: 540, pointerId: 1 });
+    expect(useShell.getState().sheetWidth).toBe(460);
+    expect(cssVar("--alb-sheet-w")).toBe("460px");
+    // jsdom's window is 1024 wide: at most 1024 - 480 = 544
+    fireEvent.pointerMove(edge, { clientX: 100, pointerId: 1 });
+    expect(useShell.getState().sheetWidth).toBe(544);
+    fireEvent.pointerUp(edge, { pointerId: 1 });
+    // after letting go, moving does nothing
+    fireEvent.pointerMove(edge, { clientX: 900, pointerId: 1 });
+    expect(useShell.getState().sheetWidth).toBe(544);
+    expect(document.body.classList.contains("is-resizing")).toBe(false);
+  });
+
+  it("the edge works from the keyboard and double-click restores 400 px", () => {
+    sheet();
+    const edge = screen.getByRole("separator", { name: /拖动调整助手宽度/ });
+    fireEvent.keyDown(edge, { key: "ArrowLeft" });
+    expect(useShell.getState().sheetWidth).toBe(432);
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(edge, { key: "ArrowRight" });
+    expect(useShell.getState().sheetWidth).toBe(320);
+    fireEvent.doubleClick(edge);
+    expect(useShell.getState().sheetWidth).toBe(400);
+  });
+
+  it("both settings are kept for the next visit", () => {
+    sheet();
+    fireEvent.click(screen.getByRole("button", { name: "放大字体" }));
+    fireEvent.keyDown(screen.getByRole("separator", { name: /拖动调整助手宽度/ }), { key: "ArrowLeft" });
+    const saved = JSON.parse(localStorage.getItem("alb.shell") ?? "{}");
+    expect(saved.state).toMatchObject({ chatFontPx: 15, sheetWidth: 432 });
+  });
+
+  it("a stored value out of range is clamped when applied", () => {
+    useShell.setState({ sheetOpen: true, sheetWidth: 99999, chatFontPx: 3 });
+    render(
+      <QueryClientProvider client={qc}>
+        <AssistantProvider>
+          <span />
+        </AssistantProvider>
+      </QueryClientProvider>,
+    );
+    expect(cssVar("--alb-sheet-w")).toBe("960px");
+    expect(cssVar("--alb-chat-font")).toBe("12px");
+  });
+});
+
+describe("the board the model is told about", () => {
+  it("is the board selected in the page, and follows a change", () => {
+    // 2026-11-05: without it the model spent two tool calls finding the serial.
+    mockFetch();
+    render(tree());
+    expect(chat.args.at(-1)).toMatchObject({ device: "board-a" });
+    act(() => useApp.setState({ device: "board-b" }));
+    expect(chat.args.at(-1)).toMatchObject({ device: "board-b" });
+  });
+});

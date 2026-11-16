@@ -1,0 +1,133 @@
+# alb device agent config.
+# Copy this file to agent.conf (same folder), fill in hub_url + token,
+# then double-click run-agent.bat.
+#
+# Format: one KEY=VALUE per line. No quotes needed. Comments only on their
+# own line — a '#' inside a value is kept as-is. Command-line flags override
+# anything set here.
+
+# The hub's signaling endpoint. ws:// on a trusted LAN; wss:// when TLS is
+# terminated at a reverse proxy in front of the hub.
+#   ws://<hub-ip>:8765/agent/connect
+#   wss://hub.example.com/agent/connect
+hub_url=ws://<hub-ip>:8765/agent/connect
+
+# Must match ALB_AGENT_TOKEN on the hub. Stick to letters/digits/_/- so the
+# same value pastes cleanly into the hub's hub.env too.
+# Generate one:  openssl rand -hex 16
+token=change-me
+
+# Label shown in the hub's Connection Center.
+name=bench-01
+
+# Stable agent identity. Generate once and keep it — without it the hub sees
+# a brand-new agent after every restart. Any unique string works.
+#agent_id=
+
+# Local status page (http://127.0.0.1:<port>). 0 disables. Default 8731.
+#status_port=8731
+
+# Status page bind host. Keep the default 127.0.0.1 — anything else exposes
+# the page beyond this machine.
+#status_host=127.0.0.1
+
+# Run log: every run appends here (rotates at ~5 MB, keeps 3 old files) so
+# problems can be analyzed after the console window is closed. Relative
+# paths are resolved next to this script. Set to none to disable.
+log_file=logs/agent.log
+
+# ── fastboot / flashing (optional) ────────────────────────────────────
+# Path to fastboot on THIS machine. Leave unset to use whatever is on PATH;
+# leave it unresolvable and this agent simply does not advertise the
+# `fastboot` capability — the hub then answers "this bench cannot flash"
+# immediately instead of letting a caller discover it by timing out.
+#   fastboot_path=D:\platform-tools\fastboot.exe
+#fastboot_path=
+
+# Which partitions may be written is not set here (ADR-070): a package's
+# own manifest says which partitions it writes and with which file
+# (`alb flash plan --only`), and partition names are only shape-checked
+# (no separators, no spaces, no leading dash — the name becomes an argv
+# element). flash_partitions / flash_partitions.<board> lines from older
+# configs are still read, ignored, and named in the start-up log.
+#
+# Which board is on the cable: fastboot_product.<board> is what
+# `fastboot getvar product` answers on that board (board names are the
+# hub's board table names, `alb bench board`). Once any board has one,
+# every write first asks the device, and is refused — nothing written —
+# when no board is chosen on the hub, when the chosen board has no
+# product here (FLASH_BOARD_NOT_LISTED), or when the answer differs
+# (FLASH_BOARD_MISMATCH). So give EVERY board on this host its product.
+#   fastboot_product.board-a=board_a_product
+#   fastboot_product.board-b=board_b_product
+
+# ── Qualcomm 9008 / EDL flashing (optional, ADR-066) ──────────────────
+# For boards that only take an image in Qualcomm's emergency download mode
+# (USB 05c6:9008, "Qualcomm HS-USB QDLoader 9008 (COMnn)"). Set all three
+# and the agent offers edl-sahara / edl-program / edl-reset; set some and it
+# logs which one is missing and offers none.
+#   edl_sahara   — QSaharaServer.exe (loads the firehose programmer)
+#   edl_firehose — fh_loader.exe     (writes what the XML lists, resets)
+#   edl_root     — the directory the unpacked factory packages sit under.
+#                  The hub names a package by its directory RELATIVE to this
+#                  root (`dir=<package>\<subdir>`); anything that resolves
+#                  outside it is refused. Any package under it can be used.
+# The 9008 COM port is found from the USB device list; never set here.
+# Suggested layout: one directory per board, named as in the hub's board
+# table, holding everything that board's flashing needs. The root is not
+# named after one vendor's mode: other vendors' tools go under it too.
+#   D:\flash\board-a\tools\       vendor tools, plus a note of where they came from
+#   D:\flash\board-a\packages\    unpacked packages, one directory each, original names
+#   D:\flash\board-a\drivers\     driver installers, for a reinstall
+#   D:\flash\board-a\README.txt    how to enter the mode, which XML to use
+# The three keys are one set for the whole host and cannot be set per board:
+# with one kind of 9008 board on the host, point them at that board's directory.
+#   edl_sahara=D:\flash\board-a\tools\QSaharaServer.exe
+#   edl_firehose=D:\flash\board-a\tools\fh_loader.exe
+#   edl_root=D:\flash\board-a\packages
+#edl_sahara=
+#edl_firehose=
+#edl_root=
+
+# ── Other vendors' download-mode tools (optional, ADR-068) ────────────
+# Register a vendor's command-line flashing tool under a name of your choice
+# and the hub can run it with the tool's OWN arguments:
+#   alb flash tool <name> --pkg <package dir> -- <the tool's arguments>
+# Only tools registered here can run; the hub never names a program or a
+# path. Before running, the agent refuses any argument holding a drive path
+# (X:\ or X:/), a network path (\\server, //server), a path from the drive
+# root (\x) or '..' — name files relative to the package (the tool runs in
+# it) or write {pkg}. {com} becomes the COM port of the tool_usb device.
+# `alb flash tools` lists what is registered, with the usage text below.
+#
+# Name rule: 1-32 of a-z 0-9 _ -, starting with a letter or digit.
+#   tool_exe.<name>     REQUIRED. Absolute path of the tool's .exe.
+#   tool_root.<name>    REQUIRED. Packages sit in directories under it; the
+#                       hub names one by its path relative to this root.
+#   tool_cwd.<name>     package (default): run in the package directory, as
+#                       you would by hand; job: in a fresh scratch directory.
+#   tool_timeout.<name> seconds, 1-1700, default 1500. The tool and every
+#                       process it started are ended after this.
+#   tool_ok.<name>      regex; a line must match it for the run to count as a
+#                       success. Without it only the exit code is looked at,
+#                       and the result says so — some tools exit 0 on failure.
+#   tool_fail.<name>    regex; a matching line makes the run a failure, even
+#                       with exit code 0.
+#   tool_note.<name>    regex; matching lines are listed in the result
+#                       (e.g. one line per partition written).
+#   tool_usb.<name>     VID:PID, comma-separated. Checked before running: the
+#                       board must be attached in that mode. Needed for {com}.
+#   tool_usage.<name>   notes shown by `alb flash tools`: how to enter the mode,
+#                       which arguments to give. Repeat the line for more lines.
+# Files the tool writes into its working directory (its own logs) come back
+# to the hub next to the job's record. A missing tool_exe or tool_root file
+# is logged at start-up and that tool is not offered; a malformed line stops
+# the agent from starting.
+#
+# Example — fastboot registered as a pass-through tool, to compare with the
+# built-in fastboot ops:
+#   tool_exe.fb=D:\platform-tools\fastboot.exe
+#   tool_root.fb=D:\flash\board-a\packages
+#   tool_fail.fb=FAILED
+#   tool_usage.fb=board in fastboot first: alb power reboot fastboot
+#   tool_usage.fb=e.g. alb flash tool fb --pkg v12 -- flash boot boot.img
