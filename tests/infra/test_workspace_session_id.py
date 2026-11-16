@@ -16,6 +16,7 @@ import pytest
 from devicehands.infra.workspace import (
     InvalidDeviceSerial,
     InvalidSessionId,
+    device_dir_name,
     session_path,
     workspace_path,
 )
@@ -124,7 +125,10 @@ def test_workspace_path_accepts_real_world_devices(
 ) -> None:
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     p = workspace_path("logs", "x.txt", device=good_device)
-    assert (tmp_path / "devices" / good_device / "logs" / "x.txt") == p
+    # The directory name is the serial made safe for Windows file names
+    # (':' -> '+'); every other serial here maps to itself.
+    assert (tmp_path / "devices" / device_dir_name(good_device) / "logs" / "x.txt") == p
+    assert (device_dir_name(good_device) == good_device) == (":" not in good_device)
     assert p.parent.is_dir()
 
 

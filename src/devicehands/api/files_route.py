@@ -62,7 +62,7 @@ from fastapi.responses import FileResponse
 from devicehands.api.schema import API_VERSION
 from devicehands.capabilities.filesync import pull as filesync_pull
 from devicehands.capabilities.filesync import push as filesync_push
-from devicehands.infra.workspace import iso_timestamp, workspace_root
+from devicehands.infra.workspace import device_dir, is_safe_device, iso_timestamp, workspace_root
 from devicehands.transport.factory import build_transport
 from devicehands.transport.base import TransferEvent
 
@@ -883,10 +883,14 @@ async def _run_transfer_stream(
                     return
                 local_abs.parent.mkdir(parents=True, exist_ok=True)
             else:
+                if not is_safe_device(serial):
+                    cs.reason = "bad_config"
+                    cs.error = "invalid device serial"
+                    return
                 root = workspace_root().resolve()
                 base = remote.rstrip("/").rsplit("/", 1)[-1] or "pull"
                 local_abs = (
-                    root / "devices" / serial / "pulls"
+                    device_dir(root, serial) / "pulls"
                     / f"{base}-{iso_timestamp()}"
                 )
                 local_abs.parent.mkdir(parents=True, exist_ok=True)

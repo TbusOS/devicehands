@@ -33,8 +33,11 @@ from typing import Any
 
 from devicehands.cli._probes import check_binary, check_tcp_listen
 from devicehands.infra import host_deps
+from devicehands.infra import workspace as workspace_mod
 from devicehands.infra.adb_endpoint import resolve_endpoint
 from devicehands.infra.config import global_config_path, load_active, load_config
+from devicehands.infra.dirs import data_dir
+from devicehands.infra.workspace import workspace_root
 from devicehands.transport.adb import AdbTransport
 from devicehands.transport.serial import SerialTransport
 
@@ -111,6 +114,12 @@ def probe_binaries() -> Layer:
 def probe_config() -> Layer:
     layer = Layer("config")
     path = global_config_path()
+    # Which directories this run uses — the first question when "my settings
+    # are ignored" or "where did the capture go". Information only (ok).
+    via_env = " (from DHANDS_CONFIG)" if os.environ.get("DHANDS_CONFIG") else ""
+    layer.add("config dir", "ok", f"{path.parent}{via_env}")
+    layer.add("data dir", "ok", str(data_dir()))
+    layer.add("workspace", "ok", f"{workspace_root()} ({_workspace_source()})")
     if path.exists():
         layer.add("global config", "ok", str(path))
     else:
@@ -127,6 +136,15 @@ def probe_config() -> Layer:
     except Exception as e:  # noqa: BLE001 — surface bad config as err finding
         layer.add("profile", "err", f"load failed: {e}")
     return layer
+
+
+def _workspace_source() -> str:
+    """Which rule of workspace_root() gave the answer."""
+    if os.environ.get("DHANDS_WORKSPACE"):
+        return "from DHANDS_WORKSPACE"
+    if workspace_mod._configured_root() is not None:
+        return "from config.toml [workspace] root"
+    return "default, under the data dir"
 
 
 def probe_ssh() -> Layer:

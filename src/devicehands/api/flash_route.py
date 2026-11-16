@@ -363,14 +363,15 @@ _JOB_ID_RE = re.compile(
 
 
 def _job_roots() -> list[tuple[str | None, Path]]:
-    from devicehands.infra.workspace import workspace_root
+    from devicehands.infra.workspace import device_from_dir_name, workspace_root
 
     root = workspace_root()
     roots: list[tuple[str | None, Path]] = [(None, root / "flash")]
     try:
         for d in sorted((root / "devices").iterdir()):
-            if d.is_dir() and not d.is_symlink():
-                roots.append((d.name, d / "flash"))
+            device = device_from_dir_name(d.name)
+            if device and d.is_dir() and not d.is_symlink():
+                roots.append((device, d / "flash"))
     except OSError:
         pass
     return roots
@@ -453,11 +454,13 @@ def _list_jobs_sync(limit: int) -> list[dict[str, Any]]:
 
 
 def _job_detail_sync(job_id: str) -> dict[str, Any] | None:
-    from devicehands.infra.workspace import workspace_root
+    from devicehands.infra.workspace import device_dir, is_safe_device, workspace_root
 
     device, sep, name = job_id.rpartition("~")
+    if sep and not is_safe_device(device):
+        return None
     root = workspace_root()
-    base = root / "devices" / device / "flash" if sep else root / "flash"
+    base = device_dir(root, device) / "flash" if sep else root / "flash"
     path = base / name
     if path.is_symlink() or not path.is_dir() or not _JOB_DIR_RE.match(name):
         return None

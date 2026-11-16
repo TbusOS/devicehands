@@ -54,7 +54,7 @@ from devicehands.capabilities.timeline import (
 )
 from devicehands.capabilities.timeline_view import density, line_view
 from devicehands.infra.result import Result, envelope_dict, envelope_transport_init_error
-from devicehands.infra.workspace import is_safe_device, iso_timestamp, workspace_root
+from devicehands.infra.workspace import device_dir, is_safe_device, iso_timestamp, workspace_root
 from devicehands.remote.flash_timeline import JOB_DIR_RE
 from devicehands.transport.factory import build_transport
 
@@ -84,12 +84,12 @@ def _check_device(device: str | None) -> None:
 
 def _timeline_dir(device: str | None) -> Path:
     root = workspace_root()
-    return root / "devices" / device / "timeline" if device else root / "timeline"
+    return device_dir(root, device) / "timeline" if device else root / "timeline"
 
 
 def _flash_dir(device: str | None) -> Path:
     root = workspace_root()
-    return root / "devices" / device / "flash" if device else root / "flash"
+    return device_dir(root, device) / "flash" if device else root / "flash"
 
 
 def _check_name(name: str) -> None:

@@ -34,7 +34,13 @@ PURGE_WORKSPACE=0
 REMOVE_UV=0
 REMOVE_UV_PYTHON=0
 REMOVE_HOST_TOOLS=0
-DHANDS_DATA="${HOME}/.local/share/alb"
+# Same place as devicehands.infra.dirs.tools_dir() (platformdirs' user data
+# dir + /tools). Only this directory is removed by --remove-host-tools; the
+# workspace next to it is not.
+case "$(uname -s)" in
+    Darwin) DHANDS_DATA="${HOME}/Library/Application Support/devicehands/tools" ;;
+    *)      DHANDS_DATA="${XDG_DATA_HOME:-${HOME}/.local/share}/devicehands/tools" ;;
+esac
 
 usage() {
     cat <<USAGE
@@ -60,7 +66,7 @@ Options:
                        uv-managed Python installations).
                        ${YELLOW}⚠ Only if you won't use uv again.${NC}
   --remove-host-tools  Delete what 'dhands setup deps --install' put in your home:
-                       ~/.local/share/alb/ (Platform-Tools, mksh) and the links
+                       ${DHANDS_DATA}/ (Platform-Tools, mksh) and the links
                        in ~/.local/bin that point into it. web/node_modules and
                        Playwright's browsers (~/.cache/ms-playwright, shared with
                        other projects) are left alone.
@@ -182,7 +188,7 @@ fi
 
 # ─── Step 6 · tools 'dhands setup deps --install' fetched (optional) ─
 if [[ ${REMOVE_HOST_TOOLS} -eq 1 ]]; then
-    # Only links that point into ~/.local/share/alb are ours; anything else
+    # Only links that point into ${DHANDS_DATA} are ours; anything else
     # in ~/.local/bin with the same name belongs to the user.
     for link in "${HOME}/.local/bin/"*; do
         if [[ -L "${link}" && "$(readlink "${link}")" == "${DHANDS_DATA}/"* ]]; then

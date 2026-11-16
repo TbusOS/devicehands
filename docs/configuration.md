@@ -39,7 +39,7 @@ Windows 台架主机
 |---|---|---|---|---|
 | 进程的环境变量 | 读 | 读(只有 MCP 客户端配置里给的) | 读 | 只读 `ALB_AGENT_LAUNCHER`;`run-agent.bat` 另读 `ALB_AGENT_NO_PAUSE` |
 | `.env.local` / `.env` | 读 | **不读** | 读 | 不读 |
-| `~/.config/alb/config.toml` | 读 | 读 | 读 | 不读 |
+| `<配置目录>/config.toml`(见 9.1) | 读 | 读 | 读 | 不读 |
 | `<workspace>/profiles/<name>.toml` | 读 | 读 | 读 | 不读 |
 | `deploy/hub/hub.env` | 不读 | 不读 | 由 `run-hub.sh` 导入环境变量 | 不读 |
 | `boards.toml`(`DHANDS_BENCH_BOARDS` 指向它) | 不读 | 不读 | 读 | 不读 |
@@ -71,7 +71,7 @@ Windows 台架主机
 两个容易踩的地方:
 
 - `run-hub.sh` 用 `set -a` 把 `hub.env` 导入成环境变量,所以 `hub.env` 里的值赢过 `.env.local`。
-- `.env.local` 先在当前目录找,找不到再到代码仓库根目录找;同名文件只读找到的第一个(`env_loader.py` 的 `_default_roots`)。
+- `.env.local` 先在当前目录找,找不到再到代码仓库根目录找;同名文件只读找到的第一个(`env_loader.py` 的 `_default_roots`)。在别的程序的目录里运行 `dhands`,会把那里的 `.env.local` 读进环境变量;其中只有 `DHANDS_` 开头的变量和[附表](#附不以-dhands_-开头但会影响-dhands-的变量)里的几个对 dhands 起作用。
 
 ---
 
@@ -160,7 +160,7 @@ hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:8777` 开串口转�
 板子插在跑 dhands 的这台机器上:装好 adb 就能用,不用配。
 
 - adb 不在 PATH 上:设 `DHANDS_ADB_PATH=/path/to/adb`,或写 `[transport.adb] bin_path`。`DHANDS_ADB_PATH` 赢(`src/devicehands/infra/config.py`)。
-- 没有 adb:`dhands setup deps --install` 下载 Android Platform-Tools,装到 `~/.local/share/alb`,不需要 root。内网下载不了 Google 的地址时,设 `DHANDS_PLATFORM_TOOLS_URL=<zip 地址>` 换成镜像(`src/devicehands/infra/host_deps.py`)。
+- 没有 adb:`dhands setup deps --install` 下载 Android Platform-Tools,装到 `<数据目录>/tools`(Linux 上是 `~/.local/share/devicehands/tools`,见 9.1),不需要 root。内网下载不了 Google 的地址时,设 `DHANDS_PLATFORM_TOOLS_URL=<zip 地址>` 换成镜像(`src/devicehands/infra/host_deps.py`)。
 - 多台设备时用 `--device <序列号>` 选。profile 里的 `[[devices]]` 列表**不**用来选 adb 设备。
 
 ### 3.2 远程 adb server
@@ -360,11 +360,13 @@ hub 那边和 agent 有关的变量(`DHANDS_AGENT_TOKEN`、`DHANDS_AGENT_SERIAL_
 
 | 变量 | 作用 | 默认值 | 谁读 | 代码 |
 |---|---|---|---|---|
-| `DHANDS_WORKSPACE` | 工作目录:日志、截图、会话、profile、`bench/board.json` 都放这里 | 当前目录下有 `workspace/` 就用它,否则 `~/.alb-workspace` | CLI / MCP / hub | `src/devicehands/infra/workspace.py` |
+| `DHANDS_WORKSPACE` | 工作目录:日志、截图、会话、profile、`bench/board.json` 都放这里 | config.toml 的 `[workspace] root`;也没写时是 `<数据目录>/workspace` | CLI / MCP / hub | `src/devicehands/infra/workspace.py` |
 | `DHANDS_LOG_LEVEL` | hub 的日志级别 | `INFO` | hub | `src/devicehands/api/log_setup.py` |
 
-- 不设 `DHANDS_WORKSPACE` 时,工作目录跟着**进程的当前目录**变。在不同目录下运行 `dhands`,会用到不同的工作目录,profile 也跟着变(profile 在 `<workspace>/profiles/` 下)。`dhands-mcp` 的当前目录由启动它的 MCP 客户端决定。要固定就设 `DHANDS_WORKSPACE`。
-- config.toml 的 `[workspace] root` **无效**:能解析,但决定工作目录的函数只看 `DHANDS_WORKSPACE`。
+- 工作目录按这个顺序定,第一个有值的生效(`workspace_root`):`DHANDS_WORKSPACE` > config.toml 的 `[workspace] root` > `<数据目录>/workspace`。
+- **不看进程的当前目录。** 以前当前目录下有 `workspace/` 就用它,在不同目录下运行会用到不同的工作目录;现在不会。仓库里的 `workspace/` 目录只在设了 `DHANDS_WORKSPACE` 指向它时才用。
+- `[workspace] root` 写相对路径时,相对 config.toml 所在的目录。
+- 设备的子目录名由序列号得出,`:` 换成 `+`(无线 adb 的 `192.0.2.10:5555` → `devices/192.0.2.10+5555/`),Windows 保留的名字(`COM5`、`NUL` 等)和以 `.` 结尾的名字前后各加一个 `+`(`COM5` → `+COM5+`)。合法序列号里没有 `+`,所以不同序列号不会撞名,也能反推回序列号(`src/devicehands/infra/workspace.py` 的 `device_dir_name`)。
 - Windows agent 的日志由 agent.conf 的 `log_file` 决定,见 6.1。
 
 ---
@@ -373,12 +375,22 @@ hub 那边和 agent 有关的变量(`DHANDS_AGENT_TOKEN`、`DHANDS_AGENT_SERIAL_
 
 ### 9.1 config.toml
 
-位置:`DHANDS_CONFIG` 指定的路径;没设时是 `$XDG_CONFIG_HOME/alb/config.toml`;`XDG_CONFIG_HOME` 也没设时是 `~/.config/alb/config.toml`。代码:`src/devicehands/infra/config.py`。
+位置:`DHANDS_CONFIG` 指定的路径;没设时是 `<配置目录>/config.toml`。代码:`src/devicehands/infra/config.py`。
+
+配置目录和数据目录由 `platformdirs` 按各系统的惯例给出(`src/devicehands/infra/dirs.py`),`dhands doctor` 的 config 一层会列出这次用的是哪两个目录:
+
+| 系统 | 配置目录 | 数据目录 |
+|---|---|---|
+| Linux | `$XDG_CONFIG_HOME/devicehands`,没设时 `~/.config/devicehands` | `$XDG_DATA_HOME/devicehands`,没设时 `~/.local/share/devicehands` |
+| macOS | `~/Library/Application Support/devicehands` | 同左 |
+| Windows | `%LOCALAPPDATA%\devicehands` | 同左 |
+
+数据目录下:`workspace/` 是默认工作目录(见第八节),`tools/` 放 `dhands setup deps --install` 下载的 adb、fastboot、mksh。dhands 不读也不改旧程序的配置和数据目录,两者可以装在同一台电脑上。
 
 | 位置 | 键 | 作用 | 默认值 |
 |---|---|---|---|
 | 顶层 | `default_profile` | 没设 `DHANDS_PROFILE` 时用哪个 profile | `default` |
-| `[workspace]` | `root` | **无效** | |
+| `[workspace]` | `root` | 工作目录,`DHANDS_WORKSPACE` 优先;相对路径相对 config.toml 所在目录,见第八节 | `<数据目录>/workspace` |
 | `[transport.adb]` | `bin_path` | adb 程序路径,`DHANDS_ADB_PATH` 优先 | `adb` |
 | `[transport.adb]` | `server_socket` | adb server 地址,优先级最高,见 3.4 | 不设 |
 | `[transport.ssh]` | `default_user` / `default_port` / `key_path` / `known_hosts` / `connect_timeout` | 见第四节 | `root` / 22 / 不设 / 不设 / 15 |
@@ -487,6 +499,6 @@ note = "左边排针上的调试串口"
 | 变量 | 作用 | 代码 |
 |---|---|---|
 | `ADB_SERVER_SOCKET` | adb 自己的变量,指定 adb server 地址,见 3.4 | `src/devicehands/infra/adb_endpoint.py`、`src/devicehands/transport/adb.py` |
-| `XDG_CONFIG_HOME` | config.toml 的默认目录,见 9.1 | `src/devicehands/infra/config.py` |
+| `XDG_CONFIG_HOME` / `XDG_DATA_HOME` | Linux 上配置目录和数据目录的上一级,见 9.1 | `src/devicehands/infra/dirs.py`(经 `platformdirs`) |
 | `ANTHROPIC_API_KEY` | `DHANDS_ANTHROPIC_KEY` 没设时用它 | `src/devicehands/agent/backends/__init__.py`、`src/devicehands/cli/chat_cli.py` |
 | `OPENAI_API_KEY` | `DHANDS_OPENAI_COMPAT_KEY` 没设时 `dhands chat` 用它 | `src/devicehands/cli/chat_cli.py` |

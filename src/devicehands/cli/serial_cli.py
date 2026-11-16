@@ -19,6 +19,7 @@ from devicehands.capabilities.breakin import (
 from devicehands.capabilities.logging import capture_uart
 from devicehands.capabilities.shell import execute as shell_execute
 from devicehands.cli.common import get_transport, print_result, print_shell_result, run_async
+from devicehands.infra.config import global_config_path
 from devicehands.transport.serial import SerialTransport
 
 app = typer.Typer(help="UART / serial commands (method G).")
@@ -363,7 +364,7 @@ def cmd_learn(
 
     console.print(Panel(
         Syntax(learned.toml_snippet, "toml"),
-        title="copy into ~/.config/alb/config.toml",
+        title=f"copy into {global_config_path()}",
         border_style="green",
     ))
 
@@ -528,7 +529,7 @@ def cmd_probe(
         console.print(Panel(
             f"Recommended baud: [bold green]{best.baud:,}[/bold green] "
             f"(state={best.state.value}, ascii={best.ascii_density*100:.1f}%)\n\n"
-            "Update ~/.config/alb/config.toml:\n"
+            f"Update {global_config_path()}:\n"
             "  [transport.serial]\n"
             f"  default_baud = {best.baud}",
             title="result",

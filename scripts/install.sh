@@ -67,7 +67,8 @@ What this script does (nothing outside your home directory):
   4. Run 'uv sync' in the project repo to create .venv/ with all deps.
   5. Run a pytest smoke test (tests/test_smoke.py).
   6. Check the outside tools pip cannot install ('dhands setup deps --install'):
-     adb / fastboot are downloaded into ~/.local/share/alb and linked into
+     adb / fastboot are downloaded into the devicehands data dir
+     (Linux: ~/.local/share/devicehands/tools) and linked into
      ~/.local/bin when missing; tools that need sudo (ssh, rsync, picocom,
      socat) or another machine (Ollama) are listed with how to install them.
   7. Print next-step hints.

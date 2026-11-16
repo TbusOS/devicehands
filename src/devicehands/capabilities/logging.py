@@ -22,6 +22,7 @@ from devicehands.infra.hub_serial import hub_serial_open_failure
 from devicehands.infra.result import ErrorInfo, Result, fail, ok
 from devicehands.infra.workspace import (
     InvalidDeviceSerial,
+    device_dir,
     is_safe_device,
     iso_timestamp,
     resolve_capture_path,
@@ -932,7 +933,7 @@ def _resolve_search_targets(path: Path | None, device: str | None) -> list[Path]
                 f"invalid device {device!r}: must match [A-Za-z0-9._:-]{{1,64}} "
                 f"with alnum leading char (rejected to prevent path traversal)"
             )
-        base = root / "devices" / device
+        base = device_dir(root, device)
         return sorted(_log_files(base / "logs") + _log_files(base / "timeline"))
     # No device: every board, plus what was recorded with no adb device at
     # all (a serial-only board) — those land in logs/ and timeline/ at the

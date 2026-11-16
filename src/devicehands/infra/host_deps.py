@@ -23,7 +23,8 @@ Tiers:
 
 Rules every installer keeps:
   * no sudo, nothing written outside the user's home: files go under
-    ``~/.local/share/alb``, links into ``~/.local/bin``;
+    ``tools/`` in the per-user data directory (infra.dirs.tools_dir, e.g.
+    ``~/.local/share/devicehands/tools`` on Linux), links into ``~/.local/bin``;
   * never put a second adb in front of one already on PATH — an adb
     client of another version asks the adb server it reaches to restart,
     and behind a tunnel that server belongs to someone else;
@@ -45,6 +46,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from devicehands.infra.config import load_config
+from devicehands.infra.dirs import APP_NAME, tools_dir
 
 Tier = Literal["required", "optional", "dev", "dev-optional"]
 Status = Literal["ok", "installed", "missing", "failed"]
@@ -91,10 +93,17 @@ class HostEnv:
     confirm: Callable[[str], bool] = field(default=lambda _q: False)
     platform_tools_zip: Path | None = None
     log: Callable[[str], None] = field(default=lambda _m: None)
+    # Where downloaded tools go. default_env() sets infra.dirs.tools_dir();
+    # left None (tests), it is the Linux layout under `home`, so a test that
+    # passes a scratch home never touches the real data directory.
+    tools_root: Path | None = None
 
     @property
     def data_dir(self) -> Path:
-        return self.home / ".local" / "share" / "alb"
+        """Directory this module installs tools into (and owns)."""
+        if self.tools_root is not None:
+            return self.tools_root
+        return self.home / ".local" / "share" / APP_NAME / "tools"
 
     @property
     def bin_dir(self) -> Path:
@@ -184,6 +193,7 @@ def default_env(
         confirm=confirm or (lambda _q: False),
         platform_tools_zip=platform_tools_zip,
         log=log or (lambda _m: None),
+        tools_root=tools_dir(),
     )
 
 
@@ -442,7 +452,7 @@ def _link_missing(env: HostEnv, tools: dict[str, Path]) -> list[str]:
 
     A name already on PATH is left alone (see the adb rule in the module
     docstring); an existing ~/.local/bin entry is replaced only when it is
-    a link this module made (pointing into ~/.local/share/alb).
+    a link this module made (pointing into ``env.data_dir``).
     """
     env.bin_dir.mkdir(parents=True, exist_ok=True)
     linked = []
@@ -715,11 +725,11 @@ DEPS: tuple[HostDep, ...] = (
     HostDep(
         "mksh", "dev-optional", "one pytest case runs Android's shell (skipped without it)",
         lambda _e: _which_all("mksh"),
-        lambda _e: [
+        lambda e: [
             _pkg("mksh"),
             "no root (Debian/Ubuntu): apt-get download mksh && "
-            "dpkg-deb -x mksh_*.deb ~/.local/share/alb/mksh, then put "
-            "~/.local/share/alb/mksh/bin on PATH",
+            f"dpkg-deb -x mksh_*.deb {e.data_dir / 'mksh'}, then put "
+            f"{e.data_dir / 'mksh' / 'bin'} on PATH",
         ],
         _install_mksh,
     ),

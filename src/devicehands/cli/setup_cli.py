@@ -6,8 +6,8 @@ side (that's inherently manual). What it does:
     1. Probe the host for required binaries / env vars.
     2. Print concrete, copy-pasteable next steps for the user.
     3. Run a verification probe and print the outcome.
-    4. Optionally persist verified parameters to ~/.config/alb/config.toml
-       (`--save`).
+    4. Optionally persist verified parameters to the global config.toml
+       (`--save`; infra.config.global_config_path).
     5. Point the user at the relevant docs/methods/*.md file.
 """
 
@@ -229,7 +229,7 @@ def setup_ssh(
     host: str = typer.Argument(..., help="Device host / IP"),
     port: int = typer.Option(22, "--port"),
     user: str = typer.Option("root", "--user"),
-    key: str = typer.Option("~/.ssh/alb-device", "--key"),
+    key: str = typer.Option("~/.ssh/dhands-device", "--key"),
 ) -> None:
     """Verify ssh reachability and print key-deployment instructions."""
     console.print(Panel.fit(f"Setting up ssh to {user}@{host}:{port}", border_style="blue"))
@@ -242,7 +242,7 @@ def setup_ssh(
     if not key_path.exists():
         console.print(
             f"[yellow]key {key_path} not found. To generate:[/]\n"
-            f"  ssh-keygen -t ed25519 -f {key_path} -C 'dhands-android-bridge'\n"
+            f"  ssh-keygen -t ed25519 -f {key_path} -C 'devicehands'\n"
         )
     else:
         _probe(f"key present at {key_path}", True)
@@ -286,7 +286,7 @@ def setup_serial(
         False,
         "--save",
         help="After probes pass, persist tcp_host/tcp_port/baud/device to "
-        "~/.config/alb/config.toml under \\[transport.serial].",
+        "the global config.toml (see `dhands doctor`) under \\[transport.serial].",
     ),
 ) -> None:
     """Verify UART reachability (TCP via ser2net or local /dev/tty*).

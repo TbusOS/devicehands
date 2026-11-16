@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -34,7 +33,7 @@ from devicehands.infra.prompt_builder import (
     agent_user_note,
     default_agent_prompt,
 )
-from devicehands.infra.workspace import InvalidSessionId
+from devicehands.infra.workspace import InvalidSessionId, workspace_root
 
 app = typer.Typer(
     name="chat",
@@ -152,7 +151,7 @@ def chat(
     prompt = default_agent_prompt(
         device_serial=None,
         transport_name="auto",
-        workspace_root=Path.cwd() / "workspace",
+        workspace_root=workspace_root(),
         tool_count=len(specs),
         model=llm.model,
         backend=llm.name,

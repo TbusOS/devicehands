@@ -33,7 +33,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from devicehands.infra.safe_path import resolve_under
-from devicehands.infra.workspace import is_safe_device, workspace_root
+from devicehands.infra.workspace import device_dir, is_safe_device, workspace_root
 
 router = APIRouter()
 
@@ -50,7 +50,7 @@ def _screenshots_dir(serial: str) -> Path:
     if not is_safe_device(serial):
         # L-051: no-echo on reject (sec MID-1). See diag_route._resolve_transport.
         raise HTTPException(status_code=400, detail="invalid device serial")
-    return workspace_root() / "devices" / serial / "screenshots"
+    return device_dir(workspace_root(), serial) / "screenshots"
 
 
 def _is_screenshot_name(name: str) -> bool:

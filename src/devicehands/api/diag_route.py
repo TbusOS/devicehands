@@ -43,7 +43,7 @@ from pydantic import BaseModel, Field
 
 from devicehands.capabilities import diagnose as diag_cap
 from devicehands.infra.result import envelope_dict, envelope_transport_init_error
-from devicehands.infra.workspace import is_safe_device, workspace_root
+from devicehands.infra.workspace import device_dir, is_safe_device, workspace_root
 from devicehands.transport.factory import build_transport
 
 router = APIRouter(prefix="/api/diag", tags=["diag"])
@@ -263,7 +263,7 @@ def _scan_artifacts_in_thread(
     flat ``.zip`` files; ANR / tombstone live in timestamped sub-dirs
     so we flatten them to (timestamp, file) pairs.
     """
-    base = root / "devices" / device
+    base = device_dir(root, device)
     out: dict[str, list[dict[str, Any]]] = {
         "bugreports": [],
         "anr": [],

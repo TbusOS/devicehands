@@ -71,7 +71,7 @@ workspace/*
 *.local.toml
 *.local.yaml
 config.local.*
-.alb-state
+.dhands-state
 
 # SSH key / 证书（严禁误提交）
 *.pem

@@ -1,7 +1,9 @@
 """Config + profile loading.
 
 Two layers:
-    ~/.config/alb/config.toml          — global defaults
+    <config dir>/config.toml           — global defaults; <config dir> is
+                                         infra.dirs.config_dir(), e.g.
+                                         ~/.config/devicehands on Linux
     <workspace>/profiles/<name>.toml   — profile-specific (multi-device / env)
 
 Env overrides:
@@ -19,6 +21,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from devicehands.infra.dirs import config_dir
 from devicehands.infra.ports import DEFAULT_SERIAL_FORWARD_PORT
 from devicehands.infra.workspace import (
     InvalidProfileName,
@@ -105,12 +108,12 @@ class Config:
 
 # ─── Path resolution ───────────────────────────────────────────────
 def global_config_path() -> Path:
+    """DHANDS_CONFIG, else ``config.toml`` in the per-user config directory
+    (infra.dirs.config_dir; it follows XDG_CONFIG_HOME on Linux)."""
     env = os.environ.get("DHANDS_CONFIG")
     if env:
         return Path(env).expanduser()
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg).expanduser() if xdg else Path.home() / ".config"
-    return base / "alb" / "config.toml"
+    return config_dir() / "config.toml"
 
 
 def profile_path(name: str) -> Path:
@@ -162,7 +165,8 @@ def _load_config_file() -> Config:
 
     return Config(
         default_profile=raw.get("default_profile", "default"),
-        workspace_root=Path(raw.get("workspace", {}).get("root") or workspace_root()).expanduser(),
+        # workspace_root() itself reads [workspace] root (DHANDS_WORKSPACE first).
+        workspace_root=workspace_root(),
         adb=AdbConfig(**(raw.get("transport", {}).get("adb") or {})),
         ssh=SshConfig(**(raw.get("transport", {}).get("ssh") or {})),
         serial=SerialConfig(**(raw.get("transport", {}).get("serial") or {})),

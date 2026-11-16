@@ -1,6 +1,7 @@
 """Workspace path helpers.
 
-Convention: all artifacts land under `workspace/devices/<serial>/<category>/`.
+Convention: all artifacts land under `workspace/devices/<serial>/<category>/`,
+with the serial made safe for file names by :func:`device_dir_name`.
 See docs/architecture.md §四 for the full scheme.
 
 M0 skeleton; full implementation in M1.
@@ -10,8 +11,11 @@ from __future__ import annotations
 
 import os
 import re
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
+
+from devicehands.infra.dirs import default_workspace_dir
 
 # session_id factory format: `<YYYYMMDD>-<8 hex>` (see agent/session.new_session_id).
 # The pattern is intentionally tighter than the factory so we reject any
@@ -78,15 +82,112 @@ def is_safe_profile_name(s: object) -> bool:
 
 
 def workspace_root() -> Path:
-    """Return the workspace root. Configurable via DHANDS_WORKSPACE env."""
+    """Return the workspace root (where logs, sessions and bench state go).
+
+    First match wins:
+        1. DHANDS_WORKSPACE
+        2. ``[workspace] root`` in the global config.toml; a relative path
+           there is relative to the config file's directory
+        3. ``workspace`` under the per-user data directory (infra.dirs)
+
+    The current directory is not looked at. It used to be ("``./workspace``
+    if it exists"), which made the answer depend on where a command was
+    started — a checkout of another program with its own ``workspace/``
+    would have been written into.
+    """
     env = os.environ.get("DHANDS_WORKSPACE")
     if env:
         return Path(env).expanduser().resolve()
-    # Default: <repo>/workspace (dev) or ~/.alb-workspace (installed)
-    cwd_ws = Path.cwd() / "workspace"
-    if cwd_ws.exists():
-        return cwd_ws
-    return Path.home() / ".alb-workspace"
+    configured = _configured_root()
+    if configured is not None:
+        return configured
+    return default_workspace_dir()
+
+
+def _configured_root() -> Path | None:
+    """``[workspace] root`` from the global config.toml, or None.
+
+    Read here rather than through infra.config.load_config(): load_config
+    builds a Config whose default workspace comes from this function. A
+    missing or broken file means "not configured", same as load_config.
+    """
+    from devicehands.infra.config import global_config_path
+
+    path = global_config_path()
+    try:
+        with path.open("rb") as f:
+            raw = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    section = raw.get("workspace")
+    root = section.get("root") if isinstance(section, dict) else None
+    if not isinstance(root, str) or not root.strip():
+        return None
+    p = Path(root.strip()).expanduser()
+    if not p.is_absolute():
+        p = path.parent / p
+    return p.resolve()
+
+
+# Base names Windows reserves for devices, with or without an extension
+# (``NUL``, ``com5.log``). A serial-port basename such as ``COM5`` is a real
+# device name on a Windows bench, so it has to be escaped, not refused.
+_WINDOWS_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(10)}
+    | {f"LPT{i}" for i in range(10)}
+)
+# Stands in for ':' in directory names. Never part of a valid serial
+# (_SAFE_DEVICE_RE), so the mapping cannot make two serials collide.
+_COLON_STAND_IN = "+"
+
+
+def device_dir_name(device: str) -> str:
+    """Directory name for a device serial under ``<workspace>/devices/``.
+
+    A valid serial may contain ``:`` (wireless adb: ``192.0.2.10:5555``),
+    which Windows does not allow in a file name. The mapping:
+
+        ':'  -> '+'                       192.0.2.10:5555 -> 192.0.2.10+5555
+        a name Windows would still refuse or alter (reserved device name
+        such as COM5 / NUL, or a trailing '.') -> wrapped in '+' ... '+'
+                                          COM5 -> +COM5+
+
+    '+' never occurs in a valid serial and a valid serial never starts with
+    one, so different serials always get different names, and
+    :func:`device_from_dir_name` gives the serial back. Serials without
+    those characters map to themselves, so existing directories keep their
+    names.
+
+    Raises :class:`InvalidDeviceSerial` for anything ``is_safe_device``
+    rejects — the result is always exactly one path segment.
+    """
+    if not is_safe_device(device):
+        raise InvalidDeviceSerial(
+            f"invalid device {device!r}: must match [A-Za-z0-9._:-]{{1,64}} "
+            f"with alnum leading char (rejected to prevent path traversal)"
+        )
+    name = device.replace(":", _COLON_STAND_IN)
+    if name.endswith(".") or name.split(".", 1)[0].upper() in _WINDOWS_RESERVED:
+        name = f"{_COLON_STAND_IN}{name}{_COLON_STAND_IN}"
+    return name
+
+
+def device_from_dir_name(name: str) -> str | None:
+    """The serial a ``devices/<name>`` directory belongs to, or None when the
+    name is not one :func:`device_dir_name` produces (or an old directory
+    named after the raw serial, which is accepted as is)."""
+    if name.startswith(_COLON_STAND_IN):
+        if len(name) < 3 or not name.endswith(_COLON_STAND_IN):
+            return None
+        name = name[1:-1]
+    device = name.replace(_COLON_STAND_IN, ":")
+    return device if is_safe_device(device) else None
+
+
+def device_dir(root: Path, device: str) -> Path:
+    """``<root>/devices/<device_dir_name(device)>``."""
+    return root / "devices" / device_dir_name(device)
 
 
 def iso_timestamp() -> str:
@@ -115,15 +216,12 @@ def workspace_path(
     the L-035 root-layer-enforce pattern from `session_path`.  Category
     and filename are internal (caller-controlled) and not validated.
     """
-    if device and not is_safe_device(device):
-        # Falsy `device` (None / "") falls through to no-device path below.
-        raise InvalidDeviceSerial(
-            f"invalid device {device!r}: must match [A-Za-z0-9._:-]{{1,64}} "
-            f"with alnum leading char (rejected to prevent path traversal)"
-        )
+    # Falsy `device` (None / "") takes the no-device path; an unsafe one
+    # raises InvalidDeviceSerial here, before anything is resolved.
+    dir_name = device_dir_name(device) if device else None
     root = workspace_root()
-    if device:
-        base = root / "devices" / device / category
+    if dir_name:
+        base = root / "devices" / dir_name / category
     else:
         base = root / category
     if ensure_dir:

@@ -1,7 +1,7 @@
 """CLI: `dhands doctor` — one-shot environment health check.
 
 Replaces the manual cocktail of `ss -tln | grep` / `adb devices` /
-`dhands serial health` / `cat ~/.config/alb/config.toml` that users used
+`dhands serial health` / `cat <config dir>/config.toml` that users used
 to run when something felt off.
 
 Design:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import ClassVar
 
@@ -16,34 +16,36 @@ from devicehands.remote.registry import reset_agent_registry
 
 # ─── keep every test out of the real workspace ─────────────────────
 #
-# workspace_root() falls back to <cwd>/workspace, then ~/.alb-workspace,
-# when DHANDS_WORKSPACE is unset (src/devicehands/infra/workspace.py). pytest runs
-# from the repo root, so a test that forgot to set it wrote flash job
-# records into the repo's workspace/flash/, chat sessions into
-# ~/.alb-workspace/sessions/ and lines into ~/.alb-workspace/events.jsonl
-# — next to, and indistinguishable from, records of real board work.
+# workspace_root() falls back to config.toml's [workspace] root, then to the
+# per-user data directory, when DHANDS_WORKSPACE is unset
+# (src/devicehands/infra/workspace.py). A test that forgot to set it used to
+# write flash job records, chat sessions and events.jsonl next to — and
+# indistinguishable from — records of real board work.
 
 
-class _DefaultWorkspaceTripwire(type(Path())):  # type: ignore[misc]
-    """Stands in for ``Path`` inside ``devicehands.infra.workspace``.
+class _DefaultWorkspaceTripwire:
+    """Stands in for the two fallback lookups of ``workspace_root()``.
 
-    workspace_root() calls ``Path.cwd()`` / ``Path.home()`` only on its
-    fallback branch. Each call is recorded and answered with a scratch
-    dir, so a test that reaches the fallback fails (see
-    `_isolate_workspace`) instead of writing into the real workspace.
+    Each call is recorded and answered harmlessly (no configured root; a
+    scratch dir as the default), so a test that reaches the fallback fails
+    (see `_isolate_workspace`) instead of reading the real config.toml or
+    writing into the real workspace. Tests of the fallback itself put the
+    real functions back from ``real_configured_root`` / ``real_default_dir``.
     """
 
     hits: ClassVar[list[str]] = []
     scratch: ClassVar[Path] = Path("/nonexistent")
+    real_configured_root: ClassVar[Callable[[], Path | None]] = workspace_mod._configured_root
+    real_default_dir: ClassVar[Callable[[], Path]] = workspace_mod.default_workspace_dir
 
     @classmethod
-    def cwd(cls) -> Path:
-        cls.hits.append("Path.cwd()")
-        return cls.scratch
+    def configured_root(cls) -> Path | None:
+        cls.hits.append("config.toml [workspace] root")
+        return None
 
     @classmethod
-    def home(cls) -> Path:
-        cls.hits.append("Path.home()")
+    def default_dir(cls) -> Path:
+        cls.hits.append("user data dir")
         return cls.scratch
 
 
@@ -51,8 +53,15 @@ class _DefaultWorkspaceTripwire(type(Path())):  # type: ignore[misc]
 def _workspace_tripwire(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
     _DefaultWorkspaceTripwire.scratch = tmp_path_factory.mktemp("default-workspace-fallback")
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(workspace_mod, "Path", _DefaultWorkspaceTripwire)
+        mp.setattr(workspace_mod, "_configured_root", _DefaultWorkspaceTripwire.configured_root)
+        mp.setattr(workspace_mod, "default_workspace_dir", _DefaultWorkspaceTripwire.default_dir)
         yield
+
+
+@pytest.fixture
+def workspace_tripwire() -> type[_DefaultWorkspaceTripwire]:
+    """The tripwire class, for tests of workspace_root()'s fallback."""
+    return _DefaultWorkspaceTripwire
 
 
 @pytest.fixture(autouse=True)

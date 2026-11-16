@@ -43,7 +43,6 @@ import json
 import os
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
 
@@ -61,7 +60,7 @@ from devicehands.infra.prompt_builder import (
     agent_user_note,
     default_agent_prompt,
 )
-from devicehands.infra.workspace import InvalidSessionId, is_safe_device
+from devicehands.infra.workspace import InvalidSessionId, is_safe_device, workspace_root
 
 _SUMMARY_MAX = 120
 # SEC-2: bound how long the chat WS waits for its first (request) frame.
@@ -409,7 +408,7 @@ async def _agent_parts(
     prompt = default_agent_prompt(
         device_serial=None,
         transport_name="auto",
-        workspace_root=Path.cwd() / "workspace",
+        workspace_root=workspace_root(),
         tool_count=len(specs),
         reply_language=req.lang or DEFAULT_REPLY_LANGUAGE,
         model=llm.model,

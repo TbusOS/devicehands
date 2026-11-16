@@ -31,7 +31,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from devicehands.capabilities.logging import capture_uart
 from devicehands.infra.safe_path import resolve_under
-from devicehands.infra.workspace import is_safe_device, workspace_root
+from devicehands.infra.workspace import device_dir, is_safe_device, workspace_root
 from devicehands.transport.factory import build_transport
 
 router = APIRouter()
@@ -57,7 +57,7 @@ def _logs_dir(device: str | None) -> Path:
         if not is_safe_device(device):
             # L-051: no-echo on reject (sec MID-1). See diag_route._resolve_transport.
             raise HTTPException(status_code=400, detail="invalid device serial")
-        return root / "devices" / device / "logs"
+        return device_dir(root, device) / "logs"
     return root / "logs"
 
 

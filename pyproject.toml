@@ -34,6 +34,7 @@ dependencies = [
     # Config / serialization
     "pydantic>=2.6.0",
     "tomli-w>=1.0.0",              # tomllib 是 3.11 内置的读，写需额外
+    "platformdirs>=4.0",            # 配置目录和数据目录按各系统惯例放(设计 5.10)
 
     # Transport-related
     "asyncssh>=2.14.0",             # SSH transport (方案 C/D/F)
