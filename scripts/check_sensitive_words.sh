@@ -10,6 +10,8 @@
 # Scope:
 #   - by default scans STAGED files (pre-commit mode)
 #   - pass --all to scan the entire working tree (CI mode)
+#   - pass --self-test to check the patterns against the built-in sample
+#     lines (SELF_TEST_CASES below); scans no files
 #
 # Environment overrides:
 #   DHANDS_SENSITIVE_EXTRA  = colon-separated extra patterns to check (rare)
@@ -19,6 +21,9 @@ set -euo pipefail
 MODE="staged"
 if [[ "${1:-}" == "--all" ]]; then
   MODE="all"
+  shift
+elif [[ "${1:-}" == "--self-test" ]]; then
+  MODE="selftest"
   shift
 fi
 
@@ -37,6 +42,10 @@ PATTERNS=(
   # Home-dir leaks
   '~'
   '/home/[a-z][a-z0-9_-]*/(android-llm-bridge|adb-via-|\.claude)'
+  # A checkout of this repository (current or former name) under someone's
+  # home, directly or below up to three parent folders such as
+  # ~/claude-tools/ or ~/code/github/. Linux and macOS home roots.
+  '/(home|Users)/[a-z][a-z0-9_.-]*/([A-Za-z0-9._-]+/){0,3}(android-llm-bridge|devicehands)([^A-Za-z0-9._-]|$)'
   # Internal RFC1918 IPs belonging to known private networks
   '192\.0\.2\.[0-9]{1,3}'
   '198\.51\.100\.[0-9]{1,3}'
@@ -45,6 +54,40 @@ PATTERNS=(
 if [[ -n "${DHANDS_SENSITIVE_EXTRA:-}" ]]; then
   IFS=':' read -r -a EXTRA <<< "$DHANDS_SENSITIVE_EXTRA"
   PATTERNS+=("${EXTRA[@]}")
+fi
+
+# --self-test: each case is "hit|<line>" (some pattern must match) or
+# "miss|<line>" (no pattern may match). Reverse cases matter as much as the
+# hits: a pattern that matches everything passes every "hit" case.
+SELF_TEST_CASES=(
+  'hit|/home/someone/android-llm-bridge/src/x.py'
+  'hit|/home/someone/devicehands'
+  'hit|/home/someone/claude-tools/devicehands/README.md'
+  'hit|cd /Users/someone/code/github/devicehands && make'
+  'miss|~/claude-tools/devicehands/README.md'
+  'miss|/opt/tools/devicehands/bin/dhands'
+  'miss|docs/devicehands-design.md'
+  'miss|/home/someone/projects/devicehandsx/README.md'
+)
+
+if [[ "$MODE" == "selftest" ]]; then
+  passed=0
+  total=${#SELF_TEST_CASES[@]}
+  for case in "${SELF_TEST_CASES[@]}"; do
+    want="${case%%|*}"
+    line="${case#*|}"
+    got="miss"
+    for pat in "${PATTERNS[@]}"; do
+      if printf '%s\n' "$line" | grep -qEi -- "$pat"; then got="hit"; break; fi
+    done
+    if [[ "$got" == "$want" ]]; then
+      passed=$((passed + 1))
+    else
+      echo "FAIL want=$want got=$got: $line"
+    fi
+  done
+  echo "self-test: $passed/$total passed"
+  [[ $passed -eq $total ]] && exit 0 || exit 1
 fi
 
 # Files that are legitimately allowed to mention these words.
