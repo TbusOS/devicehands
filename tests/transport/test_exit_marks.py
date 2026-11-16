@@ -79,7 +79,12 @@ def test_holding_back_is_bounded() -> None:
 # ── SETUP on real shells ────────────────────────────────────────────────
 
 
-async def _codes_from(argv: list[str], env: dict[str, str]) -> tuple[list[int], bytes]:
+_COMMANDS = (b"true\n", b"false\n", b"sh -c 'exit 3'\n")
+
+
+async def _codes_from(
+    argv: list[str], env: dict[str, str], commands: tuple[bytes, ...] = _COMMANDS
+) -> tuple[list[int], bytes]:
     from devicehands.transport.interactive import open_pty_subprocess
 
     shell = await open_pty_subprocess(*argv, env=env)
@@ -105,7 +110,7 @@ async def _codes_from(argv: list[str], env: dict[str, str]) -> tuple[list[int], 
     try:
         await shell.write(SETUP)
         await pump(1.0)
-        for cmd in (b"true\n", b"false\n", b"sh -c 'exit 3'\n"):
+        for cmd in commands:
             await shell.write(cmd)
             await pump(0.6)
     finally:
@@ -124,6 +129,32 @@ async def test_setup_on_real_bash() -> None:
     codes, shown = await _codes_from(["bash", "--norc", "--noprofile", "-i"], _shell_env())
     assert codes == [0, 1, 3]
     assert b"133;D" not in shown, "neither the marker nor the SETUP echo is shown"
+
+
+@pytest.mark.skipif(sys.platform == "win32" or not shutil.which("bash"), reason="needs bash and a pty")
+async def test_a_redrawn_bash_prompt_reports_no_code() -> None:
+    """Ctrl-L makes readline print the prompt again without running a
+    command. With the marker in PS1 that reported false's 1 a second time
+    ([0, 1, 1, 3]), and the terminal gave it to the next line typed."""
+    codes, _shown = await _codes_from(
+        ["bash", "--norc", "--noprofile", "-i"],
+        _shell_env(),
+        (b"true\n", b"false\n", b"\x0c", b"sh -c 'exit 3'\n"),
+    )
+    assert codes == [0, 1, 3]
+
+
+@pytest.mark.skipif(sys.platform == "win32" or not shutil.which("bash"), reason="needs bash and a pty")
+async def test_bash_setup_keeps_the_code_for_ps1_and_prompt_command() -> None:
+    """The marker function hands `$?` on: a PROMPT_COMMAND set before SETUP
+    and a PS1 that shows `$?` still see the command's own code."""
+    env = _shell_env()
+    env["PS1"] = "rc=$? probe$ "
+    env["PROMPT_COMMAND"] = "echo pc=$?"
+    codes, shown = await _codes_from(["bash", "--norc", "--noprofile", "-i"], env)
+    assert codes == [0, 1, 3]
+    assert b"pc=1" in shown and b"rc=1 probe$ " in shown
+    assert b"pc=3" in shown and b"rc=3 probe$ " in shown
 
 
 @pytest.mark.skipif(sys.platform == "win32" or not shutil.which("mksh"), reason="needs mksh and a pty")
