@@ -68,7 +68,7 @@ async def test_capture_uart_invalid_duration() -> None:
 
 @pytest.mark.asyncio
 async def test_capture_uart_happy_path(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     chunks = [
         b"[    0.000000] Booting Linux on CPU 0x0\n",
         b"[    1.234567] kernel BUG: unable to handle\n",
@@ -153,7 +153,7 @@ async def test_capture_uart_holds_duration_when_stream_idles(monkeypatch, tmp_pa
     keep reconnecting until the requested duration elapses — not return
     after ~100 ms with a 0-byte log.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
 
     call_count = 0
 
@@ -196,7 +196,7 @@ async def test_capture_uart_catches_late_data_after_reconnect(monkeypatch, tmp_p
     later reconnect. Pre-fix the capture had already given up; post-fix it
     keeps reopening the stream until real bytes show up.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
 
     call_count = 0
     data_delivered = {"v": False}
@@ -358,7 +358,7 @@ async def test_send_uart_propagates_link_failure() -> None:
 
 @pytest.mark.asyncio
 async def test_watch_uart_panic_detects(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     chunks = [
         b"[    0.000000] Booting Linux\n",
         b"[    1.234567] Kernel panic - not syncing: VFS: Unable to mount root\n",
@@ -375,7 +375,7 @@ async def test_watch_uart_panic_detects(monkeypatch, tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_watch_uart_panic_clean(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _mk_serial_mock([b"[ 0.0] all good\n", b"buildroot login: \n"])
     r = await watch_uart_panic(t, duration=1)
     assert r.ok

@@ -19,7 +19,7 @@ from devicehands.infra.metric_sampler import TokenSampler
 
 @pytest.fixture
 def workspace(monkeypatch, tmp_path) -> Path:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     reset_bus()
     yield tmp_path
     reset_bus()
@@ -271,14 +271,14 @@ async def test_backend_source_defaults_backward_compatible(workspace) -> None:
 
 
 def test_interval_from_env(monkeypatch) -> None:
-    monkeypatch.setenv("ALB_TPS_SAMPLE_INTERVAL_S", "0.5")
+    monkeypatch.setenv("DHANDS_TPS_SAMPLE_INTERVAL_S", "0.5")
     s = TokenSampler(session_id="s1")
     assert s._interval_s == 0.5
 
-    monkeypatch.setenv("ALB_TPS_SAMPLE_INTERVAL_S", "not-a-number")
+    monkeypatch.setenv("DHANDS_TPS_SAMPLE_INTERVAL_S", "not-a-number")
     s2 = TokenSampler(session_id="s2")
     assert s2._interval_s == 1.0  # falls back to default
 
-    monkeypatch.setenv("ALB_TPS_SAMPLE_INTERVAL_S", "-1.0")
+    monkeypatch.setenv("DHANDS_TPS_SAMPLE_INTERVAL_S", "-1.0")
     s3 = TokenSampler(session_id="s3")
     assert s3._interval_s == 1.0  # negative → default

@@ -216,7 +216,7 @@ class _LiveAgent:
 def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _LiveAgent:
     if sys.platform == "win32":
         pytest.skip("the fake tool is a #! script")
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path / "ws"))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path / "ws"))
     monkeypatch.delenv("FAKE_FAIL", raising=False)
     root = tmp_path / "packages"
     (root / "board-a" / "v1").mkdir(parents=True)

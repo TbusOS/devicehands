@@ -39,7 +39,7 @@ class InvalidDeviceSerial(ValueError):
 
 # profile name shape: same conservative class as session_id but tighter
 # leading-char rule (must alnum). Profile names appear in `--profile <name>`
-# CLI flag and `ALB_PROFILE` env; `profile_path(name)` builds
+# CLI flag and `DHANDS_PROFILE` env; `profile_path(name)` builds
 # `workspace/profiles/<name>.toml` so a `../etc` name would land
 # `workspace/etc.toml` and load attacker-planted TOML as dhands config.
 _SAFE_PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -78,8 +78,8 @@ def is_safe_profile_name(s: object) -> bool:
 
 
 def workspace_root() -> Path:
-    """Return the workspace root. Configurable via ALB_WORKSPACE env."""
-    env = os.environ.get("ALB_WORKSPACE")
+    """Return the workspace root. Configurable via DHANDS_WORKSPACE env."""
+    env = os.environ.get("DHANDS_WORKSPACE")
     if env:
         return Path(env).expanduser().resolve()
     # Default: <repo>/workspace (dev) or ~/.alb-workspace (installed)

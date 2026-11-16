@@ -82,27 +82,27 @@ def _construct(name: str, **kwargs: Any) -> LLMBackend:
         from devicehands.agent.backends.ollama import OllamaBackend
 
         # DEBT-020 close: probe-path constructions (no kwargs) honour
-        # ALB_OLLAMA_URL / ALB_OLLAMA_MODEL env so dashboard health
+        # DHANDS_OLLAMA_URL / DHANDS_OLLAMA_MODEL env so dashboard health
         # reflects the actually-configured Ollama, not the manifest
         # default. Same precedence as chat_route.py:
         #   caller kwargs > env > library default.
-        env_base = os.environ.get("ALB_OLLAMA_URL")
-        env_model = os.environ.get("ALB_OLLAMA_MODEL")
-        env_ctx = os.environ.get("ALB_OLLAMA_NUM_CTX", "").strip()
-        env_timeout = os.environ.get("ALB_OLLAMA_TIMEOUT", "").strip()
+        env_base = os.environ.get("DHANDS_OLLAMA_URL")
+        env_model = os.environ.get("DHANDS_OLLAMA_MODEL")
+        env_ctx = os.environ.get("DHANDS_OLLAMA_NUM_CTX", "").strip()
+        env_timeout = os.environ.get("DHANDS_OLLAMA_TIMEOUT", "").strip()
         if env_base and "base_url" not in kwargs:
             kwargs["base_url"] = env_base
         if env_model and "model" not in kwargs:
             kwargs["model"] = env_model
         if env_ctx and "num_ctx" not in kwargs:
             if not env_ctx.isdigit():
-                raise ValueError(f"ALB_OLLAMA_NUM_CTX must be a whole number of tokens, got {env_ctx!r}")
+                raise ValueError(f"DHANDS_OLLAMA_NUM_CTX must be a whole number of tokens, got {env_ctx!r}")
             kwargs["num_ctx"] = int(env_ctx) or None  # 0: send none, Ollama's own default
         if env_timeout and "timeout" not in kwargs:
             try:
                 kwargs["timeout"] = float(env_timeout)
             except ValueError:
-                raise ValueError(f"ALB_OLLAMA_TIMEOUT must be a number of seconds, got {env_timeout!r}") from None
+                raise ValueError(f"DHANDS_OLLAMA_TIMEOUT must be a number of seconds, got {env_timeout!r}") from None
         return OllamaBackend(**kwargs)
     if name == "openai-compat":
         from devicehands.agent.backends.openai_compat import OpenAICompatBackend
@@ -111,16 +111,16 @@ def _construct(name: str, **kwargs: Any) -> LLMBackend:
     if name == "anthropic":
         from devicehands.agent.backends.anthropic import AnthropicBackend
 
-        # Probe-path constructions (no kwargs) honour ALB_ANTHROPIC_URL /
-        # ALB_ANTHROPIC_MODEL / ALB_ANTHROPIC_KEY (with the standard
+        # Probe-path constructions (no kwargs) honour DHANDS_ANTHROPIC_URL /
+        # DHANDS_ANTHROPIC_MODEL / DHANDS_ANTHROPIC_KEY (with the standard
         # ANTHROPIC_API_KEY as fallback). Same precedence as Ollama:
         #   caller kwargs > env > library default.
         # Secret never enters logs/cache surfaces — kwargs flow directly
         # into the backend constructor and live there until aclose().
-        env_base = os.environ.get("ALB_ANTHROPIC_URL")
-        env_model = os.environ.get("ALB_ANTHROPIC_MODEL")
+        env_base = os.environ.get("DHANDS_ANTHROPIC_URL")
+        env_model = os.environ.get("DHANDS_ANTHROPIC_MODEL")
         env_key = (
-            os.environ.get("ALB_ANTHROPIC_KEY")
+            os.environ.get("DHANDS_ANTHROPIC_KEY")
             or os.environ.get("ANTHROPIC_API_KEY")
         )
         if env_base and "base_url" not in kwargs:

@@ -33,7 +33,7 @@ from devicehands.transport.base import ShellResult
 
 
 def test_split_sections_basic() -> None:
-    s = "__ALB_STAT__\ncpu  100 200\n__ALB_MEM__\nMemTotal:  8 kB\n"
+    s = "__DHANDS_STAT__\ncpu  100 200\n__DHANDS_MEM__\nMemTotal:  8 kB\n"
     out = _split_sections(s)
     assert out["STAT"].strip() == "cpu  100 200"
     assert "MemTotal" in out["MEM"]
@@ -240,20 +240,20 @@ def _combined_stdout(
         f"  temperature: {bat_temp}"
     )
     return (
-        f"__ALB_STAT__\n{cpu_line}\nintr 1\n"
-        f"__ALB_MEM__\nMemTotal: {mem_total} kB\nMemAvailable: {mem_avail} kB\n"
+        f"__DHANDS_STAT__\n{cpu_line}\nintr 1\n"
+        f"__DHANDS_MEM__\nMemTotal: {mem_total} kB\nMemAvailable: {mem_avail} kB\n"
         f"SwapTotal: 0 kB\nSwapFree: 0 kB\n"
-        f"__ALB_NET__\n"
+        f"__DHANDS_NET__\n"
         f"Inter-| junk\n"
         f" face | junk\n"
         f"   lo: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
         f"  eth0: {net_eth_rx} 1 0 0 0 0 0 0 {net_eth_tx} 1 0 0 0 0 0 0\n"
-        f"__ALB_FREQ__\n{freq_block}\n"
-        f"__ALB_THERM__\n{therm}\n"
-        f"__ALB_GPU__\n{gpu}\n"
-        f"__ALB_GPUUTIL__\n{gpu_util}\n"
-        f"__ALB_DISK__\n100 0 {disk_read_sec} 50 80 0 {disk_write_sec} 30 0 5 5\n"
-        f"__ALB_BAT__\n{bat_block}\n"
+        f"__DHANDS_FREQ__\n{freq_block}\n"
+        f"__DHANDS_THERM__\n{therm}\n"
+        f"__DHANDS_GPU__\n{gpu}\n"
+        f"__DHANDS_GPUUTIL__\n{gpu_util}\n"
+        f"__DHANDS_DISK__\n100 0 {disk_read_sec} 50 80 0 {disk_write_sec} 30 0 5 5\n"
+        f"__DHANDS_BAT__\n{bat_block}\n"
     )
 
 

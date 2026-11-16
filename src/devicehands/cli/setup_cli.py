@@ -149,7 +149,7 @@ def setup_adb() -> None:
         Panel.fit(
             "[bold]Next steps if something is off:[/]\n\n"
             "  1. Install platform-tools: https://developer.android.com/tools/adb\n"
-            "     (adb not on PATH? set ALB_ADB_PATH to the adb executable)\n"
+            "     (adb not on PATH? set DHANDS_ADB_PATH to the adb executable)\n"
             "  2. On the device: Settings → Developer options → USB debugging\n"
             "  3. Remote bench (dhands forwarder): leave ADB_SERVER_SOCKET UNSET —\n"
             "     dhands reads the port from the running hub, so it stays correct\n"
@@ -266,8 +266,8 @@ def setup_ssh(
             f"       ssh_host = \"{host}\"\n"
             f"       ssh_port = {port}\n"
             "  4. Try it:\n"
-            f"       ALB_SSH_HOST={host} ALB_SSH_USER={user} "
-            f"ALB_SSH_KEY={key} dhands --transport ssh shell 'uname -a'\n\n"
+            f"       DHANDS_SSH_HOST={host} DHANDS_SSH_USER={user} "
+            f"DHANDS_SSH_KEY={key} dhands --transport ssh shell 'uname -a'\n\n"
             "[dim]Docs: docs/methods/03-android-sshd.md[/]",
             border_style="yellow",
         )

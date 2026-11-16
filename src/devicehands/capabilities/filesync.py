@@ -173,7 +173,7 @@ async def rsync_sync(
         return fail(
             code="TRANSPORT_NOT_SUPPORTED",
             message=f"rsync requires ssh transport, got {transport.name}",
-            suggestion="Run: dhands setup ssh  (or set ALB_TRANSPORT=ssh)",
+            suggestion="Run: dhands setup ssh  (or set DHANDS_TRANSPORT=ssh)",
             category="transport",
         )
     if not local_dir.exists():

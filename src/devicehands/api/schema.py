@@ -480,7 +480,7 @@ REST_ENDPOINTS: list[EndpointSpec] = [
         "path": "/api/bench/agent-start",
         "description": "Start the bench agent over ssh when none is connected (ADR-061); "
         "body {wait_s}. Host and task come from the hub's environment "
-        "(ALB_BENCH_SSH_HOST / ALB_BENCH_AGENT_TASK), never from the request. NDJSON "
+        "(DHANDS_BENCH_SSH_HOST / DHANDS_BENCH_AGENT_TASK), never from the request. NDJSON "
         "stream; done.data.outcome `already_connected` / `started` / `reconnected`, or "
         "code AGENT_START_NOT_CONFIGURED / _SSH_FAILED / _NO_TASK / _TASK_FAILED / "
         "_NO_CONNECT (with the agent's log tail)",
@@ -488,7 +488,7 @@ REST_ENDPOINTS: list[EndpointSpec] = [
     {
         "method": "GET",
         "path": "/api/bench/board",
-        "description": "The bench board table (ALB_BENCH_BOARDS), the board chosen and "
+        "description": "The bench board table (DHANDS_BENCH_BOARDS), the board chosen and "
         "where the serial console points: {table, boards, active, source, problem, "
         "serial:{com, baud, bound, readers}} (ADR-063)",
     },

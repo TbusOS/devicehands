@@ -331,7 +331,7 @@ class OpenAICompatBackend(LLMBackend):
                 "BACKEND_MISCONFIGURED",
                 "openai-compat: model not set",
                 suggestion=(
-                    "pass --model <id> or set ALB_OPENAI_COMPAT_MODEL"
+                    "pass --model <id> or set DHANDS_OPENAI_COMPAT_MODEL"
                 ),
             )
 

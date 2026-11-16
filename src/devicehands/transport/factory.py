@@ -34,7 +34,7 @@ def build_transport(
 ) -> Transport:
     """Build a transport using current settings + optional overrides.
 
-    Precedence: explicit `override` > ALB_TRANSPORT env > profile.primary_transport.
+    Precedence: explicit `override` > DHANDS_TRANSPORT env > profile.primary_transport.
 
     A non-empty ``device_serial`` is gated through ``is_safe_device`` here
     so every entry point (api / cli / mcp) is protected at the root — a
@@ -45,7 +45,7 @@ def build_transport(
         raise InvalidDeviceSerial(f"unsafe device serial: {device_serial!r}")
 
     settings = active_settings()
-    which = override or os.environ.get("ALB_TRANSPORT") or settings.primary_transport
+    which = override or os.environ.get("DHANDS_TRANSPORT") or settings.primary_transport
 
     if which == "adb":
         # ADR-057: the endpoint is resolved here, not left to whatever the
@@ -61,7 +61,7 @@ def build_transport(
         )
     if which == "ssh":
         sc = settings.config.ssh
-        host = os.environ.get("ALB_SSH_HOST")
+        host = os.environ.get("DHANDS_SSH_HOST")
         if not host:
             # Try to find a device entry in the active profile.
             for d in settings.profile.devices:
@@ -70,14 +70,14 @@ def build_transport(
                     break
         if not host:
             raise ValueError(
-                "SSH transport needs a host. Set ALB_SSH_HOST or define a device "
+                "SSH transport needs a host. Set DHANDS_SSH_HOST or define a device "
                 "with transport='ssh' in your profile (workspace/profiles/*.toml)."
             )
-        port_env = os.environ.get("ALB_SSH_PORT")
+        port_env = os.environ.get("DHANDS_SSH_PORT")
         port = int(port_env) if port_env else sc.default_port
-        user = os.environ.get("ALB_SSH_USER") or sc.default_user
-        key = os.environ.get("ALB_SSH_KEY") or sc.key_path
-        known_hosts = os.environ.get("ALB_SSH_KNOWN_HOSTS") or sc.known_hosts
+        user = os.environ.get("DHANDS_SSH_USER") or sc.default_user
+        key = os.environ.get("DHANDS_SSH_KEY") or sc.key_path
+        known_hosts = os.environ.get("DHANDS_SSH_KNOWN_HOSTS") or sc.known_hosts
         return SshTransport(
             host=host,
             port=port,
@@ -103,8 +103,8 @@ def build_transport(
         }
 
         # Environment overrides take precedence over config.
-        env_dev = os.environ.get("ALB_SERIAL_DEVICE")
-        env_tcp = os.environ.get("ALB_SERIAL_TCP")  # "host:port"
+        env_dev = os.environ.get("DHANDS_SERIAL_DEVICE")
+        env_tcp = os.environ.get("DHANDS_SERIAL_TCP")  # "host:port"
         if env_dev:
             return SerialTransport(device=env_dev, **common)
         if env_tcp and ":" in env_tcp:
@@ -130,10 +130,10 @@ def serial_fallback_for(
     """The serial transport to retry on when adb finds no device, or None.
 
     Only when adb was picked by default: no explicit transport, no
-    ALB_TRANSPORT, and no device serial — a named adb device that is
+    DHANDS_TRANSPORT, and no device serial — a named adb device that is
     missing may not be the board on the serial console.
     """
-    if override or os.environ.get("ALB_TRANSPORT") or device_serial:
+    if override or os.environ.get("DHANDS_TRANSPORT") or device_serial:
         return None
     if active_settings().primary_transport != "adb":
         return None

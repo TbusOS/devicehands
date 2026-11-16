@@ -57,7 +57,7 @@ DEFAULT_MODEL = "qwen2.5:3b"
 # it sends nothing until the whole prompt is read. With the tool list
 # (5786 tokens) gemma4:26b on the bench's CPU took 170 s for that alone, so
 # the old 120 s cut every tool chat off (2026-11-02). The Stop button ends a
-# turn that takes too long. Env ALB_OLLAMA_TIMEOUT through get_backend.
+# turn that takes too long. Env DHANDS_OLLAMA_TIMEOUT through get_backend.
 DEFAULT_TIMEOUT = 600.0
 # Seconds to wait for Ollama to accept the connection, apart from the
 # timeout above. With one number httpx waits that long to connect too:
@@ -96,7 +96,7 @@ class OllamaBackend(LLMBackend):
             the user wants to see the model's reasoning. Ignored by
             non-thinking models.
         num_ctx: context window (tokens) sent as `options.num_ctx`;
-            env ALB_OLLAMA_NUM_CTX through get_backend; None sends none and
+            env DHANDS_OLLAMA_NUM_CTX through get_backend; None sends none and
             leaves Ollama's default. A reply whose prompt filled the whole
             window raises LLM_CONTEXT_TRUNCATED: Ollama dropped the start of
             the request (tool list and instructions first), so the answer
@@ -245,7 +245,7 @@ class OllamaBackend(LLMBackend):
             raise BackendError(
                 "BACKEND_TIMEOUT",
                 f"ollama stream timed out after {self.timeout}s: {e}",
-                suggestion="raise ALB_OLLAMA_TIMEOUT or pick a smaller model",
+                suggestion="raise DHANDS_OLLAMA_TIMEOUT or pick a smaller model",
             ) from e
 
         content = "".join(content_parts)
@@ -363,7 +363,7 @@ class OllamaBackend(LLMBackend):
             raise BackendError(
                 "BACKEND_TIMEOUT",
                 f"ollama request timed out after {self.timeout}s: {e}",
-                suggestion="raise ALB_OLLAMA_TIMEOUT or pick a smaller model",
+                suggestion="raise DHANDS_OLLAMA_TIMEOUT or pick a smaller model",
             ) from e
         except httpx.HTTPError as e:
             raise BackendError(
@@ -498,7 +498,7 @@ def _raise_if_truncated(reply: dict[str, Any], body: dict[str, Any]) -> None:
             f"num_ctx {num_ctx} tokens); Ollama cut the start off, so the model "
             "saw only part of it",
             suggestion=(
-                "raise ALB_OLLAMA_NUM_CTX (more memory on the Ollama host), "
+                "raise DHANDS_OLLAMA_NUM_CTX (more memory on the Ollama host), "
                 "turn tools off for this chat, or start a new session"
             ),
         )

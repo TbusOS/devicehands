@@ -13,7 +13,7 @@ from devicehands.api.server import create_app
 
 @pytest.fixture(autouse=True)
 def _ephemeral_forward_port(monkeypatch):
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
 
 
 class _Service:
@@ -28,7 +28,7 @@ class _Service:
 def ws(monkeypatch, tmp_path: Path) -> Path:
     import devicehands.api.flash_route as route
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.setattr(route, "get_flash_service", lambda: _Service())
     return tmp_path
 

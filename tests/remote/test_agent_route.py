@@ -2,7 +2,7 @@
 
 Uses Starlette's in-process TestClient WebSocket (no real network, no
 `websockets` dependency). The adb forwarder is pointed at an ephemeral port
-(ALB_ADB_FORWARD_PORT=0) so binding 5037 never clashes during tests.
+(DHANDS_ADB_FORWARD_PORT=0) so binding 5037 never clashes during tests.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ async def test_wsdatachannel_recv_send_close():
 
 @pytest.fixture(autouse=True)
 def _ephemeral_forward_port(monkeypatch):
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
 
 
 def _hello(token: str | None) -> str:
@@ -58,7 +58,7 @@ def _hello(token: str | None) -> str:
 
 
 def test_hello_gets_hello_ok_when_no_token_configured(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:
             ws.send_text(_hello(None))
@@ -67,7 +67,7 @@ def test_hello_gets_hello_ok_when_no_token_configured(monkeypatch):
 
 
 def test_correct_token_accepted(monkeypatch):
-    monkeypatch.setenv("ALB_AGENT_TOKEN", "s3cret")
+    monkeypatch.setenv("DHANDS_AGENT_TOKEN", "s3cret")
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:
             ws.send_text(_hello("s3cret"))
@@ -76,7 +76,7 @@ def test_correct_token_accepted(monkeypatch):
 
 
 def test_bad_token_rejected(monkeypatch):
-    monkeypatch.setenv("ALB_AGENT_TOKEN", "s3cret")
+    monkeypatch.setenv("DHANDS_AGENT_TOKEN", "s3cret")
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
             with c.websocket_connect("/agent/connect") as ws:
@@ -85,7 +85,7 @@ def test_bad_token_rejected(monkeypatch):
 
 
 def test_first_frame_must_be_hello(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
             with c.websocket_connect("/agent/connect") as ws:
@@ -94,7 +94,7 @@ def test_first_frame_must_be_hello(monkeypatch):
 
 
 def test_channel_unknown_cid_rejected(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
             with c.websocket_connect("/agent/channel?cid=does-not-exist") as ws:
@@ -102,7 +102,7 @@ def test_channel_unknown_cid_rejected(monkeypatch):
 
 
 def test_channel_requires_cid(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
             with c.websocket_connect("/agent/channel") as ws:
@@ -113,7 +113,7 @@ def test_channel_forwards_csecret_to_resolve(monkeypatch):
     """DEBT-084: the data-WS route reads ?csecret= and passes it to
     resolve_pending, which authenticates the dial-back against the channel's
     minted secret. We capture the args and reject so the WS closes."""
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     from devicehands.remote.registry import AgentRegistry
 
     captured: dict = {}
@@ -148,7 +148,7 @@ def _capture_resolve(monkeypatch) -> dict:
 def test_channel_reads_csecret_from_header(monkeypatch):
     """ADR-055: the dial-back secret rides a header so it never lands in the
     access log's request line."""
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     captured = _capture_resolve(monkeypatch)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
@@ -160,7 +160,7 @@ def test_channel_reads_csecret_from_header(monkeypatch):
 
 
 def test_channel_token_from_header_accepted(monkeypatch):
-    monkeypatch.setenv("ALB_AGENT_TOKEN", "s3cret")
+    monkeypatch.setenv("DHANDS_AGENT_TOKEN", "s3cret")
     captured = _capture_resolve(monkeypatch)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
@@ -174,7 +174,7 @@ def test_channel_token_from_header_accepted(monkeypatch):
 
 
 def test_channel_bad_token_header_rejected(monkeypatch):
-    monkeypatch.setenv("ALB_AGENT_TOKEN", "s3cret")
+    monkeypatch.setenv("DHANDS_AGENT_TOKEN", "s3cret")
     captured = _capture_resolve(monkeypatch)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
@@ -189,7 +189,7 @@ def test_channel_query_form_still_accepted(monkeypatch):
     """Back-compat that is load-bearing: the agent lives on an operator's
     machine and is redeployed by hand, so a hub upgrade must not lock out a
     working agent that still sends credentials in the query string."""
-    monkeypatch.setenv("ALB_AGENT_TOKEN", "s3cret")
+    monkeypatch.setenv("DHANDS_AGENT_TOKEN", "s3cret")
     captured = _capture_resolve(monkeypatch)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
@@ -201,7 +201,7 @@ def test_channel_query_form_still_accepted(monkeypatch):
 def test_header_form_ignores_stale_query_creds(monkeypatch):
     """A dial-back that presents headers is a new-style agent; a query param
     must not be able to override what it sent."""
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     captured = _capture_resolve(monkeypatch)
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
@@ -218,7 +218,7 @@ def test_agent_survives_forwarder_bind_failure(monkeypatch):
     (e.g. a local adb server already holds 5037), the agent session must STILL
     complete the handshake (hello_ok) and register — not get torn down before
     hello_ok and trapped in a reconnect loop."""
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     from devicehands.remote.registry import get_agent_registry
 
     class _BoomForwarder:
@@ -242,7 +242,7 @@ def test_agent_survives_forwarder_bind_failure(monkeypatch):
 def test_heartbeat_timeout_tears_down(monkeypatch):
     """After hello, an agent that never sends a heartbeat is dropped once
     HEARTBEAT_TIMEOUT_S elapses — and the registry is cleaned up (finally)."""
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     monkeypatch.setattr("devicehands.api.agent_route.HEARTBEAT_TIMEOUT_S", 0.3)
     from devicehands.remote.registry import get_agent_registry
 
@@ -263,7 +263,7 @@ def test_heartbeat_timeout_tears_down(monkeypatch):
 
 
 def test_agent_status_empty(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         body = c.get("/agent/status").json()
     assert body["agents"] == []
@@ -273,7 +273,7 @@ def test_agent_status_empty(monkeypatch):
 
 
 def test_agent_status_shows_connected_agent(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:
             ws.send_text(_hello(None))
@@ -286,9 +286,9 @@ def test_agent_status_shows_connected_agent(monkeypatch):
 
 
 def test_agent_status_serial_configured(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
-    monkeypatch.setenv("ALB_AGENT_SERIAL_COM", "COM5")
-    monkeypatch.setenv("ALB_AGENT_SERIAL_BAUD", "115200")
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_COM", "COM5")
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_BAUD", "115200")
     with TestClient(create_app()) as c:
         body = c.get("/agent/status").json()
     assert body["forwarders"]["serial"]["configured"] is True
@@ -326,7 +326,7 @@ def test_apply_agent_frame_updates_device_cache():
 
 
 def test_agent_status_exposes_device_keys(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:
             ws.send_text(_hello(None))
@@ -341,7 +341,7 @@ def test_agent_status_exposes_device_keys(monkeypatch):
 
 
 def test_adb_restart_sends_verb_to_current_agent(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:
             ws.send_text(_hello(None))
@@ -357,14 +357,14 @@ def test_adb_restart_sends_verb_to_current_agent(monkeypatch):
 
 
 def test_adb_restart_409_when_no_agent(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         r = c.post("/api/agent/adb/restart")
     assert r.status_code == 409
 
 
 def test_adb_restart_kill_conflicts_flag_in_frame(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:
             ws.send_text(_hello(None))
@@ -404,7 +404,7 @@ def test_channel_error_frame_is_dispatched_to_fail_pending(monkeypatch):
     """issue #4: `channel_error` must wake the waiting forwarder immediately
     with the agent's reason, instead of leaving it to time out on a dial-back
     that will never come. The session must survive the frame."""
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     from devicehands.remote.registry import AgentRegistry
 
     seen: list[tuple[str, str]] = []

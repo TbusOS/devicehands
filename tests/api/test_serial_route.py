@@ -32,7 +32,7 @@ class _Adb:
 
 @pytest.fixture
 def ws(monkeypatch, tmp_path: Path) -> Path:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     return tmp_path
 
 

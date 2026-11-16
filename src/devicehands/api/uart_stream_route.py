@@ -36,7 +36,7 @@ Protocol:
 
 The server forces `transport=serial` regardless of the env-default
 because UART is the whole point of this endpoint. If serial isn't
-configured (no `/dev/ttyUSB*` discoverable, no ALB_TRANSPORT=serial),
+configured (no `/dev/ttyUSB*` discoverable, no DHANDS_TRANSPORT=serial),
 build_transport raises and the WS closes with reason='init_failed'.
 
 Bidirectional mode (PR-C.c) requires SerialTransport.open_session()

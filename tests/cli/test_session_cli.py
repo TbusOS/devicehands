@@ -46,14 +46,14 @@ def _seed_session(
 
 
 def test_session_list_empty(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     r = runner.invoke(app, ["session", "list"])
     assert r.exit_code == 0
     assert "No sessions found" in r.stdout
 
 
 def test_session_list_sorted_newest_first(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     _seed_session(tmp_path, "20260101-aaaa", created="2026-01-01T00:00:00+00:00")
     _seed_session(tmp_path, "20260509-zzzz", created="2026-05-09T00:00:00+00:00")
     _seed_session(tmp_path, "20260301-mmmm", created="2026-03-01T00:00:00+00:00")
@@ -67,7 +67,7 @@ def test_session_list_sorted_newest_first(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_session_list_respects_limit(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     for i in range(5):
         _seed_session(
             tmp_path,
@@ -84,7 +84,7 @@ def test_session_list_respects_limit(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_session_list_json(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     _seed_session(
         tmp_path,
         "20260509-test",
@@ -108,7 +108,7 @@ def test_session_list_json(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_session_show_unknown_id(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     r = runner.invoke(app, ["session", "show", "nonexistent-id"])
     assert r.exit_code == 1
     assert "no session" in r.stdout
@@ -116,7 +116,7 @@ def test_session_show_unknown_id(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_session_show_renders_meta_and_messages(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     _seed_session(
         tmp_path,
         "20260509-show",
@@ -136,7 +136,7 @@ def test_session_show_renders_meta_and_messages(monkeypatch, tmp_path: Path) -> 
 
 def test_session_show_elides_middle_when_long(monkeypatch, tmp_path: Path) -> None:
     """≥11 messages → first 5 + ellipsis + last 5 (default; --full disables)."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     msgs = [
         {"role": "user", "content": f"msg-{i}"} for i in range(15)
     ]
@@ -157,7 +157,7 @@ def test_session_show_elides_middle_when_long(monkeypatch, tmp_path: Path) -> No
 
 
 def test_session_show_full_disables_eliding(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     msgs = [{"role": "user", "content": f"msg-{i}"} for i in range(15)]
     _seed_session(tmp_path, "20260509-long", messages=msgs)
 
@@ -170,7 +170,7 @@ def test_session_show_full_disables_eliding(monkeypatch, tmp_path: Path) -> None
 
 
 def test_session_show_json(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     _seed_session(
         tmp_path,
         "20260509-json",
@@ -194,7 +194,7 @@ def test_session_show_json_returns_all_messages_regardless_of_full(
     regardless of whether the caller passed --full. Avoids a foot-gun
     where a script silently parses 10 of N messages.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     msgs = [{"role": "user", "content": f"msg-{i}"} for i in range(15)]
     _seed_session(tmp_path, "20260509-json-full", messages=msgs)
 
@@ -215,7 +215,7 @@ def test_session_show_json_returns_all_messages_regardless_of_full(
 
 
 def test_session_replay_streams_all_messages(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     msgs = [{"role": "user", "content": f"line-{i}"} for i in range(8)]
     _seed_session(tmp_path, "20260509-replay", messages=msgs)
     r = runner.invoke(app, ["session", "replay", "20260509-replay"])
@@ -226,14 +226,14 @@ def test_session_replay_streams_all_messages(monkeypatch, tmp_path: Path) -> Non
 
 
 def test_session_replay_unknown_id(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     r = runner.invoke(app, ["session", "replay", "missing"])
     assert r.exit_code == 1
 
 
 def test_session_replay_renders_tool_calls(monkeypatch, tmp_path: Path) -> None:
     """Tool-call messages should show the tool name + arguments preview."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     _seed_session(
         tmp_path,
         "20260509-tools",

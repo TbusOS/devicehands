@@ -33,7 +33,7 @@ def stub_transport():
 
 @pytest.fixture
 def client(monkeypatch, stub_transport, tmp_path):
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.setattr(
         "devicehands.api.app_route.build_transport", lambda **_kw: stub_transport
     )
@@ -315,7 +315,7 @@ def test_transport_init_failure_returns_envelope_b_not_503(
     the front-end renders an inline error in the same panel rather
     than triggering its global onError handler.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
 
     def _boom(**_kw: Any):
         raise RuntimeError("adb server unreachable")

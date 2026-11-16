@@ -77,7 +77,7 @@ async def test_push_happy(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_pull_default_local(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _mk_transport()
     r = await pull(t, "/data/tombstones/tombstone_00", device="abc")
     assert r.ok

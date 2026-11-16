@@ -34,7 +34,7 @@ PURGE_WORKSPACE=0
 REMOVE_UV=0
 REMOVE_UV_PYTHON=0
 REMOVE_HOST_TOOLS=0
-ALB_DATA="${HOME}/.local/share/alb"
+DHANDS_DATA="${HOME}/.local/share/alb"
 
 usage() {
     cat <<USAGE
@@ -112,8 +112,8 @@ if [[ ${FORCE} -eq 0 ]]; then
         echo "  • ~/.local/bin/uv and ~/.local/bin/uvx"
     [[ ${REMOVE_UV_PYTHON} -eq 1 && -d "${HOME}/.local/share/uv" ]] && \
         echo "  • ~/.local/share/uv/ (${RED}ALL uv-managed Pythons${NC})"
-    [[ ${REMOVE_HOST_TOOLS} -eq 1 && -d "${ALB_DATA}" ]] && \
-        echo "  • ${ALB_DATA}/ and its links in ~/.local/bin (adb, fastboot, mksh installed by dhands)"
+    [[ ${REMOVE_HOST_TOOLS} -eq 1 && -d "${DHANDS_DATA}" ]] && \
+        echo "  • ${DHANDS_DATA}/ and its links in ~/.local/bin (adb, fastboot, mksh installed by dhands)"
     echo
     read -rp "Continue? [y/N] " ans
     if [[ ! "${ans}" =~ ^[Yy]$ ]]; then
@@ -185,16 +185,16 @@ if [[ ${REMOVE_HOST_TOOLS} -eq 1 ]]; then
     # Only links that point into ~/.local/share/alb are ours; anything else
     # in ~/.local/bin with the same name belongs to the user.
     for link in "${HOME}/.local/bin/"*; do
-        if [[ -L "${link}" && "$(readlink "${link}")" == "${ALB_DATA}/"* ]]; then
+        if [[ -L "${link}" && "$(readlink "${link}")" == "${DHANDS_DATA}/"* ]]; then
             rm -f "${link}"
             log_ok "Removed link ${link}"
         fi
     done
-    if [[ -d "${ALB_DATA}" ]]; then
-        rm -rf "${ALB_DATA}"
-        log_ok "Removed ${ALB_DATA}/"
+    if [[ -d "${DHANDS_DATA}" ]]; then
+        rm -rf "${DHANDS_DATA}"
+        log_ok "Removed ${DHANDS_DATA}/"
     else
-        log_info "${ALB_DATA}/ not present — skipping"
+        log_info "${DHANDS_DATA}/ not present — skipping"
     fi
 fi
 

@@ -42,7 +42,7 @@ _MARKER = "_alb_logging_installed"
 
 
 def _configured_level() -> int:
-    """``ALB_LOG_LEVEL`` (name or number), defaulting to INFO.
+    """``DHANDS_LOG_LEVEL`` (name or number), defaulting to INFO.
 
     INFO rather than WARNING because the events dhands logs at INFO are
     operator-meaningful and rare — a channel opening, an agent connecting. The
@@ -50,7 +50,7 @@ def _configured_level() -> int:
     every request; it does not apply here, and the cost of the quiet default
     was a day of debugging a working tunnel.
     """
-    raw = os.environ.get("ALB_LOG_LEVEL", "").strip()
+    raw = os.environ.get("DHANDS_LOG_LEVEL", "").strip()
     if not raw:
         return logging.INFO
     if raw.isdigit():

@@ -36,7 +36,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "ADB_BINARY_NOT_FOUND",
         "transport",
         "adb binary not found",
-        "Put adb on PATH, or set ALB_ADB_PATH to the adb executable",
+        "Put adb on PATH, or set DHANDS_ADB_PATH to the adb executable",
     ),
     "ADB_SERVER_UNREACHABLE": ErrorSpec(
         "ADB_SERVER_UNREACHABLE",
@@ -189,7 +189,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "system",
         "The request filled the model's whole context window; the LLM server cut "
         "the start off, so the model saw only part of it",
-        "Raise ALB_OLLAMA_NUM_CTX, turn tools off for this chat, or start a new session",
+        "Raise DHANDS_OLLAMA_NUM_CTX, turn tools off for this chat, or start a new session",
     ),
     # reported by AgentLoop in the done event; the text so far is kept
     "LLM_OUTPUT_TRUNCATED": ErrorSpec(
@@ -710,7 +710,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "AGENT_START_NOT_CONFIGURED",
         "input",
         "This hub does not know how to reach the bench host over ssh",
-        "Set ALB_BENCH_SSH_HOST in deploy/hub/hub.env to a Host from the hub user's "
+        "Set DHANDS_BENCH_SSH_HOST in deploy/hub/hub.env to a Host from the hub user's "
         "~/.ssh/config and restart dhands-hub",
     ),
     "AGENT_START_SSH_FAILED": ErrorSpec(
@@ -746,7 +746,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "BENCH_BOARDS_NOT_CONFIGURED",
         "input",
         "This hub has no bench board table",
-        "Set ALB_BENCH_BOARDS in deploy/hub/hub.env to a boards TOML file "
+        "Set DHANDS_BENCH_BOARDS in deploy/hub/hub.env to a boards TOML file "
         "(see deploy/hub/boards.toml.example) and restart dhands-hub",
     ),
     "BENCH_BOARDS_INVALID": ErrorSpec(

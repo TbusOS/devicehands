@@ -70,7 +70,7 @@ tags: [errors, reference, llm-friendly]
 
 | Code | 默认 message | 默认 suggestion |
 |---|---|---|
-| `ADB_BINARY_NOT_FOUND` | adb binary not found | Put adb on PATH, or set ALB_ADB_PATH to the adb executable |
+| `ADB_BINARY_NOT_FOUND` | adb binary not found | Put adb on PATH, or set DHANDS_ADB_PATH to the adb executable |
 | `ADB_COMMAND_FAILED` | adb command returned a non-zero exit code | Read error.details.stderr for the underlying adb message |
 | `ADB_ENDPOINT_UNSUPPORTED` | The resolved adb server endpoint is not a tcp: socket | Set ADB_SERVER_SOCKET or config `server_socket` to `tcp:<host>:<port>` |
 | `ADB_PROTOCOL_ERROR` | The endpoint did not answer like an adb server (bad reply, hung up, or timed out) | Check that the endpoint is an adb server: `dhands status` |
@@ -180,9 +180,9 @@ tags: [errors, reference, llm-friendly]
 
 | Code | 默认 message | 默认 suggestion |
 |---|---|---|
-| `AGENT_START_NOT_CONFIGURED` | This hub does not know how to reach the bench host over ssh | Set ALB_BENCH_SSH_HOST in deploy/hub/hub.env to a Host from the hub user's ~/.ssh/config and restart dhands-hub |
+| `AGENT_START_NOT_CONFIGURED` | This hub does not know how to reach the bench host over ssh | Set DHANDS_BENCH_SSH_HOST in deploy/hub/hub.env to a Host from the hub user's ~/.ssh/config and restart dhands-hub |
 | `BENCH_BOARDS_INVALID` | The bench board table cannot be used | Fix the file and entry named in the message; nothing was switched |
-| `BENCH_BOARDS_NOT_CONFIGURED` | This hub has no bench board table | Set ALB_BENCH_BOARDS in deploy/hub/hub.env to a boards TOML file (see deploy/hub/boards.toml.example) and restart dhands-hub |
+| `BENCH_BOARDS_NOT_CONFIGURED` | This hub has no bench board table | Set DHANDS_BENCH_BOARDS in deploy/hub/hub.env to a boards TOML file (see deploy/hub/boards.toml.example) and restart dhands-hub |
 | `BENCH_BOARD_UNKNOWN` | No board by that name in the bench board table | `dhands bench board` lists the names; add the board to the table first |
 | `BREAKIN_BAD_ARGUMENT` | A break-in option is not usable (unknown reboot mode, nothing to send) | See `dhands serial break-in --help` |
 | `INVALID_DEVICE_SERIAL` | device serial is malformed | Use a serial returned by dhands devices |
@@ -195,7 +195,7 @@ tags: [errors, reference, llm-friendly]
 
 | Code | 默认 message | 默认 suggestion |
 |---|---|---|
-| `LLM_CONTEXT_TRUNCATED` | The request filled the model's whole context window; the LLM server cut the start off, so the model saw only part of it | Raise ALB_OLLAMA_NUM_CTX, turn tools off for this chat, or start a new session |
+| `LLM_CONTEXT_TRUNCATED` | The request filled the model's whole context window; the LLM server cut the start off, so the model saw only part of it | Raise DHANDS_OLLAMA_NUM_CTX, turn tools off for this chat, or start a new session |
 | `LLM_OUTPUT_TRUNCATED` | The answer reached the agent's output limit per model turn (devicehands.agent.loop.DEFAULT_MAX_OUTPUT_TOKENS) and was cut off | Ask again or ask for a shorter answer; a reply that repeats itself until the limit is the model looping, a new session usually helps |
 | `SYSTEM_DEPENDENCY_MISSING` | Missing system dependency | Install the missing tool per error.details |
 

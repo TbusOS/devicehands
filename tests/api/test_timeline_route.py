@@ -85,7 +85,7 @@ def _serial(lines: list[bytes]) -> AsyncMock:
 
 @pytest.fixture
 def ws(monkeypatch, tmp_path: Path) -> Path:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.setattr(timeline_route, "_PROGRESS_EVERY_S", 0.2)
     monkeypatch.setattr(timeline_route, "_REBOOT_DELAY_S", 0.1)
     return tmp_path

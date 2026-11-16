@@ -8,18 +8,18 @@ Design:
     - Read-only. Does not mutate config or kill processes.
     - Quick (< 5s). Each TCP probe has a 1.5s timeout.
     - Six layers, in order:
-        1. env       — ALB_WORKSPACE / ADB_SERVER_SOCKET / ALB_CONFIG
+        1. env       — DHANDS_WORKSPACE / ADB_SERVER_SOCKET / DHANDS_CONFIG
         2. binaries  — adb / picocom / socat
         3. config    — global config.toml + active profile
         4. adb       — server reachable + visible devices
         5. serial    — TCP endpoint listening + transport.health()
-        6. ssh       — only if ALB_SSH_HOST is set
+        6. ssh       — only if DHANDS_SSH_HOST is set
     - Returns exit code 0 (all green / yellow), 1 (≥1 red), 2 (internal
       error). The shell-friendly contract lets CI / oncall scripts wrap
       it.
     - Supports `--json` (inherited from main) for machine consumption.
 
-Skipped layers (e.g. ssh when ALB_SSH_HOST is unset) are reported with
+Skipped layers (e.g. ssh when DHANDS_SSH_HOST is unset) are reported with
 a neutral "skip" status, never red — absence of optional config is not
 an error.
 """

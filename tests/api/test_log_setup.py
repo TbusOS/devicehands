@@ -82,13 +82,13 @@ def test_reuses_uvicorns_handler(_pristine_alb_logger):
 
 
 def test_level_override_from_env(_pristine_alb_logger, monkeypatch):
-    monkeypatch.setenv("ALB_LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("DHANDS_LOG_LEVEL", "WARNING")
     install_alb_logging()
     assert not logging.getLogger("devicehands.remote.forwarder").isEnabledFor(logging.INFO)
 
 
 def test_unknown_level_name_falls_back_to_info(_pristine_alb_logger, monkeypatch):
     """A typo must not silence the hub — that is the failure being fixed."""
-    monkeypatch.setenv("ALB_LOG_LEVEL", "verbose-please")
+    monkeypatch.setenv("DHANDS_LOG_LEVEL", "verbose-please")
     install_alb_logging()
     assert logging.getLogger("devicehands.remote.forwarder").isEnabledFor(logging.INFO)

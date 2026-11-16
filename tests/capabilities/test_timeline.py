@@ -614,7 +614,7 @@ async def test_unknown_or_empty_sources_rejected() -> None:
 
 
 async def test_default_directory_is_under_device_timeline(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     r = await capture_timeline(
         0.1, sources={"logcat"}, streams={"logcat": _ending(b"x\n")}, device="abc"
     )

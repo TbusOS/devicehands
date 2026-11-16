@@ -96,8 +96,8 @@ async def test_run_stdin_piping() -> None:
 async def test_run_custom_env() -> None:
     """Custom env is passed to the child."""
     r = await run(
-        "/bin/sh", "-c", "printf %s \"$ALB_TEST_MARKER\"",
-        env={"ALB_TEST_MARKER": "marker-42", "PATH": os.environ.get("PATH", "")},
+        "/bin/sh", "-c", "printf %s \"$DHANDS_TEST_MARKER\"",
+        env={"DHANDS_TEST_MARKER": "marker-42", "PATH": os.environ.get("PATH", "")},
     )
     assert r.ok
     assert r.stdout == "marker-42"

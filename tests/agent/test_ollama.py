@@ -493,13 +493,13 @@ async def test_num_ctx_is_sent_and_can_be_overridden() -> None:
 def test_num_ctx_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     from devicehands.agent.backends import get_backend
 
-    monkeypatch.setenv("ALB_OLLAMA_NUM_CTX", "32768")
+    monkeypatch.setenv("DHANDS_OLLAMA_NUM_CTX", "32768")
     # with kwargs, as the chat route calls it (no-kwargs calls are cached for probes)
     assert get_backend("ollama", model="m").num_ctx == 32768  # type: ignore[attr-defined]
-    monkeypatch.setenv("ALB_OLLAMA_NUM_CTX", "0")  # send none: Ollama's own default
+    monkeypatch.setenv("DHANDS_OLLAMA_NUM_CTX", "0")  # send none: Ollama's own default
     assert get_backend("ollama", model="m").num_ctx is None  # type: ignore[attr-defined]
-    monkeypatch.setenv("ALB_OLLAMA_NUM_CTX", "16k")
-    with pytest.raises(ValueError, match="ALB_OLLAMA_NUM_CTX"):
+    monkeypatch.setenv("DHANDS_OLLAMA_NUM_CTX", "16k")
+    with pytest.raises(ValueError, match="DHANDS_OLLAMA_NUM_CTX"):
         get_backend("ollama", model="m")
 
 
@@ -518,7 +518,7 @@ async def test_chat_refuses_a_reply_whose_prompt_filled_the_window() -> None:
         await b.chat([Message(role="user", content="hi")])
     assert ei.value.code == "LLM_CONTEXT_TRUNCATED"
     assert "4096 of num_ctx 4096" in str(ei.value)
-    assert "ALB_OLLAMA_NUM_CTX" in ei.value.suggestion
+    assert "DHANDS_OLLAMA_NUM_CTX" in ei.value.suggestion
     # one token short of the window: it all fit
     resp = await b.chat([Message(role="user", content="hi")])
     assert resp.usage["input_tokens"] == 4095
@@ -604,10 +604,10 @@ def test_timeout_default_and_environment(monkeypatch: pytest.MonkeyPatch) -> Non
     from devicehands.agent.backends import get_backend
 
     assert OllamaBackend().timeout == 600.0
-    monkeypatch.setenv("ALB_OLLAMA_TIMEOUT", "900")
+    monkeypatch.setenv("DHANDS_OLLAMA_TIMEOUT", "900")
     assert get_backend("ollama", model="m").timeout == 900.0  # type: ignore[attr-defined]
-    monkeypatch.setenv("ALB_OLLAMA_TIMEOUT", "ten minutes")
-    with pytest.raises(ValueError, match="ALB_OLLAMA_TIMEOUT"):
+    monkeypatch.setenv("DHANDS_OLLAMA_TIMEOUT", "ten minutes")
+    with pytest.raises(ValueError, match="DHANDS_OLLAMA_TIMEOUT"):
         get_backend("ollama", model="m")
 
 
@@ -622,7 +622,7 @@ def test_connect_timeout_is_short_and_apart_from_the_reply_timeout(monkeypatch: 
 
     t = OllamaBackend()._get_client().timeout
     assert (t.connect, t.read, t.write, t.pool) == (10.0, 600.0, 600.0, 600.0)
-    monkeypatch.setenv("ALB_OLLAMA_TIMEOUT", "900")
+    monkeypatch.setenv("DHANDS_OLLAMA_TIMEOUT", "900")
     t = get_backend("ollama", model="m")._get_client().timeout  # type: ignore[attr-defined]
     assert (t.connect, t.read) == (10.0, 900.0)  # raising the reply wait does not stretch the connect
 

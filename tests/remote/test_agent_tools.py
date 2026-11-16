@@ -8,7 +8,7 @@ so these tests run the agent's real subprocess path: argv without a shell,
 working directory, output relay and decoding, the three-way verdict, the
 timeout that ends the whole process tree, and the files brought back.
 
-ALB_AGENT_UNDER_TEST points the module at another copy of alb_agent.py: the
+DHANDS_AGENT_UNDER_TEST points the module at another copy of alb_agent.py: the
 reverse runs feed it deliberately weakened copies, each of which must make
 at least one test here fail.
 """
@@ -33,7 +33,7 @@ _DEFAULT_AGENT = Path(__file__).resolve().parents[2] / "clients" / "windows-agen
 
 
 def _load_agent() -> Any:
-    path = Path(os.environ.get("ALB_AGENT_UNDER_TEST") or _DEFAULT_AGENT)
+    path = Path(os.environ.get("DHANDS_AGENT_UNDER_TEST") or _DEFAULT_AGENT)
     spec = importlib.util.spec_from_file_location("alb_agent_tools_under_test", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)

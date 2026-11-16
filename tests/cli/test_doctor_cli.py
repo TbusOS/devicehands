@@ -63,13 +63,13 @@ def test_layer_worst_empty_is_skip() -> None:
 
 
 def test_probe_env_marks_set_vs_unset(monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", "/some/path")
+    monkeypatch.setenv("DHANDS_WORKSPACE", "/some/path")
     monkeypatch.delenv("ADB_SERVER_SOCKET", raising=False)
-    monkeypatch.delenv("ALB_CONFIG", raising=False)
-    monkeypatch.delenv("ALB_PROFILE", raising=False)
+    monkeypatch.delenv("DHANDS_CONFIG", raising=False)
+    monkeypatch.delenv("DHANDS_PROFILE", raising=False)
     layer = probe_env()
     by_name = {c.name: c for c in layer.checks}
-    assert by_name["ALB_WORKSPACE"].status == "ok"
+    assert by_name["DHANDS_WORKSPACE"].status == "ok"
     assert by_name["ADB_SERVER_SOCKET"].status == "skip"
     # Worst is "ok" because skip is neutral
     assert layer.worst == "ok"
@@ -107,14 +107,14 @@ def test_probe_binaries_adb_present(monkeypatch) -> None:
 
 
 def test_probe_binaries_adb_follows_alb_adb_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """adb outside PATH but named by ALB_ADB_PATH is the adb dhands runs, so
+    """adb outside PATH but named by DHANDS_ADB_PATH is the adb dhands runs, so
     doctor must not report it missing (it used to look up "adb" on PATH)."""
     adb = tmp_path / "adb"
     adb.write_text("#!/bin/sh\n")
     adb.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "no-config.toml"))
-    monkeypatch.setenv("ALB_ADB_PATH", str(adb))
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "no-config.toml"))
+    monkeypatch.setenv("DHANDS_ADB_PATH", str(adb))
     by_name = {c.name: c for c in probe_binaries().checks}
     assert by_name["adb"].status == "ok"
     assert by_name["adb"].detail == str(adb)
@@ -122,8 +122,8 @@ def test_probe_binaries_adb_follows_alb_adb_path(monkeypatch: pytest.MonkeyPatch
 
 def test_probe_binaries_bad_alb_adb_path_names_the_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     missing = tmp_path / "nope" / "adb"
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "no-config.toml"))
-    monkeypatch.setenv("ALB_ADB_PATH", str(missing))
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "no-config.toml"))
+    monkeypatch.setenv("DHANDS_ADB_PATH", str(missing))
     by_name = {c.name: c for c in probe_binaries().checks}
     assert by_name["adb"].status == "err"
     assert by_name["adb"].detail.startswith(f"{missing}: not found or not executable")
@@ -134,8 +134,8 @@ def test_probe_binaries_bad_alb_adb_path_names_the_path(monkeypatch: pytest.Monk
 
 def test_probe_config_missing_file_is_skip(monkeypatch, tmp_path: Path) -> None:
     """Missing config.toml → skip (defaults), not error."""
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "absent.toml"))
-    monkeypatch.setenv("ALB_PROFILE", "default")
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.setenv("DHANDS_PROFILE", "default")
     layer = probe_config()
     by_name = {c.name: c for c in layer.checks}
     assert by_name["global config"].status == "skip"
@@ -145,7 +145,7 @@ def test_probe_config_missing_file_is_skip(monkeypatch, tmp_path: Path) -> None:
 def test_probe_config_present_file(monkeypatch, tmp_path: Path) -> None:
     cfg = tmp_path / "config.toml"
     cfg.write_text('default_profile = "default"\n')
-    monkeypatch.setenv("ALB_CONFIG", str(cfg))
+    monkeypatch.setenv("DHANDS_CONFIG", str(cfg))
     layer = probe_config()
     by_name = {c.name: c for c in layer.checks}
     assert by_name["global config"].status == "ok"
@@ -157,7 +157,7 @@ def test_probe_config_present_file(monkeypatch, tmp_path: Path) -> None:
 
 def test_probe_serial_endpoint_not_listening(monkeypatch, tmp_path: Path) -> None:
     """Endpoint down → warn (not err): ser2net could just be off."""
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "absent.toml"))
     # Force check_tcp_listen → False without actually opening sockets
     monkeypatch.setattr(
         "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
@@ -168,7 +168,7 @@ def test_probe_serial_endpoint_not_listening(monkeypatch, tmp_path: Path) -> Non
 
 
 def test_probe_serial_endpoint_listening_and_open(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "absent.toml"))
     monkeypatch.setattr(
         "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: True
     )
@@ -190,14 +190,14 @@ def test_probe_serial_endpoint_listening_and_open(monkeypatch, tmp_path: Path) -
 
 
 def test_probe_ssh_unset_is_skip(monkeypatch) -> None:
-    monkeypatch.delenv("ALB_SSH_HOST", raising=False)
+    monkeypatch.delenv("DHANDS_SSH_HOST", raising=False)
     layer = probe_ssh()
     assert layer.worst == "skip"
 
 
 def test_probe_ssh_set_and_unreachable(monkeypatch) -> None:
-    monkeypatch.setenv("ALB_SSH_HOST", "example-host.invalid")
-    monkeypatch.setenv("ALB_SSH_PORT", "22")
+    monkeypatch.setenv("DHANDS_SSH_HOST", "example-host.invalid")
+    monkeypatch.setenv("DHANDS_SSH_PORT", "22")
     monkeypatch.setattr(
         "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
     )
@@ -236,8 +236,8 @@ def test_alb_doctor_json_smoke(monkeypatch, tmp_path: Path) -> None:
     # Force adb missing so we land at err (deterministic regardless of host)
     import shutil
     monkeypatch.setattr(shutil, "which", lambda _: None)
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "absent.toml"))
-    monkeypatch.delenv("ALB_SSH_HOST", raising=False)
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.delenv("DHANDS_SSH_HOST", raising=False)
     # Avoid real TCP sockets
     monkeypatch.setattr(
         "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False

@@ -76,9 +76,9 @@ def _main_options(
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Verbose output."),
 ) -> None:
     # Early-validate `--profile` flag so bad values show a friendly typer
-    # error rather than a Python traceback.  `ALB_PROFILE` env is NOT
+    # error rather than a Python traceback.  `DHANDS_PROFILE` env is NOT
     # validated here on purpose — doing so would also block
-    # `ALB_PROFILE=stale dhands <sub> --help` from showing help, which is a
+    # `DHANDS_PROFILE=stale dhands <sub> --help` from showing help, which is a
     # foot-gun when users have a leftover env var.  Bad env is caught
     # lazily inside `profile_path()` when subcommands actually call
     # `load_active()`.

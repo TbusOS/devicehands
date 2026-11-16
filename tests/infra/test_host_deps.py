@@ -60,8 +60,8 @@ def _env(tmp_path: Path, **kw: object) -> hd.HostEnv:
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "no-config.toml"))
-    for var in ("ALB_OLLAMA_URL", "ALB_PLATFORM_TOOLS_URL", "PLAYWRIGHT_BROWSERS_PATH", "XDG_CACHE_HOME"):
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "no-config.toml"))
+    for var in ("DHANDS_OLLAMA_URL", "DHANDS_PLATFORM_TOOLS_URL", "PLAYWRIGHT_BROWSERS_PATH", "XDG_CACHE_HOME"):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -131,7 +131,7 @@ def test_download_failure_says_how_to_install_by_hand(
     assert adb.status == "failed" and len(tries) == env.download_attempts
     assert "download failed after 3 tries" in adb.detail and hd.PLATFORM_TOOLS_URLS["Linux"] in adb.detail
     manual = "\n".join(adb.manual)
-    for needle in ("--platform-tools-zip", "ALB_ADB_PATH", "HTTPS_PROXY", "ALB_PLATFORM_TOOLS_URL",
+    for needle in ("--platform-tools-zip", "DHANDS_ADB_PATH", "HTTPS_PROXY", "DHANDS_PLATFORM_TOOLS_URL",
                    hd.PLATFORM_TOOLS_URLS["Linux"]):
         assert needle in manual
     assert not env.bin_dir.exists() or not any(env.bin_dir.iterdir())

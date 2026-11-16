@@ -26,7 +26,7 @@ _SRC = Path(__file__).resolve().parents[2] / "clients" / "windows-agent"
 
 @pytest.fixture(autouse=True)
 def _ephemeral_forward_port(monkeypatch):
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
     monkeypatch.setattr(au, "_POLL_S", 0.01)
 
 
@@ -86,9 +86,9 @@ def test_the_repo_folder_bundles_cleanly(tmp_path):
 
 
 def test_bundle_dir_defaults_to_this_checkout_and_can_be_overridden(monkeypatch, tmp_path):
-    monkeypatch.delenv("ALB_AGENT_BUNDLE_DIR", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_BUNDLE_DIR", raising=False)
     assert au.bundle_dir() == _SRC
-    monkeypatch.setenv("ALB_AGENT_BUNDLE_DIR", str(tmp_path))
+    monkeypatch.setenv("DHANDS_AGENT_BUNDLE_DIR", str(tmp_path))
     assert au.bundle_dir() == tmp_path
 
 
@@ -255,7 +255,7 @@ async def test_a_job_failure_that_is_not_a_lost_answer_passes_through(tmp_path):
 
 
 def test_status_shows_the_build_and_the_last_update(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     hello = p.hello(agent_id="agent-1", name="t", version=1, caps=["adb"], token=None)
     hello["build"] = "abc123def456"
     hello["update"] = {"id": "u1", "outcome": "updated"}
@@ -280,7 +280,7 @@ def test_status_shows_the_build_and_the_last_update(monkeypatch):
 def test_a_pending_update_on_the_target_build_is_updated(
     monkeypatch: pytest.MonkeyPatch, build: str, expected: dict[str, str]
 ) -> None:
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     hello = p.hello(agent_id="agent-1", name="t", version=1, caps=["adb"], token=None)
     hello["build"] = build
     hello["update"] = {"id": "u1", "outcome": "pending", "from_build": "old0000", "to_build": "new0000"}
@@ -295,7 +295,7 @@ def test_a_pending_update_on_the_target_build_is_updated(
 
 
 def test_an_old_agent_has_no_build(monkeypatch):
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     hello = p.hello(agent_id="agent-1", name="t", version=1, caps=["adb"], token=None)
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:

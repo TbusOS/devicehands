@@ -429,7 +429,7 @@ def chosen(tmp_path, monkeypatch):
         '[boards.board-b]\nserial_com = "COM1"\nserial_baud = 1500000\n',
         encoding="utf-8",
     )
-    monkeypatch.setenv("ALB_BENCH_BOARDS", str(table))
+    monkeypatch.setenv("DHANDS_BENCH_BOARDS", str(table))
 
     def choose(name: str | None) -> None:
         if name is not None:
@@ -537,8 +537,8 @@ def test_the_real_hello_lands_as_the_hubs_lists(monkeypatch):
     from devicehands.remote import protocol as p
     from devicehands.remote.registry import get_agent_registry
 
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
-    monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     _per_board(monkeypatch, products={"board-a": "prod_a"})
     with TestClient(create_app()) as c, c.websocket_connect("/agent/connect") as ws:
         ws.send_text(agent._hello("agent-boards", "bench", None))

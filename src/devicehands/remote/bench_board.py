@@ -5,7 +5,7 @@ boards speak different baud rates. Before this, the COM port and baud were
 read once from hub.env when dhands-hub started: switching boards meant editing
 hub.env and restarting the hub — cutting every other user of the bench.
 
-Now the hub reads a small table of boards (``ALB_BENCH_BOARDS``, a TOML file)::
+Now the hub reads a small table of boards (``DHANDS_BENCH_BOARDS``, a TOML file)::
 
     [boards.board-a]
     serial_com = "COM27"
@@ -15,8 +15,8 @@ Now the hub reads a small table of boards (``ALB_BENCH_BOARDS``, a TOML file)::
 and ``dhands bench board use <name>`` points the serial forwarder at that
 board's COM port and baud while the hub runs. The choice is kept in the
 workspace (``bench/board.json``), so a restarted hub comes back on it.
-Without a table, or with no board chosen, hub.env's ALB_AGENT_SERIAL_COM /
-ALB_AGENT_SERIAL_BAUD still apply exactly as before.
+Without a table, or with no board chosen, hub.env's DHANDS_AGENT_SERIAL_COM /
+DHANDS_AGENT_SERIAL_BAUD still apply exactly as before.
 
 The agent already opens whatever COM/baud each serial channel asks for
 (ADR-050: "COM/baud is a per-session parameter the hub sends"); only the hub
@@ -38,7 +38,7 @@ from devicehands.infra.workspace import workspace_root
 
 _log = logging.getLogger(__name__)
 
-BOARDS_ENV = "ALB_BENCH_BOARDS"
+BOARDS_ENV = "DHANDS_BENCH_BOARDS"
 _STATE = Path("bench") / "board.json"
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}\Z")
 # What the agent hands to pyserial: COM27 on Windows, /dev/ttyUSB0 elsewhere.
@@ -158,8 +158,8 @@ def save_active(name: str) -> None:
 def _env_target() -> tuple[str | None, int]:
     from devicehands.remote.forwarder import DEFAULT_BAUD, _env_int
 
-    return os.environ.get("ALB_AGENT_SERIAL_COM") or None, _env_int(
-        "ALB_AGENT_SERIAL_BAUD", DEFAULT_BAUD
+    return os.environ.get("DHANDS_AGENT_SERIAL_COM") or None, _env_int(
+        "DHANDS_AGENT_SERIAL_BAUD", DEFAULT_BAUD
     )
 
 

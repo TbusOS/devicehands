@@ -321,7 +321,7 @@ def cmd_agent_start(
 
     The hub runs the bench host's scheduled task `alb-agent` (set up once
     with setup-remote-start.bat there) and waits for the agent to connect.
-    The ssh host is the hub's ALB_BENCH_SSH_HOST. A connected agent is left
+    The ssh host is the hub's DHANDS_BENCH_SSH_HOST. A connected agent is left
     alone, and a task that is already running is not started again: this
     is not a restart (Windows ignores a second run of a running task).
     """
@@ -389,7 +389,7 @@ def _print_boards(data: dict[str, Any]) -> None:
     boards = data.get("boards") or []
     if not boards:
         typer.echo(
-            "  no board table — set ALB_BENCH_BOARDS in deploy/hub/hub.env "
+            "  no board table — set DHANDS_BENCH_BOARDS in deploy/hub/hub.env "
             "(see deploy/hub/boards.toml.example)"
         )
         return

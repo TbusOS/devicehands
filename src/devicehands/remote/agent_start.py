@@ -11,7 +11,7 @@ Windows to start that task and then wait for the agent's hello:
 The task, not ssh, starts the agent: a process started by an ssh session has
 no window and ends with the session.
 
-The ssh target comes only from the hub's own environment (ALB_BENCH_SSH_HOST,
+The ssh target comes only from the hub's own environment (DHANDS_BENCH_SSH_HOST,
 a Host in the hub user's ~/.ssh/config) and the remote command is fixed here.
 The hub API has no auth (ADR-060 cost), so a request can say how long to
 wait, never where to ssh or what to run.
@@ -40,8 +40,8 @@ from typing import Any
 from devicehands.infra import process
 from devicehands.remote.flash import EventSink, FlashEvent, FlashResult
 
-SSH_HOST_ENV = "ALB_BENCH_SSH_HOST"
-TASK_ENV = "ALB_BENCH_AGENT_TASK"
+SSH_HOST_ENV = "DHANDS_BENCH_SSH_HOST"
+TASK_ENV = "DHANDS_BENCH_AGENT_TASK"
 DEFAULT_TASK = "alb-agent"  # what setup_remote_start.py registers
 CONNECT_TIMEOUT_S = 60.0
 MIN_WAIT_S, MAX_WAIT_S = 5.0, 300.0

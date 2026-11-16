@@ -35,7 +35,7 @@ def load_active_friendly(profile_name: str | None = None) -> ActiveSettings:
     """`load_active` with `InvalidProfileName` → `typer.BadParameter` mapping.
 
     Use this from any CLI subcommand that needs active settings (status /
-    setup / chat / etc.). Bad `--profile` flag or `ALB_PROFILE` env now
+    setup / chat / etc.). Bad `--profile` flag or `DHANDS_PROFILE` env now
     surfaces as a friendly typer error rather than a Python traceback.
 
     `dhands doctor` is the exception — its `_probe_config` deliberately treats
@@ -46,7 +46,7 @@ def load_active_friendly(profile_name: str | None = None) -> ActiveSettings:
         return _raw_load_active(profile_name)
     except InvalidProfileName as e:
         raise typer.BadParameter(
-            str(e), param_hint="ALB_PROFILE or --profile"
+            str(e), param_hint="DHANDS_PROFILE or --profile"
         ) from None
 
 

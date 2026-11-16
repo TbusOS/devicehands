@@ -5,10 +5,10 @@ Two layers:
     <workspace>/profiles/<name>.toml   — profile-specific (multi-device / env)
 
 Env overrides:
-    ALB_CONFIG   — absolute path to alternative config.toml
-    ALB_PROFILE  — profile name to activate (default: "default")
-    ALB_WORKSPACE — workspace root (see infra.workspace)
-    ALB_ADB_PATH — adb executable to use; wins over [transport.adb] bin_path
+    DHANDS_CONFIG   — absolute path to alternative config.toml
+    DHANDS_PROFILE  — profile name to activate (default: "default")
+    DHANDS_WORKSPACE — workspace root (see infra.workspace)
+    DHANDS_ADB_PATH — adb executable to use; wins over [transport.adb] bin_path
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ class Config:
 
 # ─── Path resolution ───────────────────────────────────────────────
 def global_config_path() -> Path:
-    env = os.environ.get("ALB_CONFIG")
+    env = os.environ.get("DHANDS_CONFIG")
     if env:
         return Path(env).expanduser()
     xdg = os.environ.get("XDG_CONFIG_HOME")
@@ -119,7 +119,7 @@ def profile_path(name: str) -> Path:
     from `session_path` and `workspace_path` device validation. A bad
     profile name otherwise lets `f"{name}.toml"` escape via `..` and
     load attacker-planted TOML as dhands config (since attackers may set
-    `ALB_PROFILE` env / inject into `--profile`).
+    `DHANDS_PROFILE` env / inject into `--profile`).
     """
     if not is_safe_profile_name(name):
         raise InvalidProfileName(
@@ -133,14 +133,14 @@ def profile_path(name: str) -> Path:
 def load_config() -> Config:
     """Load the global config. Returns defaults if file missing.
 
-    ``ALB_ADB_PATH`` (path to the adb executable), when set, wins over
+    ``DHANDS_ADB_PATH`` (path to the adb executable), when set, wins over
     ``[transport.adb] bin_path``. A script that pins PATH to the system
     directories can then point dhands at its adb without writing a config
     file. The transport, ``dhands doctor`` and ``dhands setup`` all take the adb
     path from ``bin_path``, so applying the variable here covers them all.
     """
     cfg = _load_config_file()
-    adb_path = os.environ.get("ALB_ADB_PATH")
+    adb_path = os.environ.get("DHANDS_ADB_PATH")
     if adb_path:
         cfg = replace(cfg, adb=replace(cfg.adb, bin_path=os.path.expanduser(adb_path)))
     return cfg
@@ -169,9 +169,9 @@ def _load_config_file() -> Config:
 
 
 def load_profile(name: str | None = None) -> Profile:
-    """Load a profile by name. If name is None, uses env ALB_PROFILE or config.default_profile."""
+    """Load a profile by name. If name is None, uses env DHANDS_PROFILE or config.default_profile."""
     if name is None:
-        name = os.environ.get("ALB_PROFILE") or load_config().default_profile
+        name = os.environ.get("DHANDS_PROFILE") or load_config().default_profile
 
     path = profile_path(name)
     if not path.exists():

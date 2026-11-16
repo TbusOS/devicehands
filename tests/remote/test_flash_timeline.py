@@ -21,7 +21,7 @@ from devicehands.remote.flash_timeline import FlashTimeline, new_timeline, seria
 
 @pytest.fixture(autouse=True)
 def _isolated_workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path / "ws"))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path / "ws"))
 
 
 def _read(tl: FlashTimeline) -> list[dict]:

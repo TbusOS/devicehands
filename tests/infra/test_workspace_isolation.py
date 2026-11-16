@@ -28,7 +28,7 @@ def test_falling_back_to_the_default_workspace_is_caught(
     tmp_path_factory: pytest.TempPathFactory,
     default_workspace_hits: list[str],
 ) -> None:
-    monkeypatch.delenv("ALB_WORKSPACE")
+    monkeypatch.delenv("DHANDS_WORKSPACE")
     root = workspace_root()
     # Recorded (the fixture would fail this test at teardown) …
     assert default_workspace_hits == ["Path.cwd()", "Path.home()"]

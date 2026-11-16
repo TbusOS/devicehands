@@ -18,18 +18,18 @@ from devicehands.transport.base import ShellResult
 
 
 _SAMPLE_STDOUT = (
-    "__ALB_STAT__\ncpu  100 50 30 600 10 0 5\n"
-    "__ALB_MEM__\nMemTotal: 8000000 kB\nMemAvailable: 3000000 kB\n"
+    "__DHANDS_STAT__\ncpu  100 50 30 600 10 0 5\n"
+    "__DHANDS_MEM__\nMemTotal: 8000000 kB\nMemAvailable: 3000000 kB\n"
     "SwapTotal: 0 kB\nSwapFree: 0 kB\n"
-    "__ALB_NET__\n"
+    "__DHANDS_NET__\n"
     "Inter-| junk\n face | junk\n"
     "  eth0: 5000 1 0 0 0 0 0 0 3000 1 0 0 0 0 0 0\n"
-    "__ALB_FREQ__\n1800000\n2200000\n"
-    "__ALB_THERM__\n/sys/class/thermal/thermal_zone0:\ncpu-big\n55000\n"
-    "__ALB_GPU__\n/sys/class/devfreq/x.gpu:\nmali\n800000000\n"
-    "__ALB_GPUUTIL__\n29\n"
-    "__ALB_DISK__\n100 0 200 50 80 0 160 30 0 5 5\n"
-    "__ALB_BAT__\n  present: false\n  temperature: 0\n"
+    "__DHANDS_FREQ__\n1800000\n2200000\n"
+    "__DHANDS_THERM__\n/sys/class/thermal/thermal_zone0:\ncpu-big\n55000\n"
+    "__DHANDS_GPU__\n/sys/class/devfreq/x.gpu:\nmali\n800000000\n"
+    "__DHANDS_GPUUTIL__\n29\n"
+    "__DHANDS_DISK__\n100 0 200 50 80 0 160 30 0 5 5\n"
+    "__DHANDS_BAT__\n  present: false\n  temperature: 0\n"
 )
 
 

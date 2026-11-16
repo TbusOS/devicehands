@@ -21,9 +21,9 @@ def _no_ambient_state(monkeypatch):
     ADB_SERVER_SOCKET (the very thing that caused the incident) leaks in and
     the suite passes or fails by machine."""
     monkeypatch.delenv("ADB_SERVER_SOCKET", raising=False)
-    monkeypatch.delenv("ALB_API_URL", raising=False)
-    monkeypatch.delenv("ALB_API_HOST", raising=False)
-    monkeypatch.delenv("ALB_API_PORT", raising=False)
+    monkeypatch.delenv("DHANDS_API_URL", raising=False)
+    monkeypatch.delenv("DHANDS_API_HOST", raising=False)
+    monkeypatch.delenv("DHANDS_API_PORT", raising=False)
     monkeypatch.setattr(ae, "_IN_HUB", False)
     ae.reset_hub_cache()
     yield
@@ -178,7 +178,7 @@ def test_remote_hub_is_not_probed_for_a_local_port(monkeypatch):
     """A forwarder binds 127.0.0.1 on the HUB's machine. Borrowing that port
     number here would aim every command at whatever happens to be listening
     locally — a wrong answer that looks like a right one."""
-    monkeypatch.setenv("ALB_API_URL", "http://10.1.2.3:8765")
+    monkeypatch.setenv("DHANDS_API_URL", "http://10.1.2.3:8765")
     monkeypatch.setattr(ae, "_in_process_view", lambda: None)
 
     def explode(*_a, **_k):
@@ -297,7 +297,7 @@ def test_a_devices_request_before_the_agent_connects_does_not_stick(
     import devicehands.remote.forwarder as fw
     from devicehands.api.server import create_app
 
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
     adb = {"bound": False, "port": 15037}
     monkeypatch.setattr(fw, "forwarder_status", lambda: {"adb": dict(adb)})
     # Also keeps this test off a real hub that may be listening on 8765.

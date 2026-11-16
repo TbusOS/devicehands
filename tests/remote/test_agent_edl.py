@@ -8,7 +8,7 @@ it is given relative to its working directory. So these tests run the real
 subprocess path of the agent — argv, working directory, output relay,
 success lines, exit codes, timeout kill — with only the board missing.
 
-ALB_AGENT_UNDER_TEST points the module at another copy of alb_agent.py: the
+DHANDS_AGENT_UNDER_TEST points the module at another copy of alb_agent.py: the
 reverse runs feed it deliberately weakened copies, each of which must make
 at least one test here fail.
 """
@@ -31,7 +31,7 @@ _DEFAULT_AGENT = Path(__file__).resolve().parents[2] / "clients" / "windows-agen
 
 
 def _load_agent() -> Any:
-    path = Path(os.environ.get("ALB_AGENT_UNDER_TEST") or _DEFAULT_AGENT)
+    path = Path(os.environ.get("DHANDS_AGENT_UNDER_TEST") or _DEFAULT_AGENT)
     spec = importlib.util.spec_from_file_location("alb_agent_edl_under_test", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)

@@ -15,7 +15,7 @@ from tests.remote.bench_tables import new_agent_ops
 
 @pytest.fixture(autouse=True)
 def _ephemeral_forward_port(monkeypatch):
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
 
 
 class _Svc:

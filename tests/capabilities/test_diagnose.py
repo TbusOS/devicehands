@@ -77,7 +77,7 @@ def _mk_transport(
 
 @pytest.mark.asyncio
 async def test_anr_pull_empty(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _mk_transport({
         "ls /data/anr": ShellResult(ok=True, exit_code=0, stdout="", stderr="", duration_ms=1),
     })
@@ -89,7 +89,7 @@ async def test_anr_pull_empty(monkeypatch, tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_anr_pull_several(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _mk_transport({
         "ls /data/anr": ShellResult(
             ok=True, exit_code=0,
@@ -106,7 +106,7 @@ async def test_anr_pull_several(monkeypatch, tmp_path) -> None:
 async def test_anr_pull_basenames_hostile_names(monkeypatch, tmp_path) -> None:
     """round11 SEC-3: a device-supplied ls name with path traversal must be
     reduced to its basename so it can't escape the destination dir."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     pulled: list = []
     t = _mk_transport({
         "ls /data/anr": ShellResult(
@@ -261,7 +261,7 @@ async def test_devinfo_extras_full() -> None:
 @pytest.mark.asyncio
 async def test_bugreport_output_as_file_path(monkeypatch, tmp_path: Path) -> None:
     """--output <file>: zip written to that exact file (parent auto-created)."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path / "ws"))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path / "ws"))
     t = _mk_transport({
         "bugreportz": ShellResult(
             ok=True, exit_code=0,
@@ -280,7 +280,7 @@ async def test_bugreport_output_as_file_path(monkeypatch, tmp_path: Path) -> Non
 @pytest.mark.asyncio
 async def test_bugreport_output_as_directory(monkeypatch, tmp_path: Path) -> None:
     """--output <dir>/: trailing slash → auto-create dir + <ts>-bugreport.zip inside."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path / "ws"))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path / "ws"))
     t = _mk_transport({
         "bugreportz": ShellResult(
             ok=True, exit_code=0,

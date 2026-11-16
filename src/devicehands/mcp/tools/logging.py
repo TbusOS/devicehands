@@ -89,7 +89,7 @@ def register(mcp) -> None:
         """Capture raw UART output to workspace for `duration` seconds.
 
         REQUIRES serial transport (method G). Call alb_setup or set
-        ALB_TRANSPORT=serial first.
+        DHANDS_TRANSPORT=serial first.
 
         When to use (UART's unique value — no other transport can do these):
             - Device is bricked / hung / black-screen (adb/ssh are dead)

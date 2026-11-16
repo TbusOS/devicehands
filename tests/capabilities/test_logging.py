@@ -55,7 +55,7 @@ async def test_collect_logcat_permission_denied() -> None:
 
 @pytest.mark.asyncio
 async def test_collect_logcat_happy_path(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     chunks = [
         b"04-15 10:30:00.123 1000 1001 I ActivityManager: started app\n",
         b"04-15 10:30:01.456 1000 1002 E ActivityManager: crash!\n",
@@ -77,7 +77,7 @@ async def test_collect_logcat_happy_path(monkeypatch, tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_collect_dmesg_counts_errors(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     chunks = [
         b"[    0.123] normal boot message\n",
         b"[    1.234] kernel BUG: NULL pointer\n",
@@ -182,7 +182,7 @@ async def test_search_logs_rejects_traversal_in_device(
     Plants a *.txt in the escaped target so we'd see results if the bug
     were unfixed.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     escaped = tmp_path / "etc" / "logs"
     escaped.mkdir(parents=True)
     (escaped / "leaked.txt").write_text("API_KEY=xyz\n")
@@ -203,7 +203,7 @@ async def test_search_logs_rejects_bad_regex() -> None:
 
 @pytest.mark.asyncio
 async def test_search_logs_finds_matches(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     log_dir = tmp_path / "devices" / "abc" / "logs"
     log_dir.mkdir(parents=True)
     (log_dir / "one.txt").write_text("foo\nbar FATAL thing\nbaz\n")
@@ -222,7 +222,7 @@ async def test_search_logs_since_keeps_files_written_after_it(
     import os
     import time
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     log_dir = tmp_path / "devices" / "abc" / "logs"
     log_dir.mkdir(parents=True)
     old, new = log_dir / "old.txt", log_dir / "new.txt"
@@ -266,7 +266,7 @@ async def test_search_logs_covers_serial_and_timeline_recordings(
     """Serial captures are *.log and timeline recordings keep uart.log; a
     board with no adb device records into logs/ and timeline/ at the
     workspace root. All of them must be searchable, the JSON copies not."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     (tmp_path / "devices" / "abc" / "logs").mkdir(parents=True)
     (tmp_path / "devices" / "abc" / "logs" / "1-logcat.txt").write_text("MARK in logcat\n")
     (tmp_path / "devices" / "abc" / "logs" / "2-uart.log").write_text("MARK on serial\n")
@@ -292,7 +292,7 @@ async def test_search_logs_covers_serial_and_timeline_recordings(
 
 @pytest.mark.asyncio
 async def test_tail_log_rejects_path_traversal(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     outside = tmp_path.parent / "secret.txt"
     outside.write_text("confidential\n")
     r = await tail_log(outside)
@@ -303,7 +303,7 @@ async def test_tail_log_rejects_path_traversal(monkeypatch, tmp_path: Path) -> N
 
 @pytest.mark.asyncio
 async def test_tail_log_returns_last_n(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     p = tmp_path / "devices" / "abc" / "logs" / "a.txt"
     p.parent.mkdir(parents=True)
     p.write_text("".join(f"line {i}\n" for i in range(1, 11)))
@@ -315,7 +315,7 @@ async def test_tail_log_returns_last_n(monkeypatch, tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_tail_log_range(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     p = tmp_path / "devices" / "abc" / "logs" / "b.txt"
     p.parent.mkdir(parents=True)
     p.write_text("".join(f"line {i}\n" for i in range(1, 11)))

@@ -1,7 +1,7 @@
 """Load `.env.local` / `.env` files at CLI/API startup.
 
 dhands's deployment-specific settings (Ollama URL, default model, API port,
-SSH host, …) are all `ALB_*` environment variables read via typer's
+SSH host, …) are all `DHANDS_*` environment variables read via typer's
 `envvar=` parameter or direct `os.environ.get`.
 
 In addition to shell `export` and Claude Code / Cursor MCP config, we

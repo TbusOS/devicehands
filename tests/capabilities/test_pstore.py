@@ -101,7 +101,7 @@ def _pstore_fake(**kw: Any) -> FakeTransport:
 # ─── pstore present ────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_pstore_files_pulled_and_panic_line_found(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _pstore_fake()
     r = await pstore_pull(t, device="abc")
     assert r.ok
@@ -129,7 +129,7 @@ async def test_pstore_files_pulled_and_panic_line_found(monkeypatch, tmp_path) -
 
 @pytest.mark.asyncio
 async def test_pstore_one_pull_failure_keeps_the_rest(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _pstore_fake(pull_errors={"/sys/fs/pstore/pmsg-ramoops-0": "remote open failed"})
     r = await pstore_pull(t, device="abc")
     assert r.ok
@@ -167,7 +167,7 @@ async def test_pstore_device_offline_is_not_needs_root() -> None:
 # ─── fallbacks ─────────────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_empty_pstore_falls_back_to_last_kmsg(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     last_kmsg = b"<4>[  99.1] Internal error: Oops: 96000005 [#1] PREEMPT SMP\n"
     t = FakeTransport(
         {
@@ -193,7 +193,7 @@ async def test_empty_pstore_falls_back_to_last_kmsg(monkeypatch, tmp_path) -> No
 
 @pytest.mark.asyncio
 async def test_absent_pstore_falls_back_to_last_kmsg(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = FakeTransport(
         {
             "ls -l /sys/fs/pstore": _err("ls: /sys/fs/pstore: No such file or directory"),
@@ -212,7 +212,7 @@ async def test_absent_pstore_falls_back_to_last_kmsg(monkeypatch, tmp_path) -> N
 
 @pytest.mark.asyncio
 async def test_nothing_at_all_is_a_clear_answer(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = FakeTransport(
         {
             "ls -l /sys/fs/pstore": _err("ls: /sys/fs/pstore: No such file or directory"),
@@ -234,7 +234,7 @@ async def test_nothing_at_all_is_a_clear_answer(monkeypatch, tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_last_kmsg_denied_says_needs_root(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = FakeTransport(
         {
             "ls -l /sys/fs/pstore": _err("ls: /sys/fs/pstore: No such file or directory"),
@@ -253,7 +253,7 @@ async def test_pstore_listed_but_every_pull_denied_says_needs_root(monkeypatch, 
     """Some builds let the shell user list pstore but not read the files.
     Zero records pulled must not come back as an ok with no artifacts —
     that reads as "no crash"."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     denied = "adb: error: failed to copy: Permission denied"
     t = _pstore_fake(
         pull_errors={
@@ -269,7 +269,7 @@ async def test_pstore_listed_but_every_pull_denied_says_needs_root(monkeypatch, 
 
 @pytest.mark.asyncio
 async def test_pstore_listed_but_every_pull_failed_otherwise(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _pstore_fake(
         pull_errors={
             f"/sys/fs/pstore/{n}": "remote open failed"
@@ -283,7 +283,7 @@ async def test_pstore_listed_but_every_pull_failed_otherwise(monkeypatch, tmp_pa
 
 @pytest.mark.asyncio
 async def test_last_kmsg_pull_failure_is_not_ok(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = FakeTransport(
         {
             "ls -l /sys/fs/pstore": _err("ls: /sys/fs/pstore: No such file or directory"),
@@ -324,7 +324,7 @@ async def test_a_pmsg_record_is_not_scanned_for_kernel_crash_lines(monkeypatch, 
     """pmsg holds the previous boot's logcat, not kernel text. On a real
     board the scan found keystore's "Watchdog thread idle" and showed it,
     entry-header bytes and all, as the crash."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = _pstore_fake()
     t.remote_files["/sys/fs/pstore/pmsg-ramoops-0"] = PMSG_ENTRIES
     r = await pstore_pull(t, device="abc")
@@ -386,7 +386,7 @@ runner = CliRunner()
 
 
 def test_cli_pstore_summary_names_the_panic(monkeypatch, tmp_path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     fake = _pstore_fake()
     monkeypatch.setattr("devicehands.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
     r = runner.invoke(diagnose_cli.app, ["pstore", "--device", "abc"])
@@ -411,7 +411,7 @@ def test_cli_pstore_denied_tells_how_to_fix(monkeypatch) -> None:
 def test_cli_pstore_json(monkeypatch, tmp_path) -> None:
     import json
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     fake = _pstore_fake()
     monkeypatch.setattr("devicehands.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
     r = runner.invoke(diagnose_cli.app, ["pstore", "--device", "abc"], obj={"json": True})

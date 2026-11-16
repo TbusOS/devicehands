@@ -81,7 +81,7 @@ def _env_int(var: str, default: int) -> int:
 def serial_com() -> str | None:
     """The COM port the serial forwarder should ask the agent to open, or None
     if serial is not configured on this hub: the bench board chosen with
-    `dhands bench board use`, else ALB_AGENT_SERIAL_COM (ADR-063)."""
+    `dhands bench board use`, else DHANDS_AGENT_SERIAL_COM (ADR-063)."""
     from devicehands.remote.bench_board import serial_target
 
     com = serial_target()["com"]
@@ -593,14 +593,14 @@ def get_adb_forwarder() -> ChannelForwarder:
 
         _ADB_FORWARDER = AdbForwarder(
             get_agent_registry().current_agent,
-            port=_env_int("ALB_ADB_FORWARD_PORT", DEFAULT_ADB_PORT),
+            port=_env_int("DHANDS_ADB_FORWARD_PORT", DEFAULT_ADB_PORT),
         )
     return _ADB_FORWARDER
 
 
 def get_serial_forwarder() -> ChannelForwarder:
     """Process-wide serial forwarder, registry-backed, lazily created. Reads the
-    target COM/baud from the hub env (ALB_AGENT_SERIAL_COM / _BAUD)."""
+    target COM/baud from the hub env (DHANDS_AGENT_SERIAL_COM / _BAUD)."""
     global _SERIAL_FORWARDER
     if _SERIAL_FORWARDER is None:
         from devicehands.remote.registry import get_agent_registry
@@ -609,7 +609,7 @@ def get_serial_forwarder() -> ChannelForwarder:
             get_agent_registry().current_agent,
             com=serial_com() or "",
             baud=serial_baud(),
-            port=_env_int("ALB_SERIAL_FORWARD_PORT", DEFAULT_SERIAL_PORT),
+            port=_env_int("DHANDS_SERIAL_FORWARD_PORT", DEFAULT_SERIAL_PORT),
         )
     return _SERIAL_FORWARDER
 
@@ -671,9 +671,9 @@ def forwarder_status() -> dict[str, Any]:
     live = existing_serial_forwarder()
     com, baud = live.target if live is not None else (wanted["com"], wanted["baud"])
     return {
-        "adb": _fwd_view(_ADB_FORWARDER, DEFAULT_ADB_PORT, "ALB_ADB_FORWARD_PORT"),
+        "adb": _fwd_view(_ADB_FORWARDER, DEFAULT_ADB_PORT, "DHANDS_ADB_FORWARD_PORT"),
         "serial": {
-            **_fwd_view(_SERIAL_FORWARDER, DEFAULT_SERIAL_PORT, "ALB_SERIAL_FORWARD_PORT"),
+            **_fwd_view(_SERIAL_FORWARDER, DEFAULT_SERIAL_PORT, "DHANDS_SERIAL_FORWARD_PORT"),
             "configured": bool(com),
             # What the forwarder actually asks the agent for — after a
             # `bench board use` this is the chosen board, not hub.env.

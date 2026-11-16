@@ -290,7 +290,7 @@ async def test_backend_error_propagates_as_result_fail() -> None:
 
 @pytest.mark.asyncio
 async def test_session_captures_full_trace(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     b = FakeBackend(
         [
             _calls(_tc("alb_logcat", {"duration": 5}, "tc_1")),
@@ -317,7 +317,7 @@ async def test_session_captures_full_trace(tmp_path, monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_session_history_replayed_into_next_run(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     b = FakeBackend([_final("round 2 answer")])
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -446,7 +446,7 @@ async def test_run_stream_cancelled_in_a_tool_answers_every_call(tmp_path, monke
     result, so the session's next turn sends no unanswered tool call."""
     import asyncio
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     b = FakeBackend([_calls(_tc("alb_logcat", {}, "tc_1"), _tc("alb_reboot", {}, "tc_2"))])
     started = asyncio.Event()
 
@@ -478,7 +478,7 @@ async def test_run_stream_cancelled_in_a_tool_answers_every_call(tmp_path, monke
 async def test_run_stream_closed_before_a_call_runs_answers_it(tmp_path, monkeypatch) -> None:
     """The relay closes the stream when a stop lands while it is sending
     tool_call_start: the call never runs and still gets a result."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     b = FakeBackend([_calls(_tc("alb_reboot", {}, "tc_1"))])
     ran: list[str] = []
 
@@ -669,7 +669,7 @@ def test_repair_tool_name(name: str, want: str | None) -> None:
 
 @pytest.mark.asyncio
 async def test_run_stream_runs_the_repaired_tool_and_says_so(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     tools = [
         ToolSpec(name="alb_describe", description="d", parameters={"type": "object"}),
         ToolSpec(name="alb_describe_errors", description="e", parameters={"type": "object"}),
@@ -721,7 +721,7 @@ async def test_user_note_goes_on_every_user_message_but_not_into_the_session(tmp
     """Every user message the model sees ends with the note, older ones
     too, so each request starts with the previous one (cache reuse); the
     session keeps what the person typed."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     b = FakeBackend([_final("你好"), _final("好的")])
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -867,7 +867,7 @@ def test_zero_means_never_cut() -> None:
     ],
 )
 def test_limit_from_env(monkeypatch: pytest.MonkeyPatch, raw: str, want: int) -> None:
-    monkeypatch.setenv("ALB_AGENT_TOOL_RESULT_MAX_CHARS", raw)
+    monkeypatch.setenv("DHANDS_AGENT_TOOL_RESULT_MAX_CHARS", raw)
     assert tool_result_max_chars_from_env() == want
 
 
@@ -877,7 +877,7 @@ async def test_run_stream_model_reads_the_cut_copy_page_gets_the_whole(
     """The model's next request carries the cut result, the tool_call_end
     event (what the page shows) the whole one, and the session the cut one
     (a later turn sends the history again)."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     big = _long_result()
     b = FakeBackend([_calls(_tc("alb_logcat", {}, tc_id="tc_1")), _final("没有崩溃")])
 
@@ -955,6 +955,6 @@ async def test_run_model_reads_the_cut_copy_too() -> None:
 
 
 async def test_default_limit_applies_when_not_given(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ALB_AGENT_TOOL_RESULT_MAX_CHARS", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_TOOL_RESULT_MAX_CHARS", raising=False)
     loop = AgentLoop(FakeBackend([]), tools=[_TOOL], tool_executor=_no_tools)
     assert loop.tool_result_max_chars == DEFAULT_TOOL_RESULT_MAX_CHARS

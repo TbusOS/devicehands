@@ -23,7 +23,7 @@ from devicehands.remote.flash import FlashEvent, FlashResult
 
 @pytest.fixture(autouse=True)
 def _fast(monkeypatch):
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
     monkeypatch.setenv(st.SSH_HOST_ENV, "bench")
     monkeypatch.delenv(st.TASK_ENV, raising=False)
     monkeypatch.setattr(st, "_POLL_S", 0.01)

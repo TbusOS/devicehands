@@ -45,7 +45,7 @@ def test_session_path_rejects_traversal_and_unsafe_ids(
     monkeypatch, tmp_path: Path, bad_id: str
 ) -> None:
     """All these inputs must raise InvalidSessionId before touching FS."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     with pytest.raises(InvalidSessionId):
         session_path(bad_id)
     # No directory created at the rejected target either
@@ -66,7 +66,7 @@ def test_session_path_rejects_traversal_and_unsafe_ids(
 def test_session_path_accepts_valid_ids(
     monkeypatch, tmp_path: Path, good_id: str
 ) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     p = session_path(good_id, ensure_dir=False)
     assert p.parent == tmp_path / "sessions"
     assert p.name == good_id
@@ -99,7 +99,7 @@ def test_workspace_path_rejects_traversal_in_device(
     monkeypatch, tmp_path: Path, bad_device: str
 ) -> None:
     """Bad device serial must raise before any FS side-effect."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     with pytest.raises(InvalidDeviceSerial):
         workspace_path("logs", "x.txt", device=bad_device)
     # No directory created at the rejected target
@@ -122,7 +122,7 @@ def test_workspace_path_rejects_traversal_in_device(
 def test_workspace_path_accepts_real_world_devices(
     monkeypatch, tmp_path: Path, good_device: str
 ) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     p = workspace_path("logs", "x.txt", device=good_device)
     assert (tmp_path / "devices" / good_device / "logs" / "x.txt") == p
     assert p.parent.is_dir()
@@ -132,7 +132,7 @@ def test_workspace_path_no_device_skips_validation(
     monkeypatch, tmp_path: Path
 ) -> None:
     """device=None / "" is fine — falls back to global workspace dir."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     p = workspace_path("logs", "x.txt")
     assert p == tmp_path / "logs" / "x.txt"
 
@@ -143,7 +143,7 @@ def test_workspace_path_empty_device_string_treated_as_no_device(
     """device="" matches `if device:` falsy check → skip devices/ prefix,
     no validation needed (caller didn't request device-scoped path).
     Documents the boundary so future readers don't accidentally tighten this."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     p = workspace_path("logs", "x.txt", device="")
     assert p == tmp_path / "logs" / "x.txt"
 
@@ -154,7 +154,7 @@ def test_session_path_traversal_escape_via_resolved_symlink_blocked(
     """Defence-in-depth: even if a regex-passing id resolves outside via
     a planted symlink, the .resolve()/is_relative_to check must catch it.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir()
     target_outside = tmp_path / "elsewhere"

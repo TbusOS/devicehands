@@ -27,7 +27,7 @@ Resource safety contract:
       must never break chat
 
 Configuration:
-    - default interval = 1.0 s, override via env `ALB_TPS_SAMPLE_INTERVAL_S`
+    - default interval = 1.0 s, override via env `DHANDS_TPS_SAMPLE_INTERVAL_S`
     - per-observe count is capped at OBSERVE_MAX to prevent a malformed
       backend chunk from injecting spurious throughput
 """
@@ -53,7 +53,7 @@ OBSERVE_MAX = 10_000  # max tokens accepted in a single observe() call
 
 
 def _interval_from_env() -> float:
-    raw = os.environ.get("ALB_TPS_SAMPLE_INTERVAL_S")
+    raw = os.environ.get("DHANDS_TPS_SAMPLE_INTERVAL_S")
     if not raw:
         return DEFAULT_INTERVAL_S
     try:

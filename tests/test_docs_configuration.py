@@ -3,18 +3,19 @@
 The configuration reference is the one page that lists every setting. It
 used to be missing: of the 43 ``ALB_*`` variables the code knew on
 2026-11-10, 23 were in no document, so a person (or an AI) had no way to
-learn that e.g. ``ALB_SERIAL_DEVICE`` is the only way to pin a local
+learn that e.g. ``DHANDS_SERIAL_DEVICE`` is the only way to pin a local
 ``/dev/ttyUSB*``. These tests fail as soon as the code and the page drift.
 
-What counts as a variable "the code reads": every ``ALB_[A-Z0-9_]+`` name in
+What counts as a variable "the code reads": every ``DHANDS_[A-Z0-9_]+`` name
+(``ALB_[A-Z0-9_]+`` in the bench program, not renamed yet) in
 a **string literal** (including docstrings and the text parts of f-strings)
 of ``src/devicehands/**/*.py`` and ``clients/windows-agent/*.py``. Comments do not
 count. A name only mentioned in a help text or an error suggestion still
 counts on purpose: a user is told to set it, so the page must say what it
-does — or that it does nothing (``ALB_OPENAI_COMPAT_MODEL`` is such a case).
+does — or that it does nothing (``DHANDS_OPENAI_COMPAT_MODEL`` is such a case).
 
-NOT_CONFIG lists names that match the pattern but are not settings. It is
-empty today; add a name only with the reason next to it.
+NOT_CONFIG lists names that match the pattern but are not settings. Add a
+name only with the reason next to it.
 """
 
 from __future__ import annotations
@@ -29,10 +30,17 @@ from devicehands.infra import config as config_mod
 _ROOT = Path(__file__).resolve().parents[1]
 _DOC = _ROOT / "docs" / "configuration.md"
 _AGENT = _ROOT / "clients" / "windows-agent" / "alb_agent.py"
-# A whole name only: "ALB_SSH_*" (a prefix with a wildcard) is not a name.
-_NAME = re.compile(r"(?<![A-Za-z0-9_])ALB_[A-Z0-9_]*[A-Z0-9](?![A-Za-z0-9_*])")
+# A whole name only: "DHANDS_SSH_*" (a prefix with a wildcard) is not a name.
+# DHANDS_ is the prefix of the main program. The bench program
+# (clients/windows-agent) still uses ALB_ until it is renamed in a later step.
+_NAME = re.compile(r"(?<![A-Za-z0-9_])(?:DHANDS|ALB)_[A-Z0-9_]*[A-Z0-9](?![A-Za-z0-9_*])")
 
-NOT_CONFIG: dict[str, str] = {}
+NOT_CONFIG: dict[str, str] = {
+    # alb_agent.py's --token help text still names the hub variable by its
+    # old name; the hub reads DHANDS_AGENT_TOKEN. The bench program is renamed
+    # in a later step, then this entry goes.
+    "ALB_AGENT_TOKEN": "old name of DHANDS_AGENT_TOKEN in the bench program's help text",
+}
 
 
 def _code_files() -> list[Path]:
@@ -42,7 +50,7 @@ def _code_files() -> list[Path]:
 
 
 def code_env_names() -> dict[str, list[str]]:
-    """{ALB_* name: files whose string literals mention it}."""
+    """{DHANDS_* name: files whose string literals mention it}."""
     found: dict[str, list[str]] = {}
     for path in _code_files():
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -65,7 +73,7 @@ def test_scan_sees_the_code() -> None:
     assert len(files) >= 100, f"only {len(files)} files scanned: is _ROOT right?"
     names = code_env_names()
     # Fixed points that must be found, or the scan itself is broken.
-    for known in ("ALB_SERIAL_DEVICE", "ALB_AGENT_TOKEN", "ALB_AGENT_LAUNCHER"):
+    for known in ("DHANDS_SERIAL_DEVICE", "DHANDS_AGENT_TOKEN", "ALB_AGENT_LAUNCHER"):
         assert known in names, f"{known} not found in the code scan — scan is broken"
 
 
@@ -75,7 +83,7 @@ def test_every_code_env_var_is_documented() -> None:
     names = code_env_names()
     missing = sorted(n for n in names if n not in documented and n not in NOT_CONFIG)
     assert not missing, (
-        f"{len(missing)} ALB_* variable(s) used in the code but missing from "
+        f"{len(missing)} DHANDS_* variable(s) used in the code but missing from "
         f"docs/configuration.md — add a row (作用 / 默认值 / 谁读 / 代码):\n"
         + "\n".join(f"  {n}  ({', '.join(names[n])})" for n in missing)
     )
@@ -86,7 +94,7 @@ def test_doc_has_no_env_var_the_code_does_not_know() -> None:
     names = code_env_names()
     stale = sorted(set(_NAME.findall(_doc_text())) - set(names))
     assert not stale, (
-        "docs/configuration.md describes ALB_* variable(s) that no code mentions "
+        "docs/configuration.md describes DHANDS_* variable(s) that no code mentions "
         "any more — remove them or say where they went:\n" + "\n".join(f"  {n}" for n in stale)
     )
 

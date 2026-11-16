@@ -9,7 +9,7 @@ Interactive REPL:
     > /quit
 
 Backend & model selection (priority high → low):
-    CLI flags  >  env vars (ALB_OLLAMA_URL / ALB_OLLAMA_MODEL)  >  library default
+    CLI flags  >  env vars (DHANDS_OLLAMA_URL / DHANDS_OLLAMA_MODEL)  >  library default
 
 The command only engages an LLM when invoked — MCP/CLI/Web users who drive
 dhands through Claude Code / Cursor don't pay the cost.
@@ -55,25 +55,25 @@ def chat(
     backend: str = typer.Option(
         "ollama",
         "--backend",
-        envvar="ALB_AGENT_BACKEND",
+        envvar="DHANDS_AGENT_BACKEND",
         help="LLM backend: ollama | openai-compat | llama-cpp | anthropic.",
     ),
     model: str | None = typer.Option(
         None,
         "--model",
-        envvar="ALB_OLLAMA_MODEL",
+        envvar="DHANDS_OLLAMA_MODEL",
         help="Model tag (e.g. gemma4:26b, gpt-oss:20b). Default: backend's default.",
     ),
     ollama_url: str | None = typer.Option(
         None,
         "--ollama-url",
-        envvar="ALB_OLLAMA_URL",
+        envvar="DHANDS_OLLAMA_URL",
         help="Ollama daemon URL (e.g. http://localhost:11434).",
     ),
     openai_url: str | None = typer.Option(
         None,
         "--openai-url",
-        envvar="ALB_OPENAI_COMPAT_URL",
+        envvar="DHANDS_OPENAI_COMPAT_URL",
         help=(
             "OpenAI-compatible server URL up to /v1 "
             "(e.g. http://localhost:8080/v1 for vLLM, http://localhost:1234/v1 for LM Studio)."
@@ -82,13 +82,13 @@ def chat(
     api_key: str | None = typer.Option(
         None,
         "--api-key",
-        envvar=["ALB_OPENAI_COMPAT_KEY", "OPENAI_API_KEY"],
+        envvar=["DHANDS_OPENAI_COMPAT_KEY", "OPENAI_API_KEY"],
         help="Bearer token for openai-compat backends; omit for self-hosted servers.",
     ),
     anthropic_key: str | None = typer.Option(
         None,
         "--anthropic-key",
-        envvar=["ALB_ANTHROPIC_KEY", "ANTHROPIC_API_KEY"],
+        envvar=["DHANDS_ANTHROPIC_KEY", "ANTHROPIC_API_KEY"],
         help=(
             "Anthropic API key (sk-ant-...). Read from ANTHROPIC_API_KEY env "
             "by default — never paste the key on the command line if shell "
@@ -98,7 +98,7 @@ def chat(
     anthropic_url: str | None = typer.Option(
         None,
         "--anthropic-url",
-        envvar="ALB_ANTHROPIC_URL",
+        envvar="DHANDS_ANTHROPIC_URL",
         help="Anthropic API base URL; default https://api.anthropic.com.",
     ),
     fast: bool = typer.Option(
@@ -106,7 +106,7 @@ def chat(
         "--fast",
         help=(
             "Shorthand: use gemma4:e4b (smaller, ~9G, same speed as 26b). "
-            "Ignored if --model is given or ALB_OLLAMA_MODEL is set in env."
+            "Ignored if --model is given or DHANDS_OLLAMA_MODEL is set in env."
         ),
     ),
     session_id: str | None = typer.Option(

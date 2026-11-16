@@ -32,7 +32,7 @@ def stub_transport():
 
 @pytest.fixture
 def workspace(monkeypatch, tmp_path) -> Path:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     return tmp_path
 
 
@@ -202,7 +202,7 @@ def test_artifacts_empty_when_no_workspace_dir(client) -> None:
 def test_transport_init_failure_returns_envelope_b_not_503(monkeypatch, tmp_path) -> None:
     """Architecture ADR (REST envelope 三态约定 b): build_transport
     failure → 200 + ok=false envelope, NOT HTTPException(503)."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
 
     def _boom(**_kw: Any):
         raise RuntimeError("adb server unreachable")

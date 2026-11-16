@@ -52,7 +52,7 @@ def test_build_transport_allows_wellformed_serial(good: str) -> None:
 def test_serial_fallback_only_when_adb_was_the_default(monkeypatch) -> None:
     from devicehands.transport import factory
 
-    monkeypatch.delenv("ALB_TRANSPORT", raising=False)
+    monkeypatch.delenv("DHANDS_TRANSPORT", raising=False)
     monkeypatch.setattr(
         factory, "active_settings",
         lambda force_reload=False: type("S", (), {"primary_transport": "adb"})(),
@@ -66,14 +66,14 @@ def test_serial_fallback_only_when_adb_was_the_default(monkeypatch) -> None:
     # Anything that chose the transport or the device turns it off.
     assert factory.serial_fallback_for(override="adb") is None
     assert factory.serial_fallback_for(device_serial="abc123") is None
-    monkeypatch.setenv("ALB_TRANSPORT", "adb")
+    monkeypatch.setenv("DHANDS_TRANSPORT", "adb")
     assert factory.serial_fallback_for() is None
 
 
 def test_serial_fallback_off_when_default_is_not_adb(monkeypatch) -> None:
     from devicehands.transport import factory
 
-    monkeypatch.delenv("ALB_TRANSPORT", raising=False)
+    monkeypatch.delenv("DHANDS_TRANSPORT", raising=False)
     monkeypatch.setattr(
         factory, "active_settings",
         lambda force_reload=False: type("S", (), {"primary_transport": "serial"})(),
@@ -81,7 +81,7 @@ def test_serial_fallback_off_when_default_is_not_adb(monkeypatch) -> None:
     assert factory.serial_fallback_for() is None
 
 
-# ─── ALB_ADB_PATH reaches the adb that actually runs (2026-11-09) ──
+# ─── DHANDS_ADB_PATH reaches the adb that actually runs (2026-11-09) ──
 def _fake_adb(tmp_path: Path) -> Path:
     adb = tmp_path / "platform-tools" / "adb"
     adb.parent.mkdir()
@@ -94,7 +94,7 @@ def test_adb_path_env_runs_that_adb_with_pinned_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     """The reported case: PATH pinned to the system dirs, adb named only by
-    ALB_ADB_PATH. Before the fix this was ADB_BINARY_NOT_FOUND."""
+    DHANDS_ADB_PATH. Before the fix this was ADB_BINARY_NOT_FOUND."""
     import asyncio
 
     from devicehands.transport import factory
@@ -102,8 +102,8 @@ def test_adb_path_env_runs_that_adb_with_pinned_path(
 
     adb = _fake_adb(tmp_path)
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "no-config.toml"))
-    monkeypatch.setenv("ALB_ADB_PATH", str(adb))
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "no-config.toml"))
+    monkeypatch.setenv("DHANDS_ADB_PATH", str(adb))
     monkeypatch.setattr(factory, "_cached_settings", None)
 
     t = build_transport(override="adb")

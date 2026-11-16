@@ -152,7 +152,7 @@ def test_alb_api_main_does_not_override_uvicorn_ws_ping(monkeypatch) -> None:
     import uvicorn
 
     monkeypatch.setattr(uvicorn, "run", _fake_run)
-    monkeypatch.setenv("ALB_API_HOST", "127.0.0.1")  # silence the 0.0.0.0 banner
+    monkeypatch.setenv("DHANDS_API_HOST", "127.0.0.1")  # silence the 0.0.0.0 banner
 
     from devicehands.api.server import main
 
@@ -204,11 +204,11 @@ def _run_main(monkeypatch, deflate_env: str | None) -> dict:
     import uvicorn
 
     monkeypatch.setattr(uvicorn, "run", _fake_run)
-    monkeypatch.setenv("ALB_API_HOST", "127.0.0.1")
+    monkeypatch.setenv("DHANDS_API_HOST", "127.0.0.1")
     if deflate_env is None:
-        monkeypatch.delenv("ALB_WS_DEFLATE", raising=False)
+        monkeypatch.delenv("DHANDS_WS_DEFLATE", raising=False)
     else:
-        monkeypatch.setenv("ALB_WS_DEFLATE", deflate_env)
+        monkeypatch.setenv("DHANDS_WS_DEFLATE", deflate_env)
     from devicehands.api.server import main
 
     main()

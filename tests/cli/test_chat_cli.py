@@ -53,14 +53,14 @@ def test_chat_one_shot(monkeypatch, tmp_path):
 def test_chat_fast_shortcut(monkeypatch, tmp_path):
     """--fast should translate to model=gemma4:e4b when no --model given.
 
-    `--model` has envvar=ALB_OLLAMA_MODEL — if a developer machine has
+    `--model` has envvar=DHANDS_OLLAMA_MODEL — if a developer machine has
     that env exported, typer fills `model` from the env BEFORE the
     `if fast and model is None` check runs, so `--fast` silently
     gets overridden. Tests must isolate that env to assert the
     shortcut on its own.
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("ALB_OLLAMA_MODEL", raising=False)
+    monkeypatch.delenv("DHANDS_OLLAMA_MODEL", raising=False)
 
     captured: dict = {}
 
@@ -75,9 +75,9 @@ def test_chat_fast_shortcut(monkeypatch, tmp_path):
 
 
 def test_chat_env_var_model(monkeypatch, tmp_path):
-    """ALB_OLLAMA_MODEL env var should populate --model default."""
+    """DHANDS_OLLAMA_MODEL env var should populate --model default."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ALB_OLLAMA_MODEL", "gemma4:26b")
+    monkeypatch.setenv("DHANDS_OLLAMA_MODEL", "gemma4:26b")
 
     captured: dict = {}
 

@@ -9,7 +9,7 @@ Response shape (same as ``dhands --json doctor``):
     {
       "layers": [
         {"name": "env", "status": "ok", "checks": [
-            {"name": "ALB_WORKSPACE", "status": "skip", "detail": "(unset)"},
+            {"name": "DHANDS_WORKSPACE", "status": "skip", "detail": "(unset)"},
             ...
         ]},
         ...

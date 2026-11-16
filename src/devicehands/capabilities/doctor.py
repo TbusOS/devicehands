@@ -7,12 +7,12 @@ REST route share this module verbatim — there is no second source of
 truth for "what counts as healthy".
 
 Layers (in order, same as the CLI's text render):
-    1. env       — ALB_WORKSPACE / ADB_SERVER_SOCKET / ALB_CONFIG / ALB_PROFILE
+    1. env       — DHANDS_WORKSPACE / ADB_SERVER_SOCKET / DHANDS_CONFIG / DHANDS_PROFILE
     2. binaries  — the required + optional tools of infra.host_deps (adb, ssh, ...)
     3. config    — global config.toml + active profile load
     4. adb       — server reachable + visible devices
     5. serial    — TCP endpoint listening + transport.health()
-    6. ssh       — only if ALB_SSH_HOST is set
+    6. ssh       — only if DHANDS_SSH_HOST is set
 
 Each probe returns a :class:`Layer` aggregating named :class:`CheckResult`s
 with one of ``ok`` / ``warn`` / ``err`` / ``skip``. ``skip`` is informational
@@ -81,7 +81,7 @@ class Layer:
 # ─── Per-layer probes (sync) ───────────────────────────────────────
 def probe_env() -> Layer:
     layer = Layer("env")
-    for var in ("ALB_WORKSPACE", "ADB_SERVER_SOCKET", "ALB_CONFIG", "ALB_PROFILE"):
+    for var in ("DHANDS_WORKSPACE", "ADB_SERVER_SOCKET", "DHANDS_CONFIG", "DHANDS_PROFILE"):
         val = os.environ.get(var, "")
         if val:
             layer.add(var, "ok", val)
@@ -94,7 +94,7 @@ def probe_env() -> Layer:
 def probe_binaries() -> Layer:
     """The required + optional tools of :mod:`devicehands.infra.host_deps` — the
     same list ``dhands setup deps`` and ``scripts/install.sh`` use. The adb
-    check follows bin_path (ALB_ADB_PATH included), the adb the transport
+    check follows bin_path (DHANDS_ADB_PATH included), the adb the transport
     runs. These checks only look things up; nothing is run or downloaded.
     """
     layer = Layer("binaries")
@@ -131,12 +131,12 @@ def probe_config() -> Layer:
 
 def probe_ssh() -> Layer:
     layer = Layer("ssh")
-    host = os.environ.get("ALB_SSH_HOST")
+    host = os.environ.get("DHANDS_SSH_HOST")
     if not host:
-        layer.add("ssh", "skip", "(ALB_SSH_HOST unset; skipping)")
+        layer.add("ssh", "skip", "(DHANDS_SSH_HOST unset; skipping)")
         return layer
-    user = os.environ.get("ALB_SSH_USER", "root")
-    port = int(os.environ.get("ALB_SSH_PORT", "22"))
+    user = os.environ.get("DHANDS_SSH_USER", "root")
+    port = int(os.environ.get("DHANDS_SSH_PORT", "22"))
     listening = check_tcp_listen(host, port, timeout=0.5)
     layer.add(
         f"tcp {host}:{port} listening",

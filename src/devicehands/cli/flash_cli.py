@@ -52,14 +52,14 @@ UART_AFTER_MAX_S = 600.0
 
 
 def hub_url() -> str:
-    """Where dhands-hub lives. ALB_API_URL overrides for a remote hub."""
-    base = os.environ.get("ALB_API_URL", "").strip()
+    """Where dhands-hub lives. DHANDS_API_URL overrides for a remote hub."""
+    base = os.environ.get("DHANDS_API_URL", "").strip()
     if base:
         return base.rstrip("/")
-    host = os.environ.get("ALB_API_HOST", "127.0.0.1")
+    host = os.environ.get("DHANDS_API_HOST", "127.0.0.1")
     if host == "0.0.0.0":  # bind-all is not a dial-able address
         host = "127.0.0.1"
-    return f"http://{host}:{os.environ.get('ALB_API_PORT', '8765')}"
+    return f"http://{host}:{os.environ.get('DHANDS_API_PORT', '8765')}"
 
 
 def _timeout() -> httpx.Timeout:
@@ -68,7 +68,7 @@ def _timeout() -> httpx.Timeout:
 
 def _hub_unreachable(e: Exception) -> None:
     typer.echo(f"[fail] cannot reach dhands-hub at {hub_url()}: {e}", err=True)
-    typer.echo("        fastboot runs on the hub — start dhands-hub, or set ALB_API_URL", err=True)
+    typer.echo("        fastboot runs on the hub — start dhands-hub, or set DHANDS_API_URL", err=True)
     raise typer.Exit(code=2)
 
 

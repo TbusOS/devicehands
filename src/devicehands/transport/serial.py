@@ -76,7 +76,7 @@ _POSIX_SHELL_STATES = frozenset({
 
 
 # Printed by the shell once a detached reboot is queued (see reboot()).
-_REBOOT_QUEUED = "__ALB_REBOOT_QUEUED__"
+_REBOOT_QUEUED = "__DHANDS_REBOOT_QUEUED__"
 
 
 # Map from non-shell-capable state → error code for shell() rejection.
@@ -350,7 +350,7 @@ class SerialTransport(Transport):
         Wraps the user's command with BEGIN/END sentinel lines plus
         ``$?`` capture::
 
-            echo __ALB_BEG_<nonce>__; <user_cmd>; echo __ALB_END_<nonce>__=$?
+            echo __DHANDS_BEG_<nonce>__; <user_cmd>; echo __DHANDS_END_<nonce>__=$?
 
         Reads until the END marker line appears (with its ``=N`` suffix)
         or we time out. The nonce is a fresh UUID hex for every call,
@@ -368,8 +368,8 @@ class SerialTransport(Transport):
         a :code:`TIMEOUT_SHELL` result with whatever output arrived.
         """
         nonce = uuid.uuid4().hex[:12]
-        beg_marker = f"__ALB_BEG_{nonce}__"
-        end_marker = f"__ALB_END_{nonce}__"
+        beg_marker = f"__DHANDS_BEG_{nonce}__"
+        end_marker = f"__DHANDS_END_{nonce}__"
         wrapped = (
             f"echo {beg_marker}; {cmd}; echo {end_marker}=$?\n"
         ).encode("utf-8", errors="replace")
@@ -986,11 +986,11 @@ def _extract_between_markers(text: str, beg: str, end: str) -> str:
 
     Raw text layout when a POSIX shell echoes back a wrapped command::
 
-        echo __ALB_BEG_abc__; some_cmd; echo __ALB_END_abc__=$?
-        __ALB_BEG_abc__
+        echo __DHANDS_BEG_abc__; some_cmd; echo __DHANDS_END_abc__=$?
+        __DHANDS_BEG_abc__
         user output line 1
         user output line 2
-        __ALB_END_abc__=0
+        __DHANDS_END_abc__=0
         root@host:/ #
 
     We want only lines 2-3 — everything between the BEG line (which

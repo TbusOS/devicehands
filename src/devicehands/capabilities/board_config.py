@@ -136,7 +136,7 @@ def _scan_script(head: int, min_lines: int) -> str:
         "grep -acE '^[A-Za-z_][A-Za-z0-9_.-]*=\"[^\"]*\"' 2>/dev/null); "
         f'[ -n "$c" ] && [ "$c" -ge {min_lines} ] 2>/dev/null && '
         'echo "$n $c $(readlink -f "$p")"; '
-        "done; echo __ALB_SCAN_DONE__"
+        "done; echo __DHANDS_SCAN_DONE__"
     )
 
 
@@ -150,14 +150,14 @@ async def scan(transport: Transport, *, head: int = SCAN_HEAD_BYTES) -> Result:
     r = await transport.shell(_scan_script(head, SCAN_MIN_LINES), timeout=120)
     if not r.ok:
         return fail("BOARD_CONFIG_SCAN_FAILED", r.stderr or "scan command failed")
-    if "__ALB_SCAN_DONE__" not in r.stdout:
+    if "__DHANDS_SCAN_DONE__" not in r.stdout:
         # The marker is how we tell "nothing matched" from "the loop never
         # finished" (killed, timed out, shell died mid-way). Without it an
         # aborted scan would report a confident empty list.
         return fail("BOARD_CONFIG_SCAN_FAILED", "scan did not run to completion")
 
     found: list[ConfigCandidate] = []
-    for line in r.stdout.split("__ALB_SCAN_DONE__")[0].splitlines():
+    for line in r.stdout.split("__DHANDS_SCAN_DONE__")[0].splitlines():
         parts = line.split()
         if len(parts) >= 2 and _DEV_RE.match(parts[0]):
             node = parts[2] if len(parts) >= 3 else f"/dev/block/by-name/{parts[0]}"

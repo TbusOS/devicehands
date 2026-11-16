@@ -32,7 +32,7 @@ serial_baud = 115200
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
-    for var in ("ALB_BENCH_BOARDS", "ALB_AGENT_SERIAL_COM", "ALB_AGENT_SERIAL_BAUD"):
+    for var in ("DHANDS_BENCH_BOARDS", "DHANDS_AGENT_SERIAL_COM", "DHANDS_AGENT_SERIAL_BAUD"):
         monkeypatch.delenv(var, raising=False)
     reset_flash_service()
     yield
@@ -43,7 +43,7 @@ def _clean(monkeypatch):
 def table(tmp_path, monkeypatch):
     path = tmp_path / "boards.toml"
     path.write_text(TABLE, encoding="utf-8")
-    monkeypatch.setenv("ALB_BENCH_BOARDS", str(path))
+    monkeypatch.setenv("DHANDS_BENCH_BOARDS", str(path))
     return path
 
 
@@ -78,7 +78,7 @@ def test_no_table_configured_is_an_empty_table():
 def test_a_wrong_table_names_the_file_and_the_entry(tmp_path, monkeypatch, body, why):
     path = tmp_path / "boards.toml"
     path.write_text(body, encoding="utf-8")
-    monkeypatch.setenv("ALB_BENCH_BOARDS", str(path))
+    monkeypatch.setenv("DHANDS_BENCH_BOARDS", str(path))
     with pytest.raises(BoardError) as e:
         load_boards()
     assert e.value.code == "BENCH_BOARDS_INVALID"
@@ -86,7 +86,7 @@ def test_a_wrong_table_names_the_file_and_the_entry(tmp_path, monkeypatch, body,
 
 
 def test_a_table_that_is_not_there_is_an_error_not_an_empty_table(tmp_path, monkeypatch):
-    monkeypatch.setenv("ALB_BENCH_BOARDS", str(tmp_path / "nope.toml"))
+    monkeypatch.setenv("DHANDS_BENCH_BOARDS", str(tmp_path / "nope.toml"))
     with pytest.raises(BoardError, match="does not exist"):
         load_boards()
 
@@ -95,8 +95,8 @@ def test_a_table_that_is_not_there_is_an_error_not_an_empty_table(tmp_path, monk
 
 
 def test_without_a_choice_hub_env_applies_as_before(table, monkeypatch):
-    monkeypatch.setenv("ALB_AGENT_SERIAL_COM", "COM4")
-    monkeypatch.setenv("ALB_AGENT_SERIAL_BAUD", "921600")
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_COM", "COM4")
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_BAUD", "921600")
     t = serial_target()
     assert (t["com"], t["baud"], t["board"], t["source"], t["problem"]) == (
         "COM4",
@@ -109,7 +109,7 @@ def test_without_a_choice_hub_env_applies_as_before(table, monkeypatch):
 
 
 def test_a_chosen_board_wins_over_hub_env(table, monkeypatch):
-    monkeypatch.setenv("ALB_AGENT_SERIAL_COM", "COM4")
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_COM", "COM4")
     bench_board.save_active("board-b")
     t = serial_target()
     assert (t["com"], t["baud"], t["board"], t["source"]) == ("COM27", 115200, "board-b", "board")
@@ -117,7 +117,7 @@ def test_a_chosen_board_wins_over_hub_env(table, monkeypatch):
 
 
 def test_a_chosen_board_gone_from_the_table_falls_back_and_says_so(table, monkeypatch):
-    monkeypatch.setenv("ALB_AGENT_SERIAL_COM", "COM4")
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_COM", "COM4")
     bench_board.save_active("board-z")
     t = serial_target()
     assert (t["com"], t["source"]) == ("COM4", "hub.env")

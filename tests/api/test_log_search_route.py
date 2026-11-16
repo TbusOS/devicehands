@@ -14,7 +14,7 @@ from devicehands.transport.base import ShellResult
 
 @pytest.fixture
 def workspace(monkeypatch, tmp_path) -> Path:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     return tmp_path
 
 

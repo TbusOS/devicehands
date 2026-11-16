@@ -599,7 +599,7 @@ async def test_write_failure_mid_typing_reconnects(tmp_path: Path) -> None:
 
 
 async def test_artifact_lands_under_the_device_logs(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     t = FakeSerial([[("data", COUNTDOWN), ("await_writes", 1), ("data", b"\r\n=> ")]])
     r = await _run(t, device="dev1")
     assert r.ok, r.error

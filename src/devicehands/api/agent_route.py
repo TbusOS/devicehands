@@ -8,14 +8,14 @@
                       secret (DEBT-084) to the pending request.
 
 Security (ADR-050 §6): both endpoints validate the agent token (env
-ALB_AGENT_TOKEN; when unset the API is open, same posture as the rest of
+DHANDS_AGENT_TOKEN; when unset the API is open, same posture as the rest of
 dhands-hub which prints a no-auth banner). The token check happens BEFORE any
 registry insert / forwarder attach. tcp channel targets are allowlisted to the
 local adb server on both sides. Dial-back credentials ride HEADERS, never the
 query string (ADR-055) — only the cid, which is a routing key and not a
 secret, stays in the URL.
 
-The adb forwarder binds 127.0.0.1:5037 by default; ALB_ADB_FORWARD_PORT can
+The adb forwarder binds 127.0.0.1:5037 by default; DHANDS_ADB_FORWARD_PORT can
 override it (tests use 0 for an ephemeral port).
 """
 
@@ -51,7 +51,7 @@ HEARTBEAT_TIMEOUT_S = 60.0
 
 
 def _expected_token() -> str | None:
-    return os.environ.get("ALB_AGENT_TOKEN")
+    return os.environ.get("DHANDS_AGENT_TOKEN")
 
 
 def _token_ok(supplied: str | None) -> bool:
@@ -168,8 +168,8 @@ async def _safe_attach(get_forwarder: Any, label: str) -> None:
         _log.warning(
             "%s forwarder could not bind (%s) — that device path stays "
             "unavailable until the conflict clears (a local adb server holding "
-            "the port? stop it, or set ALB_ADB_FORWARD_PORT / "
-            "ALB_SERIAL_FORWARD_PORT to a free port). Agent stays connected.",
+            "the port? stop it, or set DHANDS_ADB_FORWARD_PORT / "
+            "DHANDS_SERIAL_FORWARD_PORT to a free port). Agent stays connected.",
             label,
             e,
         )

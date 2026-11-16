@@ -16,7 +16,7 @@ def check_binary(name: str) -> tuple[bool, str]:
     """Return (found, detail). Detail is the path or a short reason.
 
     ``name`` is either a bare command, looked up on PATH, or a path to the
-    executable, checked as is (``ALB_ADB_PATH`` / ``bin_path`` can be one).
+    executable, checked as is (``DHANDS_ADB_PATH`` / ``bin_path`` can be one).
     """
     path = shutil.which(name)
     if path:

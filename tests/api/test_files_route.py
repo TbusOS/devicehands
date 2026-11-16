@@ -83,7 +83,7 @@ class _FakeAdbTransport(Transport):
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -742,7 +742,7 @@ def test_push_stream_unsupported_transport_closes(workspace, monkeypatch) -> Non
         async def shell(self, *a, **kw):
             return ShellResult(ok=True)
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(workspace))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(workspace))
     monkeypatch.setattr(
         "devicehands.api.files_route.build_transport",
         lambda **kwargs: _NoStreamTransport(),
@@ -762,7 +762,7 @@ def test_push_stream_init_failed_closes(workspace, monkeypatch) -> None:
     def _boom(**_):
         raise RuntimeError("adb server unreachable")
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(workspace))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(workspace))
     monkeypatch.setattr(
         "devicehands.api.files_route.build_transport", _boom,
     )
@@ -828,7 +828,7 @@ def test_push_stream_cancel_returns_cancelled_reason(
 def test_push_stream_no_first_message_returns_bad_config(workspace, monkeypatch) -> None:
     """Connect but never send the first JSON → after timeout closes
     with reason='bad_config'."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(workspace))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(workspace))
     # No transport patch needed — we close before that path.
     app = create_app()
     with TestClient(app) as c:

@@ -58,7 +58,7 @@ class _NoPtyTransport(_PtyFakeTransport):
 
 @pytest.fixture
 def client(monkeypatch, tmp_path):
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     from devicehands.infra.event_bus import reset_bus
     reset_bus()
@@ -90,7 +90,7 @@ def guarded_client(monkeypatch, client):
 
 @pytest.fixture
 def no_pty_client(monkeypatch, tmp_path):
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     from devicehands.infra.event_bus import reset_bus
     reset_bus()
@@ -414,7 +414,7 @@ class _ExitOneTransport(_PtyFakeTransport):
 
 @pytest.fixture
 def exit_one_client(monkeypatch, tmp_path):
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     from devicehands.infra.event_bus import reset_bus
     reset_bus()
@@ -508,7 +508,7 @@ def bash_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> Any:
 
     if not shutil.which("bash"):
         pytest.skip("needs bash")
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     from devicehands.infra.event_bus import reset_bus
 

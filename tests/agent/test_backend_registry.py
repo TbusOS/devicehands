@@ -51,11 +51,11 @@ def test_get_backend_dispatches_openai_compat() -> None:
 
 
 def test_get_backend_ollama_reads_env_overrides(monkeypatch) -> None:
-    """DEBT-020: probe-path construction must honour ALB_OLLAMA_URL /
-    ALB_OLLAMA_MODEL so the dashboard health card reflects the actually
+    """DEBT-020: probe-path construction must honour DHANDS_OLLAMA_URL /
+    DHANDS_OLLAMA_MODEL so the dashboard health card reflects the actually
     -configured Ollama, not the manifest default."""
-    monkeypatch.setenv("ALB_OLLAMA_URL", "http://example.test:11434")
-    monkeypatch.setenv("ALB_OLLAMA_MODEL", "qwen2.5:7b")
+    monkeypatch.setenv("DHANDS_OLLAMA_URL", "http://example.test:11434")
+    monkeypatch.setenv("DHANDS_OLLAMA_MODEL", "qwen2.5:7b")
     b = get_backend("ollama")
     assert b.base_url == "http://example.test:11434"
     assert b.model == "qwen2.5:7b"
@@ -63,8 +63,8 @@ def test_get_backend_ollama_reads_env_overrides(monkeypatch) -> None:
 
 def test_get_backend_ollama_caller_kwargs_beat_env(monkeypatch) -> None:
     """Caller-passed kwargs win over env (mirrors chat_route precedence)."""
-    monkeypatch.setenv("ALB_OLLAMA_URL", "http://from-env:11434")
-    monkeypatch.setenv("ALB_OLLAMA_MODEL", "from-env-model")
+    monkeypatch.setenv("DHANDS_OLLAMA_URL", "http://from-env:11434")
+    monkeypatch.setenv("DHANDS_OLLAMA_MODEL", "from-env-model")
     b = get_backend("ollama", base_url="http://from-kwarg:11434", model="from-kwarg-model")
     assert b.base_url == "http://from-kwarg:11434"
     assert b.model == "from-kwarg-model"
@@ -72,8 +72,8 @@ def test_get_backend_ollama_caller_kwargs_beat_env(monkeypatch) -> None:
 
 def test_get_backend_ollama_no_env_uses_default(monkeypatch) -> None:
     """No env set → library defaults preserved (back-compat)."""
-    monkeypatch.delenv("ALB_OLLAMA_URL", raising=False)
-    monkeypatch.delenv("ALB_OLLAMA_MODEL", raising=False)
+    monkeypatch.delenv("DHANDS_OLLAMA_URL", raising=False)
+    monkeypatch.delenv("DHANDS_OLLAMA_MODEL", raising=False)
     b = get_backend("ollama")
     # OllamaBackend defaults are an implementation detail, but they
     # must NOT be 'http://from-env...' or any env-injected value.

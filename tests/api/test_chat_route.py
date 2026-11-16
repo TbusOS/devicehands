@@ -29,7 +29,7 @@ class _FakeBackend(LLMBackend):
 def client(monkeypatch, tmp_path):
     # Redirect workspace_root() to tmp so events.jsonl + sessions land
     # under tmp_path, not the user's real workspace.
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     from devicehands.infra.event_bus import reset_bus
     reset_bus()
@@ -126,14 +126,14 @@ def test_chat_missing_message(client, fake_backend_patch):
 
 
 def test_chat_env_var_model_override(client, monkeypatch):
-    """When req.model is None, ALB_OLLAMA_MODEL env var should feed into backend kwargs."""
+    """When req.model is None, DHANDS_OLLAMA_MODEL env var should feed into backend kwargs."""
     captured: dict = {}
 
     def _spy_factory(name: str, **kwargs):
         captured.update(kwargs)
         return _FakeBackend(reply="ok")
 
-    monkeypatch.setenv("ALB_OLLAMA_MODEL", "gemma4:26b")
+    monkeypatch.setenv("DHANDS_OLLAMA_MODEL", "gemma4:26b")
     monkeypatch.setattr("devicehands.api.chat_route.get_backend", _spy_factory)
     r = client.post("/chat", json={"message": "hi", "tools": False})
     assert r.status_code == 200
@@ -736,7 +736,7 @@ async def test_warm_up_sends_the_prefix_a_chat_sends_and_stores_nothing(
 ) -> None:
     from devicehands.api import chat_route
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     tool = ToolSpec(name="alb_status", description="s", parameters={"type": "object"})
 
@@ -772,7 +772,7 @@ async def test_warm_up_reports_a_backend_error(monkeypatch: pytest.MonkeyPatch, 
     from devicehands.agent.backend import BackendError
     from devicehands.api import chat_route
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
 
     class _Down(_FakeBackend):
         async def chat(self, messages: list[Message], **kwargs: Any) -> ChatResponse:
@@ -791,7 +791,7 @@ async def test_warm_up_covers_each_language_a_chat_page_sends(monkeypatch: pytes
     unseen prompt of that length: 33.4 s)."""
     from devicehands.api import chat_route
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     tool = ToolSpec(name="alb_status", description="s", parameters={"type": "object"})
 
@@ -838,11 +838,11 @@ def test_warm_up_langs_are_the_ones_the_page_sends() -> None:
 @pytest.mark.parametrize(
     ("flag", "env", "fail", "expect"),
     [
-        (False, {"ALB_OLLAMA_MODEL": "m"}, "", []),  # an app a test builds
-        (True, {"ALB_OLLAMA_MODEL": "m"}, "", ["zh", "en"]),  # the hub main() starts
-        (True, {"ALB_OLLAMA_MODEL": "m", "ALB_WARMUP": "0"}, "", []),  # turned off
+        (False, {"DHANDS_OLLAMA_MODEL": "m"}, "", []),  # an app a test builds
+        (True, {"DHANDS_OLLAMA_MODEL": "m"}, "", ["zh", "en"]),  # the hub main() starts
+        (True, {"DHANDS_OLLAMA_MODEL": "m", "DHANDS_WARMUP": "0"}, "", []),  # turned off
         (True, {}, "", []),  # no configured model: do not load some default one
-        (True, {"ALB_OLLAMA_MODEL": "m"}, "zh", ["zh"]),  # backend down: do not wait again
+        (True, {"DHANDS_OLLAMA_MODEL": "m"}, "zh", ["zh"]),  # backend down: do not wait again
     ],
 )
 def test_warm_up_runs_only_for_the_hub_with_a_model(
@@ -857,9 +857,9 @@ def test_warm_up_runs_only_for_the_hub_with_a_model(
 
     from devicehands.api import chat_route
 
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
-    monkeypatch.delenv("ALB_OLLAMA_MODEL", raising=False)
-    monkeypatch.delenv("ALB_WARMUP", raising=False)
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
+    monkeypatch.delenv("DHANDS_OLLAMA_MODEL", raising=False)
+    monkeypatch.delenv("DHANDS_WARMUP", raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
     calls: list[str | None] = []

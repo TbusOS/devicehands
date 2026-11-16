@@ -419,7 +419,7 @@ def erase_hub(monkeypatch: pytest.MonkeyPatch) -> _EraseAgent:
     from devicehands.api.server import create_app
     from devicehands.remote.flash import FlashService
 
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
     agent = _EraseAgent()
     service = FlashService(lambda: agent)
 

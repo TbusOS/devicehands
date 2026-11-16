@@ -470,7 +470,7 @@ class AnthropicBackend(LLMBackend):
                 "anthropic: model not set",
                 suggestion=(
                     "pass --model <id> (e.g. claude-haiku-4-5-20251001) "
-                    "or set ALB_ANTHROPIC_MODEL"
+                    "or set DHANDS_ANTHROPIC_MODEL"
                 ),
             )
 

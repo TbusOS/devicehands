@@ -104,11 +104,11 @@ async def test_shell_roundtrip_over_tcp() -> None:
         await writer.drain()
 
         line = await reader.readline()       # wrapped command
-        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", line)
+        m = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", line)
         assert m, f"expected a BEG marker in {line!r}"
         nonce = m.group(1)
-        beg = b"__ALB_BEG_" + nonce + b"__"
-        end = b"__ALB_END_" + nonce + b"__"
+        beg = b"__DHANDS_BEG_" + nonce + b"__"
+        end = b"__DHANDS_END_" + nonce + b"__"
 
         writer.write(line)                   # echo the command line
         writer.write(beg + b"\n")            # echo BEG sentinel
@@ -327,38 +327,38 @@ def test_extract_between_markers_strips_echo_and_end_line() -> None:
     must be skipped; only the lines between marker OUTPUT lines count.
     """
     raw = (
-        "echo __ALB_BEG_abc__; ls /; echo __ALB_END_abc__=$?\n"   # echoed cmd
-        "__ALB_BEG_abc__\n"                                       # BEG echo output
+        "echo __DHANDS_BEG_abc__; ls /; echo __DHANDS_END_abc__=$?\n"   # echoed cmd
+        "__DHANDS_BEG_abc__\n"                                       # BEG echo output
         "bin\n"
         "etc\n"
         "usr\n"
-        "__ALB_END_abc__=0\n"                                     # END output
+        "__DHANDS_END_abc__=0\n"                                     # END output
         "root@h:/ # "                                             # next prompt
     )
-    out = _extract_between_markers(raw, "__ALB_BEG_abc__", "__ALB_END_abc__")
+    out = _extract_between_markers(raw, "__DHANDS_BEG_abc__", "__DHANDS_END_abc__")
     assert out == "bin\netc\nusr"
 
 
 def test_extract_between_markers_missing_end() -> None:
     """When END marker is missing, return everything after BEG."""
-    raw = "__ALB_BEG_x__\nstuff\nmore stuff\n"
-    out = _extract_between_markers(raw, "__ALB_BEG_x__", "__ALB_END_x__")
+    raw = "__DHANDS_BEG_x__\nstuff\nmore stuff\n"
+    out = _extract_between_markers(raw, "__DHANDS_BEG_x__", "__DHANDS_END_x__")
     assert out == "stuff\nmore stuff"
 
 
 def test_extract_between_markers_no_beg_returns_empty() -> None:
     raw = "no markers at all\njust text\n"
-    out = _extract_between_markers(raw, "__ALB_BEG_x__", "__ALB_END_x__")
+    out = _extract_between_markers(raw, "__DHANDS_BEG_x__", "__DHANDS_END_x__")
     assert out == ""
 
 
 def test_extract_between_markers_handles_crlf() -> None:
     raw = (
-        "__ALB_BEG_zz__\r\n"
+        "__DHANDS_BEG_zz__\r\n"
         "windows line endings\r\n"
-        "__ALB_END_zz__=7\r\n"
+        "__DHANDS_END_zz__=7\r\n"
     )
-    out = _extract_between_markers(raw, "__ALB_BEG_zz__", "__ALB_END_zz__")
+    out = _extract_between_markers(raw, "__DHANDS_BEG_zz__", "__DHANDS_END_zz__")
     assert out == "windows line endings"
 
 
@@ -388,10 +388,10 @@ async def _fake_posix_shell_handler(
     await writer.drain()
 
     wrapped = await reader.readline()
-    m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+    m = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", wrapped)
     nonce = m.group(1) if m else b"xxx"
-    beg = b"__ALB_BEG_" + nonce + b"__"
-    end = b"__ALB_END_" + nonce + b"__"
+    beg = b"__DHANDS_BEG_" + nonce + b"__"
+    end = b"__DHANDS_END_" + nonce + b"__"
 
     writer.write(wrapped)                                 # echo
     if injection:
@@ -486,11 +486,11 @@ async def test_shell_uses_fresh_nonce_per_call() -> None:
         w.write(b"$ ")
         await w.drain()
         wrapped = await r.readline()
-        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        m = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", wrapped)
         nonce = m.group(1) if m else b"xxx"
         nonces.append(nonce)
-        beg = b"__ALB_BEG_" + nonce + b"__"
-        end = b"__ALB_END_" + nonce + b"__"
+        beg = b"__DHANDS_BEG_" + nonce + b"__"
+        end = b"__DHANDS_END_" + nonce + b"__"
         w.write(wrapped)
         w.write(beg + b"\nok\n" + end + b"=0\n")
         w.write(b"$ ")
@@ -568,10 +568,10 @@ async def test_shell_isolates_printk_into_stderr() -> None:
         await writer.drain()
 
         wrapped = await reader.readline()
-        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        m = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", wrapped)
         nonce = m.group(1)
-        beg = b"__ALB_BEG_" + nonce + b"__"
-        end = b"__ALB_END_" + nonce + b"__"
+        beg = b"__DHANDS_BEG_" + nonce + b"__"
+        end = b"__DHANDS_END_" + nonce + b"__"
 
         writer.write(wrapped)                          # echo
         writer.write(beg + b"\n")
@@ -615,9 +615,9 @@ async def test_shell_sends_ctrl_c_when_command_times_out() -> None:
 
         # Read the wrapped command — begin a slow/stuck fake response
         wrapped = await reader.readline()
-        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        m = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", wrapped)
         nonce = m.group(1)
-        beg = b"__ALB_BEG_" + nonce + b"__"
+        beg = b"__DHANDS_BEG_" + nonce + b"__"
         writer.write(wrapped)                 # echo
         writer.write(beg + b"\n")             # BEG only — no END
         await writer.drain()
@@ -659,10 +659,10 @@ async def test_shell_sends_ctrl_c_when_cancelled() -> None:
         writer.write(b"$ ")
         await writer.drain()
         wrapped = await reader.readline()
-        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        m = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", wrapped)
         assert m is not None
         nonce = m.group(1)
-        writer.write(wrapped + b"__ALB_BEG_" + nonce + b"__\n")  # BEG only — still running
+        writer.write(wrapped + b"__DHANDS_BEG_" + nonce + b"__\n")  # BEG only — still running
         await writer.drain()
         running.set()
         while byte := await reader.read(1):
@@ -696,9 +696,9 @@ async def test_shell_reports_when_board_ignores_ctrl_c() -> None:
         await writer.drain()
 
         wrapped = await reader.readline()
-        m = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped)
+        m = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", wrapped)
         nonce = m.group(1)
-        beg = b"__ALB_BEG_" + nonce + b"__"
+        beg = b"__DHANDS_BEG_" + nonce + b"__"
         writer.write(wrapped)
         writer.write(beg + b"\n")
         await writer.drain()
@@ -1196,13 +1196,13 @@ async def _fake_shell_recording(reader, writer, seen: list[bytes]) -> None:
     await writer.drain()
     wrapped = await reader.readline()
     seen.append(wrapped)
-    nonce = _re.search(rb"__ALB_BEG_([a-f0-9]+)__", wrapped).group(1)
+    nonce = _re.search(rb"__DHANDS_BEG_([a-f0-9]+)__", wrapped).group(1)
     writer.write(wrapped)
-    writer.write(b"__ALB_BEG_" + nonce + b"__\n")
-    tok = _re.search(rb"echo (__ALB_REBOOT_QUEUED__);", wrapped)
+    writer.write(b"__DHANDS_BEG_" + nonce + b"__\n")
+    tok = _re.search(rb"echo (__DHANDS_REBOOT_QUEUED__);", wrapped)
     if tok:
         writer.write(tok.group(1) + b"\n")
-    writer.write(b"__ALB_END_" + nonce + b"__=0\n# ")
+    writer.write(b"__DHANDS_END_" + nonce + b"__=0\n# ")
     await writer.drain()
     writer.close()
 
@@ -1230,7 +1230,7 @@ async def test_reboot_runs_detached_and_returns_at_once(mode: str, target: bytes
     assert r.ok, r.stderr
     # Backgrounded behind a sleep: the shell answers before the board goes down.
     assert b"(sleep 1; " + target in seen[0]
-    assert b") </dev/null >/dev/null 2>&1 & echo __ALB_REBOOT_QUEUED__" in seen[0]
+    assert b") </dev/null >/dev/null 2>&1 & echo __DHANDS_REBOOT_QUEUED__" in seen[0]
 
 
 @pytest.mark.asyncio

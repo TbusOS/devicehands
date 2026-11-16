@@ -17,7 +17,7 @@ from devicehands.remote.registry import reset_agent_registry
 # ─── keep every test out of the real workspace ─────────────────────
 #
 # workspace_root() falls back to <cwd>/workspace, then ~/.alb-workspace,
-# when ALB_WORKSPACE is unset (src/devicehands/infra/workspace.py). pytest runs
+# when DHANDS_WORKSPACE is unset (src/devicehands/infra/workspace.py). pytest runs
 # from the repo root, so a test that forgot to set it wrote flash job
 # records into the repo's workspace/flash/, chat sessions into
 # ~/.alb-workspace/sessions/ and lines into ~/.alb-workspace/events.jsonl
@@ -57,9 +57,9 @@ def _workspace_tripwire(tmp_path_factory: pytest.TempPathFactory) -> Iterator[No
 
 @pytest.fixture(autouse=True)
 def _no_adb_path_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A developer's own ALB_ADB_PATH would replace every test's adb
+    """A developer's own DHANDS_ADB_PATH would replace every test's adb
     ``bin_path`` (see ``load_config``); tests that want it set it."""
-    monkeypatch.delenv("ALB_ADB_PATH", raising=False)
+    monkeypatch.delenv("DHANDS_ADB_PATH", raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -68,14 +68,14 @@ def _isolate_workspace(
     monkeypatch: pytest.MonkeyPatch,
     _workspace_tripwire: None,
 ) -> Iterator[None]:
-    """Give every test its own empty ALB_WORKSPACE, and fail a test that
-    still resolves the default one (e.g. after ``delenv("ALB_WORKSPACE")``).
+    """Give every test its own empty DHANDS_WORKSPACE, and fail a test that
+    still resolves the default one (e.g. after ``delenv("DHANDS_WORKSPACE")``).
 
     The dir comes from tmp_path_factory, not ``tmp_path``, so tests that
     inspect their own ``tmp_path`` don't see workspace files in it. A test
-    that needs its own workspace keeps doing ``setenv("ALB_WORKSPACE", …)``.
+    that needs its own workspace keeps doing ``setenv("DHANDS_WORKSPACE", …)``.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path_factory.mktemp("dhands-workspace")))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path_factory.mktemp("dhands-workspace")))
     _DefaultWorkspaceTripwire.hits.clear()
     yield
     hits = list(_DefaultWorkspaceTripwire.hits)
@@ -83,7 +83,7 @@ def _isolate_workspace(
     if hits:
         pytest.fail(
             "workspace_root() fell back to the real default workspace "
-            f"({', '.join(hits)}): ALB_WORKSPACE was unset during this test. "
+            f"({', '.join(hits)}): DHANDS_WORKSPACE was unset during this test. "
             "Point it at a tmp dir instead of deleting it.",
             pytrace=False,
         )

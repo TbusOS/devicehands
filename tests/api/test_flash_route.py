@@ -21,7 +21,7 @@ from devicehands.remote.flash import FlashEvent, FlashResult
 
 @pytest.fixture(autouse=True)
 def _ephemeral_forward_port(monkeypatch):
-    monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
 
 
 class _FakeService:

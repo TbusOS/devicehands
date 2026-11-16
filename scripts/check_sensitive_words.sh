@@ -12,7 +12,7 @@
 #   - pass --all to scan the entire working tree (CI mode)
 #
 # Environment overrides:
-#   ALB_SENSITIVE_EXTRA  = colon-separated extra patterns to check (rare)
+#   DHANDS_SENSITIVE_EXTRA  = colon-separated extra patterns to check (rare)
 
 set -euo pipefail
 
@@ -42,8 +42,8 @@ PATTERNS=(
   '198\.51\.100\.[0-9]{1,3}'
 )
 
-if [[ -n "${ALB_SENSITIVE_EXTRA:-}" ]]; then
-  IFS=':' read -r -a EXTRA <<< "$ALB_SENSITIVE_EXTRA"
+if [[ -n "${DHANDS_SENSITIVE_EXTRA:-}" ]]; then
+  IFS=':' read -r -a EXTRA <<< "$DHANDS_SENSITIVE_EXTRA"
   PATTERNS+=("${EXTRA[@]}")
 fi
 

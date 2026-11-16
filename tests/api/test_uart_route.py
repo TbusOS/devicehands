@@ -44,9 +44,9 @@ class _FakeSerialTransport(Transport):
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    """Point ALB_WORKSPACE at a tmp dir + chdir there. The route resolves
-    the logs dir via workspace_root() which honours ALB_WORKSPACE."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    """Point DHANDS_WORKSPACE at a tmp dir + chdir there. The route resolves
+    the logs dir via workspace_root() which honours DHANDS_WORKSPACE."""
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     return tmp_path
 

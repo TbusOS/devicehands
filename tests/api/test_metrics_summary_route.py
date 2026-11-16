@@ -16,7 +16,7 @@ from devicehands.infra.metric_store import get_metric_store
 
 @pytest.fixture
 def workspace(monkeypatch, tmp_path) -> Path:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     return tmp_path
 
 

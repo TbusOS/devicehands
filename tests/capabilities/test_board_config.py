@@ -79,7 +79,7 @@ def test_od_decode_round_trip():
 
 
 async def test_scan_finds_by_content_not_by_name():
-    t = _T({"by-name": _ok("cfgpart 11 /dev/block/mmcblk0p56\n__ALB_SCAN_DONE__\n")})
+    t = _T({"by-name": _ok("cfgpart 11 /dev/block/mmcblk0p56\n__DHANDS_SCAN_DONE__\n")})
     r = await bc.scan(t)
     assert r.ok
     c = r.data["candidates"]
@@ -102,7 +102,7 @@ async def test_scan_empty_result_names_the_usual_cause():
     """Block devices are unreadable without root, and the loop then finds
     nothing — indistinguishable from a board that has no config partition
     unless we say so."""
-    t = _T({"by-name": _ok("__ALB_SCAN_DONE__\n")})
+    t = _T({"by-name": _ok("__DHANDS_SCAN_DONE__\n")})
     r = await bc.scan(t)
     assert r.ok
     assert r.data["candidates"] == []
@@ -110,7 +110,7 @@ async def test_scan_empty_result_names_the_usual_cause():
 
 
 async def test_scan_ignores_malformed_lines():
-    t = _T({"by-name": _ok("bad line\n../evil 9 /dev/x\ncfg 3 /dev/y\n__ALB_SCAN_DONE__\n")})
+    t = _T({"by-name": _ok("bad line\n../evil 9 /dev/x\ncfg 3 /dev/y\n__DHANDS_SCAN_DONE__\n")})
     r = await bc.scan(t)
     assert [c["name"] for c in r.data["candidates"]] == ["cfg"]
 

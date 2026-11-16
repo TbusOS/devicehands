@@ -19,7 +19,7 @@ def test_new_session_id_format() -> None:
 
 
 def test_create_makes_dir_and_meta(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s = ChatSession.create(backend="ollama", model="qwen2.5:3b", device="abc123")
     assert s.dir.is_dir()
     assert s.meta_file.exists()
@@ -31,7 +31,7 @@ def test_create_makes_dir_and_meta(tmp_path, monkeypatch) -> None:
 
 
 def test_append_writes_jsonl_immediately(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s = ChatSession.create(backend="ollama")
     s.append(Message(role="user", content="hello"))
     s.append(Message(role="assistant", content="hi"))
@@ -43,7 +43,7 @@ def test_append_writes_jsonl_immediately(tmp_path, monkeypatch) -> None:
 
 
 def test_append_preserves_tool_calls(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s = ChatSession.create()
     tc = ToolCall(id="tc_1", name="alb_logcat", arguments={"duration": 30})
     s.append(Message(role="assistant", content="", tool_calls=[tc]))
@@ -56,7 +56,7 @@ def test_append_preserves_tool_calls(tmp_path, monkeypatch) -> None:
 
 
 def test_load_roundtrip(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s1 = ChatSession.create(backend="ollama", model="qwen2.5:3b", device="dev")
     s1.append(Message(role="user", content="抓日志"))
     s1.append(
@@ -91,14 +91,14 @@ def test_load_roundtrip(tmp_path, monkeypatch) -> None:
 
 
 def test_load_missing_session_returns_empty(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s = ChatSession.load("20260101-deadbeef")
     assert s.messages() == []
     assert s.backend == ""
 
 
 def test_load_skips_malformed_lines(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s1 = ChatSession.create()
     s1.append(Message(role="user", content="good"))
     # Corrupt: append a malformed line
@@ -111,7 +111,7 @@ def test_load_skips_malformed_lines(tmp_path, monkeypatch) -> None:
 
 
 def test_clear_resets_messages(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s = ChatSession.create()
     s.append(Message(role="user", content="x"))
     s.append(Message(role="user", content="y"))

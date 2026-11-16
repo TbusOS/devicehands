@@ -209,12 +209,12 @@ async def test_adb_forwarder_opens_daemon_tcp_channel():
 def test_serial_configured_and_forwarder_reads_env(monkeypatch):
     from devicehands.remote import forwarder as fwd_mod
 
-    monkeypatch.delenv("ALB_AGENT_SERIAL_COM", raising=False)
+    monkeypatch.delenv("DHANDS_AGENT_SERIAL_COM", raising=False)
     assert fwd_mod.serial_configured() is False
 
-    monkeypatch.setenv("ALB_AGENT_SERIAL_COM", "COM9")
-    monkeypatch.setenv("ALB_AGENT_SERIAL_BAUD", "921600")
-    monkeypatch.setenv("ALB_SERIAL_FORWARD_PORT", "0")
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_COM", "COM9")
+    monkeypatch.setenv("DHANDS_AGENT_SERIAL_BAUD", "921600")
+    monkeypatch.setenv("DHANDS_SERIAL_FORWARD_PORT", "0")
     assert fwd_mod.serial_configured() is True
     f = fwd_mod.get_serial_forwarder()
     assert f._params == {"com": "COM9", "baud": 921600}

@@ -91,9 +91,9 @@ _OUTPUT_TRUNCATED_SUGGESTION = (
 # Only the model's copy is cut: the tool_call_end event (what the page shows)
 # carries the whole result. The session keeps the cut copy, because a later
 # turn sends the history again and the model would re-read it in full.
-# ALB_AGENT_TOOL_RESULT_MAX_CHARS overrides it; 0 passes results whole.
+# DHANDS_AGENT_TOOL_RESULT_MAX_CHARS overrides it; 0 passes results whole.
 DEFAULT_TOOL_RESULT_MAX_CHARS = 4000
-_TOOL_RESULT_ENV = "ALB_AGENT_TOOL_RESULT_MAX_CHARS"
+_TOOL_RESULT_ENV = "DHANDS_AGENT_TOOL_RESULT_MAX_CHARS"
 
 # The web page finds this note in session history (cutInStored in
 # web/src/features/v3/chat/toolText.ts matches "…[alb cut N of M characters
@@ -111,7 +111,7 @@ _TOOL_RESULT_CUT_NOTE = (
 
 
 def tool_result_max_chars_from_env() -> int:
-    """The limit from ALB_AGENT_TOOL_RESULT_MAX_CHARS, or the default.
+    """The limit from DHANDS_AGENT_TOOL_RESULT_MAX_CHARS, or the default.
 
     A value that is not a whole number >= 0 is ignored with a warning: a
     typo must not silently turn the limit off (or into something absurd)."""
@@ -215,7 +215,7 @@ class AgentLoop:
 
         `tool_result_max_chars` caps how much of one tool result the model
         reads (see DEFAULT_TOOL_RESULT_MAX_CHARS); None reads it from
-        ALB_AGENT_TOOL_RESULT_MAX_CHARS, 0 passes results whole."""
+        DHANDS_AGENT_TOOL_RESULT_MAX_CHARS, 0 passes results whole."""
         self.backend = backend
         self.tools = tools
         self.tool_executor = tool_executor

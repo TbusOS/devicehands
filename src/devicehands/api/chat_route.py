@@ -385,8 +385,8 @@ async def _agent_parts(
         }
 
     # Env-var defaults (mirror CLI behaviour)
-    model = req.model or os.environ.get("ALB_OLLAMA_MODEL")
-    ollama_url = req.ollama_url or os.environ.get("ALB_OLLAMA_URL")
+    model = req.model or os.environ.get("DHANDS_OLLAMA_MODEL")
+    ollama_url = req.ollama_url or os.environ.get("DHANDS_OLLAMA_URL")
 
     backend_kwargs: dict[str, Any] = {}
     if model:

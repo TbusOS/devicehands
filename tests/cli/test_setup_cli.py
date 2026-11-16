@@ -17,8 +17,8 @@ from devicehands.cli.setup_cli import _persist_serial_config
 
 @pytest.fixture(autouse=True)
 def _isolated_config(monkeypatch, tmp_path: Path):
-    """Redirect ALB_CONFIG so each test gets a fresh config.toml location."""
-    monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "config.toml"))
+    """Redirect DHANDS_CONFIG so each test gets a fresh config.toml location."""
+    monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "config.toml"))
     yield
 
 
@@ -135,7 +135,7 @@ def test_persist_does_not_clobber_unrelated_serial_keys(tmp_path: Path) -> None:
 def test_persist_creates_parent_directory(tmp_path: Path, monkeypatch) -> None:
     """When XDG dir doesn't exist yet, helper mkdirs it."""
     target = tmp_path / "deep" / "nested" / "config.toml"
-    monkeypatch.setenv("ALB_CONFIG", str(target))
+    monkeypatch.setenv("DHANDS_CONFIG", str(target))
     path = _persist_serial_config({"default_tcp_port": 19001})
     assert path == target
     assert path.exists()

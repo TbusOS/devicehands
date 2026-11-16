@@ -24,7 +24,7 @@ that one.
 
 ## Why resolution belongs here and not in the shell
 
-The port is chosen by the hub process (``ALB_ADB_FORWARD_PORT``) and consumed by
+The port is chosen by the hub process (``DHANDS_ADB_FORWARD_PORT``) and consumed by
 a different process (the CLI). Nothing connects the two except a human
 remembering to export a matching value. Any hand-maintained copy — a shell
 profile, a config file, a wiki line — is a second source of truth that goes
@@ -160,14 +160,14 @@ def _socket_port(spec: str | None) -> int | None:
 
 def _hub_base_url() -> str:
     """Same resolution the flash CLI uses, kept in step deliberately: an
-    operator who points ALB_API_URL at a hub expects *everything* to follow."""
-    base = os.environ.get("ALB_API_URL", "").strip()
+    operator who points DHANDS_API_URL at a hub expects *everything* to follow."""
+    base = os.environ.get("DHANDS_API_URL", "").strip()
     if base:
         return base.rstrip("/")
-    host = os.environ.get("ALB_API_HOST", "127.0.0.1")
+    host = os.environ.get("DHANDS_API_HOST", "127.0.0.1")
     if host == "0.0.0.0":  # a bind-all address is not a dial-able one
         host = "127.0.0.1"
-    return f"http://{host}:{os.environ.get('ALB_API_PORT', '8765')}"
+    return f"http://{host}:{os.environ.get('DHANDS_API_PORT', '8765')}"
 
 
 def _hub_is_local(url: str) -> bool:

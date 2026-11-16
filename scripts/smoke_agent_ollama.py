@@ -114,8 +114,8 @@ async def case_agent_loop(backend: OllamaBackend) -> None:
 
 async def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base-url", default=os.environ.get("ALB_OLLAMA_URL", "http://localhost:11434"))
-    ap.add_argument("--model", default=os.environ.get("ALB_OLLAMA_MODEL", "qwen2.5:7b"))
+    ap.add_argument("--base-url", default=os.environ.get("DHANDS_OLLAMA_URL", "http://localhost:11434"))
+    ap.add_argument("--model", default=os.environ.get("DHANDS_OLLAMA_MODEL", "qwen2.5:7b"))
     args = ap.parse_args()
 
     backend = OllamaBackend(

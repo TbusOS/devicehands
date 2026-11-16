@@ -148,6 +148,6 @@ def _suggest_for(code: str | None) -> str:
         "DEVICE_OFFLINE": "Reconnect device / run: dhands status",
         "DEVICE_UNAUTHORIZED": "Accept 'Allow USB debugging' prompt on device",
         "ADB_SERVER_UNREACHABLE": "Check Xshell tunnel: ss -tlnp | grep 5037",
-        "ADB_BINARY_NOT_FOUND": "Put adb on PATH, or set ALB_ADB_PATH to the adb executable",
+        "ADB_BINARY_NOT_FOUND": "Put adb on PATH, or set DHANDS_ADB_PATH to the adb executable",
     }
     return mapping.get(code or "", "See docs/errors.md for details")

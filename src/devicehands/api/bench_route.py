@@ -40,7 +40,7 @@ on the bench host — the agent builds the argv from its own table.
     POST /api/bench/board
         Body: {"name": <board>, "force": false}
         Which board the bench's serial console is wired to (ADR-063): the
-        table from ALB_BENCH_BOARDS and the board chosen. POST points the
+        table from DHANDS_BENCH_BOARDS and the board chosen. POST points the
         serial forwarder at that board's COM port and baud while the hub
         runs and remembers the choice. Plain JSON, not a stream; a refused
         switch is ok:false with a code.

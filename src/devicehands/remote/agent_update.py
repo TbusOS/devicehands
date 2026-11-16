@@ -50,9 +50,9 @@ _ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 
 
 def bundle_dir() -> Path:
-    """Where the agent files come from: ALB_AGENT_BUNDLE_DIR, else this
+    """Where the agent files come from: DHANDS_AGENT_BUNDLE_DIR, else this
     checkout's clients/windows-agent."""
-    override = os.environ.get("ALB_AGENT_BUNDLE_DIR", "").strip()
+    override = os.environ.get("DHANDS_AGENT_BUNDLE_DIR", "").strip()
     if override:
         return Path(override).expanduser()
     return Path(__file__).resolve().parents[3] / "clients" / "windows-agent"

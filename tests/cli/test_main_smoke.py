@@ -50,14 +50,14 @@ def test_bad_profile_flag_emits_bad_parameter() -> None:
 
 
 def test_bad_alb_profile_env_does_not_block_help(monkeypatch) -> None:
-    """ALB_PROFILE env validation is LAZY (deferred to load_active call).
+    """DHANDS_PROFILE env validation is LAZY (deferred to load_active call).
 
     A leftover/stale env var should not block `dhands --help` or
     `dhands <subcmd> --help`. The env is caught when subcommands actually
     invoke `load_active()` (e.g. `dhands status`), via `profile_path()`
     raising `InvalidProfileName`.
     """
-    monkeypatch.setenv("ALB_PROFILE", "../etc")
+    monkeypatch.setenv("DHANDS_PROFILE", "../etc")
     r = runner.invoke(app, ["--help"])
     assert r.exit_code == 0
     r2 = runner.invoke(app, ["fs", "--help"])
@@ -69,32 +69,32 @@ def test_bad_alb_profile_env_lazy_raise_in_subcommand(monkeypatch) -> None:
     from devicehands.infra.config import load_profile
     from devicehands.infra.workspace import InvalidProfileName
 
-    monkeypatch.setenv("ALB_PROFILE", "../etc")
+    monkeypatch.setenv("DHANDS_PROFILE", "../etc")
     with pytest.raises(InvalidProfileName):
-        load_profile()  # picks up ALB_PROFILE from env when name=None
+        load_profile()  # picks up DHANDS_PROFILE from env when name=None
 
 
 def test_bad_alb_profile_env_friendly_error_in_status_subcommand(monkeypatch) -> None:
-    """`dhands status` with bad ALB_PROFILE must show friendly typer error,
+    """`dhands status` with bad DHANDS_PROFILE must show friendly typer error,
     not a Python traceback. Locks the part 145 e2e-smoke-discovered bug
     where part 143 lazy-raise lacked caller-side catch.
     """
-    monkeypatch.setenv("ALB_PROFILE", "../etc")
+    monkeypatch.setenv("DHANDS_PROFILE", "../etc")
     r = runner.invoke(app, ["status"])
     assert r.exit_code == 2  # typer.BadParameter → exit 2
     combined = r.stdout + (r.stderr or "")
     # Friendly error (typer's BadParameter rendering), no Python traceback
-    assert "ALB_PROFILE or --profile" in combined
+    assert "DHANDS_PROFILE or --profile" in combined
     assert "Traceback" not in combined
     assert "InvalidProfileName" not in combined
 
 
 def test_bad_alb_profile_env_doctor_treats_as_layer_finding(monkeypatch) -> None:
-    """`dhands doctor` is intentionally different — bad ALB_PROFILE should
+    """`dhands doctor` is intentionally different — bad DHANDS_PROFILE should
     show up as a config-layer `err` finding, not crash. Doctor's purpose
     is to diagnose problems including its own config.
     """
-    monkeypatch.setenv("ALB_PROFILE", "../etc")
+    monkeypatch.setenv("DHANDS_PROFILE", "../etc")
     r = runner.invoke(app, ["doctor"])
     # exit 1 because at least one layer is err
     assert r.exit_code == 1

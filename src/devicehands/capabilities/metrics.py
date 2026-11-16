@@ -57,18 +57,18 @@ class MetricSample:
 _SAMPLE_CMD = (
     # Each fragment ends with a delimiter so we can split the combined
     # output back into sections in Python without ambiguity.
-    "echo __ALB_STAT__; cat /proc/stat 2>/dev/null;"
-    "echo __ALB_MEM__; cat /proc/meminfo 2>/dev/null;"
-    "echo __ALB_NET__; cat /proc/net/dev 2>/dev/null;"
-    "echo __ALB_FREQ__; for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq;"
+    "echo __DHANDS_STAT__; cat /proc/stat 2>/dev/null;"
+    "echo __DHANDS_MEM__; cat /proc/meminfo 2>/dev/null;"
+    "echo __DHANDS_NET__; cat /proc/net/dev 2>/dev/null;"
+    "echo __DHANDS_FREQ__; for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq;"
     " do cat $f 2>/dev/null; done;"
-    "echo __ALB_THERM__; for z in /sys/class/thermal/thermal_zone*;"
+    "echo __DHANDS_THERM__; for z in /sys/class/thermal/thermal_zone*;"
     ' do echo "$z:"; cat $z/type 2>/dev/null; cat $z/temp 2>/dev/null; done;'
-    "echo __ALB_GPU__; for d in /sys/class/devfreq/*;"
+    "echo __DHANDS_GPU__; for d in /sys/class/devfreq/*;"
     ' do echo "$d:"; cat $d/name 2>/dev/null; cat $d/cur_freq 2>/dev/null; done;'
-    "echo __ALB_GPUUTIL__; cat /sys/kernel/debug/mali*/gpu_utilization 2>/dev/null;"
-    "echo __ALB_DISK__; cat /sys/block/*/stat 2>/dev/null;"
-    "echo __ALB_BAT__; dumpsys battery 2>/dev/null | grep -E '^[[:space:]]*(present|temperature):'"
+    "echo __DHANDS_GPUUTIL__; cat /sys/kernel/debug/mali*/gpu_utilization 2>/dev/null;"
+    "echo __DHANDS_DISK__; cat /sys/block/*/stat 2>/dev/null;"
+    "echo __DHANDS_BAT__; dumpsys battery 2>/dev/null | grep -E '^[[:space:]]*(present|temperature):'"
 )
 
 
@@ -362,15 +362,15 @@ async def shutdown_all_streamers() -> None:
 
 
 def _split_sections(stdout: str) -> dict[str, str]:
-    """Split the combined sample output by the __ALB_<NAME>__ markers."""
+    """Split the combined sample output by the __DHANDS_<NAME>__ markers."""
     out: dict[str, str] = {}
     current: str | None = None
     buf: list[str] = []
     for line in stdout.splitlines():
-        if line.startswith("__ALB_") and line.endswith("__"):
+        if line.startswith("__DHANDS_") and line.endswith("__"):
             if current is not None:
                 out[current] = "\n".join(buf)
-            current = line[6:-2]
+            current = line[9:-2]
             buf = []
         elif current is not None:
             buf.append(line)

@@ -33,8 +33,8 @@ def _make_png(width: int = 64, height: int = 48) -> bytes:
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    """Point ALB_WORKSPACE at a tmp dir so screenshots_dir resolves there."""
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
+    """Point DHANDS_WORKSPACE at a tmp dir so screenshots_dir resolves there."""
+    monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     return tmp_path
 

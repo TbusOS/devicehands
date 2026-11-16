@@ -2,13 +2,13 @@
 #
 # One COM port on the bench host is often moved from board to board, and
 # boards speak different baud rates. List them here, point the hub at this
-# file with ALB_BENCH_BOARDS in hub.env, and switch while the hub runs:
+# file with DHANDS_BENCH_BOARDS in hub.env, and switch while the hub runs:
 #
 #     dhands bench board                 # the table, and where the console points
 #     dhands bench board use board-b     # point the serial console at board-b
 #
 # The choice is remembered in the workspace (bench/board.json) across hub
-# restarts. With no board chosen, ALB_AGENT_SERIAL_COM / _BAUD in hub.env
+# restarts. With no board chosen, DHANDS_AGENT_SERIAL_COM / _BAUD in hub.env
 # apply as before.
 #
 # Names: 1-32 of a-z 0-9 _ -  ·  serial_com: the port name on the bench host

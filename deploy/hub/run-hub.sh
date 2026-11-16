@@ -8,7 +8,7 @@ ENV_FILE="$SCRIPT_DIR/hub.env"
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "[run-hub] hub.env not found." >&2
-    echo "[run-hub] Copy hub.env.example to hub.env and fill in ALB_AGENT_TOKEN" >&2
+    echo "[run-hub] Copy hub.env.example to hub.env and fill in DHANDS_AGENT_TOKEN" >&2
     echo "[run-hub] (+ serial COM/baud if you want the UART console):" >&2
     echo "[run-hub]     cp '$SCRIPT_DIR/hub.env.example' '$ENV_FILE'" >&2
     exit 1
@@ -19,8 +19,8 @@ set -a
 . "$ENV_FILE"
 set +a
 
-if [ "${ALB_AGENT_TOKEN:-}" = "change-me" ]; then
-    echo "[run-hub] WARNING: ALB_AGENT_TOKEN is still 'change-me' — set a real" >&2
+if [ "${DHANDS_AGENT_TOKEN:-}" = "change-me" ]; then
+    echo "[run-hub] WARNING: DHANDS_AGENT_TOKEN is still 'change-me' — set a real" >&2
     echo "[run-hub] token in hub.env (generate one: openssl rand -hex 16)." >&2
 fi
 

@@ -6,7 +6,7 @@ Streaming (`GET /chat/ws`), OpenAPI fine-tuning, and auth come in M3.
 
 Usage:
     dhands-hub                       # defaults: 0.0.0.0:8765
-    dhands-hub --port 9000           # (via env ALB_API_PORT)
+    dhands-hub --port 9000           # (via env DHANDS_API_PORT)
     uvicorn devicehands.api.server:app    # bring your own ASGI runner
 """
 
@@ -54,7 +54,7 @@ from devicehands.api.uart_stream_route import router as uart_stream_router
 from devicehands.api.ui_static import mount_ui
 from devicehands.infra.env_loader import load_env_files
 
-# Load .env.local / .env so ALB_* values reach FastAPI request handlers.
+# Load .env.local / .env so DHANDS_* values reach FastAPI request handlers.
 load_env_files()
 
 
@@ -123,15 +123,15 @@ def _start_warm_up(app: FastAPI) -> asyncio.Task[None] | None:
     """Warm the chat model in the background — only for a hub started by
     main() (app.state.warm_model), never for an app a test builds.
 
-    Only when ALB_OLLAMA_MODEL names the model: warming some default model
+    Only when DHANDS_OLLAMA_MODEL names the model: warming some default model
     nobody chats with would push the real one out of the model server's
-    memory. ALB_WARMUP=0 turns it off.
+    memory. DHANDS_WARMUP=0 turns it off.
 
     One warm-up per reply language a chat page sends (WARM_UP_LANGS), one
     after the other, each logged when it is done."""
     if not getattr(app.state, "warm_model", False):
         return None
-    if os.environ.get("ALB_WARMUP", "1").strip() == "0" or not os.environ.get("ALB_OLLAMA_MODEL"):
+    if os.environ.get("DHANDS_WARMUP", "1").strip() == "0" or not os.environ.get("DHANDS_OLLAMA_MODEL"):
         return None
 
     async def run() -> None:
@@ -228,8 +228,8 @@ def main() -> None:
         )
         sys.exit(1)
 
-    host = os.environ.get("ALB_API_HOST", "0.0.0.0")
-    port = int(os.environ.get("ALB_API_PORT", "8765"))
+    host = os.environ.get("DHANDS_API_HOST", "0.0.0.0")
+    port = int(os.environ.get("DHANDS_API_PORT", "8765"))
     if host == "0.0.0.0":
         # Security audit 2026-05-02 finding MID 2: dhands-hub binds all
         # interfaces by default + has no auth. Anyone with network
@@ -239,14 +239,14 @@ def main() -> None:
         print(
             "[dhands-hub] WARNING: bound 0.0.0.0 with no auth — file push,"
             " adb shell, UART write endpoints reachable from the LAN."
-            " For local-only dev set: ALB_API_HOST=127.0.0.1",
+            " For local-only dev set: DHANDS_API_HOST=127.0.0.1",
             file=sys.stderr,
         )
-    # WebSocket compression is off unless ALB_WS_DEFLATE=1 (ADR-062): the hub
+    # WebSocket compression is off unless DHANDS_WS_DEFLATE=1 (ADR-062): the hub
     # compresses every outgoing frame inside its own event loop, and on the
     # bench that — not the network — was the limit. A 2.2 GB image took 108 s
     # compressed, 19 s plain, over the same link.
-    deflate = os.environ.get("ALB_WS_DEFLATE", "").strip() == "1"
+    deflate = os.environ.get("DHANDS_WS_DEFLATE", "").strip() == "1"
     # uvicorn imports "devicehands.api.server:app" — this module, already loaded —
     # so the flag reaches the app it serves. Tests build their own apps
     # with create_app() and never warm a model.

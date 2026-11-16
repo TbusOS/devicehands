@@ -238,25 +238,25 @@ def _which_all(*names: str) -> DepState:
 
 
 def _check_adb(_env: HostEnv) -> DepState:
-    # Same lookup the transport does: ALB_ADB_PATH > [transport.adb] bin_path > PATH.
+    # Same lookup the transport does: DHANDS_ADB_PATH > [transport.adb] bin_path > PATH.
     bin_path = load_config().adb.bin_path
     path = shutil.which(bin_path)
     if path:
         return DepState(True, path)
     if os.sep in bin_path:
         return DepState(False, f"{bin_path}: not found or not executable "
-                               "(set by ALB_ADB_PATH or [transport.adb] bin_path)")
+                               "(set by DHANDS_ADB_PATH or [transport.adb] bin_path)")
     return DepState(False, f"{bin_path}: not found on PATH")
 
 
 def _check_ollama(_env: HostEnv) -> DepState:
-    url = os.environ.get("ALB_OLLAMA_URL")
+    url = os.environ.get("DHANDS_OLLAMA_URL")
     if url:
-        return DepState(True, f"ALB_OLLAMA_URL={url} (not probed here)")
+        return DepState(True, f"DHANDS_OLLAMA_URL={url} (not probed here)")
     path = shutil.which("ollama")
     if path:
         return DepState(True, path)
-    return DepState(False, "no ollama on PATH and ALB_OLLAMA_URL unset")
+    return DepState(False, "no ollama on PATH and DHANDS_OLLAMA_URL unset")
 
 
 def node_version_ok(version: str) -> bool:
@@ -481,7 +481,7 @@ def _install_platform_tools(env: HostEnv) -> str:
     downloaded = None
     zip_path = env.platform_tools_zip
     if zip_path is None:
-        url = os.environ.get("ALB_PLATFORM_TOOLS_URL") or PLATFORM_TOOLS_URLS.get(env.system)
+        url = os.environ.get("DHANDS_PLATFORM_TOOLS_URL") or PLATFORM_TOOLS_URLS.get(env.system)
         if not url:
             raise InstallError(f"no Platform-Tools download known for {env.system}")
         _confirm_download(
@@ -597,9 +597,9 @@ def _manual_platform_tools(env: HostEnv) -> list[str]:
         f"download Android SDK Platform-Tools: {url}  (page: {PLATFORM_TOOLS_PAGE})",
         "then let dhands unpack it: dhands setup deps --install --platform-tools-zip <the zip>",
         "or unzip it anywhere and put platform-tools/ on PATH, "
-        "or export ALB_ADB_PATH=<dir>/platform-tools/adb",
+        "or export DHANDS_ADB_PATH=<dir>/platform-tools/adb",
         "behind a proxy: export HTTPS_PROXY=http://<proxy>:<port> and run "
-        "dhands setup deps --install again; from a mirror: export ALB_PLATFORM_TOOLS_URL=<zip url>",
+        "dhands setup deps --install again; from a mirror: export DHANDS_PLATFORM_TOOLS_URL=<zip url>",
         "distro package (often an older adb): "
         + _pkg("adb fastboot", "android-tools", "brew install --cask android-platform-tools"),
     ]
@@ -608,7 +608,7 @@ def _manual_platform_tools(env: HostEnv) -> list[str]:
 def _manual_ollama(_env: HostEnv) -> list[str]:
     return [
         "install it on this machine or another one: https://ollama.com/download",
-        "on another machine: export ALB_OLLAMA_URL=http://<host>:11434",
+        "on another machine: export DHANDS_OLLAMA_URL=http://<host>:11434",
         "or use an OpenAI-compatible / Anthropic backend instead (docs/llm-integration.md)",
     ]
 
