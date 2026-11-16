@@ -17,20 +17,19 @@ browser without dropping to a shell.
         relative; defaults to pulls/<basename>-<ts>.
 
     POST /devices/{serial}/files/push   {local, remote, force?}
-        workspace → device via filesync.push. HITL gate: pushes that
-        target a sensitive prefix (/system, /vendor, /data, /dev,
-        /proc, /sys, /persist, /oem) come back as
-        ok=false / requires_confirm=true unless `force=true` was set.
-        The UI surfaces the warning then re-submits with force.
+        workspace → device via filesync.push. Any well-formed absolute
+        remote path is pushed as-is, including /system, /vendor, /data
+        and the like: the board is the debug target, so board-side
+        operations are not gated (docs/permissions.md). `force` is
+        accepted for backward compatibility, ignored.
 
     GET  /workspace/files/download/{path:path}
         Raw bytes — FileResponse stream so big pulls don't fan out
         through JSON+base64. Path must resolve inside workspace_root.
 
-We deliberately do not invoke the M1 PermissionEngine for filesync —
-it currently only inspects shell `cmd` strings. The path-prefix HITL
-here covers the write-side risk surface until the engine grows
-filesync rules (tracked under the broader permissions backlog).
+Remote paths are only checked for well-formedness
+(`_is_safe_remote_path`); workspace paths must stay inside the
+workspace root (`_resolve_workspace_path`).
 """
 
 from __future__ import annotations
@@ -39,7 +38,6 @@ import asyncio
 import contextlib
 import json
 import os
-import posixpath
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
@@ -90,29 +88,6 @@ def _serial_lock(serial: str) -> asyncio.Lock:
 # slower probably IS a stall worth aborting.
 _FILE_OP_TIMEOUT_S = 300
 
-# Paths that require an explicit user confirm before a push lands —
-# these are the prefixes where a wrong byte can soft-brick a board or
-# overwrite something the bootloader cares about. Anything outside
-# this list (incl. /sdcard, /data/local/tmp) writes without prompting.
-_SENSITIVE_REMOTE_PREFIXES: tuple[str, ...] = (
-    "/system",
-    "/vendor",
-    "/data",  # /data/local/tmp is excepted below
-    "/dev",
-    "/proc",
-    "/sys",
-    "/persist",
-    "/oem",
-    "/boot",
-    "/recovery",
-    "/metadata",
-)
-
-# Whitelisted exception inside /data — the standard scratch dir.
-_SENSITIVE_REMOTE_EXEMPTIONS: tuple[str, ...] = (
-    "/data/local/tmp",
-)
-
 # Cap directory listings so we don't ship 50k entries to the browser
 # when the user accidentally opens /. The UI shows the truncation hint.
 _MAX_ENTRIES = 2000
@@ -120,15 +95,14 @@ _MAX_ENTRIES = 2000
 
 # ─── Path validation helpers ─────────────────────────────────────────
 def _is_safe_remote_path(p: str) -> bool:
-    """Reject obvious shell-injection / traversal attempts.
+    """Reject remote paths that are not well-formed.
 
     shlex.quote handles the actual shell escaping when we build the
     `ls` command, but a few patterns are nonsense for a path browser
-    and we'd rather 400 than execute them.
-
-    Also rejects any `..` segment — adb resolves it on-device and a
-    permitted prefix like `/data/local/tmp/../system/lib/foo.so`
-    would otherwise bypass the `_is_sensitive_remote` HITL gate.
+    and we'd rather 400 than execute them: relative paths, NUL / CR /
+    LF bytes, paths over 4096 chars, and any `..` segment. adb resolves
+    `..` on-device, so the path the user sees would not be the path
+    that gets written or listed.
     """
     if not p or not p.startswith("/"):
         return False
@@ -136,7 +110,7 @@ def _is_safe_remote_path(p: str) -> bool:
         return False
     if len(p) > 4096:
         return False
-    # Reject any `..` segment — defense in depth against HITL bypass.
+    # Reject any `..` segment: the shown path must be the real target.
     if any(seg == ".." for seg in p.split("/")):
         return False
     return True
@@ -165,27 +139,6 @@ def _resolve_workspace_path(rel: str) -> Path:
             status_code=400, detail="path escapes workspace"
         ) from exc
     return candidate
-
-
-def _is_sensitive_remote(remote: str) -> bool:
-    """Return True if `remote` lands in a path that warrants a confirm.
-
-    /data/local/tmp/foo → False (scratch is fine)
-    /data/anything-else → True
-    /sdcard/...         → False
-
-    `..` segments are normalized first so a permitted prefix like
-    /data/local/tmp/../system can't bypass the HITL gate. Belt + suspenders
-    with `_is_safe_remote_path` which already rejects `..` outright.
-    """
-    norm = posixpath.normpath(remote.rstrip("/") or "/")
-    for ex in _SENSITIVE_REMOTE_EXEMPTIONS:
-        if norm == ex or norm.startswith(ex + "/"):
-            return False
-    for prefix in _SENSITIVE_REMOTE_PREFIXES:
-        if norm == prefix or norm.startswith(prefix + "/"):
-            return True
-    return False
 
 
 # ─── ls -la parser ───────────────────────────────────────────────────
@@ -470,10 +423,13 @@ async def device_push(
     serial: str,
     body: dict[str, Any] = Body(...),
 ) -> dict[str, Any]:
-    """Push a workspace file → device. HITL gate on sensitive prefixes."""
+    """Push a workspace file → device. No path-prefix confirm: the
+    board is the debug target (docs/permissions.md).
+
+    `force` in the body is accepted for backward compatibility, ignored.
+    """
     local_rel = body.get("local")
     remote = body.get("remote")
-    force = bool(body.get("force"))
 
     if not isinstance(local_rel, str) or not local_rel.strip():
         return {"ok": False, "serial": serial, "transport": None,
@@ -490,19 +446,6 @@ async def device_push(
     if not local_abs.exists():
         return {"ok": False, "serial": serial, "transport": None,
                 "error": f"local does not exist: {local_rel}"}
-
-    if _is_sensitive_remote(remote) and not force:
-        return {
-            "ok": False,
-            "serial": serial,
-            "transport": None,
-            "remote": remote,
-            "requires_confirm": True,
-            "error": (
-                f"target prefix is sensitive ({remote}); resubmit with"
-                " force=true after user confirmation"
-            ),
-        }
 
     try:
         t = build_transport(device_serial=serial)
@@ -619,7 +562,7 @@ async def workspace_upload(
     `path` is the workspace-relative target DIRECTORY (default = root); the
     saved name is the upload's basename sanitized to a single path segment.
     This is browser → workspace only — pushing onward to a device stays the
-    explicit, HITL-gated `POST /devices/{serial}/files/push`."""
+    separate, explicit `POST /devices/{serial}/files/push`."""
     # Pre-flight Content-Length: reject oversize at the door (app_route precedent).
     cl_header = request.headers.get("content-length")
     if cl_header:
@@ -764,6 +707,7 @@ async def workspace_preview(
 #   C → S (first JSON, required, 2.0 s timeout):
 #       push:  {"local": "<workspace-rel>", "remote": "<device-path>",
 #               "force": false}
+#              ("force" is accepted for backward compatibility, ignored)
 #       pull:  {"remote": "<device-path>", "local": "<workspace-rel>?"}
 #
 #   S → C (on accept, ready frame):
@@ -780,7 +724,7 @@ async def workspace_preview(
 #
 #   S → C (terminal, exactly one):
 #       {"type": "closed", "reason": "done"|"cancelled"|
-#                          "init_failed"|"bad_config"|"sensitive_path"|
+#                          "init_failed"|"bad_config"|
 #                          "unsupported_transport"|"timeout"|"error",
 #        "ok": bool, "bytes_transferred": int, "duration_ms": int,
 #        "error": "..."}
@@ -865,14 +809,7 @@ async def _run_transfer_stream(
                 cs.reason = "bad_config"
                 cs.error = f"local does not exist: {local_arg}"
                 return
-            # HITL gate: sensitive prefixes (mirrors POST endpoint).
-            if _is_sensitive_remote(remote) and not bool(config.get("force")):
-                cs.reason = "sensitive_path"
-                cs.error = (
-                    f"target prefix is sensitive ({remote}); "
-                    "reconnect with force=true after user confirmation"
-                )
-                return
+            # config["force"] is accepted for backward compatibility, ignored.
         else:  # pull
             if isinstance(local_arg, str) and local_arg.strip():
                 try:

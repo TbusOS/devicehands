@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### 往板子推文件不再要求确认(2026-11-16)
+- `POST /devices/{serial}/files/push` 和 `/devices/{serial}/files/push/stream` 推到 `/system`、`/vendor`、`/data`、`/dev` 等路径时直接执行,不再返回 `requires_confirm` / 以 `sensitive_path` 断开。
+- 原因:`docs/permissions.md` 定的规则是板子上的操作不拦截、不先问;这一处是 2026-10-23 去掉板子侧拦截时漏改的,项目所有者 2026-11-16 确认。
+- 请求里的 `force` 照常接受,不起作用。相对路径、空字节、回车换行、带 `..` 的路径仍然拒绝。
+
 ### 许可证改为 Apache 2.0(2026-10-10)
 - `LICENSE` 换成 Apache License 2.0 全文,新增 `NOTICE`;`pyproject.toml`、`alb.__license__`、生成的 `SKILL.md`、README 和网页页脚同步改。
 - 原因:Apache 2.0 带明确的专利授权,设备厂商的法务评审更容易通过;和 AOSP、Gemma 4 用同一个许可证。

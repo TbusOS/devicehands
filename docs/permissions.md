@@ -2,7 +2,7 @@
 title: 权限系统设计
 type: design-doc
 created: 2026-04-15
-updated: 2026-10-23
+updated: 2026-11-16
 owner: sky
 tags: [permissions, security]
 ---
@@ -40,6 +40,10 @@ adb / ssh 推送到 `/system/` 要确认、推到 `/dev/block/` 直接拒绝,adb
 写哪些分区、每个分区用哪个文件,改为以编译产物里厂商自己的烧录清单为准(`alb flash plan --only`,ADR-070)。
 留下的检查只管「烧对板子」:分区名形状、写前核对板子身份(`fastboot_product.<board>`)、台架上多块板同时在 fastboot 就拒绝。
 
+2026-11-16 去掉的还有网页文件页往板子推文件时的确认。原先推到 `/system`、`/vendor`、`/data`(`/data/local/tmp` 除外)、`/dev`、`/persist` 等路径,
+不带 `force=true` 时,`POST /devices/{serial}/files/push` 返回 `requires_confirm`,`/devices/{serial}/files/push/stream` 以 `sensitive_path` 断开。
+这一处是 2026-10-23 那次漏改的,项目所有者 2026-11-16 确认后去掉。现在路径合法就直接推。
+
 ---
 
 ## 二、代码里还留着什么
@@ -50,6 +54,8 @@ adb / ssh 推送到 `/system/` 要确认、推到 `/dev/block/` 直接拒绝,adb
 | 各能力里的 `PERMISSION_DENIED` 分支 | 板子侧走不到 | 同上,规则加回来时不用再改调用方 |
 | `allow_dangerous` 参数 / `--allow-dangerous` 开关 | 板子侧没有命令需要它 | 保留兼容,已有脚本和 AI 调用带着它也不会报错 |
 | 网页终端 `TerminalGuard` | 默认名单为空 | 确认弹框和审计日志还在;部署方可以 `TerminalGuard(rules=...)` 自己传规则;网页上的「只读模式」开关照常可用 |
+| 文件推送接口的 `force` 参数(`src/devicehands/api/files_route.py`) | 照常接受,不起作用 | 网页旧代码还会发它,带着也不报错 |
+| 文件接口的 `_is_safe_remote_path`(同一文件) | 拒绝相对路径、空字节、回车换行、超过 4096 字符、带 `..` 段的路径 | 这是输入合法性检查,不是拦截:adb 在板上解析 `..`,带 `..` 时实际写入的位置和界面上显示的路径不一样 |
 
 ---
 

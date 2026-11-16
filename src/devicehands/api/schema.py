@@ -176,7 +176,7 @@ REST_ENDPOINTS: list[EndpointSpec] = [
     {
         "method": "POST",
         "path": "/devices/{serial}/files/push",
-        "description": "Push workspace→device; HITL gate on sensitive prefixes (PR-H)",
+        "description": "Push workspace→device, any absolute path; force accepted, ignored (PR-H)",
     },
     {
         "method": "GET",
@@ -712,12 +712,13 @@ WS_ENDPOINTS: list[WSSpec] = [
     {
         "path": "/devices/{serial}/files/push/stream",
         "description": "Streaming push to device (MID-6). Progress + cancel "
-        "via {type:'cancel'}; HITL gate on sensitive prefixes.",
+        "via {type:'cancel'}; any absolute path, no confirm.",
         "messages": [
             {
                 "type": "<client-first>",
                 "direction": "C→S",
-                "description": "{local: workspace-rel, remote: device-path, force?}",
+                "description": "{local: workspace-rel, remote: device-path, "
+                "force? (accepted for backward compatibility, ignored)}",
             },
             {
                 "type": "ready",
@@ -738,7 +739,7 @@ WS_ENDPOINTS: list[WSSpec] = [
                 "type": "closed",
                 "direction": "S→C",
                 "description": "Terminal; reason in {done, cancelled, "
-                "init_failed, bad_config, sensitive_path, "
+                "init_failed, bad_config, "
                 "unsupported_transport, error}",
             },
         ],
