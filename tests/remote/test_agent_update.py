@@ -196,10 +196,30 @@ def test_one_config_file_is_one_agent(tmp_path):
     assert agent._instance_key("", "id1") != agent._instance_key("", "id2")
 
 
+def _started(argv: list[str]) -> subprocess.Popen[bytes]:
+    """Start `argv` and return once its command line can be read.
+
+    Popen returns when the child has begun exec(), not when exec() is done:
+    for a short while after that /proc/<pid>/cmdline is still empty
+    (measured on Linux: empty in about 1 of 200 reads on 2 CPUs, more than
+    half of them on 64). _same_process takes an empty command line for "not
+    an agent", so _stop_instance then reported the process gone without
+    stopping it — the CI failure of the grace test. A running agent has long been
+    through exec(), so only a test that asks right after Popen can hit it."""
+    p = subprocess.Popen(argv)
+    deadline = time.monotonic() + 10
+    while not agent._posix_cmdline(p.pid).strip():
+        if time.monotonic() > deadline:
+            p.kill()
+            raise AssertionError(f"pid {p.pid}: no command line after 10s")
+        time.sleep(0.01)
+    return p
+
+
 def _child(code: str) -> subprocess.Popen[bytes]:
     """A stand-in agent: its command line names dhands_bench.py, which is what
     _same_process checks on POSIX."""
-    return subprocess.Popen([sys.executable, "-c", code, "dhands_bench.py"])
+    return _started([sys.executable, "-c", code, "dhands_bench.py"])
 
 
 def _rec(p: subprocess.Popen[bytes]) -> dict:
@@ -208,7 +228,7 @@ def _rec(p: subprocess.Popen[bytes]) -> dict:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX identity check")
 def test_a_pid_whose_command_line_is_not_an_agent_is_not_the_agent():
-    p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    p = _started([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
         assert not agent._same_process({"pid": p.pid})
     finally:
@@ -230,7 +250,7 @@ sys.exit(75)
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX processes")
 def test_an_agent_that_honours_the_request_is_not_killed(tmp_path):
     flag_holder: list[Path] = []
-    p = subprocess.Popen(
+    p = _started(
         [sys.executable, "-c", _COOPERATIVE, "dhands_bench.py", str(tmp_path / "pending")]
     )
     try:
@@ -272,7 +292,7 @@ sys.exit(75)
 def test_an_agent_in_the_middle_of_a_job_is_waited_for_not_killed(tmp_path):
     """A flash in progress outlasts any grace period; killing fastboot then
     leaves a half-written partition."""
-    p = subprocess.Popen(
+    p = _started(
         [sys.executable, "-c", _BUSY, "dhands_bench.py", str(tmp_path / "busy-marker")]
     )
     try:
