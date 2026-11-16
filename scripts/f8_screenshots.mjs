@@ -2,7 +2,7 @@
 /**
  * F.8 visual end-to-end screenshot run.
  *
- * Hits the live dhands-hub at http://127.0.0.1:8765/app/<route>, captures
+ * Hits the live dhands-hub at http://127.0.0.1:8775/app/<route>, captures
  * each top-level dashboard module at desktop (1440) and tablet (768)
  * viewports, and writes PNGs into the timestamped reports dir.
  *
@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
-const BASE = process.env.ALB_BASE ?? "http://127.0.0.1:8765/app";
+const BASE = process.env.ALB_BASE ?? "http://127.0.0.1:8775/app";
 const OUT_DIR =
   process.env.F8_OUT_DIR ??
   resolve(SCRIPT_DIR, "../.claude/reports/screenshots/2026-04-29-f8");

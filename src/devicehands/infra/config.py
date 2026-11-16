@@ -19,6 +19,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from devicehands.infra.ports import DEFAULT_SERIAL_FORWARD_PORT
 from devicehands.infra.workspace import (
     InvalidProfileName,
     is_safe_profile_name,
@@ -50,7 +51,8 @@ class SshConfig:
 class SerialConfig:
     default_baud: int = 115200
     default_tcp_host: str = "localhost"
-    default_tcp_port: int = 9001
+    # The hub's serial forwarder on this machine (infra.ports).
+    default_tcp_port: int = DEFAULT_SERIAL_FORWARD_PORT
     pty_link_dir: str = ""  # resolves to workspace/cache/pty if empty
     # Per-state prompt regex overrides. Populated from
     # ``[transport.serial.prompts]`` in config.toml. Keys must match one

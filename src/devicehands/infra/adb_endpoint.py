@@ -60,6 +60,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from devicehands.infra.ports import ADB_SERVER_DEFAULT_PORT, DEFAULT_API_PORT
+
 __all__ = [
     "AdbEndpoint",
     "HubAdbView",
@@ -117,7 +119,7 @@ class AdbEndpoint:
 
     @property
     def described(self) -> str:
-        return f"{self.socket or 'adb default (tcp:localhost:5037)'} (from {self.source})"
+        return f"{self.socket or f'adb default (tcp:localhost:{ADB_SERVER_DEFAULT_PORT})'} (from {self.source})"
 
 
 @dataclass(frozen=True)
@@ -167,7 +169,7 @@ def _hub_base_url() -> str:
     host = os.environ.get("DHANDS_API_HOST", "127.0.0.1")
     if host == "0.0.0.0":  # a bind-all address is not a dial-able one
         host = "127.0.0.1"
-    return f"http://{host}:{os.environ.get('DHANDS_API_PORT', '8765')}"
+    return f"http://{host}:{os.environ.get('DHANDS_API_PORT', str(DEFAULT_API_PORT))}"
 
 
 def _hub_is_local(url: str) -> bool:
@@ -299,7 +301,7 @@ def endpoint_conflict(endpoint: AdbEndpoint, *, view: HubAdbView | None = None) 
     if ours is None and endpoint.source != "default":
         return ""  # a unix socket / unparsable spec: not comparable, so silent
     if ours is None:
-        ours = 5037  # adb's own default, which is what we would end up on
+        ours = ADB_SERVER_DEFAULT_PORT  # adb's own default, which is what we would end up on
     if ours == view.port:
         return ""
 

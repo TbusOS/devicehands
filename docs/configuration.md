@@ -23,7 +23,7 @@ dhands 有四个程序。它们不在同一个地方读配置:
 Linux 机器(hub 所在)
   dhands / dhands-mcp ...... 环境变量、config.toml、profiles/<name>.toml
       |                .env.local / .env 只有 dhands 读,dhands-mcp 不读
-      |  连 127.0.0.1 上 hub 开的转发口:adb 默认 5037,串口默认 9001
+      |  连 127.0.0.1 上 hub 开的转发口:adb 默认 8776,串口默认 8777
       v
   dhands-hub(hub) ...... hub.env(run-hub.sh 导入)、boards.toml、
       ^                .env.local / .env、config.toml、profiles
@@ -102,10 +102,10 @@ dhands --transport serial shell 'uname -a'
 
 ### 2.2 经 TCP 转发(ser2net、ssh 反向隧道)
 
-不设任何东西时,dhands 连 `localhost:9001`。端点不同就改 config.toml 或设环境变量:
+不设任何东西时,dhands 连 `localhost:8777`(本机 hub 的串口转发口,见 2.3)。端点不同就改 config.toml 或设环境变量:
 
 ```bash
-dhands setup serial --tcp-host localhost --tcp-port 9001 --save   # 探测通过后写进 config.toml
+dhands setup serial --tcp-host localhost --tcp-port 19001 --save   # 探测通过后写进 config.toml
 # 或者只对当前 shell 生效
 export DHANDS_SERIAL_TCP=127.0.0.1:19001
 ```
@@ -116,7 +116,7 @@ export DHANDS_SERIAL_TCP=127.0.0.1:19001
 
 ### 2.3 台架(经 hub)
 
-hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转发口(`src/devicehands/remote/forwarder.py`)。这正好是客户端的默认端点,所以 hub 同一台机器上的 `dhands` / `dhands-mcp` 什么都不用配。
+hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:8777` 开串口转发口(`src/devicehands/remote/forwarder.py`)。这正好是客户端的默认端点,所以 hub 同一台机器上的 `dhands` / `dhands-mcp` 什么都不用配。
 
 要配的都在 hub 上:
 
@@ -125,7 +125,7 @@ hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转�
 | `DHANDS_AGENT_SERIAL_COM` | 让 agent 打开哪个 COM 口,例如 `COM5` | 不设:hub 不开串口转发 |
 | `DHANDS_AGENT_SERIAL_BAUD` | 这个 COM 口的波特率 | 115200 |
 | `DHANDS_BENCH_BOARDS` | 多块板子轮流接同一个 COM 口时,板子表的路径;运行中用 `dhands bench board use <name>` 切换 | 不设:没有板子表 |
-| `DHANDS_SERIAL_FORWARD_PORT` | 串口转发口的端口 | 9001 |
+| `DHANDS_SERIAL_FORWARD_PORT` | 串口转发口的端口 | 8777 |
 
 - 选中的板子记在 `<workspace>/bench/board.json`,hub 重启后还在。选中的板子不在表里、或表格写错时,hub 退回 `DHANDS_AGENT_SERIAL_COM` / `DHANDS_AGENT_SERIAL_BAUD`,原因显示在 `/agent/status`(`src/devicehands/remote/bench_board.py`)。
 - 转发口只绑 `127.0.0.1`。dhands 不在 hub 那台机器上时,要自己先把端口转过来。
@@ -140,7 +140,7 @@ hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转�
 |---|---|---|
 | `default_baud` | 本机串口(`DHANDS_SERIAL_DEVICE`)的波特率 | 115200 |
 | `default_tcp_host` | TCP 端点的主机 | `localhost` |
-| `default_tcp_port` | TCP 端点的端口 | 9001 |
+| `default_tcp_port` | TCP 端点的端口 | 8777(本机 hub 的串口转发口) |
 | `handshake_timeout` | 连上后等多少秒判断板子处在什么状态 | 2.0 |
 | `pty_link_dir` | **无效**:解析了,没有代码用它 | 空 |
 | `prompts`(写成 `[transport.serial.prompts]` 表) | 改写识别板子状态的正则,见下 | 不设,用内置正则 |
@@ -182,11 +182,13 @@ server_socket = "tcp:127.0.0.1:5037"
 
 ### 3.3 经 hub(台架)
 
-hub 连上 agent 后,在 `127.0.0.1:5037` 开 adb 转发口(`src/devicehands/remote/forwarder.py`)。hub 机器自己也跑着 adb server 时会抢同一个端口,这时在 `hub.env` 里把转发口挪开:
+hub 连上 agent 后,在 `127.0.0.1:8776` 开 adb 转发口(`src/devicehands/remote/forwarder.py`,默认值在 `src/devicehands/infra/ports.py`)。它不是 adb 自己的 5037,所以 hub 机器上同时跑着 adb server 也不冲突。8776 被别的程序占了时,在 `hub.env` 里把转发口挪开:
 
 ```bash
-DHANDS_ADB_FORWARD_PORT=15037
+DHANDS_ADB_FORWARD_PORT=18776
 ```
+
+- 不经过 dhands 的 adb 客户端(在 shell 里直接敲 `adb devices`)默认连 5037,看到的是本机 adb server,不是台架。看台架上的设备用 `dhands devices`;非要直接用 adb,在这一条命令上指定端口:`adb -P 8776 devices`。
 
 **挪开以后不要手动设 `ADB_SERVER_SOCKET` 去对上它。** 同一台机器上的 `dhands` / `dhands-mcp` 会问 hub 转发口在哪(GET `/agent/status`),自动用上(`src/devicehands/infra/adb_endpoint.py`)。
 
@@ -237,8 +239,8 @@ hub 推荐用 `deploy/hub/run-hub.sh` 启动:它把同目录的 `hub.env` 导入
 |---|---|---|---|
 | `DHANDS_AGENT_TOKEN` | agent 连 hub 时要带的令牌,和 agent.conf 的 `token` 一致 | 不设:`/agent/*` 不校验令牌 | `src/devicehands/api/agent_route.py` |
 | `DHANDS_API_HOST` | hub 监听的地址 | `0.0.0.0`(所有网卡) | `src/devicehands/api/server.py` |
-| `DHANDS_API_PORT` | hub 监听的端口 | 8765 | `src/devicehands/api/server.py` |
-| `DHANDS_ADB_FORWARD_PORT` | adb 转发口的端口 | 5037 | `src/devicehands/remote/forwarder.py` |
+| `DHANDS_API_PORT` | hub 监听的端口 | 8775 | `src/devicehands/api/server.py` |
+| `DHANDS_ADB_FORWARD_PORT` | adb 转发口的端口 | 8776 | `src/devicehands/remote/forwarder.py` |
 | `DHANDS_WS_DEFLATE` | 设成 `1` 打开 WebSocket 压缩 | 关 | `src/devicehands/api/server.py` |
 | `DHANDS_BENCH_SSH_HOST` | `dhands bench agent-start` 用来 ssh 到台架主机的 Host(hub 用户 `~/.ssh/config` 里的名字) | 不设:命令报 `AGENT_START_NOT_CONFIGURED` | `src/devicehands/remote/agent_start.py` |
 | `DHANDS_BENCH_AGENT_TASK` | 台架主机上启动 agent 的计划任务名 | `alb-agent` | `src/devicehands/remote/agent_start.py` |
@@ -261,9 +263,9 @@ hub 推荐用 `deploy/hub/run-hub.sh` 启动:它把同目录的 `hub.env` 导入
 
 | 变量 | 作用 | 默认值 |
 |---|---|---|
-| `DHANDS_API_URL` | hub 的完整地址,例如 `http://<hub-host>:8765`,设了就不看下面两个 | 不设 |
+| `DHANDS_API_URL` | hub 的完整地址,例如 `http://<hub-host>:8775`,设了就不看下面两个 | 不设 |
 | `DHANDS_API_HOST` | hub 的主机。值是 `0.0.0.0` 时当成 `127.0.0.1` | `127.0.0.1` |
-| `DHANDS_API_PORT` | hub 的端口 | 8765 |
+| `DHANDS_API_PORT` | hub 的端口 | 8775 |
 
 同一个 `DHANDS_API_HOST`,hub 拿它当**监听地址**(默认 `0.0.0.0`),命令行拿它当**连接地址**(默认 `127.0.0.1`)。
 
@@ -279,11 +281,11 @@ agent 是 `clients/windows-agent/` 里的 `alb_agent.py`,跑在插着板子的 W
 
 | 键 | 作用 | 默认值 |
 |---|---|---|
-| `hub_url` | hub 的地址,`ws://<hub-host>:8765/agent/connect`;hub 前面有 TLS 反向代理时用 `wss://` | 无,必填 |
+| `hub_url` | hub 的地址,`ws://<hub-host>:8775/agent/connect`;hub 前面有 TLS 反向代理时用 `wss://` | 无,必填 |
 | `token` | 和 hub 的 `DHANDS_AGENT_TOKEN` 一致 | 不设 |
 | `name` | hub 连接页上显示的名字 | `device-agent` |
 | `agent_id` | 固定的 agent 身份。不设时每次启动随机生成,hub 会当成一个新 agent;远程更新也要求设了它 | 每次随机 |
-| `status_port` | 本机状态页端口,`0` 关掉 | 8731 |
+| `status_port` | 本机状态页端口,`0` 关掉 | 8741 |
 | `status_host` | 状态页绑定的地址。改成别的会让状态页暴露到本机以外 | `127.0.0.1` |
 | `log_file` | 运行日志文件,相对路径相对脚本所在目录;写 `none` 关掉 | 不写日志文件(模板里写的是 `logs/agent.log`) |
 | `fastboot_path` | fastboot 程序路径 | PATH 上的 fastboot;找不到就不提供烧录能力 |
@@ -380,7 +382,7 @@ hub 那边和 agent 有关的变量(`DHANDS_AGENT_TOKEN`、`DHANDS_AGENT_SERIAL_
 | `[transport.adb]` | `bin_path` | adb 程序路径,`DHANDS_ADB_PATH` 优先 | `adb` |
 | `[transport.adb]` | `server_socket` | adb server 地址,优先级最高,见 3.4 | 不设 |
 | `[transport.ssh]` | `default_user` / `default_port` / `key_path` / `known_hosts` / `connect_timeout` | 见第四节 | `root` / 22 / 不设 / 不设 / 15 |
-| `[transport.serial]` | `default_baud` / `default_tcp_host` / `default_tcp_port` / `handshake_timeout` | 见 2.4 | 115200 / `localhost` / 9001 / 2.0 |
+| `[transport.serial]` | `default_baud` / `default_tcp_host` / `default_tcp_port` / `handshake_timeout` | 见 2.4 | 115200 / `localhost` / 8777 / 2.0 |
 | `[transport.serial]` | `pty_link_dir` | **无效** | |
 | `[transport.serial.prompts]` | `prompts` 表里的 11 个状态名 | 见 2.4 | |
 | `[permissions]` | `mode` / `ask_on_ambiguous` / `log_denied` / `allow` / `deny` | **无效**,见下 | |
@@ -465,7 +467,7 @@ note = "左边排针上的调试串口"
 | hub 的 `DHANDS_OPENAI_COMPAT_URL` / `DHANDS_OPENAI_COMPAT_KEY` | hub 不读,只有 `dhands chat` 读 | 无 |
 | `DHANDS_SSH_KNOWN_HOSTS=""` 关掉密钥校验 | 空字符串被当成没设 | config.toml `known_hosts = ""` |
 | `DHANDS_TRANSPORT=hybrid` | 没有这种传输,报 `Unknown transport: hybrid` | `adb` / `ssh` / `serial` |
-| hub 的 `DHANDS_SERIAL_FORWARD_PORT` 改了以后,客户端什么都不设 | 客户端仍连 9001 | 客户端设 `DHANDS_SERIAL_TCP` |
+| hub 的 `DHANDS_SERIAL_FORWARD_PORT` 改了以后,客户端什么都不设 | 客户端仍连 8777 | 客户端设 `DHANDS_SERIAL_TCP` |
 
 ---
 

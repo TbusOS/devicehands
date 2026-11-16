@@ -329,19 +329,19 @@ for d in devices:
 
 FastAPI 自带 OpenAPI schema，适合其他语言客户端。
 
-`dhands-hub` 没有命令行参数，监听地址只看环境变量 `DHANDS_API_HOST` / `DHANDS_API_PORT`，
-默认 `0.0.0.0:8765`（`src/devicehands/api/server.py` `main`）。这个 API 除 `/agent/*` 外都没有鉴权，
+`dhands-hub` 只认 `--help` 和 `--version`（打印后退出，不启动服务），监听地址只看环境变量 `DHANDS_API_HOST` / `DHANDS_API_PORT`，
+默认 `0.0.0.0:8775`（`src/devicehands/api/server.py` `main`）。这个 API 除 `/agent/*` 外都没有鉴权，
 只在本机用时绑 `127.0.0.1`：
 
 ```bash
-DHANDS_API_HOST=127.0.0.1 DHANDS_API_PORT=8765 uv run dhands-hub
-# → http://localhost:8765/docs (Swagger UI)
-# → http://localhost:8765/openapi.json (规范)
+DHANDS_API_HOST=127.0.0.1 DHANDS_API_PORT=8775 uv run dhands-hub
+# → http://localhost:8775/docs (Swagger UI)
+# → http://localhost:8775/openapi.json (规范)
 ```
 
 ```bash
-curl http://localhost:8765/devices
-curl "http://localhost:8765/api/log/search?pattern=FATAL&max=50"
+curl http://localhost:8775/devices
+curl "http://localhost:8775/api/log/search?pattern=FATAL&max=50"
 ```
 
 接口清单见 [`web-api.md`](./web-api.md)。

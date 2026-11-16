@@ -74,7 +74,7 @@ tags: [errors, reference, llm-friendly]
 | `ADB_COMMAND_FAILED` | adb command returned a non-zero exit code | Read error.details.stderr for the underlying adb message |
 | `ADB_ENDPOINT_UNSUPPORTED` | The resolved adb server endpoint is not a tcp: socket | Set ADB_SERVER_SOCKET or config `server_socket` to `tcp:<host>:<port>` |
 | `ADB_PROTOCOL_ERROR` | The endpoint did not answer like an adb server (bad reply, hung up, or timed out) | Check that the endpoint is an adb server: `dhands status` |
-| `ADB_SERVER_UNREACHABLE` | Cannot reach adb server | Check Xshell tunnel; run: ss -tlnp \| grep 5037 |
+| `ADB_SERVER_UNREACHABLE` | Cannot reach adb server | Run: dhands setup adb (shows which adb server endpoint is used and whether it answers) |
 | `AGENT_START_SSH_FAILED` | ssh to the bench host failed; nothing was started | Run `ssh <host> echo ok` on the hub host: key not authorised (run setup-remote-start.bat on the bench host), sshd not running, host unreachable, or its host key not yet in known_hosts |
 | `AGENT_UPDATE_CHECK_FAILED` | The new agent build failed its self-check on the bench host; nothing was replaced | Read the error text (syntax error, missing Python package, bad agent.conf key); fix it in the repo, or pip install the package on the bench host |
 | `AGENT_UPDATE_NO_RETURN` | The agent restarted for an update and has not reconnected | Look at the bench host: the agent window, and .alb-agent/update.log in the agent's folder. It may still come back after its rollback finishes |

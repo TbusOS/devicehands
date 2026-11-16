@@ -8,9 +8,9 @@
 
 # The hub's signaling endpoint. ws:// on a trusted LAN; wss:// when TLS is
 # terminated at a reverse proxy in front of the hub.
-#   ws://<hub-ip>:8765/agent/connect
+#   ws://<hub-ip>:8775/agent/connect
 #   wss://hub.example.com/agent/connect
-hub_url=ws://<hub-ip>:8765/agent/connect
+hub_url=ws://<hub-ip>:8775/agent/connect
 
 # Must match ALB_AGENT_TOKEN on the hub. Stick to letters/digits/_/- so the
 # same value pastes cleanly into the hub's hub.env too.
@@ -24,8 +24,8 @@ name=bench-01
 # a brand-new agent after every restart. Any unique string works.
 #agent_id=
 
-# Local status page (http://127.0.0.1:<port>). 0 disables. Default 8731.
-#status_port=8731
+# Local status page (http://127.0.0.1:<port>). 0 disables. Default 8741.
+#status_port=8741
 
 # Status page bind host. Keep the default 127.0.0.1 — anything else exposes
 # the page beyond this machine.

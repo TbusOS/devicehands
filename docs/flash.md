@@ -11,7 +11,7 @@ dhands flash write ──HTTP──> 查参数、开记录、排队一个 ──
                                                          登记的厂商工具 ──USB──> 板子
 ```
 
-- `dhands flash` 连的是 hub 的 HTTP 接口:默认 `http://127.0.0.1:8765`,hub 在别的机器上就设 `DHANDS_API_URL`(见 [configuration.md](./configuration.md))。
+- `dhands flash` 连的是 hub 的 HTTP 接口:默认 `http://127.0.0.1:8775`,hub 在别的机器上就设 `DHANDS_API_URL`(见 [configuration.md](./configuration.md))。
 - 一次只跑一个会改板子的作业。第二个**立刻拒绝**(`FASTBOOT_BUSY`),不排队。查询类(`status`、`devices`、`tools`)不受影响。
 - hub 只发「操作名 + 参数」,不发命令行;台架 agent 按自己 `agent.conf` 里的设置拼出要运行的命令,参数再查一遍。
 

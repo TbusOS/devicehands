@@ -33,6 +33,7 @@ from devicehands.cli.common import load_active_friendly, run_async
 from devicehands.infra import host_deps
 from devicehands.infra.adb_endpoint import resolve_endpoint
 from devicehands.infra.config import global_config_path, load_config
+from devicehands.infra.ports import DEFAULT_SERIAL_FORWARD_PORT
 from devicehands.transport.adb import AdbTransport
 from devicehands.transport.serial import SerialTransport
 
@@ -278,7 +279,7 @@ def setup_ssh(
 @app.command("serial")
 def setup_serial(
     tcp_host: str = typer.Option("localhost", "--tcp-host"),
-    tcp_port: int = typer.Option(9001, "--tcp-port"),
+    tcp_port: int = typer.Option(DEFAULT_SERIAL_FORWARD_PORT, "--tcp-port"),
     device: str | None = typer.Option(None, "--device", "-d", help="Local /dev/ttyUSB0 etc."),
     baud: int = typer.Option(115200, "--baud"),
     save: bool = typer.Option(
@@ -321,7 +322,7 @@ def setup_serial(
             console.print(
                 "[yellow]Possible fixes:[/]\n"
                 "  - make sure ser2net is running on the Windows side\n"
-                "  - confirm the Xshell reverse-tunnel rule (Remote, 9001→9001) is active\n"
+                f"  - confirm the Xshell reverse-tunnel rule (Remote, {tcp_port}→{tcp_port}) is active\n"
             )
             raise typer.Exit(1)
         t = SerialTransport(tcp_host=tcp_host, tcp_port=tcp_port, baud=baud)

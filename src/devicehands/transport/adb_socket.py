@@ -37,6 +37,8 @@ import asyncio
 import contextlib
 from dataclasses import dataclass
 
+from devicehands.infra.ports import ADB_SERVER_DEFAULT_PORT
+
 __all__ = [
     "CONNECT_TIMEOUT_S",
     "DEFAULT_HOST",
@@ -62,7 +64,7 @@ __all__ = [
 ]
 
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 5037  # adb's own default, the same one the resolver falls back to
+DEFAULT_PORT = ADB_SERVER_DEFAULT_PORT  # adb's own default, the same one the resolver falls back to
 
 # Covers connecting to the server and each handshake reply. Generous on
 # purpose: through dhands's forwarder every new connection costs a channel open

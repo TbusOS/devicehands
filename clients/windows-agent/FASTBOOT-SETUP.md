@@ -152,7 +152,7 @@ identity: name=... agent_id=... hub=...
 - 之后：`ready`
 
 如果 hub 那边仍然显示 unavailable，但本机日志明明打印了 `fastboot: <路径>`，
-那说明 agent 没有重连成功 —— 检查本机状态页（默认 `http://127.0.0.1:8731`）
+那说明 agent 没有重连成功 —— 检查本机状态页（默认 `http://127.0.0.1:8741`）
 上的 `connected` 是不是 true。
 
 ---

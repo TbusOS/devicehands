@@ -3,7 +3,7 @@
 The Linux hub (dhands-hub) accepts an outbound "dial-home" WebSocket from a
 remote agent running on the machine that physically holds the device, and
 exposes that device on the hub as ordinary OS-level loopback sockets
-(127.0.0.1:5037 for adb) so the existing transports / MCP tools / CLI reach
+(127.0.0.1:8776 for adb by default) so the existing transports / MCP tools / CLI reach
 it via plain connect() — unchanged.
 
 Modules:

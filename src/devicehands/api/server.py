@@ -5,7 +5,7 @@ M2 beta — ships `GET /health` and `POST /chat` (non-streaming).
 Streaming (`GET /chat/ws`), OpenAPI fine-tuning, and auth come in M3.
 
 Usage:
-    dhands-hub                       # start the server, defaults: 0.0.0.0:8765
+    dhands-hub                       # start the server, defaults: 0.0.0.0:8775
     DHANDS_API_PORT=9000 dhands-hub  # listen on another port
     dhands-hub --help | --version    # print and exit, server not started
     uvicorn devicehands.api.server:app    # bring your own ASGI runner
@@ -55,9 +55,7 @@ from devicehands.api.uart_route import router as uart_router
 from devicehands.api.uart_stream_route import router as uart_stream_router
 from devicehands.api.ui_static import mount_ui
 from devicehands.infra.env_loader import load_env_files
-
-# Port dhands-hub listens on when DHANDS_API_PORT is not set.
-DEFAULT_API_PORT = 8765
+from devicehands.infra.ports import DEFAULT_API_PORT
 
 # Load .env.local / .env so DHANDS_* values reach FastAPI request handlers.
 load_env_files()

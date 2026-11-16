@@ -42,7 +42,7 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "ADB_SERVER_UNREACHABLE",
         "transport",
         "Cannot reach adb server",
-        "Check Xshell tunnel; run: ss -tlnp | grep 5037",
+        "Run: dhands setup adb (shows which adb server endpoint is used and whether it answers)",
     ),
     "ADB_COMMAND_FAILED": ErrorSpec(
         "ADB_COMMAND_FAILED",

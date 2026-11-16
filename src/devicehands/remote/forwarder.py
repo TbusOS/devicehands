@@ -1,7 +1,8 @@
 """OS-level loopback forwarders (ADR-051/052).
 
 The keystone of the dial-home design: REAL OS-level listeners owned by the
-dhands-hub process — 127.0.0.1:5037 for adb, 127.0.0.1:9001 for serial. Because
+dhands-hub process — 127.0.0.1:8776 for adb, 127.0.0.1:8777 for serial by default
+(infra.ports; DHANDS_ADB_FORWARD_PORT / DHANDS_SERIAL_FORWARD_PORT move them). Because
 they are operating-system sockets (not in-loop objects), the separate dhands-mcp /
 CLI processes reach the device by plain connect() — dhands's transports and MCP
 tools are unchanged.
@@ -28,15 +29,16 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from devicehands.infra.ports import DEFAULT_ADB_FORWARD_PORT, DEFAULT_SERIAL_FORWARD_PORT
 from devicehands.remote.protocol import ADB_TARGET, CAP_FASTBOOT, ChannelRole, ChannelType
 from devicehands.remote.registry import ChannelOpener, ChannelOpenError, DataChannel
 
 _log = logging.getLogger(__name__)
 
 DEFAULT_ADB_HOST = "127.0.0.1"
-DEFAULT_ADB_PORT = 5037
+DEFAULT_ADB_PORT = DEFAULT_ADB_FORWARD_PORT  # not adb's own 5037: see infra.ports
 DEFAULT_SERIAL_HOST = "127.0.0.1"
-DEFAULT_SERIAL_PORT = 9001  # matches infra.config.SerialConfig.default_tcp_port
+DEFAULT_SERIAL_PORT = DEFAULT_SERIAL_FORWARD_PORT  # = infra.config.SerialConfig.default_tcp_port
 DEFAULT_BAUD = 115200
 DIAL_BACK_TIMEOUT_S = 10.0
 _CHUNK = 65536
@@ -251,7 +253,7 @@ class ChannelForwarder:
 
 
 class AdbForwarder(ChannelForwarder):
-    """Bridge local TCP (127.0.0.1:5037) <-> the agent's adb server (DAEMON)."""
+    """Bridge local TCP (127.0.0.1:8776 by default) <-> the agent's adb server (DAEMON)."""
 
     def __init__(
         self,
@@ -412,7 +414,7 @@ class SerialBusyError(Exception):
 
 
 class SerialForwarder(ChannelForwarder):
-    """Bridge local TCP (127.0.0.1:9001) <-> the agent's COM port (GATEWAY).
+    """Bridge local TCP (127.0.0.1:8777 by default) <-> the agent's COM port (GATEWAY).
 
     Unlike the adb forwarder, ALL local connections share one agent channel —
     see :class:`_SerialSession` for why an exclusive COM port leaves no other

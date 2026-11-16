@@ -32,6 +32,8 @@ from typing import Any
 import httpx
 import typer
 
+from devicehands.infra.ports import DEFAULT_API_PORT
+
 app = typer.Typer(help="Flash / fastboot via the connected device agent.")
 
 # Plain typer.echo, not rich: every line here can carry text produced by
@@ -59,7 +61,7 @@ def hub_url() -> str:
     host = os.environ.get("DHANDS_API_HOST", "127.0.0.1")
     if host == "0.0.0.0":  # bind-all is not a dial-able address
         host = "127.0.0.1"
-    return f"http://{host}:{os.environ.get('DHANDS_API_PORT', '8765')}"
+    return f"http://{host}:{os.environ.get('DHANDS_API_PORT', str(DEFAULT_API_PORT))}"
 
 
 def _timeout() -> httpx.Timeout:

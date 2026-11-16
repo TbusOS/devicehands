@@ -25,7 +25,7 @@ The agent maintains the signaling connection (auto-reconnect with backoff) and,
 on each `open_channel` from the hub, dials back a separate data connection and
 bridges raw bytes to the requested local target.
 
-A localhost-only status page (http://127.0.0.1:8731 by default, --status-port 0
+A localhost-only status page (http://127.0.0.1:8741 by default, --status-port 0
 to disable) shows connection state, active channels, enumerated devices, and the
 last error — so the operator can diagnose a failed dial-home locally, without
 logging into the hub. The token is never shown there.
@@ -110,7 +110,7 @@ _WAITING_MARKER = "waiting for any device"
 HEARTBEAT_INTERVAL_S = 20.0
 RECONNECT_BACKOFF_S = (1.0, 2.0, 5.0, 10.0)
 _CHUNK = 65536
-DEFAULT_STATUS_PORT = 8731
+DEFAULT_STATUS_PORT = 8741
 
 _shutdown = asyncio.Event()
 

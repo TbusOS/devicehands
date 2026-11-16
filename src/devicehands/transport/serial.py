@@ -113,7 +113,7 @@ class SerialTransport(Transport):
         *,
         device: str | None = None,          # e.g. "/dev/ttyUSB0"
         tcp_host: str | None = None,        # e.g. "localhost"
-        tcp_port: int | None = None,        # e.g. 9001
+        tcp_port: int | None = None,        # e.g. 8777
         baud: int = 115200,
         prompts: tuple[bytes, ...] = DEFAULT_PROMPTS,
         patterns: PatternSet | None = None,

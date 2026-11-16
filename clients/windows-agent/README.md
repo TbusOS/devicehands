@@ -44,7 +44,7 @@ Windows 上（USB 线 + 串口线），跑起这个 agent 之后，Linux 那边�
 
 ## 状态页：连没连上、出了什么错，本机自查
 
-agent 启动后在本机开一个状态页：**http://127.0.0.1:8731**（只有这台电脑
+agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有这台电脑
 自己能访问）。上面能看到：
 
 - **hub 网页控制台的链接**（`web console` 一行，直接点开就是网页界面）。
@@ -77,7 +77,7 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8731**（只有�
 - 板子 USB 线插好，第一次连接要在板子屏幕上点"允许 USB 调试"；
 - 本机 cmd 里跑 `adb devices` 能看到设备，Linux 那边才能看到；
 - adb server 卡住没重新扫的情况，Linux 侧可以远程触发本机重启 adb server：
-  `curl -X POST http://<hub>:8765/api/agent/adb/restart`（agent 在本机执行
+  `curl -X POST http://<hub>:8775/api/agent/adb/restart`（agent 在本机执行
   `adb kill-server` 后重新上报设备列表），不用人到这台电脑跟前。
 
 **问：驱动正常、设备也枚举了，adb 还是看不到（列表空）？**
@@ -94,7 +94,7 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8731**（只有�
 - **状态页/hub 可见**：agent 上报设备列表为空时会附带嫌疑进程清单
   （状态页 `adb conflicts` 一行、hub 的 `/agent/status` 里 `adb_conflicts`）；
 - **远程一键处置**：Linux 侧跑
-  `curl -X POST "http://<hub>:8765/api/agent/adb/restart?kill_conflicts=true"`，
+  `curl -X POST "http://<hub>:8775/api/agent/adb/restart?kill_conflicts=true"`，
   agent 会先结束嫌疑进程再重启 adb server。默认不杀（`kill_conflicts` 不传
   就只重启 server）——如果现场正拿厂商工具烧录，贸然杀它的 adb 会打断操作；
 - **手动处置**：`taskkill /f /pid <pid>` 然后 `adb kill-server` + `adb devices`。
@@ -107,11 +107,11 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8731**（只有�
 
 | 键 | 含义 |
 |---|---|
-| `hub_url` | hub 的地址，`ws://<Linux的IP>:8765/agent/connect` |
+| `hub_url` | hub 的地址，`ws://<Linux的IP>:8775/agent/connect` |
 | `token` | 和 hub 端 `hub.env` 里 `ALB_AGENT_TOKEN` 一致的口令 |
 | `name` | 在 hub 网页上显示的名字，随意 |
 | `agent_id` | 固定身份号，别改；删了的话每次重启 hub 会当成新设备 |
-| `status_port` | 状态页端口，默认 8731，写 0 关闭 |
+| `status_port` | 状态页端口，默认 8741，写 0 关闭 |
 
 **问：能开机自动启动吗？**
 可以。任务计划程序（Task Scheduler）新建任务指向 `run-agent.bat`，并在任务的
@@ -225,7 +225,7 @@ agent 连上 hub 时（`hello`）会把自己会做的操作列成一张表报�
   时也能查。fastboot 类操作一次只跑一个，第二个会被立刻拒绝，不排队。
 
 fastboot 没配（见上一节）时，表里只有 `usb-list` / `log-tail` / `agent-update`，hub
-会直接告诉调用方这台不能烧。状态页（http://127.0.0.1:8731）的 `ops` 一行列的就是这张表。
+会直接告诉调用方这台不能烧。状态页（http://127.0.0.1:8741）的 `ops` 一行列的就是这张表。
 
 ### 几块板接同一台电脑：写之前核对是哪块板
 

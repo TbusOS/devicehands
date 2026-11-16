@@ -5,7 +5,7 @@ that is physically attached to *this* machine (USB for adb, serial for UART).
 
 It dials **out** to the hub over a single WebSocket — so there is **no inbound
 port, no SSH, and no third-party terminal** to configure. The hub then exposes
-the device locally (e.g. `127.0.0.1:5037` for adb) so the LLM (via MCP) and
+the device locally (e.g. `127.0.0.1:8776` for adb) so the LLM (via MCP) and
 humans (via the web UI) can debug it, all driven from the Linux side.
 
 ## Run (config file + one click — the normal path)
@@ -57,7 +57,7 @@ Precedence: command line > `agent.conf` > built-in defaults.
 - `--name`    — a human-readable label shown in the hub's device list.
 - `--agent-id`— a stable id (defaults to a random one each run).
 
-- `--status-port` — local status page port on 127.0.0.1 (default `8731`; `0`
+- `--status-port` — local status page port on 127.0.0.1 (default `8741`; `0`
   disables). `--status-host` to change the bind host.
 
 Ctrl-C once stops the agent gracefully; if it ever hangs, a second Ctrl-C
@@ -98,7 +98,7 @@ plain restart from the hub yet.
 
 ### Status page
 
-The agent serves a localhost-only status page on `http://127.0.0.1:8731`. It
+The agent serves a localhost-only status page on `http://127.0.0.1:8741`. It
 shows the hub's web-console URL (a clickable `web console` row, derived from
 `hub_url`; the agent window prints it at the bottom of the block it shows once
 connected, after `>>> Web console`, and keeps it in the window title

@@ -15,8 +15,9 @@ local adb server on both sides. Dial-back credentials ride HEADERS, never the
 query string (ADR-055) — only the cid, which is a routing key and not a
 secret, stays in the URL.
 
-The adb forwarder binds 127.0.0.1:5037 by default; DHANDS_ADB_FORWARD_PORT can
-override it (tests use 0 for an ephemeral port).
+The adb forwarder binds 127.0.0.1:8776 by default (infra.ports — deliberately
+not adb's own 5037); DHANDS_ADB_FORWARD_PORT can override it (tests use 0 for
+an ephemeral port).
 """
 
 from __future__ import annotations
@@ -156,8 +157,8 @@ def _apply_agent_frame(conn: AgentConnection, frame: dict[str, Any]) -> None:
 
 async def _safe_attach(get_forwarder: Any, label: str) -> None:
     """Attach a forwarder without letting a bind failure tear down the agent
-    session. A taken port — most often a real adb server already holding the
-    hub's 127.0.0.1:5037 (ADR-051 says the forwarder MUST own that port) —
+    session. A taken port — another process on the forwarder's port (with the
+    forwarder on adb's 5037, as it used to be, that was a local adb server) —
     otherwise propagates out of agent_connect, drops the session before
     hello_ok, and traps the agent in an endless reconnect loop. Instead we log a
     loud, actionable warning and carry on: signaling + the other channel keep
@@ -167,8 +168,8 @@ async def _safe_attach(get_forwarder: Any, label: str) -> None:
     except OSError as e:
         _log.warning(
             "%s forwarder could not bind (%s) — that device path stays "
-            "unavailable until the conflict clears (a local adb server holding "
-            "the port? stop it, or set DHANDS_ADB_FORWARD_PORT / "
+            "unavailable until the conflict clears (another program on the "
+            "port, e.g. a second hub? stop it, or set DHANDS_ADB_FORWARD_PORT / "
             "DHANDS_SERIAL_FORWARD_PORT to a free port). Agent stays connected.",
             label,
             e,
