@@ -159,3 +159,6 @@ logs/
 # the web UI's Logs page lives in a directory called logs; keep it tracked
 !web/src/features/v3/logs/
 *.jsonl
+
+# import-linter cache (lint-imports)
+.import_linter_cache/

@@ -1,0 +1,53 @@
+; Import direction check: dependencies may only point downward.
+; Layer model: docs/devicehands-design.md section 5.1. Run: lint-imports
+;
+; Layer syntax (import-linter 2.x):
+;   "a | b"  independent siblings: same layer, must NOT import each other.
+;   "a : b"  non-independent siblings: same layer, may import each other.
+; Skipping layers downward (e.g. cli -> infra) is allowed.
+; Imports inside functions are checked too (grimp reads every import statement).
+; Imports under "if TYPE_CHECKING:" are checked too (exclude_type_checking_imports
+; is left at its default, False).
+;
+; ignore_imports is the allowlist of violations that existed when the check was
+; added. Each entry is one exact module pair, no wildcards. Do not add entries
+; for new code; remove an entry when its import is fixed. If an entry no longer
+; matches a real import, the check fails (unmatched_ignore_imports_alerting =
+; error), so the allowlist cannot silently go stale.
+
+[importlinter]
+root_package = alb
+
+[importlinter:contract:layers]
+name = Dependencies flow downward only
+type = layers
+layers =
+    alb.cli | alb.mcp | alb.api | alb.skills
+    alb.capabilities | alb.agent
+    alb.transport
+    alb.remote
+    alb.infra
+unmatched_ignore_imports_alerting = error
+ignore_imports =
+    ; --- lower layer imports upper layer (5 pairs) ---
+    ; capabilities -> cli: doctor reuses probe helpers that live in the CLI package.
+    alb.capabilities.doctor -> alb.cli._probes
+    ; remote -> transport: the port channel builds on the adb socket client (top-level import).
+    alb.remote.port_channel -> alb.transport.adb_socket
+    ; infra -> remote: read the hub forwarder state in-process (lazy import in a function).
+    alb.infra.adb_endpoint -> alb.remote.forwarder
+    ; infra -> remote: read the agent registry in-process (lazy import in a function).
+    alb.infra.adb_endpoint -> alb.remote.registry
+    ; infra -> remote: read the serial forwarder snapshot in-process (lazy import in a function).
+    alb.infra.hub_serial -> alb.remote.forwarder
+    ; --- same-layer interface packages import each other (5 pairs) ---
+    ; api -> mcp: the HTTP tools route registers the MCP tool set.
+    alb.api.tools_route -> alb.mcp.tools
+    ; api -> mcp: chat route builds agent tools from the MCP executor (lazy import).
+    alb.api.chat_route -> alb.mcp.executor
+    ; cli -> mcp: chat command builds agent tools from the MCP executor (lazy import).
+    alb.cli.chat_cli -> alb.mcp.executor
+    ; cli -> mcp: CLI transport construction lives in the MCP package.
+    alb.cli.common -> alb.mcp.transport_factory
+    ; cli -> skills: the skills command calls the skill generator.
+    alb.cli.skills_cli -> alb.skills.generator
