@@ -325,49 +325,79 @@ def test_push_rejects_missing_local(client, workspace) -> None:
     assert "does not exist" in body["error"]
 
 
-def test_push_to_system_requires_confirm(client, workspace) -> None:
+# Board-side operations are not gated (docs/permissions.md, 2026-10-23):
+# pushes to /system, /vendor, /data, ... go straight to the transport.
+_FORMERLY_CONFIRMED_REMOTES = [
+    "/system/lib/foo.so",
+    "/vendor/etc/foo.conf",
+    "/data/system/foo.xml",
+    "/data/local/tmp/x",
+    "/dev/block/by-name/misc",
+    "/persist/foo",
+    "/metadata/foo",
+]
+
+
+@pytest.mark.parametrize("remote", _FORMERLY_CONFIRMED_REMOTES)
+def test_push_to_system_paths_runs_without_confirm(
+    client, fake_transport, workspace, remote,
+) -> None:
     src = workspace / "uploads/sys.bin"
     src.parent.mkdir(parents=True)
     src.write_bytes(b"\x00\x01")
 
     body = client.post(
         "/devices/SERIAL01/files/push",
-        json={"local": "uploads/sys.bin", "remote": "/system/lib/foo.so"},
-    ).json()
-    assert body["ok"] is False
-    assert body["requires_confirm"] is True
-    assert "/system/lib/foo.so" in body["error"]
-
-
-def test_push_to_system_with_force_proceeds(client, fake_transport, workspace) -> None:
-    src = workspace / "uploads/sys.bin"
-    src.parent.mkdir(parents=True)
-    src.write_bytes(b"\x00\x01")
-
-    body = client.post(
-        "/devices/SERIAL01/files/push",
-        json={
-            "local": "uploads/sys.bin",
-            "remote": "/system/lib/foo.so",
-            "force": True,
-        },
+        json={"local": "uploads/sys.bin", "remote": remote},
     ).json()
     assert body["ok"] is True
+    assert body["remote"] == remote
+    assert "requires_confirm" not in body
+    assert fake_transport.push_calls == [(src, remote)]
+
+
+@pytest.mark.parametrize("force", [None, False, True])
+def test_push_force_flag_is_ignored(client, fake_transport, workspace, force) -> None:
+    """`force` is still accepted (old web code sends it) but changes nothing:
+    absent / false / true all push the same way."""
+    src = workspace / "uploads/sys.bin"
+    src.parent.mkdir(parents=True)
+    src.write_bytes(b"\x00\x01")
+
+    payload: dict[str, Any] = {"local": "uploads/sys.bin", "remote": "/system/lib/foo.so"}
+    if force is not None:
+        payload["force"] = force
+    body = client.post("/devices/SERIAL01/files/push", json=payload).json()
+    assert body["ok"] is True
+    assert "requires_confirm" not in body
     assert fake_transport.push_calls == [(src, "/system/lib/foo.so")]
 
 
-def test_push_to_data_local_tmp_does_not_warn(client, fake_transport, workspace) -> None:
-    """Standard scratch dir is exempt from the HITL gate."""
-    src = workspace / "uploads/scratch.bin"
+@pytest.mark.parametrize(
+    "remote",
+    [
+        "/data/local/tmp/../system/lib/foo.so",  # `..` segment
+        "/system/lib/foo\x00.so",  # NUL byte
+        "/system/lib/foo\n.so",  # LF
+        "/system/lib/foo\r.so",  # CR
+        "system/lib/foo.so",  # relative
+        "",
+    ],
+)
+def test_push_still_rejects_malformed_remote(
+    client, fake_transport, workspace, remote,
+) -> None:
+    """Input validation stays: malformed paths never reach the transport."""
+    src = workspace / "uploads/x"
     src.parent.mkdir(parents=True)
-    src.write_bytes(b"x")
-
+    src.write_text("x")
     body = client.post(
         "/devices/SERIAL01/files/push",
-        json={"local": "uploads/scratch.bin", "remote": "/data/local/tmp/x"},
+        json={"local": "uploads/x", "remote": remote},
     ).json()
-    assert body["ok"] is True
-    assert "requires_confirm" not in body
+    assert body["ok"] is False
+    assert "invalid" in body["error"]
+    assert fake_transport.push_calls == []
 
 
 def test_push_rejects_invalid_remote(client, workspace) -> None:
@@ -493,11 +523,10 @@ def test_workspace_download_unsatisfiable_range_returns_416(
 
 
 # ─── Regression tests added 2026-05-02 (PR-H code review) ──────────
-def test_push_rejects_dotdot_traversal_bypass(client, workspace) -> None:
-    """`/data/local/tmp/../system/lib/foo.so` would slip past the
-    HITL exemption gate (matches /data/local/tmp prefix) and adb
-    resolves `..` on-device → writes to /system. Must be rejected
-    by `_is_safe_remote_path` outright."""
+def test_push_rejects_dotdot_traversal_bypass(client, fake_transport, workspace) -> None:
+    """adb resolves `..` on-device, so `/data/local/tmp/../system/lib/foo.so`
+    would really write to /system. The shown path must be the real target:
+    `_is_safe_remote_path` rejects any `..` segment outright."""
     src = workspace / "uploads/x"
     src.parent.mkdir(parents=True)
     src.write_text("x")
@@ -510,19 +539,7 @@ def test_push_rejects_dotdot_traversal_bypass(client, workspace) -> None:
     ).json()
     assert body["ok"] is False
     assert "invalid" in body["error"]
-    assert "requires_confirm" not in body  # never reached HITL gate
-
-
-def test_is_sensitive_remote_normalizes_dotdot() -> None:
-    """Defense in depth — if `..` ever slips past the safety gate
-    (e.g. via a future refactor), normpath inside _is_sensitive_remote
-    still classifies the resolved path correctly."""
-    from devicehands.api.files_route import _is_sensitive_remote
-
-    assert _is_sensitive_remote("/data/local/tmp/../system/lib/foo") is True
-    assert _is_sensitive_remote("/sdcard/../system") is True
-    assert _is_sensitive_remote("/data/local/tmp/foo") is False
-    assert _is_sensitive_remote("/sdcard/Download") is False
+    assert fake_transport.push_calls == []
 
 
 def test_device_files_truncates_after_sort(client, fake_transport) -> None:
@@ -696,25 +713,12 @@ def test_push_stream_invalid_remote_returns_bad_config(client, workspace) -> Non
         assert closed["reason"] == "bad_config"
 
 
-def test_push_stream_sensitive_path_without_force_blocks(
-    client, fake_transport, workspace,
+@pytest.mark.parametrize("force", [None, False, True])
+def test_push_stream_system_path_runs_without_confirm(
+    client, fake_transport, workspace, force,
 ) -> None:
-    """/system without force=true → closed{reason:'sensitive_path'}."""
-    src = workspace / "boot.img"
-    src.write_bytes(b"x")
-    with client.websocket_connect("/devices/SERIAL01/files/push/stream") as ws:
-        ws.send_json({"local": "boot.img", "remote": "/system/boot.img"})
-        closed = ws.receive_json()
-        assert closed["type"] == "closed"
-        assert closed["reason"] == "sensitive_path"
-        assert "force" in (closed["error"] or "")
-    # adb push_stream must NOT have been invoked.
-    assert fake_transport.push_calls == []
-
-
-def test_push_stream_sensitive_path_with_force_proceeds(
-    client, fake_transport, workspace,
-) -> None:
+    """/system push streams straight through; `force` absent / false /
+    true all behave the same (accepted for backward compatibility, ignored)."""
     from devicehands.transport.base import TransferEvent
 
     src = workspace / "boot.img"
@@ -722,17 +726,17 @@ def test_push_stream_sensitive_path_with_force_proceeds(
     fake_transport.stream_events = [
         TransferEvent(kind="done", ok=True, bytes_transferred=1, duration_ms=1),
     ]
+    config: dict[str, Any] = {"local": "boot.img", "remote": "/system/boot.img"}
+    if force is not None:
+        config["force"] = force
     with client.websocket_connect("/devices/SERIAL01/files/push/stream") as ws:
-        ws.send_json({
-            "local": "boot.img",
-            "remote": "/system/boot.img",
-            "force": True,
-        })
+        ws.send_json(config)
         ready = ws.receive_json()
         assert ready["type"] == "ready"
         closed, _ = _drain_ws(ws)
     assert closed["reason"] == "done"
     assert closed["ok"] is True
+    assert fake_transport.push_calls == [(src, "/system/boot.img")]
 
 
 def test_push_stream_unsupported_transport_closes(workspace, monkeypatch) -> None:
