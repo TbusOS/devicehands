@@ -46,7 +46,7 @@ def test_no_schema_passes_args_through() -> None:
 
 @pytest.mark.asyncio
 async def test_the_executor_hands_the_tool_a_string(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Through the real tool registry: alb_shell gets device as a string."""
+    """Through the real tool registry: dhands_shell gets device as a string."""
     import mcp.server.fastmcp as fastmcp
 
     seen: list[dict[str, Any]] = []
@@ -57,11 +57,11 @@ async def test_the_executor_hands_the_tool_a_string(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(fastmcp.FastMCP, "call_tool", fake_call_tool)
     _, execute = await make_agent_tools()
-    assert await execute("alb_shell", {"cmd": "getprop", "device": 11223344}) == {"ok": True}
+    assert await execute("dhands_shell", {"cmd": "getprop", "device": 11223344}) == {"ok": True}
     assert seen == [{"cmd": "getprop", "device": "11223344"}]
 
 
-# ─── device="" (2026-11-05: alb_battery(device="") failed, two more calls) ──
+# ─── device="" (2026-11-05: dhands_battery(device="") failed, two more calls) ──
 
 
 def test_a_blank_device_is_left_out() -> None:
@@ -96,6 +96,6 @@ async def test_a_blank_device_runs_the_tool_on_the_default_board(
     monkeypatch.setattr(power, "build_transport", fake_build_transport)
     monkeypatch.setattr(power, "battery", fake_battery)
     _, execute = await make_agent_tools()
-    result = await execute("alb_battery", {"device": ""})
+    result = await execute("dhands_battery", {"device": ""})
     assert result["ok"] is True, result
     assert seen == [None]

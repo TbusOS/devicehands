@@ -23,16 +23,16 @@ create_server: Any = _create_server
 async def test_playground_chat_is_not_offered_to_the_model() -> None:
     specs, _ = await make_agent_tools()
     names = {s.name for s in specs}
-    assert "alb_playground_chat" not in names
-    assert {"alb_shell", "alb_logcat", "alb_status"} <= names
+    assert "dhands_playground_chat" not in names
+    assert {"dhands_shell", "dhands_logcat", "dhands_status"} <= names
     # MCP clients still have it
-    assert "alb_playground_chat" in {t.name for t in await create_server().list_tools()}
+    assert "dhands_playground_chat" in {t.name for t in await create_server().list_tools()}
 
 
 @pytest.mark.asyncio
 async def test_descriptions_are_dedented_and_keep_their_sections() -> None:
     specs, _ = await make_agent_tools()
-    logcat = next(s for s in specs if s.name == "alb_logcat")
+    logcat = next(s for s in specs if s.name == "dhands_logcat")
     assert "\nWhen to use:\n" in logcat.description
     assert "\nWhen NOT to use:\n" in logcat.description
     assert "\nArgs:\n" in logcat.description
@@ -53,7 +53,7 @@ async def test_the_model_copy_is_much_smaller_than_the_mcp_one() -> None:
         return len(json.dumps({"name": name, "description": desc, "parameters": params}, ensure_ascii=False))
 
     ours = sum(size(s.name, s.description, s.parameters) for s in specs)
-    theirs = sum(size(n, t.description or "", t.inputSchema or {}) for n, t in raw.items() if n != "alb_playground_chat")
+    theirs = sum(size(n, t.description or "", t.inputSchema or {}) for n, t in raw.items() if n != "dhands_playground_chat")
     assert ours < theirs * 0.85, (ours, theirs)
 
 
@@ -85,5 +85,5 @@ async def test_validation_still_uses_the_original_schema(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(fastmcp.FastMCP, "call_tool", fake_call_tool)
     _, execute = await make_agent_tools()
-    await execute("alb_shell", {"cmd": "id", "device": 11223344})
+    await execute("dhands_shell", {"cmd": "id", "device": 11223344})
     assert seen == [{"cmd": "id", "device": "11223344"}]

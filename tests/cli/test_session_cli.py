@@ -244,7 +244,7 @@ def test_session_replay_renders_tool_calls(monkeypatch, tmp_path: Path) -> None:
                 "tool_calls": [
                     {
                         "id": "call_1",
-                        "name": "alb_logcat",
+                        "name": "dhands_logcat",
                         "arguments": {"duration": 30, "device": "abc"},
                     }
                 ],
@@ -253,5 +253,5 @@ def test_session_replay_renders_tool_calls(monkeypatch, tmp_path: Path) -> None:
     )
     r = runner.invoke(app, ["session", "replay", "20260509-tools"])
     assert r.exit_code == 0
-    assert "alb_logcat" in r.stdout
+    assert "dhands_logcat" in r.stdout
     assert "duration" in r.stdout

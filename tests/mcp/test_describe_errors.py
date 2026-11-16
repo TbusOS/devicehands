@@ -1,4 +1,4 @@
-"""alb_describe_errors: exact code, a search word, or the whole catalog.
+"""dhands_describe_errors: exact code, a search word, or the whole catalog.
 
 The search word exists for the web assistant (2026-11-05): the whole catalog
 is ~23 KB, the model's copy of a tool result is cut to keep a CPU-hosted model
@@ -33,7 +33,7 @@ class _Collect:
 def _describe_errors() -> Tool:
     mcp = _Collect()
     devices.register(mcp)
-    return mcp.fns["alb_describe_errors"]
+    return mcp.fns["dhands_describe_errors"]
 
 
 async def test_search_returns_every_matching_code_and_only_those() -> None:

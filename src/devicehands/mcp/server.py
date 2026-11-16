@@ -41,10 +41,10 @@ def create_server():  # type: ignore[no-untyped-def]
         raise SystemExit(_import_failure(e)) from None
 
     mcp = FastMCP(
-        "alb",
+        "devicehands",
         instructions=(
             "devicehands — Unified Android debugging bridge for LLM agents.\n"
-            "Call alb_status / alb_describe first to discover the environment.\n"
+            "Call dhands_status / dhands_describe first to discover the environment.\n"
             "All tools return structured { ok, data, error, artifacts } results."
         ),
     )

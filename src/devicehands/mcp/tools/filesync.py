@@ -1,4 +1,4 @@
-"""MCP tools: alb_push, alb_pull, alb_rsync."""
+"""MCP tools: dhands_push, dhands_pull, dhands_rsync."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_push(
+    async def dhands_push(
         local: str,
         remote: str,
         verify: bool = False,
@@ -39,7 +39,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_pull(
+    async def dhands_pull(
         remote: str,
         local: str | None = None,
         device: str | None = None,
@@ -59,7 +59,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_rsync(
+    async def dhands_rsync(
         local_dir: str,
         remote_dir: str,
         delete: bool = False,
@@ -70,7 +70,7 @@ def register(mcp) -> None:  # noqa: ANN001
         When to use:
             - Deploying large directories with few changes (SDK output,
               compiled ROM system/ tree)
-            - Any time alb_push would re-transfer unchanged files
+            - Any time dhands_push would re-transfer unchanged files
 
         Not implemented in M1-W2; scheduled for M1-W3.
         """

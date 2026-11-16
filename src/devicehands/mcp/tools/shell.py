@@ -1,4 +1,4 @@
-"""MCP tool: alb_shell."""
+"""MCP tool: dhands_shell."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_shell(
+    async def dhands_shell(
         cmd: str,
         timeout: int = 30,
         device: str | None = None,
@@ -25,7 +25,7 @@ def register(mcp) -> None:  # noqa: ANN001
 
         When NOT to use:
             - Long output (> hundreds of lines): prefer a capability that
-              routes to workspace (alb_logcat, alb_bugreport)
+              routes to workspace (dhands_logcat, dhands_bugreport)
 
         Safety:
             - Board-side commands are not restricted: reboot bootloader,

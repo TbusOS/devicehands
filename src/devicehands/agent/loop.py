@@ -85,8 +85,8 @@ _OUTPUT_TRUNCATED_SUGGESTION = (
 # How much of one tool result the model reads (characters of its JSON).
 # On the CPU-only LLM host the model reads ~80 tokens/s, so a long result is
 # where a turn's time goes: 2026-11-05, ling3-tiny through the hub, a 22.5 KB
-# `alb_describe_errors` result took 64.6 s to read and a 15.4 KB
-# `alb_log_search` result 78.4 s, while turns whose results stayed under 1 KB
+# `dhands_describe_errors` result took 64.6 s to read and a 15.4 KB
+# `dhands_log_search` result 78.4 s, while turns whose results stayed under 1 KB
 # finished in 8-13 s. 4000 characters is about 1000 tokens, ~12 s to read.
 # Only the model's copy is cut: the tool_call_end event (what the page shows)
 # carries the whole result. The session keeps the cut copy, because a later
@@ -610,7 +610,7 @@ def repair_tool_name(name: str, known: set[str]) -> str | None:
     """Return the real tool name when `name` is one with junk in front.
 
     Seen 2026-11-03 with Ling-3.0-tiny through Ollama 0.40: asked about
-    error codes, the call came back as ``alb_describealb_describe_errors``
+    error codes, the call came back as ``dhands_describedhands_describe_errors``
     (the call id doubled too), on both the streaming and the plain API.
     The front part is always the beginning of the real name, as if a
     partial name and the full name were joined.  So the rule is narrow:

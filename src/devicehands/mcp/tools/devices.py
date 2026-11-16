@@ -1,4 +1,4 @@
-"""MCP tools: alb_status, alb_devices, alb_describe, alb_describe_errors."""
+"""MCP tools: dhands_status, dhands_devices, dhands_describe, dhands_describe_errors."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_status() -> dict[str, Any]:
+    async def dhands_status() -> dict[str, Any]:
         """Snapshot of active transport, device(s), and server health.
 
         When to use:
@@ -27,7 +27,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return await t.health()
 
     @mcp.tool()
-    async def alb_describe() -> dict[str, Any]:
+    async def dhands_describe() -> dict[str, Any]:
         """Full schema dump: available transports, capabilities, versions.
 
         LLM: call this once per session to discover the tool surface.
@@ -39,7 +39,7 @@ def register(mcp) -> None:  # noqa: ANN001
         }
 
     @mcp.tool()
-    async def alb_describe_errors(
+    async def dhands_describe_errors(
         code: str | None = None, search: str | None = None
     ) -> dict[str, Any]:
         """Look up error codes from the dhands catalog.
@@ -81,7 +81,7 @@ def register(mcp) -> None:  # noqa: ANN001
         }
 
     @mcp.tool()
-    async def alb_devices() -> dict[str, Any]:
+    async def dhands_devices() -> dict[str, Any]:
         """List connected Android devices.
 
         Returns:

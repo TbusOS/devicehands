@@ -63,7 +63,7 @@ def is_safe_device(s: object) -> bool:
 
     Single source of truth for the device-string shape used by:
     `workspace_path(device=)`, `_screenshots_dir`, `_logs_dir`, MCP
-    `alb_log_search`, WS `uart_stream` audit logs, etc. Accepts any
+    `dhands_log_search`, WS `uart_stream` audit logs, etc. Accepts any
     object — non-str returns False.
     """
     return isinstance(s, str) and bool(_SAFE_DEVICE_RE.match(s))

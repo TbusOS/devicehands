@@ -343,7 +343,7 @@ def test_ws_chat_emits_tps_sample(client, monkeypatch, tmp_path):
 
 
 class _OneToolCallBackend(_FakeBackend):
-    """Asks for one alb_reboot, then answers with what the tool returned."""
+    """Asks for one dhands_reboot, then answers with what the tool returned."""
 
     def __init__(self) -> None:
         super().__init__("unused")
@@ -356,7 +356,7 @@ class _OneToolCallBackend(_FakeBackend):
         if self.turn == 1:
             return ChatResponse(
                 content="",
-                tool_calls=[ToolCall(id="c1", name="alb_reboot", arguments={"mode": "normal"})],
+                tool_calls=[ToolCall(id="c1", name="dhands_reboot", arguments={"mode": "normal"})],
                 finish_reason="tool_calls",
                 model=self.model,
             )
@@ -385,7 +385,7 @@ def _tools_ran(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         return {"ok": True, "data": "rebooting"}
 
     async def _make() -> tuple[list[ToolSpec], Any]:
-        spec = ToolSpec(name="alb_reboot", description="reboot", parameters={"type": "object", "properties": {}})
+        spec = ToolSpec(name="dhands_reboot", description="reboot", parameters={"type": "object", "properties": {}})
         return [spec], _executor
 
     monkeypatch.setattr("devicehands.mcp.executor.make_agent_tools", _make)
@@ -412,7 +412,7 @@ def test_confirm_tools_declined_means_the_tool_never_runs(
     ran = _tools_ran(monkeypatch)
     events = _talk(client, {"message": "reboot it", "tools": True, "confirm_tools": True}, answer=False)
     asks = [e for e in events if e["type"] == "tool_confirm_request"]
-    assert len(asks) == 1 and asks[0]["name"] == "alb_reboot" and asks[0]["arguments"] == {"mode": "normal"}
+    assert len(asks) == 1 and asks[0]["name"] == "dhands_reboot" and asks[0]["arguments"] == {"mode": "normal"}
     assert ran == []
     assert "TOOL_DECLINED" in events[-1]["data"]
 
@@ -422,7 +422,7 @@ def test_confirm_tools_approved_runs_the_tool(
 ) -> None:
     ran = _tools_ran(monkeypatch)
     events = _talk(client, {"message": "reboot it", "tools": True, "confirm_tools": True}, answer=True)
-    assert ran == ["alb_reboot"]
+    assert ran == ["dhands_reboot"]
     assert "rebooting" in events[-1]["data"]
 
 
@@ -433,7 +433,7 @@ def test_without_confirm_tools_nothing_is_asked(
     ran = _tools_ran(monkeypatch)
     events = _talk(client, {"message": "reboot it", "tools": True}, answer=None)
     assert not [e for e in events if e["type"] == "tool_confirm_request"]
-    assert ran == ["alb_reboot"]
+    assert ran == ["dhands_reboot"]
 
 
 def test_a_page_that_leaves_before_answering_runs_nothing(
@@ -478,7 +478,7 @@ async def test_a_call_approved_as_the_chat_is_cancelled_does_not_run() -> None:
 
     sock: Any = _Socket()
     confirms = _Confirmations(sock)
-    task = asyncio.ensure_future(confirms.wrap(_run)("alb_reboot", {}))
+    task = asyncio.ensure_future(confirms.wrap(_run)("dhands_reboot", {}))
     await asked.wait()
     # what read_replies does when the page answers, then the stop button
     confirms._pending[sent[0]["id"]].set_result(True)
@@ -547,7 +547,7 @@ def test_closing_the_socket_stops_the_tool_in_progress(
         return {"ok": True}
 
     async def _make() -> tuple[list[ToolSpec], Any]:
-        spec = ToolSpec(name="alb_reboot", description="reboot", parameters={"type": "object", "properties": {}})
+        spec = ToolSpec(name="dhands_reboot", description="reboot", parameters={"type": "object", "properties": {}})
         return [spec], _slow
 
     monkeypatch.setattr("devicehands.mcp.executor.make_agent_tools", _make)
@@ -738,7 +738,7 @@ async def test_warm_up_sends_the_prefix_a_chat_sends_and_stores_nothing(
 
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    tool = ToolSpec(name="alb_status", description="s", parameters={"type": "object"})
+    tool = ToolSpec(name="dhands_status", description="s", parameters={"type": "object"})
 
     async def tools() -> Any:
         async def run(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -793,7 +793,7 @@ async def test_warm_up_covers_each_language_a_chat_page_sends(monkeypatch: pytes
 
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    tool = ToolSpec(name="alb_status", description="s", parameters={"type": "object"})
+    tool = ToolSpec(name="dhands_status", description="s", parameters={"type": "object"})
 
     async def tools() -> Any:
         async def run(name: str, args: dict[str, Any]) -> dict[str, Any]:

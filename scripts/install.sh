@@ -399,8 +399,8 @@ ${GREEN}Next steps:${NC}
   uv run dhands devices                   # list connected devices (needs transport setup)
 
   ${DIM}# Use from Claude Code or Codex CLI (registers the MCP server once):${NC}
-  claude mcp add dhands -- uv run --project "${REPO_ROOT}" dhands-mcp
-  codex mcp add dhands -- uv run --project "${REPO_ROOT}" dhands-mcp
+  claude mcp add devicehands -- uv run --project "${REPO_ROOT}" dhands-mcp
+  codex mcp add devicehands -- uv run --project "${REPO_ROOT}" dhands-mcp
 
 ${DIM}Docs:      ${REPO_ROOT}/docs/
 Uninstall: ${REPO_ROOT}/scripts/uninstall.sh${NC}

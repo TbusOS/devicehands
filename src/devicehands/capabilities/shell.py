@@ -45,7 +45,7 @@ async def execute(
 
     LLM notes:
         - stdout is included in data; for large output prefer a capability
-          that routes to workspace (devicehands.capabilities.logging, alb_bugreport, ...).
+          that routes to workspace (devicehands.capabilities.logging, dhands_bugreport, ...).
         - The permission system may reject the command — see error.suggestion.
     """
     perm = await transport.check_permissions(

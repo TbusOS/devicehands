@@ -1,4 +1,4 @@
-"""MCP tools: alb_bugreport, alb_anr_pull, alb_tombstone_pull, alb_devinfo."""
+"""MCP tools: dhands_bugreport, dhands_anr_pull, dhands_tombstone_pull, dhands_devinfo."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_bugreport(device: str | None = None) -> dict[str, Any]:
+    async def dhands_bugreport(device: str | None = None) -> dict[str, Any]:
         """Trigger adb bugreport and save the zip to workspace.
 
         When to use:
@@ -25,14 +25,14 @@ def register(mcp) -> None:  # noqa: ANN001
         LLM notes:
             - Takes 60-180 seconds. Synchronous.
             - Returns only the zip path (NOT the contents).
-            - Extract and use alb_log_search to analyze.
+            - Extract and use dhands_log_search to analyze.
         """
         t = build_transport(device_serial=device)
         r = await bugreport(t, device=device)
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_anr_pull(
+    async def dhands_anr_pull(
         clear_after: bool = False,
         device: str | None = None,
     ) -> dict[str, Any]:
@@ -47,7 +47,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_tombstone_pull(
+    async def dhands_tombstone_pull(
         limit: int = 10,
         device: str | None = None,
     ) -> dict[str, Any]:
@@ -61,7 +61,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_devinfo(device: str | None = None) -> dict[str, Any]:
+    async def dhands_devinfo(device: str | None = None) -> dict[str, Any]:
         """Composite device info (brand / model / build / kernel / battery / storage).
 
         Fast — returns structured data directly, no artifact.

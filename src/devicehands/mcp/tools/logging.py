@@ -1,4 +1,4 @@
-"""MCP tools: alb_logcat, alb_dmesg, alb_log_search, alb_log_tail."""
+"""MCP tools: dhands_logcat, dhands_dmesg, dhands_log_search, dhands_log_tail."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:
     @mcp.tool()
-    async def alb_logcat(
+    async def dhands_logcat(
         duration: int = 60,
         filter: str | None = None,
         tags: list[str] | None = None,
@@ -36,12 +36,12 @@ def register(mcp) -> None:
 
         When NOT to use:
             - Continuous / background monitoring > 300s (M2 will add watch mode)
-            - Device is only reachable via UART → use alb_uart_capture instead
+            - Device is only reachable via UART → use dhands_uart_capture instead
 
         LLM notes:
             - Returns only a summary (lines/errors/warnings/top_tags).
-            - Full log is in result.artifacts[0]. Use alb_log_search or
-              alb_log_tail to read specific parts.
+            - Full log is in result.artifacts[0]. Use dhands_log_search or
+              dhands_log_tail to read specific parts.
             - filter syntax: "*:E" (all tags, error only),
               "Tag:I *:S" (only Tag at Info, silence rest)
 
@@ -67,7 +67,7 @@ def register(mcp) -> None:
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_dmesg(
+    async def dhands_dmesg(
         duration: int = 10,
         device: str | None = None,
     ) -> dict[str, Any]:
@@ -82,13 +82,13 @@ def register(mcp) -> None:
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_uart_capture(
+    async def dhands_uart_capture(
         duration: int = 30,
         device: str | None = None,
     ) -> dict[str, Any]:
         """Capture raw UART output to workspace for `duration` seconds.
 
-        REQUIRES serial transport (method G). Call alb_setup or set
+        REQUIRES serial transport (method G). Call dhands_setup or set
         DHANDS_TRANSPORT=serial first.
 
         When to use (UART's unique value — no other transport can do these):
@@ -101,7 +101,7 @@ def register(mcp) -> None:
         LLM notes:
             - Returns a summary with error-keyword count; full log is at
               result.artifacts[0].
-            - Use alb_log_search(pattern="panic|oops|BUG|fail") to find
+            - Use dhands_log_search(pattern="panic|oops|BUG|fail") to find
               interesting sections in the full log.
         """
         t = build_transport(override="serial", device_serial=device)
@@ -109,7 +109,7 @@ def register(mcp) -> None:
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_uart_send(
+    async def dhands_uart_send(
         text: str,
         append_newline: bool = True,
         device: str | None = None,
@@ -120,13 +120,13 @@ def register(mcp) -> None:
 
         When to use:
             - Interrupt u-boot autoboot: text="\\x03" (Ctrl-C), append_newline=False
-            - Type a u-boot / bootloader command, then read with alb_uart_shell
-              or alb_uart_capture
+            - Type a u-boot / bootloader command, then read with dhands_uart_shell
+              or dhands_uart_capture
             - Send a single keypress / control sequence to a hung console
 
         LLM notes:
             - Does NOT return the device's response — follow with
-              alb_uart_shell (waits for prompt) or alb_uart_capture (time window).
+              dhands_uart_shell (waits for prompt) or dhands_uart_capture (time window).
             - append_newline=True appends "\\n"; set False for raw control bytes.
         """
         t = build_transport(override="serial", device_serial=device)
@@ -134,14 +134,14 @@ def register(mcp) -> None:
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_uart_shell(
+    async def dhands_uart_shell(
         cmd: str,
         timeout: int = 30,
         device: str | None = None,
     ) -> dict[str, Any]:
         """Run a command on the UART console and return its output.
 
-        REQUIRES serial transport (method G). Unlike alb_uart_send, this waits
+        REQUIRES serial transport (method G). Unlike dhands_uart_send, this waits
         for the console prompt and strips it, returning the command output. Works
         on a Linux shell / getty AND on a u-boot prompt (the state machine
         classifies the console first).
@@ -156,14 +156,14 @@ def register(mcp) -> None:
             - Maps console state to clear errors: BOARD_PANICKED (with the panic
               tail in stdout), BOARD_UNREACHABLE, SERIAL_BAUD_MISMATCH,
               BOARD_BOOTING, BOARD_NEEDS_LOGIN.
-            - For interrupt sequences / raw bytes use alb_uart_send instead.
+            - For interrupt sequences / raw bytes use dhands_uart_send instead.
         """
         t = build_transport(override="serial", device_serial=device)
         r = await shell_execute(t, cmd, timeout=timeout)
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_uart_watch_panic(
+    async def dhands_uart_watch_panic(
         duration: int = 60,
         device: str | None = None,
     ) -> dict[str, Any]:
@@ -186,7 +186,7 @@ def register(mcp) -> None:
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_log_search(
+    async def dhands_log_search(
         pattern: str,
         path: str | None = None,
         device: str | None = None,
@@ -196,7 +196,7 @@ def register(mcp) -> None:
         """Regex-search across workspace-collected logs.
 
         When to use:
-            - After alb_logcat/alb_dmesg/alb_uart_capture, to find specific
+            - After dhands_logcat/dhands_dmesg/dhands_uart_capture, to find specific
               events (e.g. pattern="FATAL|ANR|panic|oops") without reading
               the whole file
             - To correlate events across multiple collections
@@ -217,7 +217,7 @@ def register(mcp) -> None:
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_log_tail(
+    async def dhands_log_tail(
         path: str,
         lines: int = 50,
         from_line: int | None = None,
@@ -226,7 +226,7 @@ def register(mcp) -> None:
         """Read a section of a log file. Only workspace paths are allowed.
 
         When to use:
-            - After alb_log_search, read context around a match
+            - After dhands_log_search, read context around a match
             - When you need the last N lines of a long collection
 
         Args:

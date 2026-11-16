@@ -249,7 +249,7 @@ def reply_language_note(reply_language: str) -> str | None:
 
 # The model line in the system prompt is not enough once the chat has a
 # turn or two: asked "你的模型id是啥" right after "你好", Ling-3.0-tiny
-# called alb_describe in 8 of 10 runs and said in 6 it had no model ID
+# called dhands_describe in 8 of 10 runs and said in 6 it had no model ID
 # (as the first message: 19 of 19 right, 2026-11-03). Tool definitions sit
 # between the system prompt and the chat, so the note at the end of each
 # user message is the text it reads last, the same reason the language
@@ -273,26 +273,26 @@ _MODEL_NOTE_TAIL = {
 
 # The board selected in the web page. Without it the model did not know
 # which board it was on: asked for the battery level it first called
-# alb_battery(device=""), which failed, then alb_status to find the serial,
-# then alb_battery again — 3 tool calls where 1 does (2026-11-05, 8.1 s).
+# dhands_battery(device=""), which failed, then dhands_status to find the serial,
+# then dhands_battery again — 3 tool calls where 1 does (2026-11-05, 8.1 s).
 # It goes here and not in the system prompt: the chat template puts the
 # ~6k-token tool list after the system prompt, so a serial there would make
 # the model re-read the tool list whenever the board changes, and the
 # hub's warm-up (which runs before any board is known) would no longer
 # match the first chat.
 _DEVICE_NOTES = {
-    "zh": "当前板子 {device}:工具的 device 参数填它,不用先调 alb_status 或 alb_devices 查。",
-    "en": "The current board is {device}: pass it as the device argument; no need to call alb_status or alb_devices first.",
+    "zh": "当前板子 {device}:工具的 device 参数填它,不用先调 dhands_status 或 dhands_devices 查。",
+    "en": "The current board is {device}: pass it as the device argument; no need to call dhands_status or dhands_devices first.",
 }
 
 
 # Last in the note: a greeting is not a job for the board. With the
-# English page Ling-3.0-tiny answered "hi" by running alb_shell and
+# English page Ling-3.0-tiny answered "hi" by running dhands_shell and
 # writing up the board state: 2 of 5 runs failed (8 tool calls, or the
 # 4096-token cap after 166 s), the rest took 3-46 s; "hello" and "你好"
 # each cost a tool call first. With this sentence: hi 5/5, hello 3/3,
 # 你好 3/3 answered without a tool in 0.4-1.7 s, and "what's the battery
-# level?" still called alb_battery first 3/3 (2026-11-09). The same
+# level?" still called dhands_battery first 3/3 (2026-11-09). The same
 # sentence in the system prompt changed nothing: the note is what the
 # model reads last. It does not make the model skip tools it needs: with
 # the sentence, board questions in both languages ("hi, what's the battery
@@ -345,7 +345,7 @@ def agent_user_note(
 DEFAULT_TOOL_NORMS = """\
 Tool usage norms:
   * Long captures (> 5 min logcat) should return a file path, not the raw
-    log content.  Use `alb_log_search` / `alb_log_tail` to inspect.
+    log content.  Use `dhands_log_search` / `dhands_log_tail` to inspect.
   * When picking between transports (adb / ssh / serial), prefer the one
     already configured as primary.  Switch only if the primary can't do it.
   * Every tool call's result includes `artifacts` — relay the paths back

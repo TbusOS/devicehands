@@ -4,7 +4,7 @@ Exposes the :mod:`devicehands.capabilities.info` panels (security / gpu /
 processes / cpu / …) over REST so the Inspect "System Info" tab can
 surface high-value fields — verified boot / AVB / verity / SELinux,
 GPU governor + freq, top processes — that were previously reachable only
-from the CLI (``dhands info <panel>``) and MCP (``alb_info``). The
+from the CLI (``dhands info <panel>``) and MCP (``dhands_info``). The
 ``/devices/{serial}/system`` aggregate covers props/storage/network/etc;
 this endpoint fills the panels it doesn't.
 

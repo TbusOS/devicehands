@@ -1,4 +1,4 @@
-"""MCP tools: alb_reboot, alb_battery, alb_wait_boot, alb_sleep_wake_test."""
+"""MCP tools: dhands_reboot, dhands_battery, dhands_wait_boot, dhands_sleep_wake_test."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from devicehands.transport.factory import serial_fallback_for
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_reboot(
+    async def dhands_reboot(
         mode: str = "normal",
         wait_boot: bool = True,
         timeout: int = 180,
@@ -53,7 +53,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_wait_boot(
+    async def dhands_wait_boot(
         timeout: int = 180, device: str | None = None
     ) -> dict[str, Any]:
         """Poll sys.boot_completed=1 until true or timeout.
@@ -65,14 +65,14 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_battery(device: str | None = None) -> dict[str, Any]:
+    async def dhands_battery(device: str | None = None) -> dict[str, Any]:
         """Return structured battery state (level/health/temp/voltage/plugged)."""
         t = build_transport(device_serial=device)
         r = await battery(t)
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_sleep_wake_test(
+    async def dhands_sleep_wake_test(
         cycles: int = 1,
         hold_sec: int = 5,
         device: str | None = None,

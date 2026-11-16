@@ -167,7 +167,7 @@ async def rsync_sync(
 ) -> Result[dict[str, Any]]:
     """Incremental directory sync. Requires SshTransport (method C).
 
-    Much faster than alb_push for large directories with few changes.
+    Much faster than dhands_push for large directories with few changes.
     """
     if transport.name != "ssh":
         return fail(

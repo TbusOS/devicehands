@@ -7,7 +7,7 @@ Purpose:
     `/chat` endpoint, powered by a pluggable LLM backend — including **local
     small models on CPU-only servers** (Ollama / llama.cpp / OpenAI-compat /
     Anthropic).  The agent loop only does *tool routing* ("抓日志" → call
-    `alb_logcat`); it does not analyse the logs itself — that responsibility
+    `dhands_logcat`); it does not analyse the logs itself — that responsibility
     stays with the user or with a larger model.
 
 Design layers (see docs/agent.md for the full writeup):

@@ -98,7 +98,7 @@ dhands --transport serial shell 'uname -a'
 - 打不开设备时,检查当前用户在不在 `dialout` 组(`src/devicehands/transport/serial.py` 的报错就这么提示)。
 - `dhands serial` 下除 `probe` 以外的子命令(`capture`、`shell`、`send`、`break-in`、`health`、`status`、`learn`),`--device` 参数**不能**填 `/dev/ttyUSB0`:它按 adb 序列号的格式检查,路径里有 `/` 会被拒(`src/devicehands/transport/factory.py` 调 `is_safe_device`)。本机串口路径要用 `DHANDS_SERIAL_DEVICE`。只有 `dhands serial probe --device` 收路径。
 - `dhands setup serial --device /dev/ttyUSB0 --save` 只把波特率存进 config.toml,**不存设备路径**(`src/devicehands/cli/setup_cli.py`)。存完下次还是要设 `DHANDS_SERIAL_DEVICE`。
-- 给 `dhands-mcp` 用时,变量要写在 MCP 客户端的配置里,例如 `claude mcp add dhands -e DHANDS_SERIAL_DEVICE=/dev/ttyUSB0 -- …`。
+- 给 `dhands-mcp` 用时,变量要写在 MCP 客户端的配置里,例如 `claude mcp add devicehands -e DHANDS_SERIAL_DEVICE=/dev/ttyUSB0 -- …`。
 
 ### 2.2 经 TCP 转发(ser2net、ssh 反向隧道)
 
@@ -204,7 +204,7 @@ DHANDS_ADB_FORWARD_PORT=15037
 - 用 hub 时,`ADB_SERVER_SOCKET` 和 `server_socket` 都不要设。什么都不设的 shell,反而跟着转发口走。
 - 自动发现只问**本机**的 hub。地址由 `DHANDS_API_URL`,或 `DHANDS_API_HOST` + `DHANDS_API_PORT` 决定;指向别的机器时不做自动发现(`_hub_is_local`)。
 - 等 hub 回答最多 0.4 秒,hub 没开不影响普通命令。
-- 设备列表为空、而 hub 那边能看到设备、端口又对不上时,`dhands devices` 和 `alb_status` 会直接说出这个矛盾(`endpoint_conflict`)。
+- 设备列表为空、而 hub 那边能看到设备、端口又对不上时,`dhands devices` 和 `dhands_status` 会直接说出这个矛盾(`endpoint_conflict`)。
 
 ---
 
@@ -473,8 +473,8 @@ note = "左边排针上的调试串口"
 
 给通过 MCP 用 dhands 的 AI:
 
-1. 先调 `alb_status`。adb 传输会返回 `server_socket`(连的是哪个 adb server)和 `server_socket_source`(这个地址来自哪:`config` / `env` / `hub` / `default`)。来源不是 `hub`、而设备列表又是空的,先按第 3.4 节查是不是连错了 server;dhands 能看出矛盾时,结果里还有一条 `hint` 直接说明。
-2. 工具失败时,看返回的 `error.suggestion`,里面写了该设哪个变量或跑哪条命令。查错误码用 `alb_describe_errors`。
+1. 先调 `dhands_status`。adb 传输会返回 `server_socket`(连的是哪个 adb server)和 `server_socket_source`(这个地址来自哪:`config` / `env` / `hub` / `default`)。来源不是 `hub`、而设备列表又是空的,先按第 3.4 节查是不是连错了 server;dhands 能看出矛盾时,结果里还有一条 `hint` 直接说明。
+2. 工具失败时,看返回的 `error.suggestion`,里面写了该设哪个变量或跑哪条命令。查错误码用 `dhands_describe_errors`。
 3. 环境问题让人跑 `dhands doctor`:它列出 `DHANDS_WORKSPACE`、`ADB_SERVER_SOCKET`、`DHANDS_CONFIG`、`DHANDS_PROFILE` 的值,读的是哪份 config.toml,用的是哪个 profile。
 4. 要知道某个变量是干什么的、谁读它,查本页。记住 `dhands-mcp` 不读 `.env.local`,它的环境变量只来自 MCP 客户端配置。
 

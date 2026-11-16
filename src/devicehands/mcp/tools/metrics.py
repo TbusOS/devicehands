@@ -1,4 +1,4 @@
-"""MCP tool: alb_metrics_snapshot."""
+"""MCP tool: dhands_metrics_snapshot."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_metrics_snapshot(device: str | None = None) -> dict[str, Any]:
+    async def dhands_metrics_snapshot(device: str | None = None) -> dict[str, Any]:
         """One snapshot of CPU / memory / temp / I/O / GPU / battery.
 
         Note: cpu_pct_total / net_*_per_s / disk_*_per_s require TWO

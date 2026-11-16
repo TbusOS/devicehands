@@ -47,7 +47,7 @@ license: Apache-2.0
 ## Invocation styles
 
 - **MCP** (recommended): configure `dhands-mcp` in your client. All tools
-  appear with `alb_` prefix. See llm/mcp-config-examples/.
+  appear with `dhands_` prefix. See llm/mcp-config-examples/.
 - **CLI**: `uv run dhands <group> <command>` inside the repo.
 - **HTTP** (M2): FastAPI surface; see docs/architecture.md.
 
@@ -57,7 +57,7 @@ license: Apache-2.0
 - On failure read `error.code` (stable enum) and `error.suggestion`
   (actionable). Full catalog: docs/errors.md.
 - Long outputs land in `workspace/devices/<serial>/<category>/`.
-  Read them with `alb_log_search` / `alb_log_tail`, don't flood your
+  Read them with `dhands_log_search` / `dhands_log_tail`, don't flood your
   context window.
 - Board-side commands are not blocked or confirmed (reboot bootloader,
   setprop persist.*, rm, dd all run as given). Nothing asks first, so do

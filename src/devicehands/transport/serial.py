@@ -16,7 +16,7 @@ Capabilities:
 
 UART's *unique* value is capturing boot logs / kernel panics / u-boot
 output when adb / sshd aren't up yet. The shell wrapper is provided for
-convenience but for heavy work you should use stream_read + alb_log_*.
+convenience but for heavy work you should use stream_read + dhands_log_*.
 """
 
 from __future__ import annotations

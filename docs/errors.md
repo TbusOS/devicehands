@@ -9,7 +9,7 @@ tags: [errors, reference, llm-friendly]
 
 # 错误码参考
 
-> alb 的每个失败结果都带 `error.code`。第三节列出全部错误码:登记在 `src/alb/infra/errors.py` 的 `ERROR_CODES` 里的,以及代码里会返回、但还没登记的。
+> dhands 的每个失败结果都带 `error.code`。第三节列出全部错误码:登记在 `src/devicehands/infra/errors.py` 的 `ERROR_CODES` 里的,以及代码里会返回、但还没登记的。
 > 第三节由 `scripts/gen_errors_doc.py` 生成,不要手改;改了代码后运行 `uv run python scripts/gen_errors_doc.py`。`tests/test_docs_errors.py` 会检查它有没有过期。
 
 ---
@@ -20,7 +20,7 @@ tags: [errors, reference, llm-friendly]
 {
   "code": "TRANSPORT_NOT_CONFIGURED",
   "message": "No active transport configured",
-  "suggestion": "Run: alb setup adb  (or: alb setup ssh / serial)",
+  "suggestion": "Run: dhands setup adb  (or: dhands setup ssh / serial)",
   "category": "transport",
   "details": {}
 }
@@ -34,7 +34,7 @@ tags: [errors, reference, llm-friendly]
 | `category` | 粗分类，便于过滤 |
 | `details` | 可选，结构化附加信息 |
 
-`message` 和 `suggestion` 由出错的位置填写,常常比第三节列的默认文字更具体(带上路径、端口、命令的原始输出)。第三节列的是 `ERROR_CODES` 里的默认文字,也就是 `alb_describe_errors` 返回的那两句。
+`message` 和 `suggestion` 由出错的位置填写,常常比第三节列的默认文字更具体(带上路径、端口、命令的原始输出)。第三节列的是 `ERROR_CODES` 里的默认文字,也就是 `dhands_describe_errors` 返回的那两句。
 
 ---
 
@@ -51,7 +51,7 @@ tags: [errors, reference, llm-friendly]
 <!-- BEGIN GENERATED: scripts/gen_errors_doc.py -->
 <!-- 本段由脚本生成,不要手改。改了 src/devicehands/infra/errors.py 或返回错误码的代码后,运行:uv run python scripts/gen_errors_doc.py -->
 
-登记在 `ERROR_CODES` 里的码共 98 个,按 `category` 分 7 组,每组按码名字母排序。message 和 suggestion 是目录里的默认文字,原样照抄英文:`alb_describe_errors` 返回的就是这两句。
+登记在 `ERROR_CODES` 里的码共 98 个,按 `category` 分 7 组,每组按码名字母排序。message 和 suggestion 是目录里的默认文字,原样照抄英文:`dhands_describe_errors` 返回的就是这两句。
 
 另有 61 个码代码里会返回、但没有登记,列在本节最后。
 
@@ -201,7 +201,7 @@ tags: [errors, reference, llm-friendly]
 
 ### 代码里会返回、但没有登记的码(61 个)
 
-这些码会出现在 `error.code` 里,但 `ERROR_CODES` 没有它们的条目,`alb_describe_errors` 查不到;message 和 suggestion 只有出错位置当场填写的那一份。其中几个码的中文说明见「部分错误码的补充说明」一节。返回位置由脚本扫描 `src/devicehands` 得出,扫描规则见 `scripts/gen_errors_doc.py` 的 `_Scanner`。
+这些码会出现在 `error.code` 里,但 `ERROR_CODES` 没有它们的条目,`dhands_describe_errors` 查不到;message 和 suggestion 只有出错位置当场填写的那一份。其中几个码的中文说明见「部分错误码的补充说明」一节。返回位置由脚本扫描 `src/devicehands` 得出,扫描规则见 `scripts/gen_errors_doc.py` 的 `_Scanner`。
 
 | Code | 返回位置 |
 |---|---|
@@ -272,20 +272,20 @@ tags: [errors, reference, llm-friendly]
 
 ## 四、部分错误码的补充说明
 
-第三节只有英文默认文字。下面这些码,默认文字说不清来源或范围,或者没有登记、`alb shell` 失败时只给一句 `See docs/errors.md for details`,这里补中文说明。每行都写了依据的文件和函数名。
+第三节只有英文默认文字。下面这些码,默认文字说不清来源或范围,或者没有登记、`dhands shell` 失败时只给一句 `See docs/errors.md for details`,这里补中文说明。每行都写了依据的文件和函数名。
 
 | Code | 补充说明 |
 |------|---------|
-| `PERMISSION_DENIED` | 按现在的代码不会出现。2026-10-23 起板子上的命令不再拦截:默认检查 `default_check` 对所有动作都放行(`src/alb/infra/permissions.py`);配置里 `[permissions]` 的 allow / deny 只被解析(`src/alb/infra/config.py` 的 `_parse_perm`),检查时不读。`fail(code="PERMISSION_DENIED")` 的调用点还留着,给以后主机侧的规则用。 |
-| `INVALID_DURATION` | 合法范围随调用处不同,以 message 为准。logcat / dmesg / 串口抓取和 timeline:1 到 3600 秒(`src/alb/capabilities/logging.py`、`timeline.py`);串口 break-in 的几个等待时间:大于 0 即可(`breakin.py`);sleep / wake 测试的循环次数(1 到 1000)越界也报这个码(`power.py` 的 `sleep_wake_test`)。 |
-| `SYSTEM_DEPENDENCY_MISSING` | 缺的是主机上的东西:ssh 方式同步文件要的 `rsync` / `ssh` 可执行文件,或 ssh 用的 Python 包 `asyncssh`、串口用的 `serial_asyncio` 没装(`ImportError`)。缺哪个写在 message 里。出处:`src/alb/transport/ssh.py`、`src/alb/transport/serial.py` 的 `_classify_connect_error`。 |
-| `LLM_CONTEXT_TRUNCATED` | 只在 Ollama 后端出现。判据:Ollama 回报的提示 token 数大于等于发出去的 `num_ctx`。Ollama 截掉的是开头,而工具清单和说明就在开头,所以这一轮的回答不可信。`num_ctx` 默认 16384,用 `ALB_OLLAMA_NUM_CTX` 改。出处:`src/alb/agent/backends/ollama.py` 的 `_raise_if_truncated` 与 `DEFAULT_NUM_CTX`。 |
-| `LLM_OUTPUT_TRUNCATED` | 一轮回答的输出上限是 4096 token(`src/alb/agent/loop.py` 的 `DEFAULT_MAX_OUTPUT_TOKENS`),已经显示的部分保留。多半是模型在原地打转、一直重复,新开会话通常能恢复。 |
-| `APP_INSTALL_FAILED` | 未登记。安装失败时,如果 pm 的输出里有 `INSTALL_FAILED_*`(例如 `INSTALL_FAILED_VERSION_DOWNGRADE`),`error.code` 直接就是这个 Android 原生的码;找不到才是 `APP_INSTALL_FAILED`(`src/alb/capabilities/app.py` 的 `_classify_install_error`)。看到 `INSTALL_FAILED_` 开头的码,查 Android `PackageManager` 的说明。 |
-| `SERIAL_PERMISSION_DENIED` | 未登记。打开串口被拒绝:本机打开时抛了 `PermissionError`,或台架 agent / 串口桥回报 permission denied(`src/alb/transport/serial.py` 的 `_classify_connect_error`、`classify_open_failure`)。Linux 本机串口:把当前用户加进 `dialout` 组,重新登录后生效。经台架时看 agent 日志里的原因。 |
-| `SSH_HOST_UNREACHABLE` | 未登记。ssh 连接报 connection refused、no route to host、network is unreachable 或域名解析失败。先在本机 `ping <host>`、`ssh <host>` 确认网络和对方的 sshd。出处:`src/alb/transport/ssh.py` 的 `_classify_ssh_error`,下面三行同。 |
+| `PERMISSION_DENIED` | 按现在的代码不会出现。2026-10-23 起板子上的命令不再拦截:默认检查 `default_check` 对所有动作都放行(`src/devicehands/infra/permissions.py`);配置里 `[permissions]` 的 allow / deny 只被解析(`src/devicehands/infra/config.py` 的 `_parse_perm`),检查时不读。`fail(code="PERMISSION_DENIED")` 的调用点还留着,给以后主机侧的规则用。 |
+| `INVALID_DURATION` | 合法范围随调用处不同,以 message 为准。logcat / dmesg / 串口抓取和 timeline:1 到 3600 秒(`src/devicehands/capabilities/logging.py`、`timeline.py`);串口 break-in 的几个等待时间:大于 0 即可(`breakin.py`);sleep / wake 测试的循环次数(1 到 1000)越界也报这个码(`power.py` 的 `sleep_wake_test`)。 |
+| `SYSTEM_DEPENDENCY_MISSING` | 缺的是主机上的东西:ssh 方式同步文件要的 `rsync` / `ssh` 可执行文件,或 ssh 用的 Python 包 `asyncssh`、串口用的 `serial_asyncio` 没装(`ImportError`)。缺哪个写在 message 里。出处:`src/devicehands/transport/ssh.py`、`src/devicehands/transport/serial.py` 的 `_classify_connect_error`。 |
+| `LLM_CONTEXT_TRUNCATED` | 只在 Ollama 后端出现。判据:Ollama 回报的提示 token 数大于等于发出去的 `num_ctx`。Ollama 截掉的是开头,而工具清单和说明就在开头,所以这一轮的回答不可信。`num_ctx` 默认 16384,用 `DHANDS_OLLAMA_NUM_CTX` 改。出处:`src/devicehands/agent/backends/ollama.py` 的 `_raise_if_truncated` 与 `DEFAULT_NUM_CTX`。 |
+| `LLM_OUTPUT_TRUNCATED` | 一轮回答的输出上限是 4096 token(`src/devicehands/agent/loop.py` 的 `DEFAULT_MAX_OUTPUT_TOKENS`),已经显示的部分保留。多半是模型在原地打转、一直重复,新开会话通常能恢复。 |
+| `APP_INSTALL_FAILED` | 未登记。安装失败时,如果 pm 的输出里有 `INSTALL_FAILED_*`(例如 `INSTALL_FAILED_VERSION_DOWNGRADE`),`error.code` 直接就是这个 Android 原生的码;找不到才是 `APP_INSTALL_FAILED`(`src/devicehands/capabilities/app.py` 的 `_classify_install_error`)。看到 `INSTALL_FAILED_` 开头的码,查 Android `PackageManager` 的说明。 |
+| `SERIAL_PERMISSION_DENIED` | 未登记。打开串口被拒绝:本机打开时抛了 `PermissionError`,或台架 agent / 串口桥回报 permission denied(`src/devicehands/transport/serial.py` 的 `_classify_connect_error`、`classify_open_failure`)。Linux 本机串口:把当前用户加进 `dialout` 组,重新登录后生效。经台架时看 agent 日志里的原因。 |
+| `SSH_HOST_UNREACHABLE` | 未登记。ssh 连接报 connection refused、no route to host、network is unreachable 或域名解析失败。先在本机 `ping <host>`、`ssh <host>` 确认网络和对方的 sshd。出处:`src/devicehands/transport/ssh.py` 的 `_classify_ssh_error`,下面三行同。 |
 | `TIMEOUT_CONNECT` | 未登记。ssh 连接超时。查网络、防火墙和隧道。 |
-| `SSH_KEY_NOT_FOUND` | 未登记。ssh 报错里同时有 "no such file" 和 "key":配置的私钥文件不存在。检查 `ALB_SSH_KEY` 指的路径,或用 `ssh-keygen -t ed25519` 生成一把。 |
+| `SSH_KEY_NOT_FOUND` | 未登记。ssh 报错里同时有 "no such file" 和 "key":配置的私钥文件不存在。检查 `DHANDS_SSH_KEY` 指的路径,或用 `ssh-keygen -t ed25519` 生成一把。 |
 | `SSH_COMMAND_FAILED` | 未登记。ssh 失败、又不属于上面几类时的兜底码。原因看 message 里 ssh 的原话。 |
 
 ---
@@ -295,12 +295,12 @@ tags: [errors, reference, llm-friendly]
 ### 模式 1 · 按 code 直接分支
 
 ```python
-result = await alb_logcat(...)
+result = await dhands_logcat(...)
 if not result["ok"]:
     code = result["error"]["code"]
     if code == "TRANSPORT_NOT_CONFIGURED":
-        # alb setup 是交互式命令，交给人来跑
-        return "还没配置连接方式，请先运行 alb setup adb"
+        # dhands setup 是交互式命令，交给人来跑
+        return "还没配置连接方式，请先运行 dhands setup adb"
     elif code == "DEVICE_UNAUTHORIZED":
         return "请在设备上点击'允许 USB 调试'"
     elif code == "TIMEOUT_SHELL":
@@ -316,7 +316,7 @@ if result["error"]["category"] == "permission":
     ...
 elif result["error"]["category"] == "transport":
     # 先看连接状态
-    await alb_status()
+    await dhands_status()
 ```
 
 ### 模式 3 · 把 suggestion 转给人
@@ -333,26 +333,26 @@ if sugg.startswith("Run: "):
 
 ## 六、错误码编程访问
 
-MCP tool `alb_describe_errors`(`src/alb/mcp/tools/devices.py`):
+MCP tool `dhands_describe_errors`(`src/devicehands/mcp/tools/devices.py`):
 
 ```python
-alb_describe_errors(code="DEVICE_OFFLINE")  # 单个码:category / default_message / default_suggestion
-alb_describe_errors(search="flash")         # 只要码名或 category 含这个词的,不分大小写
-alb_describe_errors()                       # 整个目录;很长,优先用 search
+dhands_describe_errors(code="DEVICE_OFFLINE")  # 单个码:category / default_message / default_suggestion
+dhands_describe_errors(search="flash")         # 只要码名或 category 含这个词的,不分大小写
+dhands_describe_errors()                       # 整个目录;很长,优先用 search
 ```
 
 它只能查到登记了的码,第三节最后一组查不到。
 
-命令行没有 `alb describe-errors` 子命令。在命令行下查,看本页,或看 `alb skills preview` 输出里的错误码表。
+命令行没有 `dhands describe-errors` 子命令。在命令行下查,看本页,或看 `dhands skills preview` 输出里的错误码表。
 
 ---
 
 ## 七、贡献新错误码
 
-1. 在 `src/alb/infra/errors.py` 的 `ERROR_CODES` 加条目:code、category、default_message、default_suggestion。category 取 `src/alb/infra/result.py` 里 `ErrorCategory` 的某一个。
+1. 在 `src/devicehands/infra/errors.py` 的 `ERROR_CODES` 加条目:code、category、default_message、default_suggestion。category 取 `src/devicehands/infra/result.py` 里 `ErrorCategory` 的某一个。
 2. 在出错的位置用 `fail(code="YOUR_NEW_CODE", ...)` 返回。
 3. 运行 `uv run python scripts/gen_errors_doc.py`,重新生成第三节。要补中文说明,加到第四节的表里。
 4. 运行 `uv run pytest -q tests/test_docs_errors.py`。文档过期,或第四节写了一个既没登记、代码里也没返回的码,这个测试会失败。
 5. PR 里说明场景和 suggestion 的写法。
 
-只写 `fail(code=...)` 不登记,这个码会出现在第三节最后一组。测试不拦这种情况,但请尽量登记:登记了,`alb_describe_errors` 才能解释它。
+只写 `fail(code=...)` 不登记,这个码会出现在第三节最后一组。测试不拦这种情况,但请尽量登记:登记了,`dhands_describe_errors` 才能解释它。

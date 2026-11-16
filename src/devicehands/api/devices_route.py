@@ -1,7 +1,7 @@
 """GET /devices — list devices visible through the active transport.
 
 Thin HTTP wrapper around `Transport.devices()`. Mirrors the
-`alb_devices` MCP tool (src/devicehands/mcp/tools/devices.py) but flattens the
+`dhands_devices` MCP tool (src/devicehands/mcp/tools/devices.py) but flattens the
 response so the Web UI doesn't have to peel off a `data` envelope.
 
 Transports without a `.devices()` method (ssh / serial) return an empty
@@ -96,7 +96,7 @@ async def device_details(serial: str) -> dict[str, Any]:
     """Composite device snapshot for the dashboard summary card.
 
     Wraps `devicehands.capabilities.diagnose.devinfo()` — same data as the
-    `alb_devinfo` MCP tool but reachable via HTTP. ADR-028 (a) — this
+    `dhands_devinfo` MCP tool but reachable via HTTP. ADR-028 (a) — this
     endpoint is the **summary** view; the **full system dump**
     (partition / memory / flash layout) belongs to a future
     `/devices/{serial}/system` endpoint (DEBT-022 PR-B).

@@ -44,8 +44,8 @@ def test_well_known_tools_present(client) -> None:
     body = client.get("/tools").json()
     names = {t["name"] for t in body["tools"]}
     for canonical in (
-        "alb_shell", "alb_logcat", "alb_devices", "alb_status",
-        "alb_describe", "alb_ui_screenshot", "alb_app_list", "alb_reboot",
+        "dhands_shell", "dhands_logcat", "dhands_devices", "dhands_status",
+        "dhands_describe", "dhands_ui_screenshot", "dhands_app_list", "dhands_reboot",
     ):
         assert canonical in names, f"missing canonical tool {canonical}"
 
@@ -76,9 +76,9 @@ def test_categories_summary_consistent(client) -> None:
 def test_descriptions_are_first_docstring_line(client) -> None:
     """Description should be a non-empty short line for most tools."""
     body = client.get("/tools").json()
-    # alb_shell has a multi-paragraph docstring; description should be
+    # dhands_shell has a multi-paragraph docstring; description should be
     # only the first line
-    shell = next(t for t in body["tools"] if t["name"] == "alb_shell")
+    shell = next(t for t in body["tools"] if t["name"] == "dhands_shell")
     assert shell["description"]
     assert "\n" not in shell["description"]
     # Soft invariant: ≥ 80% of tools have a non-empty description.

@@ -7,7 +7,7 @@ matches. Powers the Inspect "Log Search" tab.
 
 Backed by :func:`devicehands.capabilities.logging.search_logs` — one source of
 truth shared with the CLI ``dhands log search`` and the MCP
-``alb_log_search`` tool. The route is a thin envelope over that
+``dhands_log_search`` tool. The route is a thin envelope over that
 capability, with extra guard rails:
 
   * ``device`` is validated as a safe serial (L-035).
@@ -69,7 +69,7 @@ async def post_dmesg(
     The Log Search tab can only search artifacts that already exist; the
     dmesg capability was reachable from CLI / MCP but had no web entry, so
     web-only users could never produce a dmesg artifact to search. Mirrors
-    ``dhands dmesg`` / ``alb_dmesg`` — collect then search.
+    ``dhands dmesg`` / ``dhands_dmesg`` — collect then search.
     """
     if device and not is_safe_device(device):
         # L-051: no-echo on reject. See diag_route._resolve_transport.

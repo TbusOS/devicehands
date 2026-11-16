@@ -1,4 +1,4 @@
-"""MCP tools: alb_app_install / uninstall / start / stop / list / info / clear_data."""
+"""MCP tools: dhands_app_install / uninstall / start / stop / list / info / clear_data."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_app_install(
+    async def dhands_app_install(
         apk_path: str,
         replace: bool = True,
         grant_runtime: bool = False,
@@ -44,7 +44,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_app_uninstall(
+    async def dhands_app_uninstall(
         package: str,
         keep_data: bool = False,
         allow_dangerous: bool = False,
@@ -60,7 +60,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_app_start(
+    async def dhands_app_start(
         component: str, device: str | None = None
     ) -> dict[str, Any]:
         """Start an app or activity.
@@ -74,7 +74,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_app_stop(
+    async def dhands_app_stop(
         package: str, device: str | None = None
     ) -> dict[str, Any]:
         """Force-stop a package."""
@@ -83,7 +83,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_app_list(
+    async def dhands_app_list(
         filter: str | None = None,  # noqa: A002
         include_system: bool = False,
         device: str | None = None,
@@ -99,7 +99,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_app_info(
+    async def dhands_app_info(
         package: str, device: str | None = None
     ) -> dict[str, Any]:
         """Return versionName/Code, install/update time, requested permissions."""
@@ -108,7 +108,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_app_clear_data(
+    async def dhands_app_clear_data(
         package: str,
         allow_dangerous: bool = False,
         device: str | None = None,

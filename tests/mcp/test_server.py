@@ -20,7 +20,7 @@ def test_create_server_registers_tools() -> None:
     # calling create_server() doesn't explode and returns a server.
     #
     # When the mcp SDK exposes a stable introspection API we can assert the
-    # expected tool names (alb_shell, alb_logcat, alb_devices, ...).
+    # expected tool names (dhands_shell, dhands_logcat, dhands_devices, ...).
     assert hasattr(server, "run")
 
 

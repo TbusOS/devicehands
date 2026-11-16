@@ -105,8 +105,8 @@ def _calls(*tcs: ToolCall) -> ChatResponse:
     return ChatResponse(content="", tool_calls=list(tcs), finish_reason="tool_calls")
 
 
-_TOOL = ToolSpec(name="alb_logcat", description="x", parameters={"type": "object"})
-_REBOOT = ToolSpec(name="alb_reboot", description="r", parameters={"type": "object"})
+_TOOL = ToolSpec(name="dhands_logcat", description="x", parameters={"type": "object"})
+_REBOOT = ToolSpec(name="dhands_reboot", description="r", parameters={"type": "object"})
 
 
 # ─── Single-turn paths ───────────────────────────────────────────────
@@ -150,7 +150,7 @@ async def test_system_prompt_injected() -> None:
 async def test_tool_call_then_final() -> None:
     b = FakeBackend(
         [
-            _calls(_tc("alb_logcat", {"duration": 30}, "tc_1")),
+            _calls(_tc("dhands_logcat", {"duration": 30}, "tc_1")),
             _final("已抓到 12 条 error"),
         ]
     )
@@ -169,7 +169,7 @@ async def test_tool_call_then_final() -> None:
     assert len(r.artifacts) == 1
     assert str(r.artifacts[0]).endswith("logcat.txt")
     # Tool was dispatched with right args
-    assert executed == [("alb_logcat", {"duration": 30})]
+    assert executed == [("dhands_logcat", {"duration": 30})]
     # Second chat call sees: user + asst(tool_calls) + tool
     # (the final asst is produced BY this call, not in its input)
     assert len(b.calls[1]) == 3
@@ -183,8 +183,8 @@ async def test_parallel_tool_calls_same_turn() -> None:
     b = FakeBackend(
         [
             _calls(
-                _tc("alb_logcat", {"duration": 10}, "tc_1"),
-                _tc("alb_reboot", {"mode": "normal"}, "tc_2"),
+                _tc("dhands_logcat", {"duration": 10}, "tc_1"),
+                _tc("dhands_reboot", {"mode": "normal"}, "tc_2"),
             ),
             _final("done"),
         ]
@@ -199,7 +199,7 @@ async def test_parallel_tool_calls_same_turn() -> None:
     r = await loop.run("both")
 
     assert r.ok
-    assert seen == ["alb_logcat", "alb_reboot"]
+    assert seen == ["dhands_logcat", "dhands_reboot"]
 
 
 @pytest.mark.asyncio
@@ -230,7 +230,7 @@ async def test_unknown_tool_returns_error_envelope() -> None:
 async def test_executor_exception_becomes_tool_error() -> None:
     b = FakeBackend(
         [
-            _calls(_tc("alb_logcat", {"duration": 30})),
+            _calls(_tc("dhands_logcat", {"duration": 30})),
             _final("recovered"),
         ]
     )
@@ -254,7 +254,7 @@ async def test_executor_exception_becomes_tool_error() -> None:
 @pytest.mark.asyncio
 async def test_max_turns_exceeded() -> None:
     # Always emits a tool_call, never stops.
-    always_tc = _calls(_tc("alb_logcat", {"duration": 1}))
+    always_tc = _calls(_tc("dhands_logcat", {"duration": 1}))
     b = FakeBackend([always_tc for _ in range(10)])
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -293,7 +293,7 @@ async def test_session_captures_full_trace(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     b = FakeBackend(
         [
-            _calls(_tc("alb_logcat", {"duration": 5}, "tc_1")),
+            _calls(_tc("dhands_logcat", {"duration": 5}, "tc_1")),
             _final("done"),
         ]
     )
@@ -311,7 +311,7 @@ async def test_session_captures_full_trace(tmp_path, monkeypatch) -> None:
     msgs = reloaded.messages()
     roles = [m.role for m in msgs]
     assert roles == ["user", "assistant", "tool", "assistant"]
-    assert msgs[1].tool_calls[0].name == "alb_logcat"
+    assert msgs[1].tool_calls[0].name == "dhands_logcat"
     assert msgs[2].tool_call_id == "tc_1"
 
 
@@ -385,7 +385,7 @@ async def test_run_stream_tool_call_then_reply() -> None:
     """Tool-decision turn streams silently, tool events fire, final turn streams tokens."""
     b = FakeBackend(
         [
-            _calls(_tc("alb_logcat", {"lines": 50}, tc_id="tc_1")),
+            _calls(_tc("dhands_logcat", {"lines": 50}, tc_id="tc_1")),
             _final("日志已抓"),
         ]
     )
@@ -402,7 +402,7 @@ async def test_run_stream_tool_call_then_reply() -> None:
     # Expected sequence: tool_call_start, tool_call_end, then token*, done
     assert types[0] == "tool_call_start"
     assert types[1] == "tool_call_end"
-    assert events[0]["name"] == "alb_logcat"
+    assert events[0]["name"] == "dhands_logcat"
     assert events[0]["arguments"] == {"lines": 50}
     assert events[1]["result"]["ok"] is True
     # Last event must be done with ok=True
@@ -418,9 +418,9 @@ async def test_run_stream_max_turns_exceeded() -> None:
     """Infinite tool-call loop → should terminate with AGENT_MAX_TURNS_EXCEEDED."""
     b = FakeBackend(
         [
-            _calls(_tc("alb_logcat", {}, tc_id="t1")),
-            _calls(_tc("alb_logcat", {}, tc_id="t2")),
-            _calls(_tc("alb_logcat", {}, tc_id="t3")),
+            _calls(_tc("dhands_logcat", {}, tc_id="t1")),
+            _calls(_tc("dhands_logcat", {}, tc_id="t2")),
+            _calls(_tc("dhands_logcat", {}, tc_id="t3")),
         ]
     )
 
@@ -447,7 +447,7 @@ async def test_run_stream_cancelled_in_a_tool_answers_every_call(tmp_path, monke
     import asyncio
 
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
-    b = FakeBackend([_calls(_tc("alb_logcat", {}, "tc_1"), _tc("alb_reboot", {}, "tc_2"))])
+    b = FakeBackend([_calls(_tc("dhands_logcat", {}, "tc_1"), _tc("dhands_reboot", {}, "tc_2"))])
     started = asyncio.Event()
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -479,7 +479,7 @@ async def test_run_stream_closed_before_a_call_runs_answers_it(tmp_path, monkeyp
     """The relay closes the stream when a stop lands while it is sending
     tool_call_start: the call never runs and still gets a result."""
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
-    b = FakeBackend([_calls(_tc("alb_reboot", {}, "tc_1"))])
+    b = FakeBackend([_calls(_tc("dhands_reboot", {}, "tc_1"))])
     ran: list[str] = []
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -592,7 +592,7 @@ async def test_run_stream_text_before_a_tool_call_is_sent_first() -> None:
         [
             ChatResponse(
                 content="我先看日志",
-                tool_calls=[_tc("alb_logcat", {}, "tc_1")],
+                tool_calls=[_tc("dhands_logcat", {}, "tc_1")],
                 finish_reason="tool_calls",
             ),
             _final("没有崩溃"),
@@ -644,23 +644,23 @@ async def test_run_stream_reply_without_token_events_is_sent_once() -> None:
 
 # ─── Tool names glued to a stray prefix (2026-11-03) ─────────────────
 
-_KNOWN = {"alb_describe", "alb_describe_errors", "alb_status", "alb_shell"}
+_KNOWN = {"dhands_describe", "dhands_describe_errors", "dhands_status", "dhands_shell"}
 
 
 @pytest.mark.parametrize(
     ("name", "want"),
     [
         # seen with Ling-3.0-tiny through Ollama 0.40
-        ("alb_describealb_describe_errors", "alb_describe_errors"),
-        ("alb_statusalb_status", "alb_status"),
-        ("alb_stalb_status", "alb_status"),
+        ("dhands_describedhands_describe_errors", "dhands_describe_errors"),
+        ("dhands_statusdhands_status", "dhands_status"),
+        ("dhands_stdhands_status", "dhands_status"),
         # already right
-        ("alb_status", None),
+        ("dhands_status", None),
         # front part is not the start of the tool name: leave it alone
-        ("my_alb_shell", None),
-        ("xalb_status", None),
+        ("my_dhands_shell", None),
+        ("xdhands_status", None),
         # unknown and unrelated
-        ("alb_reboot", None),
+        ("dhands_reboot", None),
     ],
 )
 def test_repair_tool_name(name: str, want: str | None) -> None:
@@ -671,10 +671,10 @@ def test_repair_tool_name(name: str, want: str | None) -> None:
 async def test_run_stream_runs_the_repaired_tool_and_says_so(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     tools = [
-        ToolSpec(name="alb_describe", description="d", parameters={"type": "object"}),
-        ToolSpec(name="alb_describe_errors", description="e", parameters={"type": "object"}),
+        ToolSpec(name="dhands_describe", description="d", parameters={"type": "object"}),
+        ToolSpec(name="dhands_describe_errors", description="e", parameters={"type": "object"}),
     ]
-    b = FakeBackend([_calls(_tc("alb_describealb_describe_errors", {}, "tc_1")), _final("好了")])
+    b = FakeBackend([_calls(_tc("dhands_describedhands_describe_errors", {}, "tc_1")), _final("好了")])
     ran: list[str] = []
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -685,23 +685,23 @@ async def test_run_stream_runs_the_repaired_tool_and_says_so(tmp_path, monkeypat
     session = ChatSession.create(backend="fake")
     events = [ev async for ev in loop.run_stream("错误码", session=session)]
 
-    assert ran == ["alb_describe_errors"]
+    assert ran == ["dhands_describe_errors"]
     start = next(e for e in events if e["type"] == "tool_call_start")
-    assert start["name"] == "alb_describe_errors"
-    assert start["requested_name"] == "alb_describealb_describe_errors"
+    assert start["name"] == "dhands_describe_errors"
+    assert start["requested_name"] == "dhands_describedhands_describe_errors"
     # the history the model sees next turn uses the real name
     msgs = ChatSession.load(session.session_id).messages()
-    assert msgs[1].tool_calls[0].name == "alb_describe_errors"
-    assert msgs[2].name == "alb_describe_errors"
+    assert msgs[1].tool_calls[0].name == "dhands_describe_errors"
+    assert msgs[2].name == "dhands_describe_errors"
 
 
 @pytest.mark.asyncio
 async def test_run_also_repairs_the_tool_name() -> None:
     tools = [
-        ToolSpec(name="alb_describe", description="d", parameters={"type": "object"}),
-        ToolSpec(name="alb_describe_errors", description="e", parameters={"type": "object"}),
+        ToolSpec(name="dhands_describe", description="d", parameters={"type": "object"}),
+        ToolSpec(name="dhands_describe_errors", description="e", parameters={"type": "object"}),
     ]
-    b = FakeBackend([_calls(_tc("alb_describealb_describe_errors", {}, "tc_1")), _final("好了")])
+    b = FakeBackend([_calls(_tc("dhands_describedhands_describe_errors", {}, "tc_1")), _final("好了")])
     ran: list[str] = []
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -710,7 +710,7 @@ async def test_run_also_repairs_the_tool_name() -> None:
 
     r = await AgentLoop(b, tools=tools, tool_executor=exec_).run("错误码")
     assert r.ok is True
-    assert ran == ["alb_describe_errors"]
+    assert ran == ["dhands_describe_errors"]
 
 
 # ─── user_note: the language reminder (2026-11-03) ───────────────────
@@ -766,12 +766,12 @@ async def test_every_model_turn_gets_the_output_limit() -> None:
     """Without it Ollama has no limit: one answer ran 12 minutes (2026-11-03)."""
     from devicehands.agent.loop import DEFAULT_MAX_OUTPUT_TOKENS
 
-    b = FakeBackend([_calls(_tc("alb_logcat", {}, tc_id="tc_1")), _final("好了")])
+    b = FakeBackend([_calls(_tc("dhands_logcat", {}, tc_id="tc_1")), _final("好了")])
     async for _ in AgentLoop(b, tools=[_TOOL], tool_executor=_no_tools).run_stream("抓日志"):
         pass
     assert b.max_tokens_seen == [DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS]
 
-    b = FakeBackend([_calls(_tc("alb_logcat", {}, tc_id="tc_1")), _final("好了")])
+    b = FakeBackend([_calls(_tc("dhands_logcat", {}, tc_id="tc_1")), _final("好了")])
     await AgentLoop(b, tools=[_TOOL], tool_executor=_no_tools).run("抓日志")
     assert b.max_tokens_seen == [DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS]
 
@@ -879,7 +879,7 @@ async def test_run_stream_model_reads_the_cut_copy_page_gets_the_whole(
     (a later turn sends the history again)."""
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     big = _long_result()
-    b = FakeBackend([_calls(_tc("alb_logcat", {}, tc_id="tc_1")), _final("没有崩溃")])
+    b = FakeBackend([_calls(_tc("dhands_logcat", {}, tc_id="tc_1")), _final("没有崩溃")])
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
         return big
@@ -926,7 +926,7 @@ async def test_run_stream_tool_call_end_says_when_the_model_saw_a_cut_copy() -> 
     big = _long_result()
     small = {"ok": True, "data": {"level": 87}}
     b = FakeBackend([
-        _calls(_tc("alb_logcat", {}, tc_id="tc_1"), _tc("alb_logcat", {"n": 1}, tc_id="tc_2")),
+        _calls(_tc("dhands_logcat", {}, tc_id="tc_1"), _tc("dhands_logcat", {"n": 1}, tc_id="tc_2")),
         _final("ok"),
     ])
 
@@ -942,7 +942,7 @@ async def test_run_stream_tool_call_end_says_when_the_model_saw_a_cut_copy() -> 
 
 async def test_run_model_reads_the_cut_copy_too() -> None:
     big = _long_result()
-    b = FakeBackend([_calls(_tc("alb_logcat", {}, tc_id="tc_1")), _final("ok")])
+    b = FakeBackend([_calls(_tc("dhands_logcat", {}, tc_id="tc_1")), _final("ok")])
 
     async def exec_(name: str, args: dict[str, Any]) -> dict[str, Any]:
         return big

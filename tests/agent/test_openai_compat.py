@@ -140,7 +140,7 @@ async def test_chat_injects_tools() -> None:
 
     b = OpenAICompatBackend(model="x", transport=_mock_transport(handler))
     tool = ToolSpec(
-        name="alb_logcat",
+        name="dhands_logcat",
         description="collect logcat",
         parameters={
             "type": "object",
@@ -153,7 +153,7 @@ async def test_chat_injects_tools() -> None:
         {
             "type": "function",
             "function": {
-                "name": "alb_logcat",
+                "name": "dhands_logcat",
                 "description": "collect logcat",
                 "parameters": {
                     "type": "object",
@@ -184,7 +184,7 @@ async def test_chat_parses_tool_calls_with_string_arguments() -> None:
                                     "id": "call_abc",
                                     "type": "function",
                                     "function": {
-                                        "name": "alb_logcat",
+                                        "name": "dhands_logcat",
                                         "arguments": '{"duration": 5}',
                                     },
                                 }
@@ -204,7 +204,7 @@ async def test_chat_parses_tool_calls_with_string_arguments() -> None:
     assert len(resp.tool_calls) == 1
     tc = resp.tool_calls[0]
     assert tc.id == "call_abc"
-    assert tc.name == "alb_logcat"
+    assert tc.name == "dhands_logcat"
     assert tc.arguments == {"duration": 5}
 
 
@@ -227,7 +227,7 @@ async def test_chat_tool_calls_garbled_json_falls_back() -> None:
                                     "id": "call_x",
                                     "type": "function",
                                     "function": {
-                                        "name": "alb_logcat",
+                                        "name": "dhands_logcat",
                                         "arguments": "{not json",
                                     },
                                 }
@@ -277,7 +277,7 @@ async def test_chat_serialises_assistant_tool_calls() -> None:
             role="assistant",
             content="",
             tool_calls=[
-                ToolCall(id="t1", name="alb_logcat", arguments={"duration": 5})
+                ToolCall(id="t1", name="dhands_logcat", arguments={"duration": 5})
             ],
         ),
         Message(role="tool", content='{"lines": []}', tool_call_id="t1"),
@@ -464,7 +464,7 @@ async def test_stream_accumulates_tool_call_arguments() -> None:
                                     "index": 0,
                                     "id": "call_abc",
                                     "function": {
-                                        "name": "alb_logcat",
+                                        "name": "dhands_logcat",
                                         "arguments": "",
                                     },
                                 }
@@ -525,7 +525,7 @@ async def test_stream_accumulates_tool_call_arguments() -> None:
     assert done["tool_calls"] == [
         {
             "id": "call_abc",
-            "name": "alb_logcat",
+            "name": "dhands_logcat",
             "arguments": {"duration": 5},
         }
     ]
@@ -588,7 +588,7 @@ async def test_stream_tool_call_with_interleaved_content() -> None:
                                     "index": 0,
                                     "id": "call_z",
                                     "function": {
-                                        "name": "alb_logcat",
+                                        "name": "dhands_logcat",
                                         "arguments": '{"duration": 3}',
                                     },
                                 }

@@ -11,7 +11,7 @@ dhands flash write ──HTTP──> 查参数、开记录、排队一个 ──
                                                          登记的厂商工具 ──USB──> 板子
 ```
 
-- `dhands flash` 连的是 hub 的 HTTP 接口:默认 `http://127.0.0.1:8765`,hub 在别的机器上就设 `ALB_API_URL`(见 [configuration.md](./configuration.md))。
+- `dhands flash` 连的是 hub 的 HTTP 接口:默认 `http://127.0.0.1:8765`,hub 在别的机器上就设 `DHANDS_API_URL`(见 [configuration.md](./configuration.md))。
 - 一次只跑一个会改板子的作业。第二个**立刻拒绝**(`FASTBOOT_BUSY`),不排队。查询类(`status`、`devices`、`tools`)不受影响。
 - hub 只发「操作名 + 参数」,不发命令行;台架 agent 按自己 `agent.conf` 里的设置拼出要运行的命令,参数再查一遍。
 
@@ -79,7 +79,7 @@ dhands flash write boot_a images/board-a/v12/boot.img
 dhands flash erase misc
 ```
 
-- **镜像在 hub 那台机器上**,路径相对 hub 的工作目录(hub 的 `ALB_WORKSPACE`)。路径跑出工作目录的拒绝。hub 先算 sha256,台架 agent 收完再核一次,对不上不写。
+- **镜像在 hub 那台机器上**,路径相对 hub 的工作目录(hub 的 `DHANDS_WORKSPACE`)。路径跑出工作目录的拒绝。hub 先算 sha256,台架 agent 收完再核一次,对不上不写。
 - 分区名先在 hub 查,台架 agent 再查,只查形状(字母、数字、`_` `.` `-`,不能以 `-` 开头),不合规报 `FLASH_PARTITION_REJECTED`,什么都不写。板子上没有这个分区,由 bootloader 自己回 FAILED。
 - 写清单外的镜像(本地刚编的 boot.img、别人单独给的分区包)用这个命令;整包里的分区用 `plan --only`,文件由清单配好,不会把 boot 的镜像写进 recovery。
 - 台架 agent.conf 里只要有一块板配了 `fastboot_product.<板>`,写之前就先问板子 `getvar product`:没选板子、选的板子没配 product 报 `FLASH_BOARD_NOT_LISTED`,答案对不上报 `FLASH_BOARD_MISMATCH`,都什么都不写。

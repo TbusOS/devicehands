@@ -138,7 +138,7 @@ async def list_tools() -> dict[str, Any]:
           "ok": true,
           "count": N,
           "categories": [{"name": "shell", "count": 1}, ...],   # sorted
-          "tools": [{"name": "alb_shell",
+          "tools": [{"name": "dhands_shell",
                      "description": "<first docstring line>",
                      "category": "shell"}, ...]                  # sorted by name
         }

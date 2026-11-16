@@ -262,7 +262,7 @@ async def capture_uart(
           instead of waiting out the full duration.
         - Use for: boot log, u-boot stage, kernel panic rescue.
         - Returns DmesgSummary-shaped summary (lines + error-keyword count).
-        - Safe to run alongside `alb_uart_shell` / `alb_uart_send` / the web UART
+        - Safe to run alongside `dhands_uart_shell` / `dhands_uart_send` / the web UART
           console: readers share one link. To capture a full boot, start the
           capture FIRST, then reboot the board from another call.
 
@@ -386,16 +386,16 @@ async def send_uart(
     Use for u-boot interrupt sequences (e.g. text="\\x03" to send Ctrl-C and
     stop autoboot), sending a single keypress, or injecting a command where
     there is no shell prompt to wait on. For send-and-read-the-response, use the
-    shell path (`alb_uart_shell`) — its state machine waits for the prompt.
+    shell path (`dhands_uart_shell`) — its state machine waits for the prompt.
 
     LLM notes:
         - `append_newline=True` (default) appends "\\n" so "printenv" runs.
           Set False for raw control bytes / interrupt chars.
         - Returns immediately; it does NOT read the response. Follow with
-          `alb_uart_capture` or `alb_uart_shell` to see output.
+          `dhands_uart_capture` or `dhands_uart_shell` to see output.
         - ok=True means the bytes reached the UART, NOT that the board acted on
           them — a console that is not at a prompt silently discards input. When
-          you need proof a command ran, use `alb_uart_shell` (it waits for the
+          you need proof a command ran, use `dhands_uart_shell` (it waits for the
           prompt and returns a real exit code).
     """
     if transport.name != "serial":
@@ -916,7 +916,7 @@ _resolve_capture_path = resolve_capture_path
 def _resolve_search_targets(path: Path | None, device: str | None) -> list[Path]:
     """Build the list of `*.txt` files to search.
 
-    L-035: `device` is a user-input vector (MCP `alb_log_search` accepts
+    L-035: `device` is a user-input vector (MCP `dhands_log_search` accepts
     arbitrary serial; CLI `--device` flag); reject `..` / absolute paths
     / etc at root layer rather than letting `(root / "devices" / device
     / "logs").rglob(...)` escape via `..`. base.resolve() flatten gotcha

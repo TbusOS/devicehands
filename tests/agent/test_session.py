@@ -45,13 +45,13 @@ def test_append_writes_jsonl_immediately(tmp_path, monkeypatch) -> None:
 def test_append_preserves_tool_calls(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     s = ChatSession.create()
-    tc = ToolCall(id="tc_1", name="alb_logcat", arguments={"duration": 30})
+    tc = ToolCall(id="tc_1", name="dhands_logcat", arguments={"duration": 30})
     s.append(Message(role="assistant", content="", tool_calls=[tc]))
 
     line = s.messages_file.read_text().strip()
     d = json.loads(line)
     assert d["tool_calls"] == [
-        {"id": "tc_1", "name": "alb_logcat", "arguments": {"duration": 30}}
+        {"id": "tc_1", "name": "dhands_logcat", "arguments": {"duration": 30}}
     ]
 
 
@@ -63,7 +63,7 @@ def test_load_roundtrip(tmp_path, monkeypatch) -> None:
         Message(
             role="assistant",
             content="",
-            tool_calls=[ToolCall(id="tc_1", name="alb_logcat", arguments={"duration": 30})],
+            tool_calls=[ToolCall(id="tc_1", name="dhands_logcat", arguments={"duration": 30})],
         )
     )
     s1.append(
@@ -71,7 +71,7 @@ def test_load_roundtrip(tmp_path, monkeypatch) -> None:
             role="tool",
             content='{"ok": true}',
             tool_call_id="tc_1",
-            name="alb_logcat",
+            name="dhands_logcat",
         )
     )
 
@@ -84,7 +84,7 @@ def test_load_roundtrip(tmp_path, monkeypatch) -> None:
     assert len(msgs) == 3
     assert msgs[0].role == "user" and msgs[0].content == "抓日志"
     assert msgs[1].role == "assistant"
-    assert msgs[1].tool_calls[0].name == "alb_logcat"
+    assert msgs[1].tool_calls[0].name == "dhands_logcat"
     assert msgs[1].tool_calls[0].arguments == {"duration": 30}
     assert msgs[2].role == "tool"
     assert msgs[2].tool_call_id == "tc_1"

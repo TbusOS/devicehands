@@ -75,7 +75,7 @@ async def test_chat_injects_tools() -> None:
 
     b = OllamaBackend(transport=_mock_transport(handler))
     tool = ToolSpec(
-        name="alb_logcat",
+        name="dhands_logcat",
         description="collect logcat",
         parameters={"type": "object", "properties": {"duration": {"type": "integer"}}},
     )
@@ -85,7 +85,7 @@ async def test_chat_injects_tools() -> None:
         {
             "type": "function",
             "function": {
-                "name": "alb_logcat",
+                "name": "dhands_logcat",
                 "description": "collect logcat",
                 "parameters": {
                     "type": "object",
@@ -109,7 +109,7 @@ async def test_chat_parses_tool_calls() -> None:
                     "tool_calls": [
                         {
                             "function": {
-                                "name": "alb_logcat",
+                                "name": "dhands_logcat",
                                 "arguments": {"duration": 30, "filter": "*:E"},
                             }
                         }
@@ -126,7 +126,7 @@ async def test_chat_parses_tool_calls() -> None:
     assert resp.finish_reason == "tool_calls"
     assert len(resp.tool_calls) == 1
     tc = resp.tool_calls[0]
-    assert tc.name == "alb_logcat"
+    assert tc.name == "dhands_logcat"
     assert tc.arguments == {"duration": 30, "filter": "*:E"}
     assert tc.id.startswith("tc_")  # synthesised ID
 
@@ -144,7 +144,7 @@ async def test_chat_tool_call_arguments_string_parsed_as_json() -> None:
                     "role": "assistant",
                     "content": "",
                     "tool_calls": [
-                        {"function": {"name": "alb_reboot", "arguments": '{"mode":"normal"}'}}
+                        {"function": {"name": "dhands_reboot", "arguments": '{"mode":"normal"}'}}
                     ],
                 },
                 "done": True,
@@ -198,22 +198,22 @@ async def test_chat_serialises_assistant_tool_calls_in_history() -> None:
         Message(
             role="assistant",
             content="",
-            tool_calls=[ToolCall(id="tc_1", name="alb_logcat", arguments={"duration": 30})],
+            tool_calls=[ToolCall(id="tc_1", name="dhands_logcat", arguments={"duration": 30})],
         ),
         Message(
             role="tool",
             content='{"ok": true, "lines": 42}',
             tool_call_id="tc_1",
-            name="alb_logcat",
+            name="dhands_logcat",
         ),
     ]
     await b.chat(history)
     wire = captured["body"]["messages"]
     assert wire[1]["tool_calls"] == [
-        {"function": {"name": "alb_logcat", "arguments": {"duration": 30}}}
+        {"function": {"name": "dhands_logcat", "arguments": {"duration": 30}}}
     ]
     assert wire[2]["role"] == "tool"
-    assert wire[2]["name"] == "alb_logcat"
+    assert wire[2]["name"] == "dhands_logcat"
 
 
 # ─── Error paths ─────────────────────────────────────────────────────
@@ -392,7 +392,7 @@ async def test_stream_tool_call_buffered_until_done() -> None:
                     "content": "",
                     "tool_calls": [
                         {
-                            "function": {"name": "alb_logcat", "arguments": {"lines": 50}}
+                            "function": {"name": "dhands_logcat", "arguments": {"lines": 50}}
                         }
                     ],
                 },
@@ -407,7 +407,7 @@ async def test_stream_tool_call_buffered_until_done() -> None:
     events = []
     async for ev in b.stream(
         [Message(role="user", content="grab log")],
-        tools=[ToolSpec(name="alb_logcat", description="x", parameters={"type": "object"})],
+        tools=[ToolSpec(name="dhands_logcat", description="x", parameters={"type": "object"})],
     ):
         events.append(ev)
 
@@ -416,7 +416,7 @@ async def test_stream_tool_call_buffered_until_done() -> None:
     assert done["finish_reason"] == "tool_calls"
     assert len(done["tool_calls"]) == 1
     tc = done["tool_calls"][0]
-    assert tc["name"] == "alb_logcat"
+    assert tc["name"] == "dhands_logcat"
     assert tc["arguments"] == {"lines": 50}
 
 
@@ -564,7 +564,7 @@ async def test_stream_keeps_tool_calls_sent_before_the_done_chunk() -> None:
                     "model": "m",
                     "message": {
                         "content": "",
-                        "tool_calls": [{"id": "call_1", "function": {"index": 0, "name": "alb_shell", "arguments": {"cmd": "sleep 45"}}}],
+                        "tool_calls": [{"id": "call_1", "function": {"index": 0, "name": "dhands_shell", "arguments": {"cmd": "sleep 45"}}}],
                     },
                     "done": False,
                 },
@@ -575,13 +575,13 @@ async def test_stream_keeps_tool_calls_sent_before_the_done_chunk() -> None:
     b = OllamaBackend(transport=_mock_transport(handler))
     events = [ev async for ev in b.stream([Message(role="user", content="run it")])]
     done = next(ev for ev in events if ev["type"] == "done")
-    assert [(t["name"], t["arguments"]) for t in done["tool_calls"]] == [("alb_shell", {"cmd": "sleep 45"})]
+    assert [(t["name"], t["arguments"]) for t in done["tool_calls"]] == [("dhands_shell", {"cmd": "sleep 45"})]
     assert done["finish_reason"] == "tool_calls"
 
 
 @pytest.mark.asyncio
 async def test_stream_does_not_double_tool_calls_repeated_on_done() -> None:
-    call = {"function": {"name": "alb_devices", "arguments": {}}}  # no id from the server
+    call = {"function": {"name": "dhands_devices", "arguments": {}}}  # no id from the server
 
     def handler(req: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -595,7 +595,7 @@ async def test_stream_does_not_double_tool_calls_repeated_on_done() -> None:
     b = OllamaBackend(transport=_mock_transport(handler))
     events = [ev async for ev in b.stream([Message(role="user", content="list")])]
     done = next(ev for ev in events if ev["type"] == "done")
-    assert [t["name"] for t in done["tool_calls"]] == ["alb_devices"]
+    assert [t["name"] for t in done["tool_calls"]] == ["dhands_devices"]
 
 
 def test_timeout_default_and_environment(monkeypatch: pytest.MonkeyPatch) -> None:

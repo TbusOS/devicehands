@@ -1,8 +1,8 @@
 """docs/llm-integration.md must name exactly the MCP tools dhands-mcp registers.
 
 The tool table in that doc drifted from the code once already: it listed 22
-of 36 tools and two names that never existed (``alb_sleep_wake``,
-``alb_tombstone``). An LLM or a person copying a name from the doc gets
+of 36 tools and two names that never existed (``dhands_sleep_wake``,
+``dhands_tombstone``). An LLM or a person copying a name from the doc gets
 "unknown tool", and nothing in the build noticed. This test checks both
 directions against the live registration, so adding, renaming or removing a
 tool without touching the doc fails here.
@@ -21,7 +21,7 @@ pytest.importorskip("mcp", reason="mcp SDK not installed")
 DOC = Path(__file__).resolve().parent.parent / "docs" / "llm-integration.md"
 
 # Anything in the doc shaped like a tool name is checked against the server.
-_TOOL_LIKE = re.compile(r"\balb_[a-z_]+\b")
+_TOOL_LIKE = re.compile(r"\bdhands_[a-z_]+\b")
 
 # Doc words that look like tool names but are not tools. Each entry needs a
 # reason; keep it empty unless the doc really has to mention such a word.

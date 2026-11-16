@@ -119,7 +119,7 @@ async def logcat_stream_ws(ws: WebSocket) -> None:
     buffers, buffers_err = _parse_buffers(config.get("buffers"))
 
     # Build a filter spec from `tags` if provided and `filter` wasn't —
-    # mirrors alb_logcat MCP tool ergonomics.
+    # mirrors dhands_logcat MCP tool ergonomics.
     if not filter_spec and isinstance(tags, list) and tags:
         filter_spec = " ".join([f"{t}:V" for t in tags] + ["*:S"])
 

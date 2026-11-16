@@ -8,7 +8,7 @@ the markers stays hand-written.
 
 The block also lists codes that the code returns but never registered
 (found by scanning ``src/devicehands``, see :func:`scan_returned_codes`). Such a
-code reaches the caller with no catalog entry, so ``alb_describe_errors``
+code reaches the caller with no catalog entry, so ``dhands_describe_errors``
 cannot explain it.
 
 Run:
@@ -332,7 +332,7 @@ def render_block(specs: Mapping[str, ErrorSpec], returned: Mapping[str, set[str]
         "",
         f"登记在 `ERROR_CODES` 里的码共 {len(specs)} 个,按 `category` 分 {len(used)} 组,"
         "每组按码名字母排序。message 和 suggestion 是目录里的默认文字,原样照抄英文:"
-        "`alb_describe_errors` 返回的就是这两句。",
+        "`dhands_describe_errors` 返回的就是这两句。",
         "",
         f"另有 {len(unregistered)} 个码代码里会返回、但没有登记,列在本节最后。",
         "",
@@ -364,7 +364,7 @@ def render_block(specs: Mapping[str, ErrorSpec], returned: Mapping[str, set[str]
         f"### 代码里会返回、但没有登记的码({len(unregistered)} 个)",
         "",
         "这些码会出现在 `error.code` 里,但 `ERROR_CODES` 没有它们的条目,"
-        "`alb_describe_errors` 查不到;message 和 suggestion 只有出错位置当场填写的那一份。"
+        "`dhands_describe_errors` 查不到;message 和 suggestion 只有出错位置当场填写的那一份。"
         "其中几个码的中文说明见「部分错误码的补充说明」一节。"
         "返回位置由脚本扫描 `src/devicehands` 得出,扫描规则见 `scripts/gen_errors_doc.py` 的 `_Scanner`。",
         "",

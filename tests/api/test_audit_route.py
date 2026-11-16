@@ -80,7 +80,7 @@ def test_chat_and_terminal_events_coexist(client, workspace) -> None:
             {"ts": ts, "session_id": "chat-1", "source": "chat",
              "kind": "user", "summary": "find battery drain"},
             {"ts": ts, "session_id": "chat-1", "source": "chat",
-             "kind": "tool_call_start", "summary": "tool_calls: alb_top"},
+             "kind": "tool_call_start", "summary": "tool_calls: dhands_top"},
             {"ts": ts, "session_id": "term-1", "source": "terminal",
              "kind": "command", "summary": "$ uptime"},
         ],
@@ -324,7 +324,7 @@ def test_ws_stream_publishes_live_events_to_subscriber(client, workspace) -> Non
                 session_id="live-1",
                 source="chat",
                 kind="tool_call_start",
-                summary="tool_call: alb_top",
+                summary="tool_call: dhands_top",
             ))
 
         ws.portal.call(_emit)
@@ -332,7 +332,7 @@ def test_ws_stream_publishes_live_events_to_subscriber(client, workspace) -> Non
         msg = ws.receive_json()
         assert msg["type"] == "event"
         assert msg["data"]["session_id"] == "live-1"
-        assert msg["data"]["summary"] == "tool_call: alb_top"
+        assert msg["data"]["summary"] == "tool_call: dhands_top"
 
 
 def test_ws_stream_filters_metric_kinds_by_default(client, workspace) -> None:

@@ -10,7 +10,7 @@ Used by:
   - `dhands metrics sample`    one-shot CLI
   - `dhands metrics watch`     text-mode tail
   - WS /metrics/stream       live feed for the Web UI Charts panel
-  - `alb_metrics_snapshot`   MCP tool for agent triage
+  - `dhands_metrics_snapshot`   MCP tool for agent triage
 """
 
 from __future__ import annotations

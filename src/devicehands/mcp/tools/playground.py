@@ -1,4 +1,4 @@
-"""MCP tool: alb_playground_chat — direct LLM chat with full sampling control."""
+"""MCP tool: dhands_playground_chat — direct LLM chat with full sampling control."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from devicehands.agent.playground import PlaygroundParams, playground_chat
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_playground_chat(
+    async def dhands_playground_chat(
         message: str,
         backend: str = "ollama",
         model: str | None = None,

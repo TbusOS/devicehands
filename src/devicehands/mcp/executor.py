@@ -34,7 +34,7 @@ from devicehands.agent.loop import ToolExecutor
 # model to call another model (raw playground chat) is never what a person
 # in the web assistant wants, and its description alone was 1.6k characters
 # of every request (2026-11-03).
-_AGENT_SKIP = frozenset({"alb_playground_chat"})
+_AGENT_SKIP = frozenset({"dhands_playground_chat"})
 
 
 async def make_agent_tools() -> tuple[list[ToolSpec], ToolExecutor]:
@@ -94,11 +94,11 @@ def drop_blank_device(args: dict[str, Any]) -> dict[str, Any]:
     board, exactly as when the model leaves ``device`` out.
 
     Seen 2026-11-05: asked for the battery level, Ling-3.0-tiny called
-    ``alb_battery(device="")``. An empty string is not a serial, so it failed
+    ``dhands_battery(device="")``. An empty string is not a serial, so it failed
     the serial check (TOOL_CALL_FAILED) and the model spent two more calls
     finding the serial. Only a blank string is dropped, so a tool still sees
-    ``device`` as missing (None) and keeps what it does then — alb_reboot
-    retries over the serial console, alb_log_search searches every board.
+    ``device`` as missing (None) and keeps what it does then — dhands_reboot
+    retries over the serial console, dhands_log_search searches every board.
     With two boards and no ``device``, adb refuses ("more than one
     device/emulator") rather than picking one.
     """
@@ -114,7 +114,7 @@ def coerce_string_args(schema: dict[str, Any], args: dict[str, Any]) -> dict[str
     Seen 2026-11-03: the bench board's serial is all digits (an 8-digit
     number), and Ling-3.0-tiny wrote ``"device": <that number>`` as a JSON
     number.  Tool argument validation does not turn int into str, so every
-    alb_shell call failed and the model retried until AGENT_MAX_TURNS_EXCEEDED.
+    dhands_shell call failed and the model retried until AGENT_MAX_TURNS_EXCEEDED.
     Only plain numbers are changed, and only for a parameter whose type
     allows a string but no number; everything else is passed through.
     """

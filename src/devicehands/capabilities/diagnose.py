@@ -83,7 +83,7 @@ async def bugreport(
 ) -> Result[BugreportResult]:
     """Trigger `bugreportz` and pull the zip into workspace (or `output`).
 
-    LLM: takes 60-180s. Returns only the zip path; use alb_log_search on
+    LLM: takes 60-180s. Returns only the zip path; use dhands_log_search on
     the extracted main.txt for analysis.
 
     Args:

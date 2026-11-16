@@ -1,4 +1,4 @@
-"""MCP tools: alb_info (unified panel query)."""
+"""MCP tools: dhands_info (unified panel query)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_info(
+    async def dhands_info(
         panel: str = "all",
         device: str | None = None,
     ) -> dict[str, Any]:

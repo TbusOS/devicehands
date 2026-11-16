@@ -1,4 +1,4 @@
-"""MCP tools: alb_ui_screenshot, alb_ui_dump.
+"""MCP tools: dhands_ui_screenshot, dhands_ui_dump.
 
 Both are read-only diagnostics — dhands does not tap / swipe / type. See
 docs/capabilities/ui.md for the rationale.
@@ -14,7 +14,7 @@ from devicehands.mcp.transport_factory import build_transport
 
 def register(mcp) -> None:  # noqa: ANN001
     @mcp.tool()
-    async def alb_ui_screenshot(
+    async def dhands_ui_screenshot(
         device: str | None = None,
         output: str | None = None,
         include_thumbnail: bool = False,
@@ -45,7 +45,7 @@ def register(mcp) -> None:  # noqa: ANN001
         return r.to_dict()
 
     @mcp.tool()
-    async def alb_ui_dump(
+    async def dhands_ui_dump(
         device: str | None = None,
         output: str | None = None,
     ) -> dict[str, Any]:
@@ -54,7 +54,7 @@ def register(mcp) -> None:  # noqa: ANN001
         When to use:
             - Find a specific control by text / resource-id / class
             - Understand how the current screen is laid out
-            - Combine with alb_ui_screenshot for visual + structural view
+            - Combine with dhands_ui_screenshot for visual + structural view
 
         Returns the full view tree (UINode with class / resource-id / text /
         bounds / clickable / enabled / focused / selected / package / children),
