@@ -14,9 +14,9 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.remote import bench_board, forwarder
-from alb.remote.bench_board import BoardError, load_boards, serial_target, use_board
-from alb.remote.flash import get_flash_service, reset_flash_service
+from devicehands.remote import bench_board, forwarder
+from devicehands.remote.bench_board import BoardError, load_boards, serial_target, use_board
+from devicehands.remote.flash import get_flash_service, reset_flash_service
 
 TABLE = """
 [boards.board-a]
@@ -269,7 +269,7 @@ async def test_the_status_shows_what_the_forwarder_asks_for(table):
 @pytest.fixture
 def client(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    from alb.api.server import create_app
+    from devicehands.api.server import create_app
 
     with TestClient(create_app()) as c:
         yield c

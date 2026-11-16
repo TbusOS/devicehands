@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 import pytest
 
-from alb.transport.serial import (
+from devicehands.transport.serial import (
     SerialTransport,
     _extract_between_markers,
     _read_until_any,
@@ -179,7 +179,7 @@ async def test_stream_read_yields_marker_when_endpoint_dead() -> None:
     async for chunk in t.stream_read("uart"):
         collected += chunk
     # Should have yielded a single diagnostic marker, not raised.
-    assert b"[alb serial open failed" in collected
+    assert b"[dhands serial open failed" in collected
 
 
 # ─── Unsupported operations ────────────────────────────────────────
@@ -786,7 +786,7 @@ async def test_detect_state_reports_connect_error() -> None:
 @pytest.mark.asyncio
 async def test_custom_patterns_make_handshake_recognize_board_prompt() -> None:
     """Custom prompt regex lets a non-standard shell be classified as SHELL_ROOT."""
-    from alb.transport.serial_state import PatternSet
+    from devicehands.transport.serial_state import PatternSet
 
     async def handler(reader, writer):  # noqa: ANN001
         await reader.readline()
@@ -1013,7 +1013,7 @@ def test_classify_connect_error_separates_busy_from_missing() -> None:
     they need different fixes."""
     from serial import SerialException  # type: ignore[import-not-found]
 
-    from alb.transport.serial import _classify_connect_error
+    from devicehands.transport.serial import _classify_connect_error
 
     win = SerialException("could not open port COM4: Access is denied.")
     lnx = SerialException("Could not exclusively lock port /dev/ttyUSB0: [Errno 11]")
@@ -1067,7 +1067,7 @@ async def test_silent_but_open_endpoint_is_still_idle_not_refused() -> None:
 def test_classified_bytes_beat_a_hang_up() -> None:
     """What we read outranks how the socket ended: a real prompt (or a panic)
     must not be overwritten by LINK_REFUSED just because the peer then closed."""
-    from alb.transport.serial_state import SerialState, SerialStateMachine
+    from devicehands.transport.serial_state import SerialState, SerialStateMachine
 
     sm = SerialStateMachine()
     sm.feed(b"\nconsole:/ $ ")
@@ -1116,7 +1116,7 @@ def test_the_agents_reason_is_sorted_by_what_fixes_it(reason: str, code: str) ->
     """Windows words it in the system language; the Win32 error number in the
     last slot (5 access denied, 2 not found) is what does not change. Linux's
     "[Errno 13] Permission denied" is a missing group, not a busy port."""
-    from alb.transport.serial import classify_open_failure
+    from devicehands.transport.serial import classify_open_failure
 
     assert classify_open_failure(reason) == code
 
@@ -1124,7 +1124,7 @@ def test_the_agents_reason_is_sorted_by_what_fixes_it(reason: str, code: str) ->
 def test_a_local_open_on_a_chinese_windows_is_busy_too() -> None:
     from serial import SerialException  # type: ignore[import-not-found]
 
-    from alb.transport.serial import _classify_connect_error
+    from devicehands.transport.serial import _classify_connect_error
 
     exc = SerialException("could not open port 'COM27': PermissionError(13, '拒绝访问。', None, 5)")
     assert _classify_connect_error(exc) == "SERIAL_PORT_BUSY"
@@ -1140,7 +1140,7 @@ async def test_a_hang_up_carries_the_bench_agents_reason(monkeypatch) -> None:
         asked.append((host, port))
         return WIN_ZH_BUSY
 
-    monkeypatch.setattr("alb.transport.serial.hub_serial_open_failure", hub)
+    monkeypatch.setattr("devicehands.transport.serial.hub_serial_open_failure", hub)
 
     async def handler(reader, writer) -> None:
         writer.close()
@@ -1156,7 +1156,7 @@ async def test_a_hang_up_carries_the_bench_agents_reason(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_a_hang_up_without_a_hub_reason_stays_a_link_refusal(monkeypatch) -> None:
-    monkeypatch.setattr("alb.transport.serial.hub_serial_open_failure", lambda *a, **k: None)
+    monkeypatch.setattr("devicehands.transport.serial.hub_serial_open_failure", lambda *a, **k: None)
 
     async def handler(reader, writer) -> None:
         writer.close()
@@ -1171,7 +1171,7 @@ async def test_a_hang_up_without_a_hub_reason_stays_a_link_refusal(monkeypatch) 
 @pytest.mark.asyncio
 async def test_a_send_that_was_dropped_carries_the_bench_agents_reason(monkeypatch) -> None:
     monkeypatch.setattr(
-        "alb.transport.serial.hub_serial_open_failure", lambda *a, **k: WIN_ZH_BUSY
+        "devicehands.transport.serial.hub_serial_open_failure", lambda *a, **k: WIN_ZH_BUSY
     )
 
     async def handler(reader, writer) -> None:

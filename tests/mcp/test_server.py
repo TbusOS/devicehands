@@ -12,7 +12,7 @@ mcp_pkg = pytest.importorskip("mcp", reason="mcp SDK not installed")
 
 
 def test_create_server_registers_tools() -> None:
-    from alb.mcp.server import create_server
+    from devicehands.mcp.server import create_server
 
     server = create_server()
     assert server is not None
@@ -30,18 +30,18 @@ def test_a_wrong_mcp_major_version_is_not_reported_as_missing(monkeypatch) -> No
     in a `uv tool` environment that uv sync never touches."""
     import importlib.metadata
 
-    from alb.mcp import server
+    from devicehands.mcp import server
 
     monkeypatch.setattr(importlib.metadata, "version", lambda name: "2.1.1")
     msg = server._import_failure(ImportError("No module named 'mcp.server.fastmcp'"))
-    assert "mcp 2.1.1 is installed, but alb needs mcp 1.x" in msg
+    assert "mcp 2.1.1 is installed, but dhands needs mcp 1.x" in msg
     assert "not installed" not in msg
 
 
 def test_a_missing_mcp_is_reported_as_missing(monkeypatch) -> None:
     import importlib.metadata
 
-    from alb.mcp import server
+    from devicehands.mcp import server
 
     def _missing(name: str) -> str:
         raise importlib.metadata.PackageNotFoundError(name)

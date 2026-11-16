@@ -16,10 +16,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities import timeline as tl
-from alb.capabilities.timeline import capture_timeline, format_line, iter_timeline
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.capabilities import timeline as tl
+from devicehands.capabilities.timeline import capture_timeline, format_line, iter_timeline
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 
 # ─── helpers ───────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ async def test_source_raising_is_noted_and_others_continue(tmp_path: Path) -> No
     recs = _records(tmp_path)
     notes = [x for x in recs if x.get("note")]
     assert len(notes) == 1 and notes[0]["src"] == "dmesg"
-    assert notes[0]["line"].startswith("[alb] dmesg unavailable:")
+    assert notes[0]["line"].startswith("[dhands] dmesg unavailable:")
     assert "Operation not permitted" in notes[0]["line"]
     assert [x["line"] for x in recs if not x.get("note")] == ["L1", "U1", "L2"]
     assert r.data is not None
@@ -224,9 +224,9 @@ async def test_no_readable_source_is_a_failure_with_the_notes(tmp_path: Path) ->
     assert r.error.details["duration_captured_ms"] < 2000
     assert "serial transport not configured" in r.error.message
     notes = {x["src"]: x["line"] for x in _records(tmp_path) if x.get("note")}
-    assert notes["uart"] == "[alb] uart unavailable: serial transport not configured"
-    assert notes["logcat"] == "[alb] logcat unavailable: no adb/ssh transport"
-    assert notes["dmesg"] == "[alb] dmesg unavailable: no adb/ssh transport"
+    assert notes["uart"] == "[dhands] uart unavailable: serial transport not configured"
+    assert notes["logcat"] == "[dhands] logcat unavailable: no adb/ssh transport"
+    assert notes["dmesg"] == "[dhands] dmesg unavailable: no adb/ssh transport"
     assert not (tmp_path / "uart.log").exists()  # no source, no raw file
     assert r.artifacts == [tmp_path / "timeline.jsonl"]  # the notes are the evidence
 
@@ -239,7 +239,7 @@ async def test_one_missing_source_does_not_fail_the_rest(tmp_path: Path) -> None
     )
     assert r.ok and r.data is not None
     assert r.data.lines == {"logcat": 1, "uart": 0}
-    assert "[alb] uart unavailable: serial transport not configured" in r.data.notes
+    assert "[dhands] uart unavailable: serial transport not configured" in r.data.notes
 
 
 async def test_a_quiet_but_readable_source_is_still_ok(tmp_path: Path) -> None:
@@ -253,16 +253,16 @@ async def test_a_quiet_but_readable_source_is_still_ok(tmp_path: Path) -> None:
 async def test_serial_open_failure_marker_is_one_note_and_not_in_raw(tmp_path: Path) -> None:
     """SerialTransport.stream_read yields a synthetic marker when the port
     cannot be opened, and the reconnect loop repeats it every 0.5 s. One
-    note, not 120 of them; and it is alb's text, so it must not be in
+    note, not 120 of them; and it is dhands's text, so it must not be in
     uart.log as if the board had printed it."""
-    marker = b"[alb serial open failed: connection refused]\n"
+    marker = b"[dhands serial open failed: connection refused]\n"
     streams = {"uart": _timed((0.0, marker), (0.05, marker), (0.05, marker), (0.05, b"U-Boot\n"))}
     r = await capture_timeline(0.4, sources={"uart"}, streams=streams, output=tmp_path)
     assert r.ok
     recs = _records(tmp_path)
     assert [x["line"] for x in recs] == [
-        "[alb] uart unavailable: [alb serial open failed: connection refused]",
-        "[alb] uart link up",
+        "[dhands] uart unavailable: [dhands serial open failed: connection refused]",
+        "[dhands] uart link up",
         "U-Boot",
     ]
     assert (tmp_path / "uart.log").read_bytes() == b"U-Boot\n"
@@ -386,7 +386,7 @@ async def test_logcat_starts_from_its_last_line_and_leaves_it_off_the_timeline(
     assert t.calls == [("logcat", {"filter": None, "tail": 1})]
     lines = [x["line"] for x in _records(tmp_path)]
     assert lines[0] == _DIVIDER.decode().rstrip("\n"), "logcat's own divider is not a log line"
-    assert lines[1].startswith("[alb] logcat: 1 line(s) from before the capture started")
+    assert lines[1].startswith("[dhands] logcat: 1 line(s) from before the capture started")
     assert "still in logcat.txt" in lines[1]
     assert lines[2:] == [_LIVE.decode().rstrip("\n")]
     assert r.data.lines == {"logcat": 2}
@@ -405,7 +405,7 @@ async def test_the_left_out_note_reads_before_the_first_live_line(
 ) -> None:
     """The note marks where live lines begin. Stamped when it is written, it
     is a few microseconds later than the line that arrived in the same
-    chunk, and `alb timeline show` (which sorts by time) put it after that
+    chunk, and `dhands timeline show` (which sorts by time) put it after that
     line — seen on the 10-19 bench."""
     t = _adb_mock({src: lines}, dmesg_count=count or "0\n")
     await capture_timeline(0.3, sources={src}, transport=t, output=tmp_path)
@@ -500,7 +500,7 @@ async def test_dmesg_old_lines_are_told_by_their_printk_time(tmp_path: Path) -> 
     r = await capture_timeline(0.4, sources={"dmesg"}, transport=t, output=tmp_path)
     assert r.ok
     lines = [x["line"] for x in _records(tmp_path)]
-    assert lines[0].startswith("[alb] dmesg: 2 line(s) from before the capture started")
+    assert lines[0].startswith("[dhands] dmesg: 2 line(s) from before the capture started")
     assert lines[1:] == ["[  900.000000] new one", "[  901.000000] new two"]
     assert (tmp_path / "dmesg.txt").read_bytes() == b"".join(dump + new)
 
@@ -531,7 +531,7 @@ async def test_dmesg_lines_already_in_the_buffer_stay_out_of_the_timeline(
     r = await capture_timeline(0.4, sources={"dmesg"}, transport=t, output=tmp_path)
     assert r.ok
     lines = [x["line"] for x in _records(tmp_path)]
-    assert lines[0].startswith("[alb] dmesg: 3 line(s) from before the capture started")
+    assert lines[0].startswith("[dhands] dmesg: 3 line(s) from before the capture started")
     assert "still in dmesg.txt" in lines[0]
     assert lines[1:] == ["[  900.000000] new one", "[  901.000000] new two"]
     assert r.data.lines == {"dmesg": 2}
@@ -703,7 +703,7 @@ async def test_an_empty_uart_from_a_port_never_opened_is_noted(monkeypatch, tmp_
     """Same gap as capture: the hub hangs up on a COM the agent could not
     open, and an empty uart source would read as a silent board."""
     reason = "could not open port 'COM27': PermissionError(13, '拒绝访问。', None, 5)"
-    monkeypatch.setattr("alb.capabilities.timeline.hub_serial_open_failure", lambda *a, **k: reason)
+    monkeypatch.setattr("devicehands.capabilities.timeline.hub_serial_open_failure", lambda *a, **k: reason)
     serial = AsyncMock()
     serial.name = "serial"
     serial.tcp_host, serial.tcp_port = "127.0.0.1", 9001
@@ -718,7 +718,7 @@ async def test_an_empty_uart_from_a_port_never_opened_is_noted(monkeypatch, tmp_
 
 async def test_a_uart_that_spoke_is_not_second_guessed(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "alb.capabilities.timeline.hub_serial_open_failure", lambda *a, **k: "anything"
+        "devicehands.capabilities.timeline.hub_serial_open_failure", lambda *a, **k: "anything"
     )
     serial = AsyncMock()
     serial.name = "serial"

@@ -73,7 +73,7 @@ jobs:
         # Ubuntu must pass.
         #
         # --continue-on-collection-errors: a test file that cannot be imported
-        # (on Windows, every file that imports alb.api.server until P1) is
+        # (on Windows, every file that imports devicehands.api.server until P1) is
         # reported as an error, and the remaining tests still run. The exit
         # code stays non-zero, so Ubuntu still fails on a collection error.
         continue-on-error: ${{ matrix.os != 'ubuntu-latest' }}

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from alb.transport.serial_learn import (
+from devicehands.transport.serial_learn import (
     LearnedPrompt,
     _generalise_to_regex,
     _longest_common_suffix,

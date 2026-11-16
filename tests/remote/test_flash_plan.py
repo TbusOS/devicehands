@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.remote.flash_plan import (
+from devicehands.remote.flash_plan import (
     AgentView,
     PlanRow,
     apply_skips,
@@ -22,7 +22,7 @@ from alb.remote.flash_plan import (
     fingerprint,
     parse_manifest,
 )
-from alb.remote.protocol import LEGACY_FLASH_MAX_BYTES
+from devicehands.remote.protocol import LEGACY_FLASH_MAX_BYTES
 from tests.remote.bench_tables import new_agent_ops
 
 MANIFEST = """\

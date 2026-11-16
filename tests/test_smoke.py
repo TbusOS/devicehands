@@ -4,14 +4,14 @@ from __future__ import annotations
 
 
 def test_package_imports() -> None:
-    import alb
+    import devicehands
 
-    assert alb.__version__
-    assert alb.__license__ == "Apache-2.0"
+    assert devicehands.__version__
+    assert devicehands.__license__ == "Apache-2.0"
 
 
 def test_registry_non_empty() -> None:
-    from alb.infra.registry import CAPABILITIES, TRANSPORTS
+    from devicehands.infra.registry import CAPABILITIES, TRANSPORTS
 
     assert len(TRANSPORTS) > 0
     assert len(CAPABILITIES) > 0
@@ -25,7 +25,7 @@ def test_registry_non_empty() -> None:
 
 
 def test_error_codes_registered() -> None:
-    from alb.infra.errors import ERROR_CODES, lookup
+    from devicehands.infra.errors import ERROR_CODES, lookup
 
     assert "TRANSPORT_NOT_CONFIGURED" in ERROR_CODES
     assert "PERMISSION_DENIED" in ERROR_CODES
@@ -35,7 +35,7 @@ def test_error_codes_registered() -> None:
 
 
 def test_result_helpers() -> None:
-    from alb.infra.result import fail, ok
+    from devicehands.infra.result import fail, ok
 
     r = ok(data={"x": 1})
     assert r.ok
@@ -51,7 +51,7 @@ def test_result_helpers() -> None:
 async def test_permission_board_commands_allowed() -> None:
     """2026-10-23: board-side commands are not restricted — the ones the
     old blocklist denied must now come back allow."""
-    from alb.infra.permissions import default_check
+    from devicehands.infra.permissions import default_check
 
     for cmd in (
         "rm -rf /",
@@ -67,7 +67,7 @@ async def test_permission_board_commands_allowed() -> None:
 
 
 def test_workspace_path_structure() -> None:
-    from alb.infra.workspace import iso_timestamp, workspace_path
+    from devicehands.infra.workspace import iso_timestamp, workspace_path
 
     p = workspace_path("logs", f"{iso_timestamp()}-test.txt", device="abc")
     assert p.parent.name == "logs"

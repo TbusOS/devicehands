@@ -46,8 +46,8 @@ IMPORT_TIMEOUT_S = 120
 # system is one of: "linux", "macos", "windows" (see current_system()).
 # Phases are the ones in docs/devicehands-design.md section 9.
 KNOWN_FAILURES: dict[tuple[str, str], tuple[str, str]] = {
-    ("windows", "alb.api.server"): (
-        "alb.api.server -> alb.api.terminal_route -> alb.transport.interactive, "
+    ("windows", "devicehands.api.server"): (
+        "devicehands.api.server -> devicehands.api.terminal_route -> devicehands.transport.interactive, "
         "which imports fcntl and termios at module level (POSIX only)",
         "P1",
     ),

@@ -1,4 +1,4 @@
-"""`alb config` CLI surface.
+"""`dhands config` CLI surface.
 
 The JSON branch has its own test because that is where it broke: the first
 version called `print_result(result)` without the context argument, which only
@@ -12,8 +12,8 @@ import json
 
 from typer.testing import CliRunner
 
-from alb.cli.main import app
-from alb.infra.result import fail, ok
+from devicehands.cli.main import app
+from devicehands.infra.result import fail, ok
 
 runner = CliRunner()
 
@@ -33,11 +33,11 @@ _READ = {
 
 
 def _patch(monkeypatch, *, scan=None, read=None):
-    monkeypatch.setattr("alb.cli.config_cli.get_transport", lambda _ctx: object())
+    monkeypatch.setattr("devicehands.cli.config_cli.get_transport", lambda _ctx: object())
     if scan is not None:
-        monkeypatch.setattr("alb.capabilities.board_config.scan", scan)
+        monkeypatch.setattr("devicehands.capabilities.board_config.scan", scan)
     if read is not None:
-        monkeypatch.setattr("alb.capabilities.board_config.read", read)
+        monkeypatch.setattr("devicehands.capabilities.board_config.read", read)
 
 
 def test_scan_table(monkeypatch):

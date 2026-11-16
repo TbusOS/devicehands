@@ -12,9 +12,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.capabilities.metrics import shutdown_all_streamers
-from alb.transport.base import ShellResult
+from devicehands.api.server import create_app
+from devicehands.capabilities.metrics import shutdown_all_streamers
+from devicehands.transport.base import ShellResult
 
 
 _SAMPLE_STDOUT = (
@@ -50,7 +50,7 @@ def client(monkeypatch, tmp_path):
     # Replace the transport factory's build_transport so the WS route gets
     # our fake instead of trying to talk to a real device.
     monkeypatch.setattr(
-        "alb.api.metrics_route.build_transport",
+        "devicehands.api.metrics_route.build_transport",
         lambda **kwargs: _FakeTransport(),
     )
     app = create_app()

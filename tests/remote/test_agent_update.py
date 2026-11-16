@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.remote import agent_update as hub_side
+from devicehands.remote import agent_update as hub_side
 
 _AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
 

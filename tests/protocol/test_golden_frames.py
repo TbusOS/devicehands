@@ -36,8 +36,8 @@ referencing = pytest.importorskip("referencing")
 from referencing import Registry, Resource  # noqa: E402
 from referencing.jsonschema import DRAFT202012  # noqa: E402
 
-from alb.remote import bench_ops, jobframe  # noqa: E402
-from alb.remote import protocol as P  # noqa: E402
+from devicehands.remote import bench_ops, jobframe  # noqa: E402
+from devicehands.remote import protocol as P  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[2]
 _V1 = _REPO / "protocol" / "v1"

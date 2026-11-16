@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.workspace import InvalidDeviceSerial
-from alb.transport.factory import build_transport
+from devicehands.infra.workspace import InvalidDeviceSerial
+from devicehands.transport.factory import build_transport
 
 
 @pytest.mark.parametrize(
@@ -50,7 +50,7 @@ def test_build_transport_allows_wellformed_serial(good: str) -> None:
 
 # ─── serial_fallback_for (2026-10-23) ──────────────────────────────
 def test_serial_fallback_only_when_adb_was_the_default(monkeypatch) -> None:
-    from alb.transport import factory
+    from devicehands.transport import factory
 
     monkeypatch.delenv("ALB_TRANSPORT", raising=False)
     monkeypatch.setattr(
@@ -71,7 +71,7 @@ def test_serial_fallback_only_when_adb_was_the_default(monkeypatch) -> None:
 
 
 def test_serial_fallback_off_when_default_is_not_adb(monkeypatch) -> None:
-    from alb.transport import factory
+    from devicehands.transport import factory
 
     monkeypatch.delenv("ALB_TRANSPORT", raising=False)
     monkeypatch.setattr(
@@ -97,8 +97,8 @@ def test_adb_path_env_runs_that_adb_with_pinned_path(
     ALB_ADB_PATH. Before the fix this was ADB_BINARY_NOT_FOUND."""
     import asyncio
 
-    from alb.transport import factory
-    from alb.transport.adb import AdbTransport
+    from devicehands.transport import factory
+    from devicehands.transport.adb import AdbTransport
 
     adb = _fake_adb(tmp_path)
     monkeypatch.setenv("PATH", "/usr/bin:/bin")

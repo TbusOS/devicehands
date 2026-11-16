@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from alb.mcp.executor import _slim_property, make_agent_tools
-from alb.mcp.server import create_server as _create_server
+from devicehands.mcp.executor import _slim_property, make_agent_tools
+from devicehands.mcp.server import create_server as _create_server
 
 # create_server is untyped; called through Any so mypy accepts it in typed tests
 create_server: Any = _create_server

@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import pytest
 
-from alb.capabilities import board_config as bc
-from alb.transport.base import ShellResult
+from devicehands.capabilities import board_config as bc
+from devicehands.transport.base import ShellResult
 
 # What `od -c` prints for the head of this bench's config partition.
 _OD_REAL = """0000000   M   A   I   N   _   B   O   A   R   D   =   "   V   0   3   "

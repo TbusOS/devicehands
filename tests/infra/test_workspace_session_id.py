@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.workspace import (
+from devicehands.infra.workspace import (
     InvalidDeviceSerial,
     InvalidSessionId,
     session_path,

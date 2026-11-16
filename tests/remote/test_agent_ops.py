@@ -311,8 +311,8 @@ def test_a_value_that_looks_like_a_placeholder_is_inserted_verbatim():
 
 def test_image_placeholder_takes_the_agents_path_as_one_element():
     spec = _ops()["flash"]
-    argv = spec.assemble({"partition": "boot"}, image="/tmp/alb flash/image.bin")
-    assert argv == [FB, "flash", "boot", "/tmp/alb flash/image.bin"]
+    argv = spec.assemble({"partition": "boot"}, image="/tmp/dhands flash/image.bin")
+    assert argv == [FB, "flash", "boot", "/tmp/dhands flash/image.bin"]
 
 
 @pytest.mark.parametrize(
@@ -727,7 +727,7 @@ async def test_exclusive_op_takes_the_lock(monkeypatch):
 
 class _ReplyingWs(_FakeWs):
     """A data ws that, when it carries `done`, wakes the "hub" — which opens
-    the next row at once, as run_plan does (src/alb/remote/flash.py)."""
+    the next row at once, as run_plan does (src/devicehands/remote/flash.py)."""
 
     def __init__(self, incoming: bytes, got_done: asyncio.Event) -> None:
         super().__init__(incoming)

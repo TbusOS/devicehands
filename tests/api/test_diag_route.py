@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.capabilities.diagnose import BugreportResult, PullBundleResult
-from alb.infra.result import fail, ok
-from alb.transport.base import PermissionResult
+from devicehands.api.server import create_app
+from devicehands.capabilities.diagnose import BugreportResult, PullBundleResult
+from devicehands.infra.result import fail, ok
+from devicehands.transport.base import PermissionResult
 
 
 class _StubTransport:
@@ -39,7 +39,7 @@ def workspace(monkeypatch, tmp_path) -> Path:
 @pytest.fixture
 def client(monkeypatch, stub_transport, workspace):
     monkeypatch.setattr(
-        "alb.api.diag_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.diag_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -57,7 +57,7 @@ def test_bugreport_happy_path(monkeypatch, client, workspace) -> None:
             timing_ms=12000,
         )
 
-    monkeypatch.setattr("alb.api.diag_route.diag_cap.bugreport", _br)
+    monkeypatch.setattr("devicehands.api.diag_route.diag_cap.bugreport", _br)
     r = client.post("/api/diag/bugreport?device=abc")
     assert r.status_code == 200
     body = r.json()
@@ -75,7 +75,7 @@ def test_bugreport_failure_envelope(monkeypatch, client) -> None:
             category="transport",
         )
 
-    monkeypatch.setattr("alb.api.diag_route.diag_cap.bugreport", _br)
+    monkeypatch.setattr("devicehands.api.diag_route.diag_cap.bugreport", _br)
     r = client.post("/api/diag/bugreport?device=abc")
     assert r.status_code == 200
     body = r.json()
@@ -94,7 +94,7 @@ def test_anr_pull_passes_clear_after_flag(monkeypatch, client) -> None:
             timing_ms=50,
         )
 
-    monkeypatch.setattr("alb.api.diag_route.diag_cap.anr_pull", _anr)
+    monkeypatch.setattr("devicehands.api.diag_route.diag_cap.anr_pull", _anr)
     r = client.post("/api/diag/anr?device=abc", json={"clear_after": True})
     assert r.status_code == 200
     body = r.json()
@@ -120,7 +120,7 @@ def test_tombstone_happy(monkeypatch, client) -> None:
             timing_ms=80,
         )
 
-    monkeypatch.setattr("alb.api.diag_route.diag_cap.tombstone_pull", _tomb)
+    monkeypatch.setattr("devicehands.api.diag_route.diag_cap.tombstone_pull", _tomb)
     r = client.post("/api/diag/tombstone?device=abc", json={"limit": 3})
     assert r.status_code == 200
     body = r.json()
@@ -207,7 +207,7 @@ def test_transport_init_failure_returns_envelope_b_not_503(monkeypatch, tmp_path
     def _boom(**_kw: Any):
         raise RuntimeError("adb server unreachable")
 
-    monkeypatch.setattr("alb.api.diag_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.diag_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         r = c.post("/api/diag/bugreport?device=abc")

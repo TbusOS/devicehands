@@ -1,4 +1,4 @@
-"""alb's own logger actually emits under uvicorn (ADR-057).
+"""dhands's own logger actually emits under uvicorn (ADR-057).
 
 The defect these guard: a log line that is written but discarded before
 formatting looks identical to a log line that was never added. The channel-open
@@ -11,7 +11,7 @@ import logging
 
 import pytest
 
-from alb.api.log_setup import _ROOT_LOGGER, install_alb_logging
+from devicehands.api.log_setup import _ROOT_LOGGER, install_alb_logging
 
 
 @pytest.fixture(autouse=True)
@@ -34,14 +34,14 @@ def _pristine_alb_logger():
 
 def test_info_is_dropped_before_install(_pristine_alb_logger, monkeypatch):
     """The pre-ADR-057 state, asserted so the fix cannot be quietly undone:
-    stdlib defaults leave alb.* at WARNING through root."""
+    stdlib defaults leave devicehands.* at WARNING through root."""
     monkeypatch.setattr(logging.getLogger(), "level", logging.WARNING)
-    assert not logging.getLogger("alb.remote.forwarder").isEnabledFor(logging.INFO)
+    assert not logging.getLogger("devicehands.remote.forwarder").isEnabledFor(logging.INFO)
 
 
 def test_info_survives_after_install(_pristine_alb_logger):
     install_alb_logging()
-    assert logging.getLogger("alb.remote.forwarder").isEnabledFor(logging.INFO)
+    assert logging.getLogger("devicehands.remote.forwarder").isEnabledFor(logging.INFO)
 
 
 def test_a_record_reaches_a_handler(_pristine_alb_logger):
@@ -55,7 +55,7 @@ def test_a_record_reaches_a_handler(_pristine_alb_logger):
             emitted.append(record)
 
     _pristine_alb_logger.addHandler(_Capture())
-    logging.getLogger("alb.remote.forwarder").info("tcp channel opened -> %s", "127.0.0.1:5037")
+    logging.getLogger("devicehands.remote.forwarder").info("tcp channel opened -> %s", "127.0.0.1:5037")
     assert [r.getMessage() for r in emitted] == ["tcp channel opened -> 127.0.0.1:5037"]
 
 
@@ -84,11 +84,11 @@ def test_reuses_uvicorns_handler(_pristine_alb_logger):
 def test_level_override_from_env(_pristine_alb_logger, monkeypatch):
     monkeypatch.setenv("ALB_LOG_LEVEL", "WARNING")
     install_alb_logging()
-    assert not logging.getLogger("alb.remote.forwarder").isEnabledFor(logging.INFO)
+    assert not logging.getLogger("devicehands.remote.forwarder").isEnabledFor(logging.INFO)
 
 
 def test_unknown_level_name_falls_back_to_info(_pristine_alb_logger, monkeypatch):
     """A typo must not silence the hub — that is the failure being fixed."""
     monkeypatch.setenv("ALB_LOG_LEVEL", "verbose-please")
     install_alb_logging()
-    assert logging.getLogger("alb.remote.forwarder").isEnabledFor(logging.INFO)
+    assert logging.getLogger("devicehands.remote.forwarder").isEnabledFor(logging.INFO)

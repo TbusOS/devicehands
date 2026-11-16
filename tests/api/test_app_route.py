@@ -9,10 +9,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.capabilities.app import AppInfo, AppListResult
-from alb.infra.result import fail, ok
-from alb.transport.base import PermissionResult
+from devicehands.api.server import create_app
+from devicehands.capabilities.app import AppInfo, AppListResult
+from devicehands.infra.result import fail, ok
+from devicehands.transport.base import PermissionResult
 
 
 class _StubTransport:
@@ -35,7 +35,7 @@ def stub_transport():
 def client(monkeypatch, stub_transport, tmp_path):
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.setattr(
-        "alb.api.app_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.app_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -51,7 +51,7 @@ def test_list_returns_packages(monkeypatch, client) -> None:
             timing_ms=10,
         )
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.list_apps", _list)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.list_apps", _list)
     r = client.get("/api/app/list?device=abc")
     assert r.status_code == 200
     body = r.json()
@@ -68,7 +68,7 @@ def test_list_filter_propagates(monkeypatch, client) -> None:
         received["include_system"] = include_system
         return ok(data=AppListResult(packages=[]), timing_ms=1)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.list_apps", _list)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.list_apps", _list)
     client.get("/api/app/list?device=abc&filter=chrome&include_system=true")
     assert received == {"filter": "chrome", "include_system": True}
 
@@ -87,7 +87,7 @@ def test_info_returns_app_info(monkeypatch, client) -> None:
             timing_ms=5,
         )
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.info", _info)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.info", _info)
     r = client.get("/api/app/info?device=abc&package=com.example.a")
     assert r.status_code == 200
     body = r.json()
@@ -103,7 +103,7 @@ def test_start_invokes_capability(monkeypatch, client) -> None:
         received["component"] = component
         return ok(data={"started": component}, timing_ms=2)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.start", _start)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.start", _start)
     r = client.post(
         "/api/app/start?device=abc", json={"component": "com.example.a"}
     )
@@ -119,7 +119,7 @@ def test_stop_invokes_capability(monkeypatch, client) -> None:
         received["package"] = package
         return ok(data={"stopped": package}, timing_ms=2)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.stop", _stop)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.stop", _stop)
     r = client.post(
         "/api/app/stop?device=abc", json={"package": "com.example.a"}
     )
@@ -135,7 +135,7 @@ def test_clear_data_invokes_capability(monkeypatch, client) -> None:
         received["allow_dangerous"] = allow_dangerous
         return ok(data={"cleared": package}, timing_ms=2)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.clear_data", _clear)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.clear_data", _clear)
     r = client.post(
         "/api/app/clear-data?device=abc", json={"package": "com.example.a"}
     )
@@ -152,7 +152,7 @@ def test_clear_data_passes_allow_dangerous(monkeypatch, client) -> None:
         received.update(package=package, allow_dangerous=allow_dangerous)
         return ok(data={"cleared": package}, timing_ms=2)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.clear_data", _clear)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.clear_data", _clear)
     r = client.post(
         "/api/app/clear-data?device=abc",
         json={"package": "com.example.a", "allow_dangerous": True},
@@ -170,7 +170,7 @@ def test_uninstall_passes_flags(monkeypatch, client) -> None:
         )
         return ok(data={"uninstalled": package}, timing_ms=2)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.uninstall", _u)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.uninstall", _u)
     r = client.post(
         "/api/app/uninstall?device=abc",
         json={
@@ -193,7 +193,7 @@ def test_uninstall_invalid_package_returns_envelope(monkeypatch, client) -> None
             category="input",
         )
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.uninstall", _u)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.uninstall", _u)
     r = client.post(
         "/api/app/uninstall?device=abc",
         json={"package": "not-a-package"},
@@ -222,7 +222,7 @@ def test_install_streams_apk_to_tempfile(monkeypatch, client, tmp_path: Path) ->
         seen_path["flags"] = (replace, grant_runtime, downgrade)
         return ok(data={"installed": "ok"}, timing_ms=10)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.install", _install)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.install", _install)
 
     r = client.post(
         "/api/app/install?device=abc&replace=false&grant_runtime=true",
@@ -253,7 +253,7 @@ def test_install_rejects_oversized_via_content_length(monkeypatch, client) -> No
 
     Lower the cap to 1 KiB so we can simulate "too large" without
     needing a real 500 MB body in the test."""
-    monkeypatch.setattr("alb.api.app_route._APK_MAX_BYTES", 1024)
+    monkeypatch.setattr("devicehands.api.app_route._APK_MAX_BYTES", 1024)
 
     install_called: list[str] = []
 
@@ -261,7 +261,7 @@ def test_install_rejects_oversized_via_content_length(monkeypatch, client) -> No
         install_called.append("called")
         return ok(data={}, timing_ms=0)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.install", _install)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.install", _install)
 
     # 4 KiB body — well over the 1 KiB cap.
     big = b"PK\x03\x04" + b"y" * (4 * 1024)
@@ -286,12 +286,12 @@ def test_install_streaming_cap_still_fires_when_cl_missing(
     the cap to a value the multipart body easily beats, then mock the
     request.headers.get('content-length') path to return None so the
     pre-check falls through."""
-    monkeypatch.setattr("alb.api.app_route._APK_MAX_BYTES", 32)
+    monkeypatch.setattr("devicehands.api.app_route._APK_MAX_BYTES", 32)
 
     async def _install(*_a, **_kw):
         return ok(data={}, timing_ms=0)
 
-    monkeypatch.setattr("alb.api.app_route.app_cap.install", _install)
+    monkeypatch.setattr("devicehands.api.app_route.app_cap.install", _install)
 
     # Body is ~100 bytes APK + multipart framing — both well over 32.
     apk = b"PK\x03\x04" + b"z" * 100
@@ -320,7 +320,7 @@ def test_transport_init_failure_returns_envelope_b_not_503(
     def _boom(**_kw: Any):
         raise RuntimeError("adb server unreachable")
 
-    monkeypatch.setattr("alb.api.app_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.app_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         r = c.get("/api/app/list?device=abc")

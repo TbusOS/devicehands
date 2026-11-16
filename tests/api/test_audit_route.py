@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
+from devicehands.api.server import create_app
 
 
 @pytest.fixture
@@ -314,7 +314,7 @@ def test_ws_stream_publishes_live_events_to_subscriber(client, workspace) -> Non
     server's loop. This avoids spinning up a separate asyncio loop
     that the bus's asyncio.Lock would refuse to talk to.
     """
-    from alb.infra.event_bus import get_bus, make_event
+    from devicehands.infra.event_bus import get_bus, make_event
 
     with client.websocket_connect("/audit/stream") as ws:
         ws.receive_json()  # snapshot
@@ -338,7 +338,7 @@ def test_ws_stream_publishes_live_events_to_subscriber(client, workspace) -> Non
 def test_ws_stream_filters_metric_kinds_by_default(client, workspace) -> None:
     """Default WS stream drops tps_sample; first-message
     `include_metrics:true` opts in."""
-    from alb.infra.event_bus import get_bus, make_event
+    from devicehands.infra.event_bus import get_bus, make_event
 
     # Default — no opt-in
     with client.websocket_connect("/audit/stream") as ws:
@@ -361,7 +361,7 @@ def test_ws_stream_filters_metric_kinds_by_default(client, workspace) -> None:
 
 
 def test_ws_stream_include_metrics_passes_tps_sample(client, workspace) -> None:
-    from alb.infra.event_bus import get_bus, make_event
+    from devicehands.infra.event_bus import get_bus, make_event
 
     with client.websocket_connect("/audit/stream") as ws:
         ws.send_json({"include_metrics": True})
@@ -381,7 +381,7 @@ def test_ws_stream_include_metrics_passes_tps_sample(client, workspace) -> None:
 
 def test_ws_stream_paused_drops_live_events(client, workspace) -> None:
     """While paused, incoming bus events are dropped (not queued)."""
-    from alb.infra.event_bus import get_bus, make_event
+    from devicehands.infra.event_bus import get_bus, make_event
 
     with client.websocket_connect("/audit/stream") as ws:
         ws.receive_json()  # snapshot

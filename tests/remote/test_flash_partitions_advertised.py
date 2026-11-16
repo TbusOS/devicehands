@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.remote.registry import AgentConnection, AgentRegistry
+from devicehands.remote.registry import AgentConnection, AgentRegistry
 
 _AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
 
@@ -107,11 +107,11 @@ def test_status_listing_exposes_it():
 
 
 def test_flash_view_reports_the_agents_list(monkeypatch):
-    from alb.remote import forwarder
+    from devicehands.remote import forwarder
 
     conn = _conn(flash_partitions=["cfg"])
     monkeypatch.setattr(
-        "alb.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: conn})()
+        "devicehands.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: conn})()
     )
     view = forwarder._flash_view()
     assert view["partitions"] == ["cfg"]
@@ -119,10 +119,10 @@ def test_flash_view_reports_the_agents_list(monkeypatch):
 
 
 def test_flash_view_with_no_agent_is_empty_not_a_crash(monkeypatch):
-    from alb.remote import forwarder
+    from devicehands.remote import forwarder
 
     monkeypatch.setattr(
-        "alb.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: None})()
+        "devicehands.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: None})()
     )
     view = forwarder._flash_view()
     assert view["partitions"] == []
@@ -130,7 +130,7 @@ def test_flash_view_with_no_agent_is_empty_not_a_crash(monkeypatch):
 
 
 def test_service_status_carries_partitions():
-    from alb.remote.flash import FlashService
+    from devicehands.remote.flash import FlashService
 
     conn = _conn(flash_partitions=["cfg", "boot"])
     svc = FlashService(lambda: conn)
@@ -138,7 +138,7 @@ def test_service_status_carries_partitions():
 
 
 def test_service_partitions_empty_without_an_agent():
-    from alb.remote.flash import FlashService
+    from devicehands.remote.flash import FlashService
 
     svc = FlashService(lambda: None)
     assert svc.partitions() == []
@@ -148,7 +148,7 @@ def test_service_partitions_empty_without_an_agent():
 def test_status_always_has_the_key(advertised):
     """A consumer must never have to distinguish "absent" from "empty" —
     that ambiguity is what a fallback rule cannot be written against."""
-    from alb.remote.flash import FlashService
+    from devicehands.remote.flash import FlashService
 
     svc = FlashService(lambda: _conn(flash_partitions=advertised))
     assert "partitions" in svc.status()

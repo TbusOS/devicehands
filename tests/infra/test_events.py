@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from alb.infra.events import EventBus
+from devicehands.infra.events import EventBus
 
 
 @pytest.mark.asyncio

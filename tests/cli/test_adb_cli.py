@@ -1,6 +1,6 @@
-"""`alb adb root | unroot | remount` — the CLI renders what the capability says.
+"""`dhands adb root | unroot | remount` — the CLI renders what the capability says.
 
-The sub-app is invoked standalone (main.py mounts it as `alb adb`), so
+The sub-app is invoked standalone (main.py mounts it as `dhands adb`), so
 `ctx.obj` is None in the plain case and injected via `obj=` for --json.
 """
 
@@ -12,9 +12,9 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from alb.cli import adb_cli
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.cli import adb_cli
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 runner = CliRunner()
 
@@ -54,7 +54,7 @@ class FakeAdb:
 
 
 def _use(monkeypatch: pytest.MonkeyPatch, fake: FakeAdb) -> None:
-    monkeypatch.setattr("alb.cli.adb_cli.get_transport", lambda *a, **k: fake)
+    monkeypatch.setattr("devicehands.cli.adb_cli.get_transport", lambda *a, **k: fake)
 
 
 def test_root_prints_outcome(monkeypatch) -> None:
@@ -153,7 +153,7 @@ def test_device_flag_reaches_get_transport(monkeypatch) -> None:
         seen["device"] = device_serial
         return FakeAdb({"remount": _ok("remount succeeded\n")}, uid="0")
 
-    monkeypatch.setattr("alb.cli.adb_cli.get_transport", fake_get_transport)
+    monkeypatch.setattr("devicehands.cli.adb_cli.get_transport", fake_get_transport)
     r = runner.invoke(adb_cli.app, ["remount", "--device", "serial-1"])
     assert r.exit_code == 0, r.output
     assert seen["device"] == "serial-1"

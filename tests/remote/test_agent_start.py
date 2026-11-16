@@ -12,13 +12,13 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from alb.api.server import create_app
-from alb.cli import bench_cli
-from alb.cli.main import app
-from alb.infra.errors import lookup
-from alb.infra.process import ProcessResult
-from alb.remote import agent_start as st
-from alb.remote.flash import FlashEvent, FlashResult
+from devicehands.api.server import create_app
+from devicehands.cli import bench_cli
+from devicehands.cli.main import app
+from devicehands.infra.errors import lookup
+from devicehands.infra.process import ProcessResult
+from devicehands.remote import agent_start as st
+from devicehands.remote.flash import FlashEvent, FlashResult
 
 
 @pytest.fixture(autouse=True)
@@ -75,17 +75,17 @@ def _ok(stdout: str) -> ProcessResult:
 
 
 _STARTED = _out(
-    r"alb-start: dir=D:\agent",
-    "alb-start: state=Ready",
-    "alb-start: action=started",
-    "alb-start: after=Running",
-    "alb-start: last-result=267009",
+    r"dhands-start: dir=D:\agent",
+    "dhands-start: state=Ready",
+    "dhands-start: action=started",
+    "dhands-start: after=Running",
+    "dhands-start: last-result=267009",
 )
 _TAIL = _out(
-    r"alb-start: dir=D:\agent",
-    r"alb-start: log=D:\agent\logs\agent.log",
-    "alb-log: 11:08:57 INFO alb-agent: starting",
-    "alb-log: 11:08:59 WARNING alb-agent: session ended: [WinError 1225]",
+    r"dhands-start: dir=D:\agent",
+    r"dhands-start: log=D:\agent\logs\agent.log",
+    "dhands-log: 11:08:57 INFO alb-agent: starting",
+    "dhands-log: 11:08:59 WARNING alb-agent: session ended: [WinError 1225]",
 )
 
 
@@ -122,10 +122,10 @@ def test_a_running_task_is_left_alone_before_any_start():
 def test_markers_are_read_by_key_and_flags_keep_the_rest_of_the_line():
     marks, log = st.parse_output(
         _out(
-            r"alb-start: dir=C:\a=b",
-            "alb-start: start-failed Access is denied. code=5",
-            r"alb-start: no-log D:\agent\logs\agent.log",
-            "alb-log: one = two",
+            r"dhands-start: dir=C:\a=b",
+            "dhands-start: start-failed Access is denied. code=5",
+            r"dhands-start: no-log D:\agent\logs\agent.log",
+            "dhands-log: one = two",
             "noise from the shell",
         )
     )
@@ -158,7 +158,7 @@ def test_without_a_configured_host_nothing_is_run(monkeypatch):
     [
         (st.SSH_HOST_ENV, "-oProxyCommand=evil"),  # would be read as an ssh option
         (st.SSH_HOST_ENV, "bench host"),
-        (st.TASK_ENV, "alb'; Remove-Item C:\\x; '"),  # would break out of the quotes
+        (st.TASK_ENV, "dhands'; Remove-Item C:\\x; '"),  # would break out of the quotes
     ],
 )
 def test_a_value_that_could_change_what_runs_is_refused(monkeypatch, env, value):
@@ -182,7 +182,7 @@ def test_started_and_connected(monkeypatch):
 
 def test_a_running_task_whose_agent_comes_back_is_reconnected_not_started():
     runner = _Runner(
-        _ok(_out(r"alb-start: dir=D:\agent", "alb-start: state=Running", "alb-start: action=none"))
+        _ok(_out(r"dhands-start: dir=D:\agent", "dhands-start: state=Running", "dhands-start: action=none"))
     )
     r = _run(_Registry(_Conn(), after_polls=2), runner)
     assert r.ok and r.data["outcome"] == "reconnected"
@@ -223,15 +223,15 @@ def test_an_ssh_that_did_not_run_the_script_says_what_ssh_said(result, said):
 
 
 def test_no_task_points_at_the_setup_script():
-    r = _run(_Registry(), _Runner(_ok(_out("alb-start: no-task"))))
+    r = _run(_Registry(), _Runner(_ok(_out("dhands-start: no-task"))))
     assert r.code == "AGENT_START_NO_TASK" and "setup-remote-start.bat" in r.error
 
 
 def test_windows_refusing_the_start_is_passed_on():
     out = _out(
-        r"alb-start: dir=D:\agent",
-        "alb-start: state=Disabled",
-        "alb-start: start-failed The task is disabled.",
+        r"dhands-start: dir=D:\agent",
+        "dhands-start: state=Disabled",
+        "dhands-start: start-failed The task is disabled.",
     )
     r = _run(_Registry(), _Runner(_ok(out)))
     assert r.code == "AGENT_START_TASK_FAILED" and "The task is disabled." in r.error
@@ -254,7 +254,7 @@ def test_a_task_that_ended_at_once_fails_now_with_the_agent_log():
 @pytest.mark.parametrize("already", [False, True])
 def test_no_agent_within_the_wait_fails_with_the_agent_log(already):
     first = (
-        _out(r"alb-start: dir=D:\agent", "alb-start: state=Running", "alb-start: action=none")
+        _out(r"dhands-start: dir=D:\agent", "dhands-start: state=Running", "dhands-start: action=none")
         if already
         else _STARTED
     )
@@ -268,7 +268,7 @@ def test_no_agent_within_the_wait_fails_with_the_agent_log(already):
 def test_a_missing_log_is_said_not_guessed():
     runner = _Runner(
         _ok(_STARTED),
-        _ok(_out(r"alb-start: dir=D:\agent", r"alb-start: no-log D:\agent\logs\agent.log")),
+        _ok(_out(r"dhands-start: dir=D:\agent", r"dhands-start: no-log D:\agent\logs\agent.log")),
     )
     r = _run(_Registry(), runner, wait_s=0.1)
     assert r.data["log"] == r"no log at D:\agent\logs\agent.log" and r.data["log_tail"] == []
@@ -289,7 +289,7 @@ def test_every_code_this_returns_has_a_catalog_entry():
 
 
 def test_the_endpoint_passes_only_the_wait(monkeypatch):
-    import alb.api.bench_route as route
+    import devicehands.api.bench_route as route
 
     seen: dict[str, Any] = {}
 

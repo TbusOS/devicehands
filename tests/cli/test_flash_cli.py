@@ -1,4 +1,4 @@
-"""`alb flash` failure rendering (ADR-056).
+"""`dhands flash` failure rendering (ADR-056).
 
 The bug these lock (seen on real hardware 2026-08-07): the agent reported
 `FASTBOOT_NO_DEVICE` — exactly the right code — and the CLI printed
@@ -19,8 +19,8 @@ import pytest
 from click.testing import Result
 from typer.testing import CliRunner
 
-from alb.cli import flash_cli
-from alb.cli.flash_cli import _explain
+from devicehands.cli import flash_cli
+from devicehands.cli.flash_cli import _explain
 
 
 def test_generic_tool_wording_is_replaced_by_the_catalog_sentence():
@@ -90,7 +90,7 @@ def test_a_refused_oem_command_is_not_told_to_re_flash() -> None:
     assert "if the board is now half-written" not in advice
 
 
-# ── alb flash plan ──────────────────────────────────────────────────────
+# ── dhands flash plan ──────────────────────────────────────────────────────
 
 _ROWS = [
     {
@@ -355,18 +355,18 @@ def test_status_prints_why_flashing_is_unavailable(monkeypatch: pytest.MonkeyPat
         "code": "FASTBOOT_UNAVAILABLE",
         "cause": "no_agent",
         "message": "no agent connected",
-        "suggestion": "start the agent on the bench host, or run `alb bench agent-start`",
+        "suggestion": "start the agent on the bench host, or run `dhands bench agent-start`",
     }
     _status_hub(monkeypatch, {"available": False, "unavailable": why, "busy": False, "job": ""})
     r = CliRunner().invoke(flash_cli.app, ["status"])
     assert r.exit_code == 1
     assert "FASTBOOT_UNAVAILABLE: no agent connected" in r.output
-    assert "alb bench agent-start" in r.output
+    assert "dhands bench agent-start" in r.output
     # the old wording blamed fastboot_path, which is the wrong fix here
     assert "fastboot_path" not in r.output
 
 
-# ── erase (2026-11-06): `alb flash erase` runs the bench `erase` op ──
+# ── erase (2026-11-06): `dhands flash erase` runs the bench `erase` op ──
 #
 # Wired through the real app and the real FlashService, with only the agent
 # faked: a mocked hub would accept whatever path the command posts to, and the
@@ -396,7 +396,7 @@ class _EraseAgent:
         self.sent.append(data)
 
     async def recv(self) -> bytes:
-        from alb.remote.jobframe import KIND_CONTROL
+        from devicehands.remote.jobframe import KIND_CONTROL
 
         payload = json.dumps({"ev": "done", "ok": True, "rc": 0, "stdout": "", "stderr": ""})
         return struct.pack(">cI", KIND_CONTROL, len(payload)) + payload.encode()
@@ -414,10 +414,10 @@ class _EraseAgent:
 def erase_hub(monkeypatch: pytest.MonkeyPatch) -> _EraseAgent:
     from fastapi.testclient import TestClient
 
-    import alb.api.bench_route as bench_route
-    import alb.remote.flash as flash_mod
-    from alb.api.server import create_app
-    from alb.remote.flash import FlashService
+    import devicehands.api.bench_route as bench_route
+    import devicehands.remote.flash as flash_mod
+    from devicehands.api.server import create_app
+    from devicehands.remote.flash import FlashService
 
     monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
     agent = _EraseAgent()
@@ -464,7 +464,7 @@ def test_erase_asks_first_and_a_no_sends_nothing(erase_hub: _EraseAgent) -> None
 def test_a_wait_row_shows_its_seconds() -> None:
     """The hub reads `ping -n 5 127.0.0.1` as a 4 s wait; the printed plan
     must say so, or the dry run hides how long the run will pause."""
-    from alb.cli.flash_cli import _row_text
+    from devicehands.cli.flash_cli import _row_text
 
     row = {"action": "wait", "wait_s": 4.0, "command": "ping -n 5 127.0.0.1"}
     assert _row_text(row) == "wait 4 s (ping -n 5 127.0.0.1)"

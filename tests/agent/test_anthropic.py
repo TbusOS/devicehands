@@ -13,13 +13,13 @@ from typing import Any
 import httpx
 import pytest
 
-from alb.agent.backend import (
+from devicehands.agent.backend import (
     BackendError,
     Message,
     ToolCall,
     ToolSpec,
 )
-from alb.agent.backends.anthropic import (
+from devicehands.agent.backends.anthropic import (
     AnthropicBackend,
     _message_to_anthropic,
     _stop_reason_to_finish,

@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.schema import API_VERSION, REST_ENDPOINTS, WS_ENDPOINTS
-from alb.api.server import create_app
+from devicehands.api.schema import API_VERSION, REST_ENDPOINTS, WS_ENDPOINTS
+from devicehands.api.server import create_app
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ def test_schema_lists_consistent_constants() -> None:
 # connections appear hung to user with no ping/pong feedback."
 # 2026-05-05 retroactive verify: uvicorn defaults `ws_ping_interval=
 # 20.0` and `ws_ping_timeout=20.0` (RFC 6455 control-frame ping/pong),
-# and alb-api never overrides these. So every WS connection has a
+# and dhands-hub never overrides these. So every WS connection has a
 # 20s heartbeat at the protocol layer — well below typical proxy
 # idle-kill thresholds (60-300s). MID-8 was a virtual finding.
 # This test locks in the behavior so a future `main()` refactor
@@ -140,7 +140,7 @@ def test_schema_lists_consistent_constants() -> None:
 
 
 def test_alb_api_main_does_not_override_uvicorn_ws_ping(monkeypatch) -> None:
-    """alb-api must rely on uvicorn's default 20s ws_ping_interval +
+    """dhands-hub must rely on uvicorn's default 20s ws_ping_interval +
     ws_ping_timeout. If a future refactor sets `ws_ping_interval=None`
     or `0` we want to fail loudly here, not in a prod incident."""
     captured: dict = {}
@@ -154,7 +154,7 @@ def test_alb_api_main_does_not_override_uvicorn_ws_ping(monkeypatch) -> None:
     monkeypatch.setattr(uvicorn, "run", _fake_run)
     monkeypatch.setenv("ALB_API_HOST", "127.0.0.1")  # silence the 0.0.0.0 banner
 
-    from alb.api.server import main
+    from devicehands.api.server import main
 
     main()
 
@@ -181,7 +181,7 @@ def test_alb_api_main_does_not_override_uvicorn_ws_ping(monkeypatch) -> None:
     assert params["ws_ping_interval"].default == 20.0, (
         f"uvicorn ws_ping_interval default changed to "
         f"{params['ws_ping_interval'].default!r}; revisit MID-8 "
-        "verification — alb-api may now need to set the value explicitly."
+        "verification — dhands-hub may now need to set the value explicitly."
     )
     assert params["ws_ping_timeout"].default == 20.0, (
         f"uvicorn ws_ping_timeout default changed to "
@@ -209,7 +209,7 @@ def _run_main(monkeypatch, deflate_env: str | None) -> dict:
         monkeypatch.delenv("ALB_WS_DEFLATE", raising=False)
     else:
         monkeypatch.setenv("ALB_WS_DEFLATE", deflate_env)
-    from alb.api.server import main
+    from devicehands.api.server import main
 
     main()
     return captured

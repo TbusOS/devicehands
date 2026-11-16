@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from alb.api.access_log import (
+from devicehands.api.access_log import (
     AccessLogRedactor,
     install_access_log_redaction,
     redact_query_secrets,
@@ -102,7 +102,7 @@ def test_filter_covers_websocket_record():
 
 
 def test_default_sources_include_the_websocket_logger():
-    from alb.api.access_log import LOG_SOURCES
+    from devicehands.api.access_log import LOG_SOURCES
 
     assert "uvicorn.error" in LOG_SOURCES
     assert "uvicorn.access" in LOG_SOURCES
@@ -120,11 +120,11 @@ def test_install_is_idempotent():
 
 def test_lifespan_installs_on_both_uvicorn_loggers():
     """The app must install it on startup — main() is not on every launch
-    path (`uvicorn alb.api.server:app` skips it entirely)."""
+    path (`uvicorn devicehands.api.server:app` skips it entirely)."""
     from fastapi.testclient import TestClient
 
-    from alb.api.access_log import LOG_SOURCES
-    from alb.api.server import create_app
+    from devicehands.api.access_log import LOG_SOURCES
+    from devicehands.api.server import create_app
 
     loggers = [logging.getLogger(n) for n in LOG_SOURCES]
     for lg in loggers:

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.app import (
+from devicehands.capabilities.app import (
     _classify_install_error,
     _grep_first,
     _grep_permissions,
@@ -19,8 +19,8 @@ from alb.capabilities.app import (
     stop,
     uninstall,
 )
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 
 def _mk_transport(

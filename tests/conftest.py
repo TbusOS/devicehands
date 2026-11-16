@@ -8,16 +8,16 @@ from typing import ClassVar
 
 import pytest
 
-import alb.infra.workspace as workspace_mod
-from alb.infra.event_bus import reset_bus
-from alb.infra.metric_store import reset_metric_store
-from alb.remote.forwarder import reset_forwarders
-from alb.remote.registry import reset_agent_registry
+import devicehands.infra.workspace as workspace_mod
+from devicehands.infra.event_bus import reset_bus
+from devicehands.infra.metric_store import reset_metric_store
+from devicehands.remote.forwarder import reset_forwarders
+from devicehands.remote.registry import reset_agent_registry
 
 # ─── keep every test out of the real workspace ─────────────────────
 #
 # workspace_root() falls back to <cwd>/workspace, then ~/.alb-workspace,
-# when ALB_WORKSPACE is unset (src/alb/infra/workspace.py). pytest runs
+# when ALB_WORKSPACE is unset (src/devicehands/infra/workspace.py). pytest runs
 # from the repo root, so a test that forgot to set it wrote flash job
 # records into the repo's workspace/flash/, chat sessions into
 # ~/.alb-workspace/sessions/ and lines into ~/.alb-workspace/events.jsonl
@@ -25,7 +25,7 @@ from alb.remote.registry import reset_agent_registry
 
 
 class _DefaultWorkspaceTripwire(type(Path())):  # type: ignore[misc]
-    """Stands in for ``Path`` inside ``alb.infra.workspace``.
+    """Stands in for ``Path`` inside ``devicehands.infra.workspace``.
 
     workspace_root() calls ``Path.cwd()`` / ``Path.home()`` only on its
     fallback branch. Each call is recorded and answered with a scratch
@@ -75,7 +75,7 @@ def _isolate_workspace(
     inspect their own ``tmp_path`` don't see workspace files in it. A test
     that needs its own workspace keeps doing ``setenv("ALB_WORKSPACE", …)``.
     """
-    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path_factory.mktemp("alb-workspace")))
+    monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path_factory.mktemp("dhands-workspace")))
     _DefaultWorkspaceTripwire.hits.clear()
     yield
     hits = list(_DefaultWorkspaceTripwire.hits)

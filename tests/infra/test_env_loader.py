@@ -1,10 +1,10 @@
-"""Tests for alb.infra.env_loader."""
+"""Tests for devicehands.infra.env_loader."""
 
 from __future__ import annotations
 
 import os
 
-from alb.infra.env_loader import load_env_files
+from devicehands.infra.env_loader import load_env_files
 
 
 def test_loads_env_local_into_environ(tmp_path, monkeypatch):

@@ -6,7 +6,7 @@ instead of cap strings, which is what the hub reads now."""
 
 from __future__ import annotations
 
-from alb.remote.bench_ops import OpSpec, ParamSpec
+from devicehands.remote.bench_ops import OpSpec, ParamSpec
 
 _DEV = "fastboot-device"
 _PARTITION = ParamSpec("partition", "partition")

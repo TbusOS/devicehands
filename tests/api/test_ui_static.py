@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
+from devicehands.api.server import create_app
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

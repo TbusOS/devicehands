@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from alb.remote.jobframe import (
+from devicehands.remote.jobframe import (
     KIND_CONTROL,
     KIND_DATA,
     MAX_FRAME,

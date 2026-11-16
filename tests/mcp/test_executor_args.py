@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from alb.infra.result import ok
-from alb.mcp.executor import coerce_string_args, drop_blank_device, make_agent_tools
+from devicehands.infra.result import ok
+from devicehands.mcp.executor import coerce_string_args, drop_blank_device, make_agent_tools
 
 _SHELL = {
     "properties": {
@@ -82,7 +82,7 @@ async def test_a_blank_device_runs_the_tool_on_the_default_board(
 ) -> None:
     """Through the real tool registry: the tool sees no device, as when the
     model leaves it out, instead of failing the serial check."""
-    import alb.mcp.tools.power as power
+    import devicehands.mcp.tools.power as power
 
     seen: list[str | None] = []
 

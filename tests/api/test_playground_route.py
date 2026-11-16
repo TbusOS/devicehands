@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.agent.backend import (
+from devicehands.agent.backend import (
     BackendError,
     ChatResponse,
     HealthResult,
@@ -15,7 +15,7 @@ from alb.agent.backend import (
     Message,
     ToolSpec,
 )
-from alb.api.server import create_app
+from devicehands.api.server import create_app
 
 
 class _FakeBackend(LLMBackend):
@@ -79,7 +79,7 @@ class _FakeBackend(LLMBackend):
 def client(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.playground_route.get_backend",
+        "devicehands.api.playground_route.get_backend",
         lambda name, **kw: _FakeBackend(**kw),
     )
     app = create_app()
@@ -166,7 +166,7 @@ def test_health_with_method(client, monkeypatch) -> None:
             )
 
     monkeypatch.setattr(
-        "alb.api.playground_route.get_backend",
+        "devicehands.api.playground_route.get_backend",
         lambda name, **kw: _BackendWithHealth(**kw),
     )
     r = client.get("/playground/backends/ollama/health")
@@ -191,7 +191,7 @@ def test_health_probe_failure(client, monkeypatch) -> None:
             raise RuntimeError("connection refused")
 
     monkeypatch.setattr(
-        "alb.api.playground_route.get_backend",
+        "devicehands.api.playground_route.get_backend",
         lambda name, **kw: _BackendThatExplodes(**kw),
     )
     r = client.get("/playground/backends/ollama/health")
@@ -216,13 +216,13 @@ def test_health_probe_timeout(client, monkeypatch) -> None:
             return HealthResult(reachable=True)
 
     monkeypatch.setattr(
-        "alb.api.playground_route.get_backend",
+        "devicehands.api.playground_route.get_backend",
         lambda name, **kw: _BackendThatStalls(**kw),
     )
     # Shorten the deadline to keep the test fast — the endpoint reads
     # this module-level constant, so monkeypatch is enough.
     monkeypatch.setattr(
-        "alb.api.playground_route._HEALTH_PROBE_DEADLINE_S", 0.05
+        "devicehands.api.playground_route._HEALTH_PROBE_DEADLINE_S", 0.05
     )
     r = client.get("/playground/backends/ollama/health")
     assert r.status_code == 200
@@ -262,7 +262,7 @@ def test_health_init_failure(client, monkeypatch) -> None:
     def _bad_factory(name: str, **kw: Any) -> LLMBackend:
         raise ImportError("anthropic SDK not installed")
 
-    monkeypatch.setattr("alb.api.playground_route.get_backend", _bad_factory)
+    monkeypatch.setattr("devicehands.api.playground_route.get_backend", _bad_factory)
     r = client.get("/playground/backends/ollama/health")
     assert r.status_code == 200
     body = r.json()

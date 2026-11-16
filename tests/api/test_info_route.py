@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.transport.base import ShellResult
+from devicehands.api.server import create_app
+from devicehands.transport.base import ShellResult
 
 _GETPROP = (
     "[ro.boot.verifiedbootstate]: [green]\n"
@@ -35,7 +35,7 @@ class _FakeSecTransport:
 def client(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.info_route.build_transport",
+        "devicehands.api.info_route.build_transport",
         lambda **_: _FakeSecTransport(),
     )
     app = create_app()

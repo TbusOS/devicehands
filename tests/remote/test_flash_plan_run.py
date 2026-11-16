@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-import alb.remote.flash as flash_mod
-from alb.remote.flash import FlashService
-from alb.remote.flash_plan import AgentView, build_plan
-from alb.remote.jobframe import KIND_CONTROL, KIND_DATA
+import devicehands.remote.flash as flash_mod
+from devicehands.remote.flash import FlashService
+from devicehands.remote.flash_plan import AgentView, build_plan
+from devicehands.remote.jobframe import KIND_CONTROL, KIND_DATA
 from tests.remote.bench_tables import new_agent_ops
 
 _HDR = struct.Struct(">cI")
@@ -437,7 +437,7 @@ async def test_a_symlinked_image_is_streamed_from_its_target(tmp_path):
 # ── a plain getvar reads the same FAILED line (2026-11-11) ──────────────
 # On the bench fastboot 36 answered a variable the bootloader does not have
 # with `getvar:<name>  FAILED (remote: 'GetVar Variable Not found')` and exit
-# code 0, and `alb flash getvar` showed it under [ok].
+# code 0, and `dhands flash getvar` showed it under [ok].
 
 _NOT_FOUND = (
     "getvar:no-such-var                                 "
@@ -445,7 +445,7 @@ _NOT_FOUND = (
 )
 
 
-@pytest.mark.parametrize("via_run_op", [False, True], ids=["alb flash getvar", "alb bench run"])
+@pytest.mark.parametrize("via_run_op", [False, True], ids=["dhands flash getvar", "dhands bench run"])
 async def test_a_getvar_the_device_answered_with_failed_is_a_failure(via_run_op: bool) -> None:
     bench = _Bench()
     bench.getvar_stderr = _NOT_FOUND

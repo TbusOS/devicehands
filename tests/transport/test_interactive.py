@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-from alb.transport.interactive import InteractiveShell, open_pty_subprocess
+from devicehands.transport.interactive import InteractiveShell, open_pty_subprocess
 
 
 pytestmark = pytest.mark.skipif(

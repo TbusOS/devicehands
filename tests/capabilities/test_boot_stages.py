@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from alb.capabilities.boot_stages import detect_boot, match_milestone
-from alb.capabilities.timeline_view import classify_marker, density, line_view, parse_logcat
+from devicehands.capabilities.boot_stages import detect_boot, match_milestone
+from devicehands.capabilities.timeline_view import classify_marker, density, line_view, parse_logcat
 
 
 def _rec(t: float, src: str, line: str, **extra) -> dict:
@@ -99,7 +99,7 @@ def test_missing_events_buffer_leaves_android_milestones_absent() -> None:
 
 
 def test_alb_notes_are_not_board_output() -> None:
-    rep = detect_boot([_rec(1.0, "uart", "[alb] Starting kernel", note=True)])
+    rep = detect_boot([_rec(1.0, "uart", "[dhands] Starting kernel", note=True)])
     assert rep.found is False and rep.milestones == []
 
 
@@ -157,7 +157,7 @@ def test_line_view_only_parses_logcat() -> None:
         ("dmesg", "Fatal signal 11 (SIGSEGV)", "crash"),
         ("dmesg", "[ 5.0] audit: avc:  denied  { read } for pid=1", "avc"),
         ("uart", "Starting kernel ...", "boot"),
-        ("uart", "[alb] uart link up", "alb"),
+        ("uart", "[dhands] uart link up", "dhands"),
         ("uart", "just a console line", None),
     ],
 )
@@ -173,17 +173,17 @@ def test_density_buckets_and_markers() -> None:
         _rec(2.1, "logcat", "10-23 12:00:00.000 1 1 E Foo: boom"),
         _rec(2.2, "logcat", "10-23 12:00:00.000 1 1 W Foo: hmm"),
         _rec(2.3, "logcat", "no level here"),
-        _rec(2.4, "uart", "[alb] uart unavailable: gone", note=True),
+        _rec(2.4, "uart", "[dhands] uart unavailable: gone", note=True),
         _rec(2.9, "dmesg", "Kernel panic - not syncing"),
     ]
     d = density(recs, 1.0)
     assert d["t0"] == 0.0 and d["t1"] == 2.9 and d["bucket_s"] == 1.0
-    assert d["tracks"]["uart"] == [2, 0, 0]  # the alb note is not board output
+    assert d["tracks"]["uart"] == [2, 0, 0]  # the dhands note is not board output
     assert d["tracks"]["dmesg"] == [0, 1, 1]
     assert d["tracks"]["logcat"]["E"] == [0, 0, 1]
     assert d["tracks"]["logcat"]["W"] == [0, 0, 1]
     assert sum(sum(v) for v in d["tracks"]["logcat"].values()) == 2  # unparsed line skipped
-    assert [(m["kind"], m["t"]) for m in d["markers"]] == [("alb", 2.4), ("panic", 2.9)]
+    assert [(m["kind"], m["t"]) for m in d["markers"]] == [("dhands", 2.4), ("panic", 2.9)]
 
 
 def test_density_of_nothing_is_one_empty_bucket() -> None:

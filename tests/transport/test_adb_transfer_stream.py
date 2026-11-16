@@ -14,8 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
-from alb.transport.adb import AdbTransport
-from alb.transport.base import TransferEvent
+from devicehands.transport.adb import AdbTransport
+from devicehands.transport.base import TransferEvent
 
 
 # ─── Fake subprocess that yields canned stdout/stderr lines ─────────
@@ -293,7 +293,7 @@ async def test_base_transport_push_stream_raises_not_implemented() -> None:
     """Other transports (serial / ssh) inherit the ABC default that
     raises NotImplementedError — matches existing pattern for
     interactive_shell()."""
-    from alb.transport.base import Transport, ShellResult
+    from devicehands.transport.base import Transport, ShellResult
     from typing import Any
 
     class _Stub(Transport):
@@ -329,7 +329,7 @@ async def test_base_transport_push_stream_raises_not_implemented() -> None:
 
 
 def test_progress_regex_handles_padding() -> None:
-    from alb.transport.adb import _ADB_PROGRESS_RE
+    from devicehands.transport.adb import _ADB_PROGRESS_RE
 
     for line, pct, file in [
         ("[  0%] /sdcard/foo", 0, "/sdcard/foo"),
@@ -344,7 +344,7 @@ def test_progress_regex_handles_padding() -> None:
 
 
 def test_summary_regex_extracts_bytes() -> None:
-    from alb.transport.adb import _ADB_SUMMARY_RE
+    from devicehands.transport.adb import _ADB_SUMMARY_RE
 
     for line, expected in [
         ("f.bin: 1 file pushed. 12.3 MB/s (1234 bytes in 0.100s)", 1234),

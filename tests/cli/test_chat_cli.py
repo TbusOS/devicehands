@@ -1,4 +1,4 @@
-"""Tests for `alb chat` CLI subcommand (M2 step 2)."""
+"""Tests for `dhands chat` CLI subcommand (M2 step 2)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from alb.agent.backend import ChatResponse, LLMBackend, Message
-from alb.cli.main import app
+from devicehands.agent.backend import ChatResponse, LLMBackend, Message
+from devicehands.cli.main import app
 
 runner = CliRunner()
 
@@ -35,13 +35,13 @@ def test_chat_help():
 
 
 def test_chat_one_shot(monkeypatch, tmp_path):
-    """One-shot: `alb chat 'hi'` should print the reply and exit cleanly."""
+    """One-shot: `dhands chat 'hi'` should print the reply and exit cleanly."""
     monkeypatch.chdir(tmp_path)
 
     def _fake_factory(name: str, **kwargs: Any) -> LLMBackend:
         return _FakeBackend(reply="device connected")
 
-    monkeypatch.setattr("alb.cli.chat_cli.get_backend", _fake_factory)
+    monkeypatch.setattr("devicehands.cli.chat_cli.get_backend", _fake_factory)
 
     r = runner.invoke(app, ["chat", "--no-tools", "你好"])
     assert r.exit_code == 0, r.output
@@ -68,7 +68,7 @@ def test_chat_fast_shortcut(monkeypatch, tmp_path):
         captured.update(kwargs)
         return _FakeBackend(reply="ok")
 
-    monkeypatch.setattr("alb.cli.chat_cli.get_backend", _spy_factory)
+    monkeypatch.setattr("devicehands.cli.chat_cli.get_backend", _spy_factory)
     r = runner.invoke(app, ["chat", "--no-tools", "--fast", "hi"])
     assert r.exit_code == 0, r.output
     assert captured.get("model") == "gemma4:e4b"
@@ -85,7 +85,7 @@ def test_chat_env_var_model(monkeypatch, tmp_path):
         captured.update(kwargs)
         return _FakeBackend(reply="ok")
 
-    monkeypatch.setattr("alb.cli.chat_cli.get_backend", _spy_factory)
+    monkeypatch.setattr("devicehands.cli.chat_cli.get_backend", _spy_factory)
     r = runner.invoke(app, ["chat", "--no-tools", "hi"])
     assert r.exit_code == 0, r.output
     assert captured.get("model") == "gemma4:26b"

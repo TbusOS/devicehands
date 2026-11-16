@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
+from devicehands.api.server import create_app
 
 
 SERIAL = "test-serial"
@@ -180,7 +180,7 @@ def test_read_screenshot_resolve_runs_in_worker_thread_l033(
         return await real_to_thread(fn, *args, **kwargs)
 
     monkeypatch.setattr(
-        "alb.api.screenshots_route.asyncio.to_thread", tracking_to_thread
+        "devicehands.api.screenshots_route.asyncio.to_thread", tracking_to_thread
     )
     r = client.get(f"/devices/{SERIAL}/screenshots/lock.png")
     assert r.status_code == 200

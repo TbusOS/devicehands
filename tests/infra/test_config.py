@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.config import load_active, load_config, load_profile
+from devicehands.infra.config import load_active, load_config, load_profile
 
 
 def test_load_config_returns_defaults_when_absent(monkeypatch, tmp_path: Path) -> None:
@@ -24,7 +24,7 @@ def test_load_config_reads_toml(monkeypatch, tmp_path: Path) -> None:
         default_profile = "work"
 
         [workspace]
-        root = "/tmp/alb"
+        root = "/tmp/dhands"
 
         [transport.adb]
         bin_path = "/opt/adb"
@@ -110,9 +110,9 @@ def test_load_profile_rejects_path_traversal(
     Without the check, an attacker setting `ALB_PROFILE=../etc` would
     make `profile_path("../etc")` build `<root>/profiles/../etc.toml` →
     resolves to `<root>/etc.toml`, allowing attacker-planted TOML to
-    load as alb config.
+    load as dhands config.
     """
-    from alb.infra.workspace import InvalidProfileName
+    from devicehands.infra.workspace import InvalidProfileName
 
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     with pytest.raises(InvalidProfileName):

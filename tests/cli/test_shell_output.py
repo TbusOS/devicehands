@@ -1,4 +1,4 @@
-"""`alb shell` / `alb serial shell` must print device output byte-for-byte.
+"""`dhands shell` / `dhands serial shell` must print device output byte-for-byte.
 
 Before the fix the output went through the rich pretty printer, which
 (1) dropped "[false]"-like text as markup tags, (2) inserted newlines at
@@ -14,10 +14,10 @@ import json
 from rich.console import Console
 from typer.testing import CliRunner
 
-from alb.cli import common
-from alb.cli.main import app
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.cli import common
+from devicehands.cli.main import app
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 runner = CliRunner()
 
@@ -41,8 +41,8 @@ class FakeTransport:
 
 def _use(monkeypatch, result: ShellResult, behavior: str = "allow") -> None:
     fake = FakeTransport(result, behavior)
-    monkeypatch.setattr("alb.cli.main.get_transport", lambda *a, **k: fake)
-    monkeypatch.setattr("alb.cli.serial_cli._force_serial", lambda *a, **k: fake)
+    monkeypatch.setattr("devicehands.cli.main.get_transport", lambda *a, **k: fake)
+    monkeypatch.setattr("devicehands.cli.serial_cli._force_serial", lambda *a, **k: fake)
 
 
 def test_shell_stdout_is_byte_exact(monkeypatch) -> None:

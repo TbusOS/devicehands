@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from alb.agent.backend import (
+from devicehands.agent.backend import (
     BackendError,
     ChatResponse,
     LLMBackend,
@@ -17,7 +17,7 @@ from alb.agent.backend import (
     ToolCall,
     ToolSpec,
 )
-from alb.agent.loop import (
+from devicehands.agent.loop import (
     DEFAULT_TOOL_RESULT_MAX_CHARS,
     AgentLoop,
     cut_tool_result,
@@ -25,7 +25,7 @@ from alb.agent.loop import (
     tool_result_for_model,
     tool_result_max_chars_from_env,
 )
-from alb.agent.session import ChatSession
+from devicehands.agent.session import ChatSession
 
 
 # ─── Fake backend ────────────────────────────────────────────────────
@@ -764,7 +764,7 @@ async def _no_tools(name: str, args: dict[str, Any]) -> dict[str, Any]:
 @pytest.mark.asyncio
 async def test_every_model_turn_gets_the_output_limit() -> None:
     """Without it Ollama has no limit: one answer ran 12 minutes (2026-11-03)."""
-    from alb.agent.loop import DEFAULT_MAX_OUTPUT_TOKENS
+    from devicehands.agent.loop import DEFAULT_MAX_OUTPUT_TOKENS
 
     b = FakeBackend([_calls(_tc("alb_logcat", {}, tc_id="tc_1")), _final("好了")])
     async for _ in AgentLoop(b, tools=[_TOOL], tool_executor=_no_tools).run_stream("抓日志"):
@@ -815,7 +815,7 @@ async def test_run_answer_cut_at_the_limit_fails_with_the_code() -> None:
 
 
 def test_output_truncated_is_a_registered_error_code() -> None:
-    from alb.infra.errors import ERROR_CODES
+    from devicehands.infra.errors import ERROR_CODES
 
     assert ERROR_CODES["LLM_OUTPUT_TRUNCATED"].category == "system"
 

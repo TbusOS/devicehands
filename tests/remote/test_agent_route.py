@@ -14,9 +14,9 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from alb.api.agent_route import _WsDataChannel
-from alb.api.server import create_app
-from alb.remote import protocol as p
+from devicehands.api.agent_route import _WsDataChannel
+from devicehands.api.server import create_app
+from devicehands.remote import protocol as p
 
 
 class _FakeWs:
@@ -114,7 +114,7 @@ def test_channel_forwards_csecret_to_resolve(monkeypatch):
     resolve_pending, which authenticates the dial-back against the channel's
     minted secret. We capture the args and reject so the WS closes."""
     monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
-    from alb.remote.registry import AgentRegistry
+    from devicehands.remote.registry import AgentRegistry
 
     captured: dict = {}
 
@@ -132,7 +132,7 @@ def test_channel_forwards_csecret_to_resolve(monkeypatch):
 
 
 def _capture_resolve(monkeypatch) -> dict:
-    from alb.remote.registry import AgentRegistry
+    from devicehands.remote.registry import AgentRegistry
 
     captured: dict = {}
 
@@ -219,13 +219,13 @@ def test_agent_survives_forwarder_bind_failure(monkeypatch):
     complete the handshake (hello_ok) and register — not get torn down before
     hello_ok and trapped in a reconnect loop."""
     monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
-    from alb.remote.registry import get_agent_registry
+    from devicehands.remote.registry import get_agent_registry
 
     class _BoomForwarder:
         async def attach(self):
             raise OSError("[Errno 98] address already in use")
 
-    monkeypatch.setattr("alb.api.agent_route.get_adb_forwarder", lambda: _BoomForwarder())
+    monkeypatch.setattr("devicehands.api.agent_route.get_adb_forwarder", lambda: _BoomForwarder())
 
     with TestClient(create_app()) as c:
         with c.websocket_connect("/agent/connect") as ws:
@@ -234,7 +234,7 @@ def test_agent_survives_forwarder_bind_failure(monkeypatch):
             assert p.decode_control(ws.receive_text())["verb"] == p.Verb.HELLO_OK.value
             assert get_agent_registry().agent_count == 1
             # ...and the failure stays observable: the forwarder reports unbound
-            from alb.remote.forwarder import forwarder_status
+            from devicehands.remote.forwarder import forwarder_status
 
             assert forwarder_status()["adb"]["bound"] is False
 
@@ -243,8 +243,8 @@ def test_heartbeat_timeout_tears_down(monkeypatch):
     """After hello, an agent that never sends a heartbeat is dropped once
     HEARTBEAT_TIMEOUT_S elapses — and the registry is cleaned up (finally)."""
     monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
-    monkeypatch.setattr("alb.api.agent_route.HEARTBEAT_TIMEOUT_S", 0.3)
-    from alb.remote.registry import get_agent_registry
+    monkeypatch.setattr("devicehands.api.agent_route.HEARTBEAT_TIMEOUT_S", 0.3)
+    from devicehands.remote.registry import get_agent_registry
 
     with TestClient(create_app()) as c:
         with pytest.raises(WebSocketDisconnect):
@@ -300,8 +300,8 @@ def test_agent_status_serial_configured(monkeypatch):
 
 
 def test_apply_agent_frame_updates_device_cache():
-    from alb.api.agent_route import _apply_agent_frame
-    from alb.remote.registry import AgentConnection, AgentRegistry
+    from devicehands.api.agent_route import _apply_agent_frame
+    from devicehands.remote.registry import AgentConnection, AgentRegistry
 
     reg = AgentRegistry()
 
@@ -379,8 +379,8 @@ def test_adb_restart_kill_conflicts_flag_in_frame(monkeypatch):
 
 
 def test_apply_agent_frame_stores_and_clears_adb_conflicts():
-    from alb.api.agent_route import _apply_agent_frame
-    from alb.remote.registry import AgentConnection, AgentRegistry
+    from devicehands.api.agent_route import _apply_agent_frame
+    from devicehands.remote.registry import AgentConnection, AgentRegistry
 
     async def _send(_m: dict) -> None:
         return None
@@ -405,7 +405,7 @@ def test_channel_error_frame_is_dispatched_to_fail_pending(monkeypatch):
     with the agent's reason, instead of leaving it to time out on a dial-back
     that will never come. The session must survive the frame."""
     monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)
-    from alb.remote.registry import AgentRegistry
+    from devicehands.remote.registry import AgentRegistry
 
     seen: list[tuple[str, str]] = []
 

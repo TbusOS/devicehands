@@ -17,8 +17,8 @@ import time
 
 import httpx
 
-from alb.agent import AgentLoop, ChatSession, Message, ToolSpec
-from alb.agent.backends.ollama import OllamaBackend
+from devicehands.agent import AgentLoop, ChatSession, Message, ToolSpec
+from devicehands.agent.backends.ollama import OllamaBackend
 
 
 def make_client_transport() -> httpx.AsyncBaseTransport:

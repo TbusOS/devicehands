@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from alb.transport.adb import AdbTransport, parse_devices_output
+from devicehands.transport.adb import AdbTransport, parse_devices_output
 
 
 # ─── Pure parser ───────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-"""`alb serial break-in`: confirmation, argument parsing, and rendering.
+"""`dhands serial break-in`: confirmation, argument parsing, and rendering.
 
 The capability itself is covered in tests/capabilities/test_breakin.py; here
 it is replaced by a recorder so the tests only look at what the command does
@@ -15,10 +15,10 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from alb.capabilities.breakin import BreakInResult
-from alb.cli import serial_cli
-from alb.cli.main import app
-from alb.infra.result import ErrorInfo, Result, ok
+from devicehands.capabilities.breakin import BreakInResult
+from devicehands.cli import serial_cli
+from devicehands.cli.main import app
+from devicehands.infra.result import ErrorInfo, Result, ok
 
 runner = CliRunner()
 
@@ -212,7 +212,7 @@ def test_success_prints_prompt_log_path_and_next_steps(wired, tmp_path: Path) ->
     assert "[ok] stopped at the bootloader prompt after 2 keypress(es)" in r.output
     assert "'=>'" in r.output
     assert str(tmp_path / "attempt.log") in r.output
-    assert "alb serial shell" in r.output and "alb serial send" in r.output
+    assert "dhands serial shell" in r.output and "dhands serial send" in r.output
 
 
 def test_manual_reset_hint_is_printed_once_the_reader_is_up(wired) -> None:

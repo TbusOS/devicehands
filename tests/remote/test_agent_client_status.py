@@ -1,6 +1,6 @@
 """Status surface of the standalone dial-home agent (clients/windows-agent).
 
-The agent is a standalone script (not part of the alb package), so it's loaded
+The agent is a standalone script (not part of the devicehands package), so it's loaded
 by path. These cover the pure, thread-safe parts — the AgentStatus state
 machine, the JSON snapshot (which must never leak the token), and the HTML
 renderer (which must escape user-controlled fields). The websockets/pyserial

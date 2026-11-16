@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.workspace import workspace_path, workspace_root
+from devicehands.infra.workspace import workspace_path, workspace_root
 
 
 def test_each_test_gets_a_private_workspace(tmp_path_factory: pytest.TempPathFactory) -> None:

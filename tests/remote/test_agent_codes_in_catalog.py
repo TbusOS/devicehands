@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from alb.infra.errors import ERROR_CODES
+from devicehands.infra.errors import ERROR_CODES
 
 _AGENT = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
 # Any quoted literal shaped like one of the agent's code families. Matching
@@ -38,4 +38,4 @@ def test_the_scan_finds_the_codes_it_is_meant_to_find():
 
 def test_every_agent_code_is_catalogued():
     missing = sorted(_agent_codes() - set(ERROR_CODES))
-    assert missing == [], f"add these to alb.infra.errors.ERROR_CODES: {missing}"
+    assert missing == [], f"add these to devicehands.infra.errors.ERROR_CODES: {missing}"

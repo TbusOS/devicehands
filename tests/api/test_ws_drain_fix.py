@@ -21,8 +21,8 @@ from typing import Any
 
 import pytest
 
-from alb.api import ws_drain_fix
-from alb.api.ws_drain_fix import (
+from devicehands.api import ws_drain_fix
+from devicehands.api.ws_drain_fix import (
     ALREADY_INSTALLED,
     INSTALLED,
     SKIPPED,
@@ -147,9 +147,9 @@ def test_unknown_source_is_left_alone(caplog: pytest.LogCaptureFixture) -> None:
 
     original = Other.__dict__["_drain_helper"]
     # Hook the module logger itself: once any create_app() lifespan has run,
-    # the `alb` logger stops propagating (log_setup.py), so caplog's root
+    # the `dhands` logger stops propagating (log_setup.py), so caplog's root
     # handler would see nothing and this assertion would depend on test order.
-    logger = logging.getLogger("alb.api.ws_drain_fix")
+    logger = logging.getLogger("devicehands.api.ws_drain_fix")
     logger.addHandler(caplog.handler)
     try:
         assert install_ws_drain_fix(Other) == SKIPPED
@@ -164,7 +164,7 @@ def test_unknown_source_is_left_alone(caplog: pytest.LogCaptureFixture) -> None:
 def test_hub_startup_installs_it(legacy_cls: type[WebSocketCommonProtocol]) -> None:
     from fastapi.testclient import TestClient
 
-    from alb.api.server import create_app
+    from devicehands.api.server import create_app
 
     assert not getattr(legacy_cls.__dict__["_drain_helper"], ws_drain_fix._MARK, False)
     with TestClient(create_app()):

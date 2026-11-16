@@ -3,7 +3,7 @@
 The fake speaks the real adb server protocol (4-hex length framing,
 OKAY/FAIL, `host:transport:<serial>`, then `tcp:<port>`), and behind a
 `tcp:<port>` it plays an HTTP server. So the whole path under test is the one
-`alb port` uses: nothing in the route is stubbed except which adb server it
+`dhands port` uses: nothing in the route is stubbed except which adb server it
 talks to.
 """
 
@@ -17,8 +17,8 @@ from collections.abc import Callable, Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api import assistant_route
-from alb.api.server import create_app
+from devicehands.api import assistant_route
+from devicehands.api.server import create_app
 
 SERIAL = "0123456789ABCDEF"
 

@@ -17,9 +17,9 @@ from typing import ClassVar
 
 import pytest
 
-from alb.remote.flash import CHUNK, FlashService, digest_file
-from alb.remote.jobframe import KIND_CONTROL, KIND_DATA
-from alb.remote.protocol import ChannelRole, ChannelType
+from devicehands.remote.flash import CHUNK, FlashService, digest_file
+from devicehands.remote.jobframe import KIND_CONTROL, KIND_DATA
+from devicehands.remote.protocol import ChannelRole, ChannelType
 
 _HDR = struct.Struct(">cI")
 
@@ -139,7 +139,7 @@ async def test_status_reports_availability():
 
 
 def test_status_says_why_flashing_is_unavailable() -> None:
-    """The web and `alb flash status` print this instead of guessing it from
+    """The web and `dhands flash status` print this instead of guessing it from
     /agent/status; the code is the one a refused job carries."""
     none = _service(None).status()
     assert none["available"] is False
@@ -362,13 +362,13 @@ async def test_capability_variants_refused(caps):
 
 
 def test_status_view_reports_capability_before_the_service_exists(monkeypatch):
-    """Real-hardware regression: `alb flash status` said ready while
+    """Real-hardware regression: `dhands flash status` said ready while
     `/agent/status` said available=false, because the snapshot read a
     singleton nothing had created yet. Availability is a fact about the
     bench, not about whether anything has used the service."""
-    from alb.remote import flash as flash_mod
-    from alb.remote import forwarder
-    from alb.remote.registry import get_agent_registry
+    from devicehands.remote import flash as flash_mod
+    from devicehands.remote import forwarder
+    from devicehands.remote.registry import get_agent_registry
 
     class _Agent:
         agent_id = "a"
@@ -382,9 +382,9 @@ def test_status_view_reports_capability_before_the_service_exists(monkeypatch):
 
 
 def test_status_view_false_without_a_capable_agent(monkeypatch):
-    from alb.remote import flash as flash_mod
-    from alb.remote import forwarder
-    from alb.remote.registry import get_agent_registry
+    from devicehands.remote import flash as flash_mod
+    from devicehands.remote import forwarder
+    from devicehands.remote.registry import get_agent_registry
 
     class _Agent:
         agent_id = "a"
@@ -493,7 +493,7 @@ async def test_a_channel_that_breaks_mid_image_says_unknown_and_why(tmp_path):
 async def test_an_unreadable_image_on_the_hub_fails_with_the_read_error(tmp_path, monkeypatch):
     """The channel is fine and the agent is still waiting for bytes: only
     the hub's own error can say what happened."""
-    import alb.remote.flash as flash_mod
+    import devicehands.remote.flash as flash_mod
 
     async def unreadable(channel, path) -> None:
         raise OSError("disk went away")
@@ -509,7 +509,7 @@ async def test_an_unreadable_image_on_the_hub_fails_with_the_read_error(tmp_path
 
 
 def test_an_exception_that_prints_as_nothing_is_named():
-    from alb.remote.flash import _error_text
+    from devicehands.remote.flash import _error_text
 
     assert _error_text(ConnectionResetError()) == "ConnectionResetError"
     assert _error_text(OSError("disk")) == "OSError: disk"

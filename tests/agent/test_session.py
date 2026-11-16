@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from alb.agent.backend import Message, ToolCall
-from alb.agent.session import ChatSession, new_session_id
+from devicehands.agent.backend import Message, ToolCall
+from devicehands.agent.session import ChatSession, new_session_id
 
 
 def test_new_session_id_format() -> None:

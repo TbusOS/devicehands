@@ -1,4 +1,4 @@
-"""Tests for `alb setup serial --save` config-persistence helper.
+"""Tests for `dhands setup serial --save` config-persistence helper.
 
 We test the helper directly rather than driving the whole `setup_serial`
 flow because the latter spins up a real :class:`SerialTransport` health
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.cli.setup_cli import _persist_serial_config
+from devicehands.cli.setup_cli import _persist_serial_config
 
 
 @pytest.fixture(autouse=True)

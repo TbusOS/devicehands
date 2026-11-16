@@ -12,7 +12,7 @@ import re
 
 import pytest
 
-from alb.transport.serial_state import (
+from devicehands.transport.serial_state import (
     DEFAULT_PATTERNS,
     PatternSet,
     SerialState,

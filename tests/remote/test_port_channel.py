@@ -1,4 +1,4 @@
-"""The local listener (alb.remote.port_channel): client -> listener -> adb -> device port.
+"""The local listener (devicehands.remote.port_channel): client -> listener -> adb -> device port.
 
 Everything in-process against the fake adb server from
 tests/transport/test_adb_socket.py; nothing real is contacted.
@@ -23,14 +23,14 @@ from collections.abc import Iterator
 
 import pytest
 
-from alb.remote.port_channel import (
+from devicehands.remote.port_channel import (
     BindRefused,
     LocalPortBusy,
     PortChannel,
     check_bind,
     is_loopback,
 )
-from alb.transport.adb_socket import AdbServerUnreachable, AmbiguousDevice, TcpEndpoint
+from devicehands.transport.adb_socket import AdbServerUnreachable, AmbiguousDevice, TcpEndpoint
 from tests.transport.test_adb_socket import FLOOD_BYTES, FakeAdbServer, free_port
 
 DEVICE_PORT = 5039

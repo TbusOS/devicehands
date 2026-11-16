@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from alb.remote.protocol import ADB_TARGET, ChannelRole, ChannelType
-from alb.remote.registry import (
+from devicehands.remote.protocol import ADB_TARGET, ChannelRole, ChannelType
+from devicehands.remote.registry import (
     AgentConnection,
     AgentRegistry,
     ChannelOpenError,

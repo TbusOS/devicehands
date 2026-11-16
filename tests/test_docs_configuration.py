@@ -8,7 +8,7 @@ learn that e.g. ``ALB_SERIAL_DEVICE`` is the only way to pin a local
 
 What counts as a variable "the code reads": every ``ALB_[A-Z0-9_]+`` name in
 a **string literal** (including docstrings and the text parts of f-strings)
-of ``src/alb/**/*.py`` and ``clients/windows-agent/*.py``. Comments do not
+of ``src/devicehands/**/*.py`` and ``clients/windows-agent/*.py``. Comments do not
 count. A name only mentioned in a help text or an error suggestion still
 counts on purpose: a user is told to set it, so the page must say what it
 does — or that it does nothing (``ALB_OPENAI_COMPAT_MODEL`` is such a case).
@@ -24,7 +24,7 @@ import dataclasses
 import re
 from pathlib import Path
 
-from alb.infra import config as config_mod
+from devicehands.infra import config as config_mod
 
 _ROOT = Path(__file__).resolve().parents[1]
 _DOC = _ROOT / "docs" / "configuration.md"
@@ -36,7 +36,7 @@ NOT_CONFIG: dict[str, str] = {}
 
 
 def _code_files() -> list[Path]:
-    return sorted((_ROOT / "src" / "alb").rglob("*.py")) + sorted(
+    return sorted((_ROOT / "src" / "devicehands").rglob("*.py")) + sorted(
         (_ROOT / "clients" / "windows-agent").glob("*.py")
     )
 

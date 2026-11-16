@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.logging import capture_uart, send_uart, watch_uart_panic
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.capabilities.logging import capture_uart, send_uart, watch_uart_panic
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 
 async def _stream(chunks: list[bytes]) -> AsyncIterator[bytes]:
@@ -430,7 +430,7 @@ async def test_a_capture_of_a_port_never_opened_fails_with_the_agents_reason(
         asked.append((host, port, within_s))
         return REFUSED
 
-    monkeypatch.setattr("alb.capabilities.logging.hub_serial_open_failure", hub)
+    monkeypatch.setattr("devicehands.capabilities.logging.hub_serial_open_failure", hub)
     r = await capture_uart(_refusing_serial(), duration=1, output=tmp_path / "u.log")
     assert not r.ok and r.error is not None
     assert r.error.code == "SERIAL_PORT_BUSY"
@@ -445,7 +445,7 @@ async def test_a_capture_of_a_port_never_opened_fails_with_the_agents_reason(
 async def test_a_quiet_capture_without_a_hub_reason_stays_ok(monkeypatch, tmp_path: Path) -> None:
     """A direct bridge, or a hub whose port opened fine: 0 lines is a quiet
     board, as before."""
-    monkeypatch.setattr("alb.capabilities.logging.hub_serial_open_failure", lambda *a, **k: None)
+    monkeypatch.setattr("devicehands.capabilities.logging.hub_serial_open_failure", lambda *a, **k: None)
     r = await capture_uart(_refusing_serial(), duration=1, output=tmp_path / "u.log")
     assert r.ok and r.data is not None and r.data.lines == 0
 
@@ -454,7 +454,7 @@ async def test_a_quiet_capture_without_a_hub_reason_stays_ok(monkeypatch, tmp_pa
 async def test_bytes_that_arrived_win_over_any_hub_reason(monkeypatch, tmp_path: Path) -> None:
     """A prompt without a newline is 0 lines but real output: the board spoke."""
     monkeypatch.setattr(
-        "alb.capabilities.logging.hub_serial_open_failure", lambda *a, **k: REFUSED
+        "devicehands.capabilities.logging.hub_serial_open_failure", lambda *a, **k: REFUSED
     )
     t = _mk_serial_mock([b"=> "])
     t.tcp_host, t.tcp_port = "127.0.0.1", 9001

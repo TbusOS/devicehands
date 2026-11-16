@@ -82,7 +82,7 @@ sys.exit(int(os.environ.get("FAKE_EDL_RC") or 0))
 
 # What Win32_PnPEntity gives for a board in 9008 next to the board's debug
 # console (a USB serial adapter). The QDLoader name with "(COM53)" is what
-# `alb bench usb` showed on the bench (2026-11-03).
+# `dhands bench usb` showed on the bench (2026-11-03).
 _EDL_PNP = {
     "Name": "Qualcomm HS-USB QDLoader 9008 (COM53)",
     "PNPDeviceID": "USB\\VID_05C6&PID_9008\\5&1A2B3C4D&0&3",
@@ -229,7 +229,7 @@ def test_edl_rows_and_what_they_tell_the_hub(bench: _Bench) -> None:
 
 
 def test_the_hub_reads_the_rows_and_applies_the_same_shape_rules(bench: _Bench) -> None:
-    from alb.remote.bench_ops import check_params, parse_ops
+    from devicehands.remote.bench_ops import check_params, parse_ops
 
     table = parse_ops([s.describe() for s in bench.ops.values()])
     assert table is not None

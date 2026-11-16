@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api import adb_route
-from alb.api.server import create_app
-from alb.capabilities.adbd import AdbdResult, RemountResult
-from alb.infra.result import fail, ok
+from devicehands.api import adb_route
+from devicehands.api.server import create_app
+from devicehands.capabilities.adbd import AdbdResult, RemountResult
+from devicehands.infra.result import fail, ok
 
 SERIAL = "0123456789ABCDEF"
 

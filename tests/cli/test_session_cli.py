@@ -1,4 +1,4 @@
-"""Tests for `alb session list / show / replay`."""
+"""Tests for `dhands session list / show / replay`."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from alb.cli.main import app
+from devicehands.cli.main import app
 
 runner = CliRunner()
 
@@ -112,7 +112,7 @@ def test_session_show_unknown_id(monkeypatch, tmp_path: Path) -> None:
     r = runner.invoke(app, ["session", "show", "nonexistent-id"])
     assert r.exit_code == 1
     assert "no session" in r.stdout
-    assert "alb session list" in r.stdout  # hint shown
+    assert "dhands session list" in r.stdout  # hint shown
 
 
 def test_session_show_renders_meta_and_messages(monkeypatch, tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
+from devicehands.api.server import create_app
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def test_eleven_categories_present(client) -> None:
 
 
 def test_well_known_tools_present(client) -> None:
-    """A handful of canonical alb tools should always appear."""
+    """A handful of canonical dhands tools should always appear."""
     body = client.get("/tools").json()
     names = {t["name"] for t in body["tools"]}
     for canonical in (
@@ -110,7 +110,7 @@ def test_no_side_effect_on_repeated_calls(client) -> None:
 def test_collector_tolerates_kwargs_tool_decorator() -> None:
     """FastMCP also supports `@mcp.tool(name="x", description="y")`.
     Collector must honour explicit name/description without crashing."""
-    from alb.api.tools_route import _ToolCollector
+    from devicehands.api.tools_route import _ToolCollector
 
     coll = _ToolCollector()
 
@@ -129,7 +129,7 @@ def test_collector_tolerates_unknown_surface() -> None:
     mcp.add_tool(...), collector must NOT crash — it should return a
     no-op decorator/method and let known @mcp.tool() registrations
     still flow through."""
-    from alb.api.tools_route import _ToolCollector
+    from devicehands.api.tools_route import _ToolCollector
 
     coll = _ToolCollector()
 

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.info import (
+from devicehands.capabilities.info import (
     _build_core,
     _build_zone,
     _count_processors,
@@ -47,7 +47,7 @@ from alb.capabilities.info import (
     storage,
     system,
 )
-from alb.transport.base import ShellResult
+from devicehands.transport.base import ShellResult
 
 
 # ─── Getprop + meminfo parsers ────────────────────────────────────

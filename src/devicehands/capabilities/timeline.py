@@ -1,0 +1,897 @@
+"""timeline capability — logcat + dmesg + UART merged on one clock.
+
+Why this exists: when one problem is debugged over adb and UART at the same
+time (a driver that hangs: logcat shows the app side, dmesg the kernel,
+the console shows early boot and the moments adb is gone), today each
+stream lands in its own file and nobody can line them up afterwards. Raw
+UART bytes carry no timestamps at all, and the timestamps inside logcat
+(wall clock) and dmesg (seconds since boot) are on different clocks. The
+ordering information exists only at the moment the bytes arrive, so the
+merge has to happen at capture time — exactly what `remote/flash_timeline`
+already does for flash jobs (ADR-056 decision 4). This module generalises
+that: every line from every source is stamped with the host's monotonic
+clock the instant it arrives and appended to ONE `timeline.jsonl`.
+
+Artifacts (one directory per capture):
+
+    timeline.jsonl   {"t": 1.234567, "wall": "...", "src": "uart", "line": "..."}
+    uart.log         raw bytes, untouched (line-splitting is lossy for a
+                     bootloader; the JSONL is for reasoning, this is evidence)
+    logcat.txt       raw bytes as received
+    dmesg.txt        raw bytes as received
+    summary.json     counts / notes / duration, written when the capture ends
+
+The JSONL is flushed per received chunk, so a capture killed half-way still
+leaves a usable file. Records are stamped at ARRIVAL, and a partial line
+flushed on idle is written up to `IDLE_FLUSH_S` after its stamp, so the file
+is "nearly sorted": `iter_timeline` re-sorts with a bounded window rather
+than loading the file.
+
+Lines logged BEFORE the capture are kept off the timeline. `logcat` and
+`dmesg -w` both start by dumping their whole buffer — tens of thousands of
+lines arriving in the first moment, which an arrival stamp would place all
+at +0.1 s, ahead of everything the UART says. They happened before the
+capture, at times the arrival stamp cannot know. Whatever of them arrives
+goes to the raw file; only the timeline leaves it out:
+
+* dmesg: the timestamp on the last line already in the buffer is read
+  first (`dmesg | tail -n 8`), and leading lines stamped no later than it
+  are left out. Not a line count: a full ring buffer — the normal state of
+  a board that has been up for days — drops its oldest line for each new
+  one, so the first N lines of the stream are not the N that were counted,
+  and the newest would be taken as old (seen 2026-10-19). The count is the
+  fallback for a kernel that prints no timestamps.
+* logcat: started with `-T 1`, so the device sends its last line instead
+  of its whole buffer (the rest of the buffer is in neither file). Leading
+  lines stamped before the device's clock at the start are left out. Not
+  `-T <time>`: on a real board (2026-10-19) logcat with a time and no `-d`
+  printed nothing at all, not even lines logged after it started — while
+  `-T 1` followed fine.
+
+Either step failing falls back to taking what arrives, with a note.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import heapq
+import inspect
+import json
+import re
+import time
+from collections import Counter
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Collection,
+    Iterator,
+    Mapping,
+    Sequence,
+)
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from time import perf_counter
+from typing import Any, BinaryIO, Final, TextIO
+
+from devicehands.capabilities.logging import _reconnecting_serial_stream
+from devicehands.infra.events import bus
+from devicehands.infra.hub_serial import hub_serial_open_failure
+from devicehands.infra.result import ErrorInfo, Result, fail, ok
+from devicehands.infra.workspace import InvalidDeviceSerial, iso_timestamp, workspace_path
+from devicehands.transport.base import Transport
+
+ALL_SOURCES: Final[tuple[str, ...]] = ("logcat", "dmesg", "uart")
+# What a reader may ask for: the captured sources plus `job`, the progress
+# and verdict of a flash job written into the same file (remote/flash_timeline).
+READ_SOURCES: Final[tuple[str, ...]] = (*ALL_SOURCES, "job")
+
+# How long an incomplete trailing fragment (no newline yet) waits before it
+# is written out anyway. A bootloader prompt such as "=> " never gets its
+# newline; holding it back would hide the single most informative line.
+# 200 ms is longer than the gap between two bytes of one line at any sane
+# baud, and shorter than a human notices.
+IDLE_FLUSH_S: Final[float] = 0.2
+
+# A "line" longer than this is not a line — it is a binary blob arriving on
+# a console at the wrong baud. Cut it so one such run cannot grow without
+# bound in memory; the raw file still holds every byte.
+_MAX_LINE: Final[int] = 8192
+
+# The synthetic marker `SerialTransport.stream_read` yields when the port /
+# bridge cannot be opened. It is dhands talking, not the board, so it is turned
+# into one note instead of being written to uart.log as if the board said it.
+_SERIAL_OPEN_FAILED: Final[bytes] = b"[dhands serial open failed:"
+
+# Records may trail their stamp by at most IDLE_FLUSH_S (see module doc).
+# `iter_timeline` holds this much look-ahead before emitting; anything larger
+# only costs memory, anything smaller than IDLE_FLUSH_S would misorder.
+_REORDER_WINDOW_S: Final[float] = 2.0
+
+_RAW_FILE: Final[dict[str, str]] = {
+    "logcat": "logcat.txt",
+    "dmesg": "dmesg.txt",
+    "uart": "uart.log",
+}
+
+# Fan-out topics, the same ones `capabilities/logging._drain_stream` uses, so
+# whoever already listens to a plain capture (web UI, CLI printer) sees this
+# capture too without learning a new topic.
+_TOPIC: Final[dict[str, str]] = {
+    "logcat": "logcat.line",
+    "dmesg": "dmesg.line",
+    "uart": "uart.line",
+}
+
+# `Transport.stream_read` is declared as a coroutine that returns an iterator
+# while every implementation is an async generator; accept both shapes so a
+# factory can simply return `transport.stream_read(...)`.
+StreamFactory = Callable[[], AsyncIterator[bytes] | Awaitable[AsyncIterator[bytes]]]
+
+
+# ─── Models ────────────────────────────────────────────────────────
+@dataclass(frozen=True)
+class TimelineSummary:
+    directory: Path
+    sources: list[str]
+    lines: dict[str, int]
+    notes: list[str] = field(default_factory=list)
+    duration_captured_ms: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "directory": str(self.directory),
+            "timeline": str(self.directory / "timeline.jsonl"),
+            "sources": list(self.sources),
+            "lines": dict(self.lines),
+            "notes": list(self.notes),
+            "duration_captured_ms": self.duration_captured_ms,
+        }
+
+
+# ─── Writer: one clock, one file ───────────────────────────────────
+class _TimelineWriter:
+    """Owns `timeline.jsonl`. Every stamp comes from one monotonic clock.
+
+    `wall` is derived from the start wall time plus the monotonic offset,
+    not read live per line: if the host clock is stepped mid-capture, `t`
+    and `wall` would otherwise disagree about the order of two lines.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self._f: TextIO = path.open("w", encoding="utf-8")
+        self._t0_ns = time.monotonic_ns()
+        self._wall0 = datetime.now(UTC)
+        self.lines: Counter[str] = Counter()
+        self.notes: list[str] = []
+        # Sources that could not be read when last heard of — what tells
+        # "nothing could be captured" apart from "the board was quiet".
+        self.missing: set[str] = set()
+        self.closed = False
+
+    def now_ns(self) -> int:
+        return time.monotonic_ns() - self._t0_ns
+
+    def _stamp(self, at_ns: int) -> tuple[float, str]:
+        wall = self._wall0 + timedelta(microseconds=at_ns // 1000)
+        return round(at_ns / 1e9, 6), wall.isoformat(timespec="milliseconds")
+
+    def _write(self, obj: dict[str, Any]) -> None:
+        if self.closed:
+            return  # an idle timer firing after the capture ended
+        self._f.write(json.dumps(obj, ensure_ascii=False) + "\n")
+
+    def flush(self) -> None:
+        if not self.closed:
+            self._f.flush()
+
+    def meta(self, ev: str, **extra: Any) -> None:
+        t, wall = self._stamp(self.now_ns())
+        self._write({"t": t, "wall": wall, "src": "meta", "ev": ev, **extra})
+        self.flush()
+
+    def line(
+        self,
+        src: str,
+        text: str,
+        *,
+        at_ns: int,
+        partial: bool = False,
+        truncated: bool = False,
+    ) -> None:
+        t, wall = self._stamp(at_ns)
+        rec: dict[str, Any] = {"t": t, "wall": wall, "src": src, "line": text}
+        if partial:
+            rec["partial"] = True  # no newline yet — likely a prompt
+        if truncated:
+            rec["truncated"] = True
+        self._write(rec)
+        self.lines[src] += 1
+
+    def note(self, src: str, text: str, *, at_ns: int | None = None) -> None:
+        """dhands's own commentary about `src`, in the same stream so a reader
+        sees WHEN a source went missing relative to the others. ``at_ns``
+        stamps it with a line's arrival, so it sorts before that line."""
+        t, wall = self._stamp(self.now_ns() if at_ns is None else at_ns)
+        self._write({"t": t, "wall": wall, "src": src, "line": text, "note": True})
+        self.notes.append(text)
+        self.flush()
+
+    def unavailable(self, src: str, reason: str) -> None:
+        self.missing.add(src)
+        self.note(src, f"[dhands] {src} unavailable: {reason}")
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        with contextlib.suppress(Exception):
+            self._f.close()
+
+
+# ─── Per-source line assembly ──────────────────────────────────────
+# logcat's threadtime lines start with the device's local time, in exactly
+# the shape `date '+%m-%d %H:%M:%S.%3N'` prints — so the two compare as text.
+_THREADTIME_RE: Final = re.compile(rb"^(\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})")
+# How long, from the first line, a time-based backlog may go on. The device
+# repeats one line (`-T 1`), so it is over at once; the bound is for a clock
+# that jumped back, or a capture that starts at a new year, where "older
+# than the start" would otherwise never stop being true.
+_BACKLOG_WINDOW_S: Final[float] = 2.0
+# The `[ 1234.567890]` printk time `dmesg` puts in front of each line.
+_PRINTK_TS_RE: Final = re.compile(rb"^\[\s*(\d+\.\d+)\]")
+
+
+class _Backlog:
+    """The leading lines of one source that are from before the capture.
+
+    Three ways to know them: a printk time no later than the last line's
+    just before the stream started (dmesg, ``upto``); a line count (dmesg
+    without printk times); a device timestamp older than the device's clock
+    at the start (logcat, ``before``). Each way the backlog ends at the
+    first line that is not old, and nothing after that is ever held back.
+    """
+
+    def __init__(self, *, count: int = 0, before: bytes = b"", upto: float | None = None) -> None:
+        self.counted = count > 0
+        self._left = count
+        self._before = before
+        self._upto = upto
+        self._first_ns: int | None = None
+        self.skipped = 0
+        self.done = not (count > 0 or before or upto is not None)
+
+    def take(self, line: bytes, at_ns: int) -> bool:
+        """True if ``line`` is old: raw file only."""
+        if self._upto is not None:
+            m = _PRINTK_TS_RE.match(line)
+            # No printk time: the rest of an old record, still in the dump.
+            if m is None or float(m.group(1)) <= self._upto:
+                self.skipped += 1
+                return True
+            self.done = True
+            return False
+        if self.counted:
+            self._left -= 1
+            self.skipped += 1
+            self.done = self._left <= 0
+            return True
+        if self._first_ns is None:
+            self._first_ns = at_ns
+        elif at_ns - self._first_ns > _BACKLOG_WINDOW_S * 1e9:
+            self.done = True
+            return False
+        m = _THREADTIME_RE.match(line)
+        if m is None:
+            return False  # "--------- beginning of main": logcat's own separator, kept
+        if m.group(1) < self._before:
+            self.skipped += 1
+            return True
+        self.done = True
+        return False
+
+
+class _LineAssembler:
+    """Turns a byte stream into stamped lines for one source.
+
+    Chunks are not lines: adb yields one line per chunk, a serial link
+    yields whatever bytes arrived (several lines, or half of one). Complete
+    lines are emitted at once; the trailing fragment waits for more bytes
+    or for `idle_flush_s` of silence.
+    """
+
+    def __init__(
+        self,
+        src: str,
+        writer: _TimelineWriter,
+        raw: BinaryIO | None,
+        *,
+        idle_flush_s: float,
+        backlog: _Backlog | None = None,
+    ) -> None:
+        self.src = src
+        self._writer = writer
+        self._raw = raw
+        self._idle_flush_s = idle_flush_s
+        self._buf = bytearray()
+        self._last_ns = 0
+        self._seq = 0
+        self._timer: asyncio.TimerHandle | None = None
+        self.lines = 0
+        # Lines from before the capture: raw file only (see module doc).
+        self._backlog = backlog
+
+    def feed(self, chunk: bytes) -> None:
+        at_ns = self._writer.now_ns()
+        if self._raw is not None:
+            # Raw first, verbatim: evidence before interpretation. Flushed per
+            # chunk so `tail -f` on the raw file keeps up with the board.
+            self._raw.write(chunk)
+            self._raw.flush()
+        self._buf.extend(chunk)
+        self._last_ns = at_ns
+        self._seq += 1
+        while True:
+            idx = self._buf.find(b"\n")
+            if idx < 0:
+                if len(self._buf) > _MAX_LINE:
+                    self._emit(bytes(self._buf[:_MAX_LINE]), at_ns, truncated=True)
+                    del self._buf[:_MAX_LINE]
+                    continue
+                break
+            line = bytes(self._buf[:idx])
+            del self._buf[: idx + 1]
+            backlog = self._backlog
+            if backlog is not None and not backlog.done:
+                old = backlog.take(line, at_ns)
+                if backlog.done and backlog.skipped:
+                    # Stamped with this chunk, so it sorts just before the
+                    # live lines it introduces.
+                    self._note_skipped(backlog.skipped, "", at_ns=at_ns)
+                if old:
+                    continue
+            self._emit(line, at_ns)
+        self._writer.flush()  # per chunk, not per line: one batch, one flush
+        self._arm_idle_timer()
+
+    def _arm_idle_timer(self) -> None:
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        if not self._buf:
+            return
+        # `call_later` rather than wrapping the source's `__anext__` in
+        # `wait_for`: a timeout there would cancel the async generator and
+        # kill the stream, which is the opposite of what an idle flush wants.
+        loop = asyncio.get_running_loop()
+        self._timer = loop.call_later(self._idle_flush_s, self._on_idle, self._seq)
+
+    def _on_idle(self, seq: int) -> None:
+        self._timer = None
+        if seq != self._seq or not self._buf:
+            return  # more bytes arrived in the meantime; a new timer is armed
+        self.flush_partial()
+        self._writer.flush()
+
+    def flush_partial(self) -> None:
+        if self._buf:
+            self._emit(bytes(self._buf), self._last_ns, partial=True)
+            self._buf.clear()
+
+    def _emit(
+        self, raw: bytes, at_ns: int, *, partial: bool = False, truncated: bool = False
+    ) -> None:
+        text = raw.replace(b"\r", b"").decode("utf-8", errors="replace")
+        if not text and not partial:
+            return  # bare newline: nothing to reason about (raw file keeps it)
+        self._writer.line(self.src, text, at_ns=at_ns, partial=partial, truncated=truncated)
+        self.lines += 1
+
+    def _note_skipped(self, n: int, tail: str, *, at_ns: int | None = None) -> None:
+        self._writer.note(
+            self.src,
+            f"[dhands] {self.src}: {n} line(s) from before the capture started are left out "
+            f"of the timeline (still in {_RAW_FILE[self.src]}){tail}",
+            at_ns=at_ns,
+        )
+
+    def close(self) -> None:
+        b = self._backlog
+        if b is not None and not b.done and b.skipped:
+            tail = " — the capture ended before the rest of them arrived" if b.counted else ""
+            self._note_skipped(b.skipped, tail)
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        self.flush_partial()
+        if self._raw is not None:
+            with contextlib.suppress(Exception):
+                self._raw.close()
+
+
+# ─── Source runner ─────────────────────────────────────────────────
+async def _open_stream(factory: StreamFactory) -> AsyncIterator[bytes]:
+    stream = factory()
+    if inspect.isawaitable(stream):
+        return await stream
+    return stream
+
+
+_EARLY_END_HINT: Final[dict[str, str]] = {
+    "dmesg": " (dmesg -w needs root: run `adb root` or `dhands shell su 0 id` first)",
+    "logcat": " (is a device attached? check `dhands devices`)",
+    "uart": "",
+}
+
+
+async def _run_source(
+    src: str,
+    factory: StreamFactory,
+    assembler: _LineAssembler,
+    writer: _TimelineWriter,
+    *,
+    deadline_perf: float,
+) -> None:
+    """Pump one source until it ends, fails, or the capture is cancelled.
+
+    A source that dies is noted in the timeline and that is all: one missing
+    source must never abort the capture — the other two are the reason the
+    user is here.
+    """
+    event_bus = bus()
+    topic = _TOPIC.get(src, f"{src}.line")
+    serial_down = False
+    try:
+        async for chunk in await _open_stream(factory):
+            if src == "uart" and chunk.startswith(_SERIAL_OPEN_FAILED):
+                if not serial_down:
+                    reason = chunk.decode("utf-8", errors="replace").strip()
+                    writer.unavailable(src, reason)
+                    serial_down = True
+                continue  # the reconnect loop will keep retrying; say it once
+            if serial_down:
+                writer.missing.discard(src)
+                writer.note(src, "[dhands] uart link up")
+                serial_down = False
+            assembler.feed(chunk)
+            await event_bus.publish(topic, chunk)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        # Any failure of one source becomes a note; the others keep going.
+        writer.unavailable(src, f"{type(e).__name__}: {e}")
+        return
+    if perf_counter() < deadline_perf - 0.05:
+        # Ended on its own before the capture did. stderr of the child is
+        # discarded by `spawn_stream`, so the reason is not available here;
+        # say what was seen and the usual cause.
+        if assembler.lines == 0:
+            writer.note(
+                src,
+                f"[dhands] {src} unavailable: stream ended with no output"
+                f"{_EARLY_END_HINT.get(src, '')}",
+            )
+        else:
+            writer.note(src, f"[dhands] {src} stream ended early after {assembler.lines} lines")
+
+
+# ─── Capture ───────────────────────────────────────────────────────
+async def capture_timeline(
+    duration_s: float,
+    *,
+    sources: Collection[str] = ALL_SOURCES,
+    transport: Transport | None = None,
+    serial: Transport | None = None,
+    device: str | None = None,
+    output: Path | str | None = None,
+    streams: Mapping[str, StreamFactory] | None = None,
+    logcat_filter: str | None = None,
+    logcat_buffers: Sequence[str] | None = None,
+    idle_flush_s: float = IDLE_FLUSH_S,
+) -> Result[TimelineSummary]:
+    """Capture the requested sources concurrently into one timeline directory.
+
+    Args:
+        duration_s: how long to capture (0 < s <= 3600).
+        sources: any subset of ``logcat`` / ``dmesg`` / ``uart``.
+        transport: adb / ssh transport for logcat and dmesg. ``None`` is
+            noted in the timeline, not an error.
+        serial: serial transport for uart. ``None`` is noted, not an error.
+        device: device serial, selects ``workspace/devices/<device>/timeline/``.
+        output: directory to write into instead of the workspace.
+        streams: per-source byte-stream factories that replace the transport
+            for that source (tests, or any caller with its own byte source).
+        logcat_buffers: logcat buffers to read (``-b`` each), e.g.
+            ``["main", "system", "crash", "events"]``. ``None`` keeps the
+            device default. The events buffer is where Android's
+            ``boot_progress_*`` milestones are logged.
+        idle_flush_s: silence after which a trailing fragment is written out.
+
+    LLM notes:
+        - Read ``<dir>/timeline.jsonl`` (or ``dhands timeline show <dir>``), not
+          the raw files, when the question is "what happened in what order".
+        - A line starting with ``[dhands]`` is dhands commenting on a source (went
+          missing, came back, ended early), stamped like everything else.
+    """
+    if not duration_s > 0 or duration_s > 3600:
+        return fail(
+            code="INVALID_DURATION",
+            message=f"duration must be > 0 and <= 3600 seconds, got {duration_s}",
+            suggestion="Use a value between 1 and 3600 seconds",
+            category="input",
+        )
+    wanted = [s for s in ALL_SOURCES if s in sources]
+    if logcat_buffers is not None and not all(
+        isinstance(b, str) and b.isalpha() and b.isascii() for b in logcat_buffers
+    ):
+        return fail(
+            code="INVALID_LOGCAT_BUFFER",
+            message="logcat buffer names are letters only (main, system, crash, events, ...)",
+            suggestion="Use e.g. main, system, crash, events",
+            category="input",
+        )
+    unknown = sorted(set(sources) - set(ALL_SOURCES))
+    if unknown or not wanted:
+        return fail(
+            code="INVALID_SOURCE",
+            message=(
+                f"unknown source(s): {', '.join(unknown)}" if unknown else "no source requested"
+            ),
+            suggestion=f"Choose at least one of: {', '.join(ALL_SOURCES)}",
+            category="input",
+        )
+
+    try:
+        directory = _capture_dir(output, device)
+    except InvalidDeviceSerial as e:
+        return fail(
+            code="INVALID_DEVICE_SERIAL",
+            message=str(e),
+            suggestion="Use a serial returned by dhands devices",
+            category="input",
+        )
+
+    start = perf_counter()
+    deadline = start + duration_s
+    writer = _TimelineWriter(directory / "timeline.jsonl")
+    writer.meta("start", sources=wanted, device=device, duration_s=duration_s)
+
+    factories, backlog = await _pick_factories(
+        wanted,
+        writer,
+        transport=transport,
+        serial=serial,
+        streams=streams,
+        logcat_filter=logcat_filter,
+        logcat_buffers=logcat_buffers,
+        deadline_perf=deadline,
+    )
+
+    assemblers: dict[str, _LineAssembler] = {}
+    tasks: list[asyncio.Task[None]] = []
+    try:
+        for src, factory in factories.items():
+            raw: BinaryIO = (directory / _RAW_FILE[src]).open("wb")
+            assembler = _LineAssembler(
+                src, writer, raw, idle_flush_s=idle_flush_s, backlog=backlog.get(src)
+            )
+            assemblers[src] = assembler
+            tasks.append(
+                asyncio.create_task(
+                    _run_source(src, factory, assembler, writer, deadline_perf=deadline),
+                    name=f"timeline-{src}",
+                )
+            )
+        if tasks:
+            # Sources that end early just stop; the rest run out the clock.
+            # No point sleeping out the duration when nothing is left to read.
+            _done, pending = await asyncio.wait(tasks, timeout=duration_s)
+            for t in pending:
+                t.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+        if "uart" in factories and serial is not None:
+            # An empty uart.log on the hub path can be a COM port the bench
+            # agent never opened: the forwarder hangs up, the reconnecting
+            # reader tries again, and without this the timeline would read as
+            # a silent board (infra/hub_serial.py).
+            reason = await asyncio.to_thread(
+                _uart_refusal, serial, directory / _RAW_FILE["uart"], duration_s + 10
+            )
+            if reason is not None:
+                writer.unavailable(
+                    "uart", f"the bench agent could not open the serial port: {reason}"
+                )
+    finally:
+        for assembler in assemblers.values():
+            assembler.close()
+        duration_ms = int((perf_counter() - start) * 1000)
+        writer.meta("end", lines=dict(writer.lines), duration_ms=duration_ms)
+        writer.close()
+
+    summary = TimelineSummary(
+        directory=directory,
+        sources=wanted,
+        lines={src: writer.lines.get(src, 0) for src in wanted},
+        notes=list(writer.notes),
+        duration_captured_ms=duration_ms,
+    )
+    _write_summary(directory, summary)
+    artifacts = [directory / "timeline.jsonl"] + [directory / _RAW_FILE[src] for src in factories]
+    if not any(summary.lines.values()) and set(wanted) <= writer.missing:
+        # Not ok-with-zero-lines: a caller that reads only `ok` would take
+        # "could not read anything" for "the board printed nothing".
+        return Result(
+            ok=False,
+            error=ErrorInfo(
+                code="TIMELINE_NO_SOURCE",
+                message="none of the requested sources could be read: " + "; ".join(summary.notes),
+                suggestion="dmesg usually needs `dhands adb root`, uart needs `dhands setup serial`, "
+                "logcat needs an adb device",
+                category="transport",
+                details=summary.to_dict(),
+            ),
+            artifacts=artifacts,
+            timing_ms=duration_ms,
+        )
+    return ok(data=summary, artifacts=artifacts, timing_ms=duration_ms)
+
+
+async def _pick_factories(
+    wanted: list[str],
+    writer: _TimelineWriter,
+    *,
+    transport: Transport | None,
+    serial: Transport | None,
+    streams: Mapping[str, StreamFactory] | None,
+    logcat_filter: str | None,
+    logcat_buffers: Sequence[str] | None = None,
+    deadline_perf: float,
+) -> tuple[dict[str, StreamFactory], dict[str, _Backlog]]:
+    """Decide where each requested source's bytes come from, noting the
+    ones that have nowhere to come from. Only sources with a factory get a
+    raw file and a task.
+
+    Also returns, per source, how to recognise its leading lines from before
+    the capture (see the module doc)."""
+    factories: dict[str, StreamFactory] = {}
+    backlog: dict[str, _Backlog] = {}
+    for src in wanted:
+        if streams is not None and src in streams:
+            factories[src] = streams[src]
+            continue
+        if src == "uart":
+            if serial is None:
+                writer.unavailable(src, "serial transport not configured")
+                continue
+            # The reconnecting reader, not a bare stream_read: TCP UART
+            # bridges EOF when the port is idle, and "start capture, then
+            # reboot the board" is the whole workflow.
+            factories[src] = _serial_factory(serial, deadline_perf)
+            continue
+        if transport is None:
+            writer.unavailable(src, "no adb/ssh transport")
+            continue
+        if src == "logcat":
+            perm = await transport.check_permissions(
+                "logging.logcat", {"duration": 0, "filter": logcat_filter}
+            )
+            if perm.behavior == "deny":
+                writer.unavailable(src, perm.reason or "blocked")
+                continue
+            stamp = await _device_stamp(transport)
+            if stamp is None:
+                writer.note(
+                    src,
+                    "[dhands] logcat: the device clock could not be read, so the one line logcat "
+                    "repeats from before the capture is not told apart — stamped at its start",
+                )
+            else:
+                backlog[src] = _Backlog(before=stamp)
+            extra: dict[str, Any] = {"buffers": list(logcat_buffers)} if logcat_buffers else {}
+            factories[src] = _stream_factory(
+                transport, "logcat", filter=logcat_filter, tail=1, **extra
+            )
+        else:
+            upto = await _dmesg_last_stamp(transport)
+            count = None if upto is not None else await _dmesg_backlog(transport)
+            if upto is not None:
+                backlog[src] = _Backlog(upto=upto)
+            elif count is None:
+                writer.note(
+                    src,
+                    "[dhands] dmesg: the lines already in the buffer could not be counted, so they "
+                    "are taken too — all stamped at the capture start",
+                )
+            elif count:
+                backlog[src] = _Backlog(count=count)
+            factories[src] = _stream_factory(transport, "dmesg")
+    return factories, backlog
+
+
+# The device's local time in logcat's threadtime shape, milliseconds where
+# the date command supports %N. Only the leading fields are trusted — a date
+# without %N prints the escape back, and whole seconds still work as a start.
+_STAMP_CMD: Final = "date '+%m-%d %H:%M:%S.%3N'"
+_STAMP_RE: Final = re.compile(r"(\d\d-\d\d \d\d:\d\d:\d\d)(?:\.(\d{3}))?")
+
+
+async def _device_stamp(transport: Transport) -> bytes | None:
+    """Now on the device's clock, as logcat stamps its lines.
+
+    The device's clock, not the host's: the lines carry the time the device
+    stamped them with, and the two clocks are not the same."""
+    try:
+        r = await transport.shell(_STAMP_CMD, timeout=5)
+    except Exception:  # a probe must never cost the capture
+        return None
+    out = r.stdout if r.ok and isinstance(r.stdout, str) else ""
+    m = _STAMP_RE.match(out.strip())
+    if m is None:
+        return None
+    return f"{m.group(1)}.{m.group(2) or '000'}".encode()
+
+
+_DMESG_LAST_CMD: Final = "dmesg | tail -n 8"
+
+
+async def _dmesg_last_stamp(transport: Transport) -> float | None:
+    """The printk time on the newest stamped line in the kernel buffer, or
+    None when there is none (empty buffer, a kernel built without printk
+    times, the command failing). A few lines, not one: the last line can be
+    the unstamped rest of a record."""
+    try:
+        r = await transport.shell(_DMESG_LAST_CMD, timeout=10)
+    except Exception:  # a probe must never cost the capture
+        return None
+    out = r.stdout if r.ok and isinstance(r.stdout, str) else ""
+    for line in reversed(out.splitlines()):
+        m = _PRINTK_TS_RE.match(line.encode())
+        if m:
+            return float(m.group(1))
+    return None
+
+
+async def _dmesg_backlog(transport: Transport) -> int | None:
+    """How many lines `dmesg -w` will print before its first new one — the
+    fallback for a kernel without printk times.
+
+    Counted with the same `dmesg`, so the lines line up one for one while
+    the buffer is not full. Once it is, each line logged between the count
+    and the stream starting pushes out an old one, and as many new lines are
+    then taken as old (still in dmesg.txt)."""
+    try:
+        r = await transport.shell("dmesg | wc -l", timeout=10)
+    except Exception:  # a probe must never cost the capture
+        return None
+    out = r.stdout.strip() if r.ok and isinstance(r.stdout, str) else ""
+    return int(out) if out.isdigit() else None
+
+
+def _uart_refusal(serial: Transport, raw: Path, within_s: float) -> str | None:
+    if raw.exists() and raw.stat().st_size:
+        return None
+    return hub_serial_open_failure(
+        getattr(serial, "tcp_host", None), getattr(serial, "tcp_port", None), within_s=within_s
+    )
+
+
+def _capture_dir(output: Path | str | None, device: str | None) -> Path:
+    directory = (
+        Path(output).expanduser()
+        if output is not None
+        else workspace_path("timeline", f"capture-{iso_timestamp()}", device=device)
+    )
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def _write_summary(directory: Path, summary: TimelineSummary) -> None:
+    (directory / "summary.json").write_text(
+        json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def _stream_factory(transport: Transport, source: str, **kwargs: Any) -> StreamFactory:
+    def factory() -> Awaitable[AsyncIterator[bytes]]:
+        return transport.stream_read(source, **kwargs)
+
+    return factory
+
+
+def _serial_factory(serial: Transport, deadline_perf: float) -> StreamFactory:
+    def factory() -> AsyncIterator[bytes]:
+        return _reconnecting_serial_stream(serial, "uart", deadline_perf=deadline_perf)
+
+    return factory
+
+
+# ─── Reading back ──────────────────────────────────────────────────
+def timeline_file(path: Path) -> Path:
+    """Accept either the capture directory or the jsonl itself."""
+    return path / "timeline.jsonl" if path.is_dir() else path
+
+
+def iter_timeline(
+    path: Path,
+    *,
+    sources: Collection[str] | None = None,
+    grep: str | None = None,
+    around: float | None = None,
+    window: float = 5.0,
+) -> Iterator[dict[str, Any]]:
+    """Yield line records in time order, streaming.
+
+    Records are stamped at arrival and may be written slightly after their
+    stamp (see module doc), so this re-sorts with a bounded look-ahead
+    instead of reading the whole file: memory stays bounded for a long
+    capture. A half-written last line (capture killed mid-write) is skipped.
+
+    Args:
+        sources: keep only these ``src`` values (None = all).
+        grep: plain substring that must occur in the line (case-sensitive).
+        around / window: keep ``t`` within ``[around - window, around + window]``.
+    """
+    file = timeline_file(path)
+    lo = around - window if around is not None else None
+    hi = around + window if around is not None else None
+    heap: list[tuple[float, int, dict[str, Any]]] = []
+    seq = 0
+    with file.open("r", encoding="utf-8") as f:
+        for raw in f:
+            try:
+                rec = json.loads(raw)
+            except ValueError:
+                continue
+            if isinstance(rec, dict) and rec.get("src") == "job" and "line" not in rec:
+                rec = {**rec, "line": job_event_line(rec)}
+            if not isinstance(rec, dict) or "line" not in rec:
+                continue  # meta records are for tooling, not for reading
+            if sources is not None and rec.get("src") not in sources:
+                continue
+            if grep is not None and grep not in str(rec.get("line", "")):
+                continue
+            t = float(rec.get("t", 0.0))
+            if lo is not None and hi is not None and not (lo <= t <= hi):
+                continue
+            heapq.heappush(heap, (t, seq, rec))
+            seq += 1
+            while heap and heap[0][0] < t - _REORDER_WINDOW_S:
+                yield heapq.heappop(heap)[2]
+    while heap:
+        yield heapq.heappop(heap)[2]
+
+
+def job_event_line(rec: dict[str, Any]) -> str:
+    """A flash job's event as one readable line, so a job's timeline reads
+    like any other: what the tool printed, then the verdict."""
+    ev = str(rec.get("ev") or "")
+    if ev == "progress":
+        text = str(rec.get("text") or "").strip()
+        if text:
+            return text
+        done, total = rec.get("done"), rec.get("total")
+        return f"{rec.get('phase') or 'progress'} {done}/{total}" if total else str(rec.get("phase") or ev)
+    if ev == "done":
+        took = rec.get("duration_s")
+        tail = f" in {float(took):.1f}s" if isinstance(took, (int, float)) else ""
+        if rec.get("ok"):
+            return f"job finished: ok{tail}"
+        what = " ".join(str(x) for x in (rec.get("code"), rec.get("error")) if x)
+        line = rec.get("failed_line")
+        where = f" at manifest line {line}" if line else ""
+        return f"job failed{where}: {what or 'error'}{tail}"
+    return f"job {ev}" if ev else "job event"
+
+
+def format_line(rec: dict[str, Any]) -> str:
+    """``+12.345s uart   | <line>`` — plain text, one line per record, so a
+    transcript reads the same to a person and to a model."""
+    stamp = f"+{float(rec.get('t', 0.0)):.3f}s"
+    text = f"{stamp:>10} {rec.get('src', '?')!s:<6} | {rec.get('line', '')}"
+    if rec.get("partial"):
+        text += " [partial]"
+    if rec.get("truncated"):
+        text += " [truncated]"
+    return text

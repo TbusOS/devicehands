@@ -1,4 +1,4 @@
-"""Tests for alb.infra.event_bus — in-process broadcaster + jsonl log."""
+"""Tests for devicehands.infra.event_bus — in-process broadcaster + jsonl log."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.event_bus import (
+from devicehands.infra.event_bus import (
     EventBroadcaster,
     events_log_path,
     get_bus,

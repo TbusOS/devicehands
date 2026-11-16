@@ -19,9 +19,9 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api import timeline_route
-from alb.api.server import create_app
-from alb.transport.base import PermissionResult, ShellResult
+from devicehands.api import timeline_route
+from devicehands.api.server import create_app
+from devicehands.transport.base import PermissionResult, ShellResult
 
 SERIAL = "0123456789ABCDEF"
 CLOCK = "10-23 12:00:00.000\n"

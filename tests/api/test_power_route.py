@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.capabilities.power import BatteryInfo, RebootResult
-from alb.infra.result import fail, ok
-from alb.transport.base import PermissionResult
+from devicehands.api.server import create_app
+from devicehands.capabilities.power import BatteryInfo, RebootResult
+from devicehands.infra.result import fail, ok
+from devicehands.transport.base import PermissionResult
 
 
 class _StubTransport:
@@ -60,7 +60,7 @@ def stub_transport():
 @pytest.fixture
 def client(monkeypatch, stub_transport):
     monkeypatch.setattr(
-        "alb.api.power_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.power_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -69,7 +69,7 @@ def client(monkeypatch, stub_transport):
 
 # ─── /battery ──────────────────────────────────────────────────────
 def test_battery_returns_parsed_payload(monkeypatch, stub_transport) -> None:
-    """`alb.capabilities.power.battery` is the canonical parser; the
+    """`devicehands.capabilities.power.battery` is the canonical parser; the
     route is a thin pass-through. Just verify the envelope matches."""
     async def _battery(_t):
         return ok(
@@ -85,9 +85,9 @@ def test_battery_returns_parsed_payload(monkeypatch, stub_transport) -> None:
             timing_ms=12,
         )
 
-    monkeypatch.setattr("alb.api.power_route.power_cap.battery", _battery)
+    monkeypatch.setattr("devicehands.api.power_route.power_cap.battery", _battery)
     monkeypatch.setattr(
-        "alb.api.power_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.power_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -119,9 +119,9 @@ def test_battery_failure_returns_envelope(monkeypatch, stub_transport) -> None:
             category="transport",
         )
 
-    monkeypatch.setattr("alb.api.power_route.power_cap.battery", _battery)
+    monkeypatch.setattr("devicehands.api.power_route.power_cap.battery", _battery)
     monkeypatch.setattr(
-        "alb.api.power_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.power_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -137,9 +137,9 @@ def test_reboot_normal_happy_path(monkeypatch, stub_transport) -> None:
     async def _reboot(*_a, **_kw):
         return ok(data=RebootResult(mode="normal", wait_boot_ms=2400), timing_ms=2500)
 
-    monkeypatch.setattr("alb.api.power_route.power_cap.reboot", _reboot)
+    monkeypatch.setattr("devicehands.api.power_route.power_cap.reboot", _reboot)
     monkeypatch.setattr(
-        "alb.api.power_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.power_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -165,7 +165,7 @@ def test_reboot_invalid_mode_returns_envelope(monkeypatch, stub_transport) -> No
 def test_reboot_bootloader_needs_no_allow_flag(monkeypatch, stub_transport) -> None:
     """2026-10-23: non-normal modes run without allow_dangerous."""
     monkeypatch.setattr(
-        "alb.api.power_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.power_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -190,9 +190,9 @@ def test_sleep_wake_runs_one_cycle(monkeypatch, stub_transport) -> None:
             timing_ms=hold_sec * 1000,
         )
 
-    monkeypatch.setattr("alb.api.power_route.power_cap.sleep_wake_test", _sleep_wake)
+    monkeypatch.setattr("devicehands.api.power_route.power_cap.sleep_wake_test", _sleep_wake)
     monkeypatch.setattr(
-        "alb.api.power_route.build_transport", lambda **_kw: stub_transport
+        "devicehands.api.power_route.build_transport", lambda **_kw: stub_transport
     )
     app = create_app()
     with TestClient(app) as c:
@@ -223,7 +223,7 @@ def test_transport_init_failure_returns_envelope_b_not_503(monkeypatch) -> None:
     def _boom(**_kw: Any):
         raise RuntimeError("adb server unreachable")
 
-    monkeypatch.setattr("alb.api.power_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.power_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         r = c.get("/api/power/battery?device=abc")

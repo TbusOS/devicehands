@@ -26,10 +26,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.remote import bench_board
-from alb.remote.bench_board import PartitionList, parse_agent_boards, partition_list
-from alb.remote.flash import FlashService
-from alb.remote.flash_plan import AgentView, PlanRow, check_agent
+from devicehands.remote import bench_board
+from devicehands.remote.bench_board import PartitionList, parse_agent_boards, partition_list
+from devicehands.remote.flash import FlashService
+from devicehands.remote.flash_plan import AgentView, PlanRow, check_agent
 from tests.remote.bench_tables import new_agent_ops
 from tests.remote.test_flash_service import _Agent, _Channel, _ctl
 
@@ -248,7 +248,7 @@ async def _run(monkeypatch, wire: bytes, *, product: str = "") -> tuple[_Ws, lis
 
 async def test_with_a_product_set_a_write_naming_no_board_is_refused(monkeypatch):
     """The per-board lists used to refuse this; with them gone (ADR-070) a
-    forgotten `alb bench board use` would write unchecked to whatever board
+    forgotten `dhands bench board use` would write unchecked to whatever board
     is on the cable."""
     _per_board(monkeypatch, lists={}, products={"board-a": "prod_a"})
     ws, ran, asked = await _run(monkeypatch, _flash_wire("boot"))
@@ -451,7 +451,7 @@ async def test_no_board_chosen_refuses_a_partition_op_before_any_channel(chosen)
     a = _agent(PER_BOARD)
     r = await FlashService(lambda: a).run_op("erase", {"partition": "boot"})
     assert (r.ok, r.code) == (False, "FLASH_BOARD_NOT_LISTED")
-    assert "alb bench board use" in r.error
+    assert "dhands bench board use" in r.error
     assert a.opened == []
 
 
@@ -533,9 +533,9 @@ def test_partition_list_dataclass_defaults_are_the_old_meaning():
 
 
 def test_the_real_hello_lands_as_the_hubs_lists(monkeypatch):
-    from alb.api.server import create_app
-    from alb.remote import protocol as p
-    from alb.remote.registry import get_agent_registry
+    from devicehands.api.server import create_app
+    from devicehands.remote import protocol as p
+    from devicehands.remote.registry import get_agent_registry
 
     monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
     monkeypatch.delenv("ALB_AGENT_TOKEN", raising=False)

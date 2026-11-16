@@ -1,7 +1,7 @@
 [project]
-name = "android-llm-bridge"
+name = "devicehands"
 version = "0.0.1"
-description = "A unified Android debugging bridge designed for LLM agents (MCP / CLI / Web API)."
+description = "A hardware debugging toolkit for AI: debug real devices over serial and USB via MCP, CLI and Web."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
@@ -68,22 +68,23 @@ ui = [
 ]
 # 所有可选
 all = [
-    "android-llm-bridge[search,viz,ui]",
+    "devicehands[search,viz,ui]",
 ]
 
 # ─────────────────────────────────────────────
 # Entry points
 # ─────────────────────────────────────────────
 [project.scripts]
-alb = "alb.cli.main:main"
-alb-mcp = "alb.mcp.server:main"
-alb-api = "alb.api.server:main"
+devicehands = "devicehands.cli.main:main"
+dhands = "devicehands.cli.main:main"
+dhands-mcp = "devicehands.mcp.server:main"
+dhands-hub = "devicehands.api.server:main"
 
 [project.urls]
-Homepage = "https://github.com/TbusOS/android-llm-bridge"
-Documentation = "https://github.com/TbusOS/android-llm-bridge/tree/main/docs"
-Repository = "https://github.com/TbusOS/android-llm-bridge"
-Issues = "https://github.com/TbusOS/android-llm-bridge/issues"
+Homepage = "https://github.com/TbusOS/devicehands"
+Documentation = "https://github.com/TbusOS/devicehands/tree/main/docs"
+Repository = "https://github.com/TbusOS/devicehands"
+Issues = "https://github.com/TbusOS/devicehands/issues"
 
 # ─────────────────────────────────────────────
 # Build system
@@ -93,7 +94,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/alb"]
+packages = ["src/devicehands"]
 
 # ─────────────────────────────────────────────
 # uv dependency groups (PEP 735)
@@ -141,7 +142,7 @@ ignore = [
 # the sub-apps read env at import time (typer envvar=), so loading .env first
 # is what makes those defaults work. Flagging that as E402 forever just
 # trains people to ignore the linter on this file.
-"src/alb/cli/main.py" = ["E402"]
+"src/devicehands/cli/main.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -175,7 +176,7 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
-    "--cov=alb",
+    "--cov=devicehands",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
@@ -188,7 +189,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["src/alb"]
+source = ["src/devicehands"]
 
 [tool.coverage.report]
 exclude_lines = [

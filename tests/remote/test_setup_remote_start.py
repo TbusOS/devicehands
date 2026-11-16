@@ -30,7 +30,7 @@ def _load():
 srs = _load()
 
 BODY = "AAAAC3NzaC1lZDI1NTE5AAAAIN9zSNAgB41h0lNqnIVLQ0LGCHMcg2fIhdjAM4vhIAp/"
-KEY = f"ssh-ed25519 {BODY} alb-hub-to-bench"
+KEY = f"ssh-ed25519 {BODY} dhands-hub-to-bench"
 NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 
 

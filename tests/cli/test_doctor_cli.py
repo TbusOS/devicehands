@@ -1,4 +1,4 @@
-"""Tests for `alb doctor` health check.
+"""Tests for `dhands doctor` health check.
 
 We test each layer probe in isolation via monkeypatching, plus an
 integration test over the rendered output / exit code path.
@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.doctor import (
+from devicehands.capabilities.doctor import (
     Layer,
     compute_exit_code,
     probe_binaries,
@@ -107,7 +107,7 @@ def test_probe_binaries_adb_present(monkeypatch) -> None:
 
 
 def test_probe_binaries_adb_follows_alb_adb_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """adb outside PATH but named by ALB_ADB_PATH is the adb alb runs, so
+    """adb outside PATH but named by ALB_ADB_PATH is the adb dhands runs, so
     doctor must not report it missing (it used to look up "adb" on PATH)."""
     adb = tmp_path / "adb"
     adb.write_text("#!/bin/sh\n")
@@ -160,7 +160,7 @@ def test_probe_serial_endpoint_not_listening(monkeypatch, tmp_path: Path) -> Non
     monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "absent.toml"))
     # Force check_tcp_listen → False without actually opening sockets
     monkeypatch.setattr(
-        "alb.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
+        "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
     )
     layer = _run(probe_serial_async())
     assert any(c.status == "warn" for c in layer.checks)
@@ -170,12 +170,12 @@ def test_probe_serial_endpoint_not_listening(monkeypatch, tmp_path: Path) -> Non
 def test_probe_serial_endpoint_listening_and_open(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("ALB_CONFIG", str(tmp_path / "absent.toml"))
     monkeypatch.setattr(
-        "alb.capabilities.doctor.check_tcp_listen", lambda *a, **kw: True
+        "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: True
     )
     # Mock SerialTransport.health() to claim connected
     fake_health = AsyncMock(return_value={"connected": True})
     monkeypatch.setattr(
-        "alb.capabilities.doctor.SerialTransport",
+        "devicehands.capabilities.doctor.SerialTransport",
         lambda **kw: type("FakeT", (), {"health": fake_health})(),
     )
     layer = _run(probe_serial_async())
@@ -199,7 +199,7 @@ def test_probe_ssh_set_and_unreachable(monkeypatch) -> None:
     monkeypatch.setenv("ALB_SSH_HOST", "example-host.invalid")
     monkeypatch.setenv("ALB_SSH_PORT", "22")
     monkeypatch.setattr(
-        "alb.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
+        "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
     )
     layer = probe_ssh()
     assert layer.worst == "err"
@@ -228,10 +228,10 @@ def test_exit_code_err_returns_one() -> None:
 
 
 def test_alb_doctor_json_smoke(monkeypatch, tmp_path: Path) -> None:
-    """`alb --json doctor` returns parseable JSON with expected layers."""
+    """`dhands --json doctor` returns parseable JSON with expected layers."""
     from typer.testing import CliRunner
 
-    from alb.cli.main import app
+    from devicehands.cli.main import app
 
     # Force adb missing so we land at err (deterministic regardless of host)
     import shutil
@@ -240,7 +240,7 @@ def test_alb_doctor_json_smoke(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("ALB_SSH_HOST", raising=False)
     # Avoid real TCP sockets
     monkeypatch.setattr(
-        "alb.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
+        "devicehands.capabilities.doctor.check_tcp_listen", lambda *a, **kw: False
     )
 
     runner = CliRunner()

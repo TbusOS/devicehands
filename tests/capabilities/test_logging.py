@@ -9,13 +9,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.logging import (
+from devicehands.capabilities.logging import (
     collect_dmesg,
     collect_logcat,
     search_logs,
     tail_log,
 )
-from alb.infra.permissions import PermissionResult
+from devicehands.infra.permissions import PermissionResult
 
 
 async def _stream(chunks: list[bytes]) -> AsyncIterator[bytes]:
@@ -251,7 +251,7 @@ async def test_search_logs_rejects_a_bad_since(bad: str) -> None:
 
 
 def test_parse_since_forms() -> None:
-    from alb.capabilities.logging import parse_since
+    from devicehands.capabilities.logging import parse_since
 
     assert parse_since("2h", now=10_000.0) == 2_800.0
     assert parse_since("30m", now=10_000.0) == 8_200.0

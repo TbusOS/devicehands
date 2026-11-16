@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.transport.base import ShellResult, Transport
+from devicehands.api.server import create_app
+from devicehands.transport.base import ShellResult, Transport
 
 
 # ─── Fake transport ──────────────────────────────────────────────────
@@ -96,7 +96,7 @@ def fake_transport() -> _FakeAdbTransport:
 @pytest.fixture
 def client(workspace, fake_transport, monkeypatch):
     monkeypatch.setattr(
-        "alb.api.files_route.build_transport",
+        "devicehands.api.files_route.build_transport",
         lambda **kwargs: fake_transport,
     )
     app = create_app()
@@ -170,7 +170,7 @@ def test_device_files_build_transport_failure(workspace, monkeypatch) -> None:
     def _boom(**kwargs: Any):
         raise RuntimeError("no adb daemon")
 
-    monkeypatch.setattr("alb.api.files_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.files_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         body = c.get("/devices/SERIAL01/files", params={"path": "/sdcard/"}).json()
@@ -217,7 +217,7 @@ def test_workspace_files_truncates_large_directory(
     """50k-file dirs should slice on cheap DirEntry sort and not pay
     50k stat() calls (MID-3). We patch _MAX_ENTRIES to 5 and create 50
     files; truncated must be True and entries length must be 5."""
-    import alb.api.files_route as mod
+    import devicehands.api.files_route as mod
 
     monkeypatch.setattr(mod, "_MAX_ENTRIES", 5)
     big = workspace / "big"
@@ -239,7 +239,7 @@ def test_workspace_files_dirs_first_within_truncation(
 ) -> None:
     """Mixed dirs + files: dirs must come before files so a 50k-file
     dir doesn't hide its subdirs past the cutoff."""
-    import alb.api.files_route as mod
+    import devicehands.api.files_route as mod
 
     monkeypatch.setattr(mod, "_MAX_ENTRIES", 5)
     mixed = workspace / "mixed"
@@ -517,7 +517,7 @@ def test_is_sensitive_remote_normalizes_dotdot() -> None:
     """Defense in depth — if `..` ever slips past the safety gate
     (e.g. via a future refactor), normpath inside _is_sensitive_remote
     still classifies the resolved path correctly."""
-    from alb.api.files_route import _is_sensitive_remote
+    from devicehands.api.files_route import _is_sensitive_remote
 
     assert _is_sensitive_remote("/data/local/tmp/../system/lib/foo") is True
     assert _is_sensitive_remote("/sdcard/../system") is True
@@ -528,7 +528,7 @@ def test_is_sensitive_remote_normalizes_dotdot() -> None:
 def test_device_files_truncates_after_sort(client, fake_transport) -> None:
     """Sort happens before truncate — directories should always be
     visible even when entry count exceeds _MAX_ENTRIES."""
-    from alb.api.files_route import _MAX_ENTRIES
+    from devicehands.api.files_route import _MAX_ENTRIES
 
     # 1 dir + (_MAX_ENTRIES + 5) files; toybox typically returns inode
     # order so the dir lands somewhere arbitrary. Sort-before-cap must
@@ -625,7 +625,7 @@ def _drain_ws(ws, max_frames: int = 50) -> tuple[dict | None, list[dict]]:
 
 def test_push_stream_happy_path(client, fake_transport, workspace) -> None:
     """3 progress events + done → 3 progress frames + closed{ok:true}."""
-    from alb.transport.base import TransferEvent
+    from devicehands.transport.base import TransferEvent
 
     src = workspace / "x.bin"
     src.write_bytes(b"X" * 100)
@@ -660,7 +660,7 @@ def test_pull_stream_default_local_lands_in_workspace(
     client, fake_transport, workspace,
 ) -> None:
     """Pull without `local` defaults to devices/<serial>/pulls/<basename>-<ts>."""
-    from alb.transport.base import TransferEvent
+    from devicehands.transport.base import TransferEvent
 
     fake_transport.stream_events = [
         TransferEvent(kind="done", ok=True, bytes_transferred=10, duration_ms=10),
@@ -715,7 +715,7 @@ def test_push_stream_sensitive_path_without_force_blocks(
 def test_push_stream_sensitive_path_with_force_proceeds(
     client, fake_transport, workspace,
 ) -> None:
-    from alb.transport.base import TransferEvent
+    from devicehands.transport.base import TransferEvent
 
     src = workspace / "boot.img"
     src.write_bytes(b"x")
@@ -744,7 +744,7 @@ def test_push_stream_unsupported_transport_closes(workspace, monkeypatch) -> Non
 
     monkeypatch.setenv("ALB_WORKSPACE", str(workspace))
     monkeypatch.setattr(
-        "alb.api.files_route.build_transport",
+        "devicehands.api.files_route.build_transport",
         lambda **kwargs: _NoStreamTransport(),
     )
     src = workspace / "x.bin"
@@ -764,7 +764,7 @@ def test_push_stream_init_failed_closes(workspace, monkeypatch) -> None:
 
     monkeypatch.setenv("ALB_WORKSPACE", str(workspace))
     monkeypatch.setattr(
-        "alb.api.files_route.build_transport", _boom,
+        "devicehands.api.files_route.build_transport", _boom,
     )
     src = workspace / "x.bin"
     src.write_bytes(b"x")
@@ -787,7 +787,7 @@ def test_push_stream_cancel_returns_cancelled_reason(
     test_push_stream_cancel_terminates_subprocess in
     tests/transport/test_adb_transfer_stream.py — at this layer we
     only assert the WS protocol contract."""
-    from alb.transport.base import TransferEvent
+    from devicehands.transport.base import TransferEvent
 
     src = workspace / "big.bin"
     src.write_bytes(b"X" * 1000)
@@ -1038,7 +1038,7 @@ def test_workspace_upload_endpoint_listed_in_schema(client) -> None:
 def test_workspace_upload_preflight_rejects_oversize(client, workspace, monkeypatch) -> None:
     """Content-Length preflight rejects a body past the cap before streaming;
     nothing is written."""
-    monkeypatch.setattr("alb.api.files_route._UPLOAD_MAX_BYTES", 8)
+    monkeypatch.setattr("devicehands.api.files_route._UPLOAD_MAX_BYTES", 8)
     r = client.post(
         "/workspace/files/upload",
         data={"path": "drop"},
@@ -1054,7 +1054,7 @@ async def test_write_upload_cap_removes_partial(workspace, monkeypatch) -> None:
     """The authoritative streaming cap (reached when a client lies about /
     omits Content-Length): exceeding it raises _UploadTooLarge AND the partial
     file is unlinked, so no truncated artifact survives (code-review MID-1)."""
-    import alb.api.files_route as mod
+    import devicehands.api.files_route as mod
 
     monkeypatch.setattr(mod, "_UPLOAD_MAX_BYTES", 8)
     monkeypatch.setattr(mod, "_UPLOAD_CHUNK", 4)

@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.infra.event_bus import make_event
-from alb.infra.metric_store import get_metric_store
+from devicehands.api.server import create_app
+from devicehands.infra.event_bus import make_event
+from devicehands.infra.metric_store import get_metric_store
 
 
 @pytest.fixture

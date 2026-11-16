@@ -1,6 +1,6 @@
-"""`alb timeline capture` / `show` — flag wiring and plain-text rendering.
+"""`dhands timeline capture` / `show` — flag wiring and plain-text rendering.
 
-The app is invoked directly (not through `alb.cli.main`) so these tests do
+The app is invoked directly (not through `devicehands.cli.main`) so these tests do
 not depend on the mount line in main.py.
 """
 
@@ -13,9 +13,9 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from alb.cli import timeline_cli
-from alb.cli.timeline_cli import app
-from alb.infra.result import fail, ok
+from devicehands.cli import timeline_cli
+from devicehands.cli.timeline_cli import app
+from devicehands.infra.result import fail, ok
 
 runner = CliRunner()
 
@@ -27,7 +27,7 @@ def fake_capture(monkeypatch, tmp_path: Path) -> dict:
     command passed to them."""
     seen: dict = {"kwargs": None, "transports": []}
 
-    from alb.capabilities.timeline import TimelineSummary
+    from devicehands.capabilities.timeline import TimelineSummary
 
     async def capture(duration_s, **kwargs):
         seen["duration"] = duration_s
@@ -37,7 +37,7 @@ def fake_capture(monkeypatch, tmp_path: Path) -> dict:
                 directory=tmp_path / "cap",
                 sources=sorted(kwargs["sources"]),
                 lines={s: i for i, s in enumerate(sorted(kwargs["sources"]), start=1)},
-                notes=["[alb] dmesg unavailable: stream ended with no output"],
+                notes=["[dhands] dmesg unavailable: stream ended with no output"],
                 duration_captured_ms=1234,
             ),
             artifacts=[tmp_path / "cap" / "timeline.jsonl"],
@@ -67,8 +67,8 @@ def test_capture_passes_duration_sources_and_both_transports(fake_capture) -> No
     # prints the directory and one count per source, plus the notes
     assert "cap" in r.output
     assert "logcat" in r.output and "uart" in r.output and "dmesg" in r.output
-    assert "[alb] dmesg unavailable" in r.output
-    assert "alb timeline show" in r.output
+    assert "[dhands] dmesg unavailable" in r.output
+    assert "dhands timeline show" in r.output
 
 
 def test_no_flags_drop_sources_and_skip_unneeded_transports(fake_capture) -> None:

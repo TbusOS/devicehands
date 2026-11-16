@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api import diag_route
-from alb.api.server import create_app
-from alb.capabilities.diagnose import PstoreFile, PstoreResult
-from alb.infra.result import fail, ok
+from devicehands.api import diag_route
+from devicehands.api.server import create_app
+from devicehands.capabilities.diagnose import PstoreFile, PstoreResult
+from devicehands.infra.result import fail, ok
 
 SERIAL = "0123456789ABCDEF"
 

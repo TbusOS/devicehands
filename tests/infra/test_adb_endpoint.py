@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from alb.infra import adb_endpoint as ae
+from devicehands.infra import adb_endpoint as ae
 
 
 @pytest.fixture(autouse=True)
@@ -54,8 +54,8 @@ def test_config_wins_over_everything(monkeypatch):
 
 def test_env_wins_over_hub_discovery(monkeypatch):
     """Deliberate, and the most likely thing a future reader will want to
-    'fix': ADB_SERVER_SOCKET steers every adb client in the shell, so alb
-    silently overriding it would make `alb devices` and `adb devices` disagree
+    'fix': ADB_SERVER_SOCKET steers every adb client in the shell, so dhands
+    silently overriding it would make `dhands devices` and `adb devices` disagree
     in the same terminal. Louder diagnosis, not a quiet override."""
     monkeypatch.setenv("ADB_SERVER_SOCKET", "tcp:localhost:5037")
     _with_hub(monkeypatch, _hub())
@@ -269,7 +269,7 @@ def test_an_unbound_forwarder_is_not_memoised(monkeypatch: pytest.MonkeyPatch) -
 
 def test_inside_the_hub_the_forwarder_is_read_every_time(monkeypatch: pytest.MonkeyPatch) -> None:
     """No memo and no HTTP to itself: the forwarder singleton is the answer."""
-    import alb.remote.forwarder as fw
+    import devicehands.remote.forwarder as fw
 
     adb = {"bound": False, "port": 15037}
     monkeypatch.setattr(fw, "forwarder_status", lambda: {"adb": dict(adb)})
@@ -290,12 +290,12 @@ def test_a_devices_request_before_the_agent_connects_does_not_stick(
 ) -> None:
     """The 2026-11-06 15:39 restart: a page on the bench host asked the new hub
     for /devices before the bench agent was back, and the hub showed zero
-    devices until it was restarted again. alb-api marks itself as the hub at
+    devices until it was restarted again. dhands-hub marks itself as the hub at
     startup, so the forwarder that binds later is found."""
     from fastapi.testclient import TestClient
 
-    import alb.remote.forwarder as fw
-    from alb.api.server import create_app
+    import devicehands.remote.forwarder as fw
+    from devicehands.api.server import create_app
 
     monkeypatch.setenv("ALB_ADB_FORWARD_PORT", "0")
     adb = {"bound": False, "port": 15037}

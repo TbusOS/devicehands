@@ -1,0 +1,425 @@
+"""Web API: /terminal/ws — interactive PTY shell over WebSocket.
+
+Designed for xterm.js (or any byte-oriented terminal emulator) on the
+Web UI Terminal panel.
+
+Protocol:
+
+    C → S (first JSON, optional, 1.5 s timeout):
+        {"device": "<serial>", "transport": "adb",
+         "rows": 24, "cols": 80}
+
+    C → S (binary frames):
+        Raw bytes typed by the user. Goes straight to the shell stdin.
+
+    C → S (JSON):
+        {"type": "resize", "rows": 30, "cols": 120}
+        {"type": "control", "action": "close"}
+
+    S → C (JSON, on accept):
+        {"type": "ready", "device": "...", "transport": "adb"}
+
+    S → C (binary frames):
+        Bytes coming back from the shell stdout.
+
+    S → C (JSON, on shell exit):
+        {"type": "closed", "exit_code": 0}
+
+    S → C (JSON, when a typed command finishes and the shell reports it):
+        {"type": "command_exit", "line": "<command>", "exit_code": 1}
+        Read from a marker the hub puts in the shell's prompt
+        (transport/exit_marks); also written to the session's audit as a
+        `command_exit` event. Off with {"exit_codes": false} in the first
+        frame; unavailable on shells other than mksh / bash.
+
+The PTY is owned by this WebSocket connection; closing the WS tears
+the shell down. HITL command interception lands in a follow-up commit.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+from devicehands.api.schema import API_VERSION
+from devicehands.infra.event_bus import get_bus, make_event
+from devicehands.infra.workspace import (
+    InvalidSessionId,
+    is_safe_device,
+    iso_timestamp,
+    session_path,
+)
+from devicehands.transport.exit_marks import SETUP as EXIT_MARK_SETUP
+from devicehands.transport.exit_marks import ExitMarks
+from devicehands.transport.factory import build_transport
+from devicehands.transport.interactive import InteractiveShell
+from devicehands.transport.terminal_guard import TerminalGuard
+
+
+def _summarize_terminal_payload(payload: dict) -> str:
+    ev = payload.get("event")
+    line = (payload.get("line") or "")[:120]
+    if ev == "command":
+        return f"$ {line}"
+    if ev == "deny":
+        rule = payload.get("rule") or ""
+        return f"deny: {line} ({rule})" if rule else f"deny: {line}"
+    if ev in ("hitl_approve", "hitl_deny"):
+        return f"{ev}: {line}"
+    if ev == "command_exit":
+        return f"exit {payload.get('exit_code')}: {line}"
+    return str(ev or "?")
+
+router = APIRouter()
+
+
+@router.websocket("/terminal/ws")
+async def terminal_ws(ws: WebSocket) -> None:
+    await ws.accept()
+
+    config = await _read_config(ws)
+    config = config if isinstance(config, dict) else {}
+    device = config.get("device")
+    rows = _safe_int(config.get("rows", 24), 24)
+    cols = _safe_int(config.get("cols", 80), 80)
+    read_only = bool(config.get("read_only", False))
+    want_exit_codes = config.get("exit_codes", True) is not False
+    session_id = str(config.get("session_id") or f"term-{iso_timestamp()}")
+
+    # Validate session_id BEFORE spawning the PTY shell. Doing it after
+    # would leak the spawned shell subprocess on bad session_id (since
+    # the except branch returns without `await shell.close()`).
+    # See L-035 caller-side-wrap rule: validate at trust boundary, before
+    # any side-effect.
+    try:
+        # ensure_dir=False: the directory is made on the first record (see
+        # on_audit). Making it here left an empty sessions/term-<time>/ for
+        # every terminal opened, 69 of them by 2026-11-06.
+        audit_path = session_path(session_id, "terminal.jsonl", ensure_dir=False)
+    except InvalidSessionId as e:
+        await ws.send_json({
+            "type": "closed",
+            "exit_code": -1,
+            "error": {
+                "code": "INVALID_SESSION_ID",
+                "message": str(e),
+                "suggestion": "use [A-Za-z0-9][A-Za-z0-9_-]* (<= 128 chars)",
+            },
+        })
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return
+
+    # SEC-2: reject a malformed serial before build_transport (build is
+    # unwrapped here, so a bad serial would otherwise raise uncaught).
+    if device is not None and not is_safe_device(device):
+        await ws.send_json({
+            "type": "closed",
+            "exit_code": -1,
+            "error": {
+                "code": "INVALID_DEVICE",
+                "message": "invalid device serial",
+                "suggestion": "use a valid adb serial",
+            },
+        })
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return
+
+    transport = build_transport(device_serial=device)
+
+    try:
+        shell = await transport.interactive_shell(rows=rows, cols=cols)
+    except NotImplementedError as e:
+        await ws.send_json({
+            "type": "closed",
+            "exit_code": -1,
+            "error": {
+                "code": "TRANSPORT_NO_PTY",
+                "message": str(e),
+                "suggestion": "use the adb transport — serial PTY support is M3+",
+            },
+        })
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return
+    except Exception as e:  # noqa: BLE001 — keep WS alive long enough to report
+        await ws.send_json({
+            "type": "closed",
+            "exit_code": -1,
+            "error": {
+                "code": "PTY_SPAWN_FAILED",
+                "message": str(e),
+                "suggestion": "",
+            },
+        })
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return
+
+    async def on_hitl(line: str, rule) -> None:  # noqa: ANN001
+        await ws.send_json({
+            "type": "hitl_request",
+            "command": line,
+            "rule": rule.name,
+            "reason": rule.reason,
+        })
+
+    # The command a reported exit code belongs to: the last line the guard
+    # let through. Cleared once reported, so a bare Enter (or the prompt
+    # redrawn by Ctrl+C) does not repeat it.
+    last_command: dict[str, str | None] = {"line": None}
+
+    async def on_audit(payload: dict) -> None:
+        if payload.get("event") == "command":
+            last_command["line"] = str(payload.get("line") or "") or None
+        try:
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
+            with audit_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps({"ts": iso_timestamp(), **payload}, ensure_ascii=False))
+                f.write("\n")
+        except OSError:
+            pass
+        try:
+            await get_bus().publish(
+                make_event(
+                    session_id=session_id,
+                    source="terminal",
+                    kind=str(payload.get("event") or "unknown"),
+                    summary=_summarize_terminal_payload(payload),
+                    data=payload,
+                )
+            )
+        except Exception:  # noqa: BLE001 — bus is best-effort
+            pass
+
+    async def on_echo(data: bytes) -> None:
+        with contextlib.suppress(Exception):
+            await ws.send_bytes(data)
+
+    guard = TerminalGuard(
+        shell,
+        read_only=read_only,
+        on_hitl=on_hitl,
+        on_audit=on_audit,
+        on_echo=on_echo,
+    )
+
+    await ws.send_json({
+        "v": API_VERSION,
+        "type": "ready",
+        "device": device or "",
+        "transport": getattr(transport, "name", "adb"),
+        "session_id": session_id,
+        "read_only": read_only,
+    })
+
+    marks: ExitMarks | None = None
+    # Keys wait for this: a board's shell drops input that arrives before its
+    # first prompt, and a command typed ahead of SETUP gets no exit code.
+    shell_up = asyncio.Event()
+    if want_exit_codes:
+        # SETUP itself goes out once the shell has printed its prompt; see
+        # _send_loop.
+        marks = ExitMarks(asyncio.get_running_loop().time())
+    else:
+        shell_up.set()
+
+    async def on_exit(code: int) -> None:
+        line, last_command["line"] = last_command["line"], None
+        if line is None:
+            return
+        await on_audit({"event": "command_exit", "line": line, "exit_code": code})
+        with contextlib.suppress(Exception):
+            await ws.send_json({"type": "command_exit", "line": line, "exit_code": code})
+
+    recv_task = asyncio.create_task(_recv_loop(ws, shell, guard, shell_up))
+    send_task = asyncio.create_task(
+        _send_loop(
+            ws, shell, marks, on_exit,
+            setup=EXIT_MARK_SETUP if marks else None, shell_up=shell_up,
+        )
+    )
+    try:
+        done, pending = await asyncio.wait(
+            {recv_task, send_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for t in pending:
+            t.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await t
+    finally:
+        guard.close()
+        await shell.close()
+        with contextlib.suppress(Exception):
+            await ws.send_json({
+                "type": "closed",
+                "exit_code": shell.returncode if shell.returncode is not None else 0,
+            })
+        with contextlib.suppress(Exception):
+            await ws.close()
+
+
+# ─── Loops ─────────────────────────────────────────────────────────
+
+
+async def _recv_loop(
+    ws: WebSocket,
+    shell: InteractiveShell,
+    guard: TerminalGuard,
+    shell_up: asyncio.Event | None = None,
+) -> None:
+    """Forward client messages — bytes go through the HITL guard,
+    JSON frames carry resize / control / hitl_response / set_read_only.
+    Keys wait for `shell_up` (set by _send_loop) and keep their order."""
+
+    async def feed(data: bytes) -> None:
+        if shell_up is not None:
+            await shell_up.wait()
+        await guard.feed(data)
+
+    try:
+        while True:
+            msg = await ws.receive()
+            if msg.get("type") == "websocket.disconnect":
+                return
+            data = msg.get("bytes")
+            text = msg.get("text")
+            if data is not None:
+                await feed(data)
+                continue
+            if text is not None:
+                try:
+                    obj = json.loads(text)
+                except json.JSONDecodeError:
+                    await feed(text.encode("utf-8", errors="replace"))
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+                kind = obj.get("type")
+                if kind == "resize":
+                    rows = _safe_int(obj.get("rows", 24), 24)
+                    cols = _safe_int(obj.get("cols", 80), 80)
+                    await shell.resize(rows, cols)
+                elif kind == "control" and obj.get("action") == "close":
+                    return
+                elif kind == "input":
+                    payload = obj.get("data", "")
+                    if isinstance(payload, str):
+                        await feed(payload.encode("utf-8", errors="replace"))
+                elif kind == "hitl_response":
+                    await guard.respond_hitl(
+                        approve=bool(obj.get("approve", False)),
+                        allow_session=bool(obj.get("allow_session", False)),
+                    )
+                elif kind == "set_read_only":
+                    guard.read_only = bool(obj.get("value", False))
+                    await ws.send_json({
+                        "type": "control_ack",
+                        "action": "set_read_only",
+                        "read_only": guard.read_only,
+                    })
+    except WebSocketDisconnect:
+        return
+    except Exception:
+        return
+
+
+async def _send_loop(
+    ws: WebSocket,
+    shell: InteractiveShell,
+    marks: ExitMarks | None = None,
+    on_exit: Callable[[int], Awaitable[None]] | None = None,
+    *,
+    setup: bytes | None = None,
+    shell_up: asyncio.Event | None = None,
+) -> None:
+    """Forward shell stdout to the client as binary frames, with the exit
+    code markers taken out (and reported) when `marks` is set.
+
+    `setup` is written to the shell when its first output arrives, or after
+    ARM_TIMEOUT_S of silence. A board's shell drops what reaches it before
+    its first prompt: SETUP written at spawn never took effect on a bench board
+    (2026-11-02), the terminal showed its echo and no exit code came.
+    `shell_up` is set right after, and lets the client's keys through."""
+    clock = asyncio.get_running_loop()
+
+    async def send_setup() -> None:
+        nonlocal setup
+        if setup is not None and marks is not None:
+            await shell.write(setup)
+            marks.setup_sent(clock.time())
+        setup = None
+        if shell_up is not None:
+            shell_up.set()
+
+    try:
+        while True:
+            if marks is not None and marks.waiting:
+                # asyncio.timeout, not wait_for: on 3.11 wait_for swallows a
+                # cancel that lands while the read has just completed, and
+                # this task is cancelled when the client leaves — it then
+                # waited on a shell that is only closed after it ends (the
+                # close-control test hung every time).
+                try:
+                    async with asyncio.timeout(max(0.01, marks.seconds_left(clock.time()))):
+                        chunk = await shell.read()
+                except TimeoutError:
+                    if setup is not None:  # a silent shell: send it anyway
+                        await send_setup()
+                        continue
+                    held = marks.give_up()  # this shell shows no marker
+                    if held:
+                        await ws.send_bytes(held)
+                    continue
+            else:
+                chunk = await shell.read()
+            if not chunk:
+                if marks is not None and marks.waiting:
+                    held = marks.give_up()
+                    if held:
+                        await ws.send_bytes(held)
+                return
+            if setup is not None:  # the first prompt is out: the shell reads input now
+                await send_setup()
+            out, codes = marks.feed(chunk, clock.time()) if marks is not None else (chunk, [])
+            if out:
+                await ws.send_bytes(out)
+            if on_exit is not None:
+                for code in codes:
+                    await on_exit(code)
+    except WebSocketDisconnect:
+        return
+    except Exception:
+        return
+
+
+# ─── Helpers ───────────────────────────────────────────────────────
+
+
+async def _read_config(ws: WebSocket) -> dict[str, Any] | None:
+    try:
+        first = await asyncio.wait_for(ws.receive(), timeout=1.5)
+    except (asyncio.TimeoutError, WebSocketDisconnect):
+        return None
+    text = first.get("text") if isinstance(first, dict) else None
+    if not text:
+        return None
+    try:
+        obj = json.loads(text)
+        return obj if isinstance(obj, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+def _safe_int(v: Any, default: int) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default

@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-_SRC = Path(__file__).resolve().parents[1] / "src" / "alb"
+_SRC = Path(__file__).resolve().parents[1] / "src" / "devicehands"
 
 # What a chat turn runs through: the agent loop, the MCP tool bridge, the
 # capabilities and transports the tools call, the subprocess runner and the

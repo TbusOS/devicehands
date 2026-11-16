@@ -1,4 +1,4 @@
-"""`alb power reboot`: when adb finds no device and nothing named the
+"""`dhands power reboot`: when adb finds no device and nothing named the
 transport or device, the reboot goes over serial — and adb's error is still
 printed, because someone has to find out why adb sees nothing (2026-10-23)."""
 
@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from typer.testing import CliRunner
 
-from alb.cli.main import app
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.cli.main import app
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 runner = CliRunner()
 
@@ -34,14 +34,14 @@ class _Fake:
 
 def _use(monkeypatch, *, serial: _Fake | None) -> _Fake:
     adb = _Fake("adb", NOT_FOUND)
-    monkeypatch.setattr("alb.cli.power_cli.get_transport", lambda *a, **k: adb)
+    monkeypatch.setattr("devicehands.cli.power_cli.get_transport", lambda *a, **k: adb)
     seen: dict = {}
 
     def fallback_for(**kw):
         seen.update(kw)
         return serial
 
-    monkeypatch.setattr("alb.cli.power_cli.serial_fallback_for", fallback_for)
+    monkeypatch.setattr("devicehands.cli.power_cli.serial_fallback_for", fallback_for)
     adb.seen_fallback_args = seen  # type: ignore[attr-defined]
     return adb
 

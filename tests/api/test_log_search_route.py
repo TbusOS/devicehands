@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.transport.base import ShellResult
+from devicehands.api.server import create_app
+from devicehands.transport.base import ShellResult
 
 
 @pytest.fixture
@@ -127,7 +127,7 @@ def test_search_returns_pattern_timeout_envelope(
         return [], False, True  # matches, truncated, timed_out
 
     monkeypatch.setattr(
-        "alb.capabilities.logging._scan_files_for_pattern", _stub_scan
+        "devicehands.capabilities.logging._scan_files_for_pattern", _stub_scan
     )
     r = client.get("/api/log/search?pattern=anything&device=abc123")
     assert r.status_code == 200
@@ -153,7 +153,7 @@ class _FakeDmesgTransport:
 
 def test_dmesg_collects_artifact_and_is_searchable(client, workspace, monkeypatch) -> None:
     monkeypatch.setattr(
-        "alb.api.log_search_route.build_transport",
+        "devicehands.api.log_search_route.build_transport",
         lambda **_: _FakeDmesgTransport(),
     )
     r = client.post("/api/log/dmesg?device=abc123", json={"duration": 1})
@@ -198,11 +198,11 @@ def test_search_outer_wait_for_timeout_returns_envelope(
 
     # Make the search loop hang inside to_thread so wait_for trips.
     monkeypatch.setattr(
-        "alb.capabilities.logging.asyncio.to_thread",
+        "devicehands.capabilities.logging.asyncio.to_thread",
         lambda fn, *a, **kw: _hang(),
     )
     monkeypatch.setattr(
-        "alb.capabilities.logging._SEARCH_TIMEOUT_S", 0.05,
+        "devicehands.capabilities.logging._SEARCH_TIMEOUT_S", 0.05,
     )
     r = client.get("/api/log/search?pattern=anything&device=abc123")
     assert r.status_code == 200

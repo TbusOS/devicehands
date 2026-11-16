@@ -11,9 +11,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.transport.base import ShellResult, Transport
-from alb.transport.interactive import open_pty_subprocess
+from devicehands.api.server import create_app
+from devicehands.transport.base import ShellResult, Transport
+from devicehands.transport.interactive import open_pty_subprocess
 
 
 pytestmark = pytest.mark.skipif(
@@ -60,10 +60,10 @@ class _NoPtyTransport(_PtyFakeTransport):
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    from alb.infra.event_bus import reset_bus
+    from devicehands.infra.event_bus import reset_bus
     reset_bus()
     monkeypatch.setattr(
-        "alb.api.terminal_route.build_transport",
+        "devicehands.api.terminal_route.build_transport",
         lambda **kwargs: _PtyFakeTransport(),
     )
     app = create_app()
@@ -76,10 +76,10 @@ def guarded_client(monkeypatch, client):
     """`client` with confirm rules installed. The default rule set is empty
     (board-side commands are not restricted), so the HITL path needs some.
     TerminalGuard reads the module default when the WS connects."""
-    from alb.transport.terminal_guard import _r
+    from devicehands.transport.terminal_guard import _r
 
     monkeypatch.setattr(
-        "alb.transport.terminal_guard.DEFAULT_DANGER_RULES",
+        "devicehands.transport.terminal_guard.DEFAULT_DANGER_RULES",
         (
             _r("rm-system", r"^\s*rm\s+(-\S+\s+)*/system(/|$)", "rm under /system"),
             _r("reboot", r"^\s*reboot(\s|$)", "reboot ends the session"),
@@ -92,10 +92,10 @@ def guarded_client(monkeypatch, client):
 def no_pty_client(monkeypatch, tmp_path):
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    from alb.infra.event_bus import reset_bus
+    from devicehands.infra.event_bus import reset_bus
     reset_bus()
     monkeypatch.setattr(
-        "alb.api.terminal_route.build_transport",
+        "devicehands.api.terminal_route.build_transport",
         lambda **kwargs: _NoPtyTransport(),
     )
     app = create_app()
@@ -416,10 +416,10 @@ class _ExitOneTransport(_PtyFakeTransport):
 def exit_one_client(monkeypatch, tmp_path):
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    from alb.infra.event_bus import reset_bus
+    from devicehands.infra.event_bus import reset_bus
     reset_bus()
     monkeypatch.setattr(
-        "alb.api.terminal_route.build_transport",
+        "devicehands.api.terminal_route.build_transport",
         lambda **kwargs: _ExitOneTransport(),
     )
     app = create_app()
@@ -510,10 +510,10 @@ def bash_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> Any:
         pytest.skip("needs bash")
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    from alb.infra.event_bus import reset_bus
+    from devicehands.infra.event_bus import reset_bus
 
     reset_bus()
-    monkeypatch.setattr("alb.api.terminal_route.build_transport", lambda **kwargs: _BashTransport())
+    monkeypatch.setattr("devicehands.api.terminal_route.build_transport", lambda **kwargs: _BashTransport())
     with TestClient(create_app()) as c:
         yield c
 
@@ -625,7 +625,7 @@ def test_exit_codes_on_a_shell_that_drops_early_input(
     monkeypatch: pytest.MonkeyPatch, bash_client: Any
 ) -> None:
     """SETUP waits for the first prompt, and so do keys typed before it."""
-    monkeypatch.setattr("alb.api.terminal_route.build_transport", lambda **kwargs: _LateBashTransport())
+    monkeypatch.setattr("devicehands.api.terminal_route.build_transport", lambda **kwargs: _LateBashTransport())
     exits: list[dict[str, Any]] = []
     with bash_client.websocket_connect("/terminal/ws") as ws:
         ws.send_json({"device": None, "session_id": "term-late-shell"})

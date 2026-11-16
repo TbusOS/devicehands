@@ -1,0 +1,343 @@
+"""Connected-agent registry + per-channel dial-back correlation (ADR-050/051).
+
+The hub holds one AgentConnection per connected agent. When a forwarder needs
+a data channel it asks the AgentConnection to open one: the connection
+registers a pending future keyed by a fresh cid (with a per-channel secret —
+DEBT-084) BEFORE sending `open_channel` on the signaling WS (so a fast dial-back
+can never miss the cid — checklist #1), then awaits the dialed-back DataChannel.
+The dial-back must present the secret, which only the owning agent received.
+
+Registration uses a per-agent epoch so that a reconnect of the same agent_id
+does NOT let a stale connection's teardown clobber the new one (checklist #4,
+compare-and-clear).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import hmac
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+from devicehands.remote import protocol
+from devicehands.remote.bench_ops import OpSpec, legacy_ops
+from devicehands.remote.protocol import ChannelRole, ChannelType
+
+
+class ChannelOpenError(Exception):
+    """The agent reported it could NOT open a requested data channel.
+
+    Distinct from a dial-back timeout: this carries the agent's own reason
+    (e.g. "cannot open COM4: Access is denied"), so the hub log and the caller
+    see WHY instead of "something took too long".
+    """
+
+
+class DataChannel(Protocol):
+    """A bidirectional byte channel (one dialed-back data connection)."""
+
+    async def recv(self) -> bytes:  # b"" == EOF
+        ...
+
+    async def send(self, data: bytes) -> None: ...
+
+    async def aclose(self) -> None: ...
+
+
+class ChannelOpener(Protocol):
+    """What a forwarder needs from an agent: open one data channel."""
+
+    async def open_data_channel(
+        self,
+        *,
+        ctype: ChannelType,
+        role: ChannelRole,
+        params: dict[str, Any],
+        timeout: float,
+    ) -> DataChannel: ...
+
+
+SendControl = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+@dataclass
+class _Pending:
+    """A pending data-channel dial-back: the future the forwarder awaits, plus
+    the per-channel secret (DEBT-084) the dial-back must present to resolve it."""
+
+    fut: asyncio.Future[DataChannel]
+    csecret: str
+
+
+def settled_update(last: dict[str, Any] | None, build: str) -> dict[str, Any]:
+    """The agent's last remote update, with a `pending` that is already over
+    read as the outcome it is.
+
+    The bench's update helper writes `pending` before it starts the new build
+    and `updated` only after that build has connected — but the new build
+    reads the record while it starts, before connecting, so its hello always
+    says `pending` (/agent/status showed `pending` from 2026-10-16 on). A hello
+    from the build the record was heading for IS that connection, so the
+    update completed. `pending` on any other build (the helper died mid-swap
+    and the old build came back) is left as reported."""
+    rec = dict(last or {})
+    if rec.get("outcome") == "pending" and build and rec.get("to_build") == build:
+        rec["outcome"] = "updated"
+        rec["reported"] = "pending"
+    return rec
+
+
+class AgentConnection:
+    """One connected agent. Owns the signaling-WS send callable + metadata.
+    Pending-channel futures live in the registry (keyed by the global cid)."""
+
+    def __init__(
+        self,
+        *,
+        agent_id: str,
+        name: str,
+        version: int,
+        caps: list[str],
+        send_control: SendControl,
+        registry: AgentRegistry,
+        flash_partitions: list[str] | None = None,
+        boards: dict[str, dict[str, Any]] | None = None,
+        ops: dict[str, OpSpec] | None = None,
+        build: str = "",
+        last_update: dict[str, Any] | None = None,
+    ) -> None:
+        self.agent_id = agent_id
+        self.name = name
+        self.version = version
+        self.caps = caps
+        # `version` is the PROTOCOL number and is the same for every build;
+        # `build` is a digest of the agent's own file ("" = an agent from
+        # before ADR-060). It is how an update is confirmed after the restart.
+        self.build = build
+        # {"id", "outcome", "from_build", "to_build", "at"} of the agent's last
+        # remote update, as the bench host's update helper recorded it.
+        self.last_update: dict[str, Any] = settled_update(last_update, build)
+        # Partitions this bench permits, straight from the agent's hello.
+        # Empty = no allowlist configured = any well-formed name is accepted.
+        # Callers must not read empty as "nothing allowed" — see the web
+        # partition picker, which falls back to a generic list in that case.
+        self.flash_partitions: list[str] = list(flash_partitions or [])
+        # Per-board lists and products (ADR-063 phase 2), as parsed by
+        # bench_board.parse_agent_boards. Empty = an agent without them.
+        self.boards: dict[str, dict[str, Any]] = dict(boards or {})
+        # The agent's op table (ADR-059). An agent from before the table sends
+        # none; it then gets one inferred from its caps, and `ops_reported`
+        # stays False so status pages can say the table is a guess.
+        self.ops_reported = ops is not None
+        self.op_table: dict[str, OpSpec] = ops if ops is not None else legacy_ops(caps)
+        self._send_control = send_control
+        self._registry = registry
+        self.epoch = 0
+        # set by the route once the forwarder is attached (for teardown)
+        self.forwarder: Any = None
+        # last-reported device enumeration (updated by the signaling recv loop
+        # from adb_list / com_list replies). Surfaced via GET /agent/status.
+        self.adb_devices: list[str] = []
+        # adb-flavoured foreign processes the agent saw while its device list
+        # was empty — the exclusive-USB-interface takeover signature.
+        self.adb_conflicts: list[str] = []
+        self.com_ports: list[dict[str, Any]] = []
+
+    async def request_device_list(self) -> None:
+        """Fire-and-forget: ask the agent to (re)report its devices. The replies
+        (adb_list / com_list) land on the signaling WS and update the cache. The
+        web Connection Center polls /agent/status, so the next poll reflects it."""
+        with suppress(Exception):
+            await self._send_control(protocol.list_adb())
+            # Asked unconditionally: every agent has answered list_com since
+            # the first one (059c7f3), and none has ever put `serial` in its
+            # caps — gating on that cap left com_ports empty on every bench.
+            await self._send_control(protocol.list_com())
+
+    async def request_adb_restart(self, *, kill_conflicts: bool = False) -> None:
+        """Fire-and-forget: ask the agent to restart ITS local adb server and
+        re-report devices (the adb_list reply updates the cache; poll
+        /agent/status for the result). Unsticks a wedged host-side adb
+        enumeration without anyone touching the agent machine. kill_conflicts
+        additionally clears adb-flavoured foreign processes holding the
+        exclusive USB interface (the agent decides what matches)."""
+        with suppress(Exception):
+            await self._send_control(protocol.restart_adb(kill_conflicts=kill_conflicts))
+
+    async def open_data_channel(
+        self,
+        *,
+        ctype: ChannelType,
+        role: ChannelRole,
+        params: dict[str, Any],
+        timeout: float,
+    ) -> DataChannel:
+        """Open one data channel and return the dialed-back DataChannel.
+
+        Order is load-bearing (checklist #1): register the cid placeholder
+        FIRST, send `open_channel` SECOND, so the agent's dial-back to
+        /agent/channel?cid=<cid> always finds a waiting future."""
+        cid = protocol.new_cid()
+        csecret = protocol.new_csecret()
+        fut = self._registry.register_pending(cid, csecret)
+        try:
+            await self._send_control(
+                protocol.open_channel(
+                    cid=cid, csecret=csecret, ctype=ctype, role=role, params=params
+                )
+            )
+            return await asyncio.wait_for(fut, timeout)
+        finally:
+            self._registry.discard_pending(cid)
+
+
+class AgentRegistry:
+    """Process-wide registry of connected agents + pending data channels.
+
+    Runs entirely on the asyncio event loop. The `_lock` guards the agent
+    map across the register/unregister critical sections; the pending map is
+    touched only synchronously (no awaits between read and write) so it needs
+    no lock.
+    """
+
+    def __init__(self) -> None:
+        self._agents: dict[str, AgentConnection] = {}
+        self._epoch: dict[str, int] = {}
+        self._pending: dict[str, _Pending] = {}
+        self._lock = asyncio.Lock()
+
+    async def register(self, conn: AgentConnection) -> int:
+        """Register (or replace) an agent. Returns this connection's epoch;
+        teardown must pass it back to unregister() so a stale connection
+        can't evict a newer one."""
+        async with self._lock:
+            epoch = self._epoch.get(conn.agent_id, 0) + 1
+            self._epoch[conn.agent_id] = epoch
+            conn.epoch = epoch
+            self._agents[conn.agent_id] = conn
+            return epoch
+
+    async def unregister(self, agent_id: str, epoch: int) -> bool:
+        """Compare-and-clear: only remove the agent if `epoch` is still the
+        current one (else a reconnect already replaced it). Returns True if
+        this call actually removed the entry."""
+        async with self._lock:
+            if self._epoch.get(agent_id) == epoch and agent_id in self._agents:
+                del self._agents[agent_id]
+                return True
+            return False
+
+    def get(self, agent_id: str) -> AgentConnection | None:
+        return self._agents.get(agent_id)
+
+    def current_agent(self) -> AgentConnection | None:
+        """The agent to route device traffic to. P0 is single-agent, so this
+        returns the most-recently-registered agent (or None). Multi-agent
+        addressing — picking the agent by device — is DEBT-083 / P4."""
+        if not self._agents:
+            return None
+        return max(self._agents.values(), key=lambda c: c.epoch)
+
+    def list_agents(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "agent_id": c.agent_id,
+                "name": c.name,
+                "version": c.version,
+                "build": c.build,
+                "last_update": c.last_update,
+                "caps": c.caps,
+                "flash_partitions": c.flash_partitions,
+                "boards": c.boards,
+                "ops": sorted(c.op_table),
+                "ops_reported": c.ops_reported,
+                "adb_devices": c.adb_devices,
+                "adb_conflicts": c.adb_conflicts,
+                "com_ports": c.com_ports,
+            }
+            for c in self._agents.values()
+        ]
+
+    async def request_device_refresh(self) -> None:
+        """Fire-and-forget a device-list request to every connected agent."""
+        for c in list(self._agents.values()):
+            await c.request_device_list()
+
+    @property
+    def agent_count(self) -> int:
+        return len(self._agents)
+
+    # ── pending data-channel correlation (cid + per-channel secret) ──
+
+    def register_pending(self, cid: str, csecret: str) -> asyncio.Future[DataChannel]:
+        fut: asyncio.Future[DataChannel] = asyncio.get_running_loop().create_future()
+        self._pending[cid] = _Pending(fut, csecret)
+        return fut
+
+    def resolve_pending(self, cid: str, channel: DataChannel, csecret: str | None) -> bool:
+        """Bind a dialed-back DataChannel to its pending cid. Returns False if
+        the cid is unknown/expired OR the presented per-channel secret does not
+        match the one minted at open_channel (DEBT-084 — constant-time compare).
+        The caller closes the data WS on False."""
+        pending = self._pending.get(cid)
+        if pending is None or pending.fut.done():
+            return False
+        if not csecret:
+            return False
+        # Compare as BYTES: hmac.compare_digest rejects non-ASCII str inputs with
+        # TypeError, and csecret is attacker-controllable (dial-back query param).
+        # Bytes have no such restriction, so a malformed secret reject cleanly
+        # instead of throwing past the caller's ws.close(1008). utf-8 with
+        # errors="replace" can never raise on the presented side.
+        stored = pending.csecret.encode("utf-8")
+        presented = csecret.encode("utf-8", "replace")
+        if not hmac.compare_digest(stored, presented):
+            return False
+        pending.fut.set_result(channel)
+        return True
+
+    def fail_pending(self, cid: str, reason: str) -> bool:
+        """Fail a pending dial-back because the agent said it could not open the
+        channel (`channel_error` verb). Returns True if a waiter was woken.
+
+        Why it matters: without it the ONLY signal of a failed open is the
+        dial-back timeout, so the forwarder sits on a live local socket for the
+        full DIAL_BACK_TIMEOUT_S. For serial that window is actively harmful —
+        `dhands serial send` writes into that socket, reports success, and the
+        bytes are discarded when the forwarder finally gives up (issue #4).
+
+        Not bound to the reporting agent: pending cids are global (DEBT-083
+        tracks per-agent addressing). The frame still has to arrive on an
+        authenticated signaling WS, and cids are unguessable uuid4 hex.
+        """
+        pending = self._pending.get(cid)
+        if pending is None or pending.fut.done():
+            return False
+        pending.fut.set_exception(ChannelOpenError(reason or "agent reported channel open failure"))
+        return True
+
+    def discard_pending(self, cid: str) -> None:
+        self._pending.pop(cid, None)
+
+    @property
+    def pending_count(self) -> int:
+        return len(self._pending)
+
+
+_REGISTRY: AgentRegistry | None = None
+
+
+def get_agent_registry() -> AgentRegistry:
+    """Return the process-wide AgentRegistry, lazily created."""
+    global _REGISTRY
+    if _REGISTRY is None:
+        _REGISTRY = AgentRegistry()
+    return _REGISTRY
+
+
+def reset_agent_registry() -> None:
+    """Drop the singleton — tests start with a fresh registry."""
+    global _REGISTRY
+    _REGISTRY = None

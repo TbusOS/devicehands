@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from alb.transport.serial_probe import (
+from devicehands.transport.serial_probe import (
     DEFAULT_RATES,
     ProbeResult,
     _ascii_density,
@@ -19,7 +19,7 @@ from alb.transport.serial_probe import (
     probe_bauds,
     probe_hint_for_tcp,
 )
-from alb.transport.serial_state import SerialState
+from devicehands.transport.serial_state import SerialState
 
 
 # ─── _ascii_density ────────────────────────────────────────────────
@@ -165,7 +165,7 @@ def test_tcp_hint_mentions_each_rate() -> None:
 
 def test_tcp_hint_recommends_status_call() -> None:
     hint = probe_hint_for_tcp("localhost", 19001)
-    assert "alb" in hint
+    assert "dhands" in hint
     assert "status" in hint
 
 

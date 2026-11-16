@@ -1,4 +1,4 @@
-"""Tests for the agent backend registry helpers (`alb.agent.backends`)."""
+"""Tests for the agent backend registry helpers (`devicehands.agent.backends`)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import Any
 import httpx
 import pytest
 
-from alb.agent.backend import ChatResponse, LLMBackend, Message
-from alb.agent.backends import (
+from devicehands.agent.backend import ChatResponse, LLMBackend, Message
+from devicehands.agent.backends import (
     _PROBE_CACHE,
     close_probe_cache,
     get_backend,
@@ -45,7 +45,7 @@ def test_get_backend_does_not_cache_when_kwargs_present() -> None:
 def test_get_backend_dispatches_openai_compat() -> None:
     """M3 step 1 wired openai-compat — this used to ValueError."""
     b = get_backend("openai-compat")
-    from alb.agent.backends.openai_compat import OpenAICompatBackend
+    from devicehands.agent.backends.openai_compat import OpenAICompatBackend
 
     assert isinstance(b, OpenAICompatBackend)
 
@@ -83,7 +83,7 @@ def test_get_backend_ollama_no_env_uses_default(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_close_probe_cache_calls_aclose_and_clears() -> None:
-    """The alb-api shutdown lifespan calls close_probe_cache —
+    """The dhands-hub shutdown lifespan calls close_probe_cache —
     verify it (a) calls aclose() on each cached backend (b) clears
     the cache so the next request gets a fresh client."""
     aclose_count = {"n": 0}

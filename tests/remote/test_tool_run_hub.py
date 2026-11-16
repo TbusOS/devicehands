@@ -19,9 +19,9 @@ from typing import Any
 
 import pytest
 
-from alb.remote.bench_ops import ParamSpec, check_params, parse_ops
-from alb.remote.flash import FlashService, _label
-from alb.remote.flash_timeline import FlashTimeline
+from devicehands.remote.bench_ops import ParamSpec, check_params, parse_ops
+from devicehands.remote.flash import FlashService, _label
+from devicehands.remote.flash_timeline import FlashTimeline
 
 _AGENT_PATH = Path(__file__).resolve().parents[2] / "clients" / "windows-agent" / "alb_agent.py"
 
@@ -47,7 +47,7 @@ _ARGS = ParamSpec("args", "argv", required=False, default=[], max_items=3, max_l
     ("value", "expected"),
     [
         (["-p", "x"], ["-p", "x"]),
-        ('["-p", "x"]', ["-p", "x"]),  # `alb bench run tool-run args='[...]'`
+        ('["-p", "x"]', ["-p", "x"]),  # `dhands bench run tool-run args='[...]'`
         ([], []),
         (None, []),
         ("", []),

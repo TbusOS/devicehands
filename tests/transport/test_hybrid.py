@@ -8,9 +8,9 @@ from typing import Any
 
 import pytest
 
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult, Transport
-from alb.transport.hybrid import HybridTransport
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult, Transport
+from devicehands.transport.hybrid import HybridTransport
 
 
 # ─── Test doubles ────────────────────────────────────────────────────

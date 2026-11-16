@@ -1,8 +1,8 @@
-"""`alb flash tools` / `alb flash tool` (ADR-068): what reaches the hub and
+"""`dhands flash tools` / `dhands flash tool` (ADR-068): what reaches the hub and
 what the reader is told.
 
 The arguments after `--` must reach the hub exactly as typed — options
-included, since they are the vendor tool's options, not alb's. The result
+included, since they are the vendor tool's options, not dhands's. The result
 must say who judged it and where the files the tool wrote were kept.
 """
 
@@ -16,7 +16,7 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from alb.cli import flash_cli
+from devicehands.cli import flash_cli
 
 
 def _hub(

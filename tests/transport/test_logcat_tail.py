@@ -13,9 +13,9 @@ from typing import Any
 
 import pytest
 
-import alb.transport.adb as adb_mod
-from alb.transport.adb import AdbTransport
-from alb.transport.ssh import SshTransport
+import devicehands.transport.adb as adb_mod
+from devicehands.transport.adb import AdbTransport
+from devicehands.transport.ssh import SshTransport
 
 
 class _Stdout:

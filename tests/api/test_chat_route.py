@@ -8,9 +8,9 @@ from typing import Any, ClassVar
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.agent.backend import ChatResponse, LLMBackend, Message, ToolSpec
-from alb.api.server import create_app
-from alb.infra.prompt_builder import agent_user_note
+from devicehands.agent.backend import ChatResponse, LLMBackend, Message, ToolSpec
+from devicehands.api.server import create_app
+from devicehands.infra.prompt_builder import agent_user_note
 
 
 class _FakeBackend(LLMBackend):
@@ -31,7 +31,7 @@ def client(monkeypatch, tmp_path):
     # under tmp_path, not the user's real workspace.
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    from alb.infra.event_bus import reset_bus
+    from devicehands.infra.event_bus import reset_bus
     reset_bus()
     return TestClient(create_app())
 
@@ -42,7 +42,7 @@ def fake_backend_patch(monkeypatch):
     def _factory(name: str, **kwargs: Any) -> LLMBackend:
         return _FakeBackend(reply=kwargs.get("_fake_reply", "Pixel 7 连接正常"))
 
-    monkeypatch.setattr("alb.api.chat_route.get_backend", _factory)
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", _factory)
     return _factory
 
 
@@ -111,7 +111,7 @@ def test_chat_backend_init_failed(client, monkeypatch):
     def _bad_factory(name: str, **kwargs):
         raise ValueError(f"unknown backend: {name!r}")
 
-    monkeypatch.setattr("alb.api.chat_route.get_backend", _bad_factory)
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", _bad_factory)
     r = client.post("/chat", json={"message": "hi", "backend": "no-such-thing", "tools": False})
     assert r.status_code == 200
     body = r.json()
@@ -134,7 +134,7 @@ def test_chat_env_var_model_override(client, monkeypatch):
         return _FakeBackend(reply="ok")
 
     monkeypatch.setenv("ALB_OLLAMA_MODEL", "gemma4:26b")
-    monkeypatch.setattr("alb.api.chat_route.get_backend", _spy_factory)
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", _spy_factory)
     r = client.post("/chat", json={"message": "hi", "tools": False})
     assert r.status_code == 200
     assert captured.get("model") == "gemma4:26b"
@@ -164,7 +164,7 @@ def test_chat_ws_streams_tokens_then_done(client, monkeypatch):
     def _factory(name: str, **kwargs):
         return _StreamingFakeBackend(reply="hello")
 
-    monkeypatch.setattr("alb.api.chat_route.get_backend", _factory)
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", _factory)
 
     with client.websocket_connect("/chat/ws") as ws:
         ws.send_json({"message": "hi", "tools": False})
@@ -213,7 +213,7 @@ def test_chat_ws_non_json_first_frame_rejected(client):
 
 def test_chat_ws_session_not_found(client, monkeypatch):
     monkeypatch.setattr(
-        "alb.api.chat_route.get_backend",
+        "devicehands.api.chat_route.get_backend",
         lambda name, **kw: _StreamingFakeBackend(reply="x"),
     )
     with client.websocket_connect("/chat/ws") as ws:
@@ -231,7 +231,7 @@ def test_chat_ws_invalid_session_id_emits_done_error(client, monkeypatch):
     for the POST path.
     """
     monkeypatch.setattr(
-        "alb.api.chat_route.get_backend",
+        "devicehands.api.chat_route.get_backend",
         lambda name, **kw: _StreamingFakeBackend(reply="x"),
     )
     with client.websocket_connect("/chat/ws") as ws:
@@ -276,7 +276,7 @@ def test_post_chat_publishes_user_and_done_to_bus(client, fake_backend_patch, tm
 def test_post_chat_publishes_error_event_on_backend_init_fail(client, monkeypatch, tmp_path):
     def _bad(name: str, **kw):
         raise ValueError("nope")
-    monkeypatch.setattr("alb.api.chat_route.get_backend", _bad)
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", _bad)
     r = client.post("/chat", json={"message": "hi", "tools": False, "backend": "x"})
     assert r.status_code == 200 and r.json()["ok"] is False
     # No session was created → no user/done events; backend init failure
@@ -287,7 +287,7 @@ def test_post_chat_publishes_error_event_on_backend_init_fail(client, monkeypatc
 
 def test_ws_chat_publishes_user_and_done(client, monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "alb.api.chat_route.get_backend",
+        "devicehands.api.chat_route.get_backend",
         lambda name, **kw: _StreamingFakeBackend(reply="hi"),
     )
     with client.websocket_connect("/chat/ws") as ws:
@@ -320,7 +320,7 @@ def test_ws_chat_emits_tps_sample(client, monkeypatch, tmp_path):
     events.jsonl (the final flush at sampler.close())."""
     long_reply = "abcdefghij" * 20  # 200 chars → enough token deltas to observe
     monkeypatch.setattr(
-        "alb.api.chat_route.get_backend",
+        "devicehands.api.chat_route.get_backend",
         lambda name, **kw: _StreamingFakeBackend(reply=long_reply),
     )
     with client.websocket_connect("/chat/ws") as ws:
@@ -350,7 +350,7 @@ class _OneToolCallBackend(_FakeBackend):
         self.turn = 0
 
     async def chat(self, messages: list[Message], **kwargs: Any) -> ChatResponse:
-        from alb.agent.backend import ToolCall
+        from devicehands.agent.backend import ToolCall
 
         self.turn += 1
         if self.turn == 1:
@@ -388,8 +388,8 @@ def _tools_ran(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         spec = ToolSpec(name="alb_reboot", description="reboot", parameters={"type": "object", "properties": {}})
         return [spec], _executor
 
-    monkeypatch.setattr("alb.mcp.executor.make_agent_tools", _make)
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _OneToolCallBackend())
+    monkeypatch.setattr("devicehands.mcp.executor.make_agent_tools", _make)
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _OneToolCallBackend())
     return ran
 
 
@@ -460,7 +460,7 @@ def test_a_page_that_leaves_before_answering_runs_nothing(
 
 
 async def test_a_call_approved_as_the_chat_is_cancelled_does_not_run() -> None:
-    from alb.api.chat_route import _Confirmations
+    from devicehands.api.chat_route import _Confirmations
 
     sent: list[dict[str, Any]] = []
     asked = asyncio.Event()
@@ -489,7 +489,7 @@ async def test_a_call_approved_as_the_chat_is_cancelled_does_not_run() -> None:
 
 
 async def test_a_cancel_as_the_first_frame_arrives_is_not_lost() -> None:
-    from alb.api.chat_route import chat_ws
+    from devicehands.api.chat_route import chat_ws
 
     frame: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
     waiting = asyncio.Event()
@@ -533,7 +533,7 @@ def test_closing_the_socket_stops_the_tool_in_progress(
     """The page's Stop button closes the socket. The hub cancels the turn:
     the running tool sees the cancel, the call gets a CHAT_STOPPED result
     in the session, and the bus hears the turn was stopped."""
-    from alb.agent.session import ChatSession
+    from devicehands.agent.session import ChatSession
 
     seen: list[str] = []
 
@@ -550,8 +550,8 @@ def test_closing_the_socket_stops_the_tool_in_progress(
         spec = ToolSpec(name="alb_reboot", description="reboot", parameters={"type": "object", "properties": {}})
         return [spec], _slow
 
-    monkeypatch.setattr("alb.mcp.executor.make_agent_tools", _make)
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _OneToolCallBackend())
+    monkeypatch.setattr("devicehands.mcp.executor.make_agent_tools", _make)
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _OneToolCallBackend())
     with client.websocket_connect("/chat/ws") as ws:
         ws.send_json({"message": "reboot it", "tools": True})
         _wait_until(lambda: "started" in seen)
@@ -571,7 +571,7 @@ def test_a_page_that_closes_after_done_stopped_nothing(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
     monkeypatch.setattr(
-        "alb.api.chat_route.get_backend",
+        "devicehands.api.chat_route.get_backend",
         lambda name, **kw: _StreamingFakeBackend(reply="hi"),
     )
     with client.websocket_connect("/chat/ws") as ws:
@@ -608,7 +608,7 @@ def test_chat_reply_language_follows_lang(
     """The page sends its UI language; without one the model is told to
     answer in Chinese."""
     _PromptSpy.seen = []
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
     body: dict[str, Any] = {"message": "hello", "tools": False}
     if lang:
         body["lang"] = lang
@@ -633,7 +633,7 @@ def test_chat_user_message_carries_the_language_and_model_note(
     """The note names the model too: as the second message of a chat,
     "你的模型id是啥" got "I have no model ID" 6 times in 10 (2026-11-03)."""
     _PromptSpy.last_user = []
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
     body: dict[str, Any] = {"message": "hello", "tools": False}
     if lang:
         body["lang"] = lang
@@ -648,7 +648,7 @@ def test_chat_user_message_carries_the_language_and_model_note(
 
 def test_chat_model_note_carries_the_context_size(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     _PromptSpy.last_user = []
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _CtxSpy())
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _CtxSpy())
     assert client.post("/chat", json={"message": "hello", "tools": False}).status_code == 200
     assert "fake-model" in _PromptSpy.last_user[0] and "16384" in _PromptSpy.last_user[0]
 
@@ -667,7 +667,7 @@ def test_chat_user_message_names_the_selected_board(
     the same with or without one, so warm-up's prefix still matches."""
     _PromptSpy.seen = []
     _PromptSpy.last_user = []
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
     body: dict[str, Any] = {"message": "电量多少", "tools": False}
     assert client.post("/chat", json=body).status_code == 200
     r = client.post("/chat", json={**body, "device": "board-a"})
@@ -680,7 +680,7 @@ def test_chat_user_message_names_the_selected_board(
 
 
 def test_chat_session_records_the_selected_board(client: TestClient, fake_backend_patch: Any) -> None:
-    from alb.agent.session import ChatSession
+    from devicehands.agent.session import ChatSession
 
     r = client.post("/chat", json={"message": "hi", "tools": False, "device": "board-a"})
     assert ChatSession.load(r.json()["session_id"]).device == "board-a"
@@ -690,7 +690,7 @@ def test_chat_rejects_a_malformed_board_without_echoing_it(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _PromptSpy.last_user = []
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
     r = client.post("/chat", json={"message": "hi", "tools": False, "device": "../etc"})
     assert r.status_code == 200
     body = r.json()
@@ -704,7 +704,7 @@ def test_chat_system_prompt_names_model_and_context(client: TestClient, monkeypa
     """2026-11-03: asked "which model are you", the model said it has no
     model ID — the prompt never told it."""
     _PromptSpy.seen = []
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _CtxSpy())
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _CtxSpy())
     assert client.post("/chat", json={"message": "你的模型id是啥", "tools": False}).status_code == 200
     assert "you are the language model fake-model, served by fake." in _PromptSpy.seen[0]
     assert "Context window: 16384 tokens" in _PromptSpy.seen[0]
@@ -712,7 +712,7 @@ def test_chat_system_prompt_names_model_and_context(client: TestClient, monkeypa
 
 def test_chat_backend_without_num_ctx_names_only_the_model(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     _PromptSpy.seen = []
-    monkeypatch.setattr("alb.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
+    monkeypatch.setattr("devicehands.api.chat_route.get_backend", lambda name, **kw: _PromptSpy())
     assert client.post("/chat", json={"message": "hi", "tools": False}).status_code == 200
     assert "you are the language model fake-model, served by fake." in _PromptSpy.seen[0]
     assert "Context window" not in _PromptSpy.seen[0]
@@ -734,7 +734,7 @@ class _WarmSpy(_FakeBackend):
 async def test_warm_up_sends_the_prefix_a_chat_sends_and_stores_nothing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
-    from alb.api import chat_route
+    from devicehands.api import chat_route
 
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
@@ -746,7 +746,7 @@ async def test_warm_up_sends_the_prefix_a_chat_sends_and_stores_nothing(
 
         return [tool], run
 
-    monkeypatch.setattr("alb.mcp.executor.make_agent_tools", tools)
+    monkeypatch.setattr("devicehands.mcp.executor.make_agent_tools", tools)
     monkeypatch.setattr(chat_route, "get_backend", lambda name, **kw: _WarmSpy())
     _WarmSpy.calls = []
 
@@ -769,8 +769,8 @@ async def test_warm_up_sends_the_prefix_a_chat_sends_and_stores_nothing(
 
 @pytest.mark.asyncio
 async def test_warm_up_reports_a_backend_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
-    from alb.agent.backend import BackendError
-    from alb.api import chat_route
+    from devicehands.agent.backend import BackendError
+    from devicehands.api import chat_route
 
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
 
@@ -789,7 +789,7 @@ async def test_warm_up_covers_each_language_a_chat_page_sends(monkeypatch: pytes
     after a hub restart took 36.5 s; the model server had to read the
     English system prompt and the tool list after it from scratch (an
     unseen prompt of that length: 33.4 s)."""
-    from alb.api import chat_route
+    from devicehands.api import chat_route
 
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.chdir(tmp_path)
@@ -801,7 +801,7 @@ async def test_warm_up_covers_each_language_a_chat_page_sends(monkeypatch: pytes
 
         return [tool], run
 
-    monkeypatch.setattr("alb.mcp.executor.make_agent_tools", tools)
+    monkeypatch.setattr("devicehands.mcp.executor.make_agent_tools", tools)
     monkeypatch.setattr(chat_route, "get_backend", lambda name, **kw: _WarmSpy())
     assert chat_route.WARM_UP_LANGS == ("zh", "en")  # Chinese first
 
@@ -827,7 +827,7 @@ def test_warm_up_langs_are_the_ones_the_page_sends() -> None:
     import re
     from pathlib import Path
 
-    from alb.api import chat_route
+    from devicehands.api import chat_route
 
     src = (Path(__file__).resolve().parents[2] / "web/src/features/chat/useChatStream.ts").read_text(encoding="utf-8")
     m = re.search(r"^\s*lang\?:\s*([^;]+);", src, re.M)
@@ -855,7 +855,7 @@ def test_warm_up_runs_only_for_the_hub_with_a_model(
 ) -> None:
     import asyncio
 
-    from alb.api import chat_route
+    from devicehands.api import chat_route
 
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.delenv("ALB_OLLAMA_MODEL", raising=False)

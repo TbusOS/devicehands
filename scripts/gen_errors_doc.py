@@ -1,13 +1,13 @@
 """Regenerate the per-code listing in docs/errors.md from the error catalog.
 
-The catalog is ``alb.infra.errors.ERROR_CODES``. docs/errors.md used to be
+The catalog is ``devicehands.infra.errors.ERROR_CODES``. docs/errors.md used to be
 kept in step by hand and fell behind: it listed 23 of the 88 registered
 codes, and 22 codes that nothing in the code base returned. The listing
 is now a generated block between two marker comments; everything outside
 the markers stays hand-written.
 
 The block also lists codes that the code returns but never registered
-(found by scanning ``src/alb``, see :func:`scan_returned_codes`). Such a
+(found by scanning ``src/devicehands``, see :func:`scan_returned_codes`). Such a
 code reaches the caller with no catalog entry, so ``alb_describe_errors``
 cannot explain it.
 
@@ -31,12 +31,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import get_args
 
-from alb.infra.errors import ERROR_CODES, ErrorSpec
-from alb.infra.result import ErrorCategory
+from devicehands.infra.errors import ERROR_CODES, ErrorSpec
+from devicehands.infra.result import ErrorCategory
 
 REPO = Path(__file__).resolve().parents[1]
 DOC = REPO / "docs" / "errors.md"
-SRC = REPO / "src" / "alb"
+SRC = REPO / "src" / "devicehands"
 REGISTRY = SRC / "infra" / "errors.py"
 
 BEGIN = "<!-- BEGIN GENERATED: scripts/gen_errors_doc.py -->"
@@ -44,7 +44,7 @@ END = "<!-- END GENERATED -->"
 REGEN_HINT = "uv run python scripts/gen_errors_doc.py"
 
 # Chinese label and meaning per category, in the order of
-# alb.infra.result.ErrorCategory. A category used in ERROR_CODES but missing
+# devicehands.infra.result.ErrorCategory. A category used in ERROR_CODES but missing
 # here stops the generator: the doc would otherwise group codes under a
 # heading nobody explained.
 CATEGORY_TEXT: dict[str, tuple[str, str]] = {
@@ -130,7 +130,7 @@ class _Scanner:
     that is used as a code. Code expressions are:
 
     * the ``code`` / ``error_code`` argument of any function, class or
-      dataclass in src/alb that has a parameter or field by that name
+      dataclass in src/devicehands that has a parameter or field by that name
       (positional or keyword; this is how ``fail("X")``,
       ``_declined(name, "X", why)`` and ``ShellResult(error_code="X")`` are found);
     * any call's ``code=`` / ``error_code=`` keyword;
@@ -142,7 +142,7 @@ class _Scanner:
     elements, a variable (resolved through its assignments in the same
     file), a lookup ``TABLE[key]`` / ``TABLE.get(key, "X")`` in a dict
     literal of the same file (its values and the default), and a call to a
-    function of src/alb (resolved through that function's ``return``
+    function of src/devicehands (resolved through that function's ``return``
     statements, so ``error_code=_classify_stderr(...)`` yields what the
     classifier returns).
 
@@ -312,7 +312,7 @@ def render_block(specs: Mapping[str, ErrorSpec], returned: Mapping[str, set[str]
     if unknown:
         raise SystemExit(
             f"category {unknown} is used in ERROR_CODES but is not in "
-            "alb.infra.result.ErrorCategory; fix the spec or the Literal"
+            "devicehands.infra.result.ErrorCategory; fix the spec or the Literal"
         )
     missing_text = [c for c in order if c not in CATEGORY_TEXT]
     if missing_text:
@@ -327,7 +327,7 @@ def render_block(specs: Mapping[str, ErrorSpec], returned: Mapping[str, set[str]
     used = [c for c in order if by_cat[c]]
 
     lines: list[str] = [
-        "<!-- 本段由脚本生成,不要手改。改了 src/alb/infra/errors.py 或返回错误码的代码后,"
+        "<!-- 本段由脚本生成,不要手改。改了 src/devicehands/infra/errors.py 或返回错误码的代码后,"
         f"运行:{REGEN_HINT} -->",
         "",
         f"登记在 `ERROR_CODES` 里的码共 {len(specs)} 个,按 `category` 分 {len(used)} 组,"
@@ -366,7 +366,7 @@ def render_block(specs: Mapping[str, ErrorSpec], returned: Mapping[str, set[str]
         "这些码会出现在 `error.code` 里,但 `ERROR_CODES` 没有它们的条目,"
         "`alb_describe_errors` 查不到;message 和 suggestion 只有出错位置当场填写的那一份。"
         "其中几个码的中文说明见「部分错误码的补充说明」一节。"
-        "返回位置由脚本扫描 `src/alb` 得出,扫描规则见 `scripts/gen_errors_doc.py` 的 `_Scanner`。",
+        "返回位置由脚本扫描 `src/devicehands` 得出,扫描规则见 `scripts/gen_errors_doc.py` 的 `_Scanner`。",
         "",
     ]
     if unregistered:
@@ -433,7 +433,7 @@ def check(doc_path: Path = DOC) -> list[str]:
         if code not in known:
             problems.append(
                 f"{doc_path}: a hand-written row names {code}, which is neither in "
-                "ERROR_CODES nor returned anywhere in src/alb; update or drop the row"
+                "ERROR_CODES nor returned anywhere in src/devicehands; update or drop the row"
             )
     return problems
 

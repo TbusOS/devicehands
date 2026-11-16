@@ -10,7 +10,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from alb.infra import hub_serial
+from devicehands.infra import hub_serial
 
 REASON = (
     "cannot open COM27 @ 1500000: could not open port 'COM27': "
@@ -59,9 +59,9 @@ def test_no_hub_here_is_nothing(monkeypatch):
 
 
 def test_inside_the_hub_the_forwarder_is_read_without_a_request(monkeypatch):
-    """In alb-api itself an HTTP GET to its own /agent/status could deadlock
+    """In dhands-hub itself an HTTP GET to its own /agent/status could deadlock
     the event loop serving it; the singleton is the same fact."""
-    from alb.remote import forwarder
+    from devicehands.remote import forwarder
 
     class _Fwd:
         _server = None  # forwarder.reset_forwarders() reads it on teardown

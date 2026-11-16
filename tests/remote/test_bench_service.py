@@ -14,10 +14,10 @@ import struct
 
 import pytest
 
-import alb.remote.flash as flash_mod
-from alb.remote.bench_ops import OpSpec, ParamSpec
-from alb.remote.flash import FlashService
-from alb.remote.jobframe import KIND_CONTROL
+import devicehands.remote.flash as flash_mod
+from devicehands.remote.bench_ops import OpSpec, ParamSpec
+from devicehands.remote.flash import FlashService
+from devicehands.remote.jobframe import KIND_CONTROL
 from tests.remote.bench_tables import new_agent_ops
 
 _HDR = struct.Struct(">cI")

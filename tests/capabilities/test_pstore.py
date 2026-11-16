@@ -13,14 +13,14 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from alb.capabilities.diagnose import (
+from devicehands.capabilities.diagnose import (
     _first_panic_line,
     _parse_ls_l,
     pstore_pull,
 )
-from alb.cli import diagnose_cli
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.cli import diagnose_cli
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 
 def _ok(stdout: str = "") -> ShellResult:
@@ -151,7 +151,7 @@ async def test_pstore_listing_denied_says_needs_root() -> None:
     assert r.error.code == "ROOT_REQUIRED"
     assert r.error.category == "permission"
     assert "needs root" in r.error.suggestion
-    assert "alb adb root" in r.error.suggestion
+    assert "dhands adb root" in r.error.suggestion
     assert t.pulled == []
 
 
@@ -379,7 +379,7 @@ def test_first_panic_line_none_when_clean() -> None:
     assert _first_panic_line("init: starting\nBooting Linux\n") is None
 
 
-# ─── CLI rendering (alb diag pstore) ───────────────────────────────
+# ─── CLI rendering (dhands diag pstore) ───────────────────────────────
 # Lives here rather than in a new tests/cli file: the rendering is the only
 # CLI surface pstore adds and it is tested end-to-end against the same fake.
 runner = CliRunner()
@@ -388,7 +388,7 @@ runner = CliRunner()
 def test_cli_pstore_summary_names_the_panic(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     fake = _pstore_fake()
-    monkeypatch.setattr("alb.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
+    monkeypatch.setattr("devicehands.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
     r = runner.invoke(diagnose_cli.app, ["pstore", "--device", "abc"])
     assert r.exit_code == 0, r.output
     assert "source: pstore" in r.output
@@ -401,11 +401,11 @@ def test_cli_pstore_summary_names_the_panic(monkeypatch, tmp_path) -> None:
 
 def test_cli_pstore_denied_tells_how_to_fix(monkeypatch) -> None:
     fake = FakeTransport({"ls -l /sys/fs/pstore": _err("ls: /sys/fs/pstore: Permission denied")})
-    monkeypatch.setattr("alb.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
+    monkeypatch.setattr("devicehands.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
     r = runner.invoke(diagnose_cli.app, ["pstore"])
     assert r.exit_code == 1
     assert "ROOT_REQUIRED" in r.output
-    assert "alb adb root" in r.output
+    assert "dhands adb root" in r.output
 
 
 def test_cli_pstore_json(monkeypatch, tmp_path) -> None:
@@ -413,7 +413,7 @@ def test_cli_pstore_json(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     fake = _pstore_fake()
-    monkeypatch.setattr("alb.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
+    monkeypatch.setattr("devicehands.cli.diagnose_cli.get_transport", lambda *a, **k: fake)
     r = runner.invoke(diagnose_cli.app, ["pstore", "--device", "abc"], obj={"json": True})
     assert r.exit_code == 0, r.output
     doc = json.loads(r.output)

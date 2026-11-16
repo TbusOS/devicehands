@@ -29,91 +29,6 @@ wheels = [
 ]
 
 [[package]]
-name = "android-llm-bridge"
-version = "0.0.1"
-source = { editable = "." }
-dependencies = [
-    { name = "anyio" },
-    { name = "asyncssh" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "mcp" },
-    { name = "pydantic" },
-    { name = "pyserial" },
-    { name = "pyserial-asyncio" },
-    { name = "rich" },
-    { name = "tomli-w" },
-    { name = "typer" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "pandas" },
-    { name = "plotly" },
-    { name = "uiautomator2" },
-    { name = "whoosh" },
-]
-search = [
-    { name = "whoosh" },
-]
-ui = [
-    { name = "uiautomator2" },
-]
-viz = [
-    { name = "pandas" },
-    { name = "plotly" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "import-linter" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-mock" },
-    { name = "ruff" },
-    { name = "types-pyserial" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "android-llm-bridge", extras = ["search", "viz", "ui"], marker = "extra == 'all'" },
-    { name = "anyio", specifier = ">=4.0.0" },
-    { name = "asyncssh", specifier = ">=2.14.0" },
-    { name = "fastapi", specifier = ">=0.110.0" },
-    { name = "httpx", specifier = ">=0.26.0" },
-    { name = "mcp", specifier = ">=0.9.0,<2" },
-    { name = "pandas", marker = "extra == 'viz'", specifier = ">=2.2.0" },
-    { name = "plotly", marker = "extra == 'viz'", specifier = ">=5.20.0" },
-    { name = "pydantic", specifier = ">=2.6.0" },
-    { name = "pyserial", specifier = ">=3.5" },
-    { name = "pyserial-asyncio", specifier = ">=0.6" },
-    { name = "rich", specifier = ">=13.7.0" },
-    { name = "tomli-w", specifier = ">=1.0.0" },
-    { name = "typer", specifier = ">=0.12.0" },
-    { name = "uiautomator2", marker = "extra == 'ui'", specifier = ">=3.2.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
-    { name = "whoosh", marker = "extra == 'search'", specifier = ">=2.7.4" },
-]
-provides-extras = ["search", "viz", "ui", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "import-linter", specifier = ">=2.0" },
-    { name = "mypy", specifier = ">=1.9.0" },
-    { name = "pre-commit", specifier = ">=3.6.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23.0" },
-    { name = "pytest-cov", specifier = ">=4.1.0" },
-    { name = "pytest-mock", specifier = ">=3.12.0" },
-    { name = "ruff", specifier = ">=0.3.0" },
-    { name = "types-pyserial" },
-]
-
-[[package]]
 name = "annotated-doc"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -546,6 +461,91 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5a/d3/8ae2869247df154b64c1884d7346d412fed0c49df84db635aab2d1c40e62/deprecation-2.1.0.tar.gz", hash = "sha256:72b3bde64e5d778694b0cf68178aed03d15e15477116add3fb773e581f9518ff", size = 173788, upload-time = "2020-04-20T14:23:38.738Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/c3/253a89ee03fc9b9682f1541728eb66db7db22148cd94f89ab22528cd1e1b/deprecation-2.1.0-py2.py3-none-any.whl", hash = "sha256:a10811591210e1fb0e768a8c25517cabeabcba6f0bf96564f8ff45189f90b14a", size = 11178, upload-time = "2020-04-20T14:23:36.581Z" },
+]
+
+[[package]]
+name = "devicehands"
+version = "0.0.1"
+source = { editable = "." }
+dependencies = [
+    { name = "anyio" },
+    { name = "asyncssh" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "pydantic" },
+    { name = "pyserial" },
+    { name = "pyserial-asyncio" },
+    { name = "rich" },
+    { name = "tomli-w" },
+    { name = "typer" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "pandas" },
+    { name = "plotly" },
+    { name = "uiautomator2" },
+    { name = "whoosh" },
+]
+search = [
+    { name = "whoosh" },
+]
+ui = [
+    { name = "uiautomator2" },
+]
+viz = [
+    { name = "pandas" },
+    { name = "plotly" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "import-linter" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
+    { name = "types-pyserial" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", specifier = ">=4.0.0" },
+    { name = "asyncssh", specifier = ">=2.14.0" },
+    { name = "devicehands", extras = ["search", "viz", "ui"], marker = "extra == 'all'" },
+    { name = "fastapi", specifier = ">=0.110.0" },
+    { name = "httpx", specifier = ">=0.26.0" },
+    { name = "mcp", specifier = ">=0.9.0,<2" },
+    { name = "pandas", marker = "extra == 'viz'", specifier = ">=2.2.0" },
+    { name = "plotly", marker = "extra == 'viz'", specifier = ">=5.20.0" },
+    { name = "pydantic", specifier = ">=2.6.0" },
+    { name = "pyserial", specifier = ">=3.5" },
+    { name = "pyserial-asyncio", specifier = ">=0.6" },
+    { name = "rich", specifier = ">=13.7.0" },
+    { name = "tomli-w", specifier = ">=1.0.0" },
+    { name = "typer", specifier = ">=0.12.0" },
+    { name = "uiautomator2", marker = "extra == 'ui'", specifier = ">=3.2.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
+    { name = "whoosh", marker = "extra == 'search'", specifier = ">=2.7.4" },
+]
+provides-extras = ["search", "viz", "ui", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "import-linter", specifier = ">=2.0" },
+    { name = "mypy", specifier = ">=1.9.0" },
+    { name = "pre-commit", specifier = ">=3.6.0" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-mock", specifier = ">=3.12.0" },
+    { name = "ruff", specifier = ">=0.3.0" },
+    { name = "types-pyserial" },
 ]
 
 [[package]]

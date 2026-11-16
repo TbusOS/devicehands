@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from alb.transport.ssh import SshTransport, _classify_ssh_error
+from devicehands.transport.ssh import SshTransport, _classify_ssh_error
 
 
 # ─── Error classification ──────────────────────────────────────────
@@ -102,13 +102,13 @@ async def test_rsync_argv_includes_ssh_opts(tmp_path: Path) -> None:
         return _FakeProc(out=b"sent 1 file\n")
 
     # Mock both the rsync binary presence and subprocess.
-    with patch("alb.transport.ssh.shutil.which", return_value="/usr/bin/rsync"), \
+    with patch("devicehands.transport.ssh.shutil.which", return_value="/usr/bin/rsync"), \
          patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
         t = SshTransport(
             host="10.0.0.5",
             port=2222,
             user="root",
-            key_path="~/.ssh/alb",
+            key_path="~/.ssh/dhands",
             known_hosts="",  # relaxed
         )
         r = await t.rsync(src, "/data/dev")
@@ -116,7 +116,7 @@ async def test_rsync_argv_includes_ssh_opts(tmp_path: Path) -> None:
     assert r.ok
     argv = recorded["args"]
     assert argv[0] == "rsync"
-    # -e "ssh -p 2222 -i ~/.ssh/alb -o StrictHostKeyChecking=no ..."
+    # -e "ssh -p 2222 -i ~/.ssh/dhands -o StrictHostKeyChecking=no ..."
     e_idx = list(argv).index("-e")
     ssh_cmd = argv[e_idx + 1]
     assert "-p 2222" in ssh_cmd
@@ -130,7 +130,7 @@ async def test_rsync_argv_includes_ssh_opts(tmp_path: Path) -> None:
 async def test_rsync_missing_binary(tmp_path: Path) -> None:
     src = tmp_path / "pkg"
     src.mkdir()
-    with patch("alb.transport.ssh.shutil.which", return_value=None):
+    with patch("devicehands.transport.ssh.shutil.which", return_value=None):
         t = SshTransport(host="10.0.0.5")
         r = await t.rsync(src, "/data/dev")
     assert not r.ok

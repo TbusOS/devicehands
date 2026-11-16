@@ -1,4 +1,4 @@
-"""docs/llm-integration.md must name exactly the MCP tools alb-mcp registers.
+"""docs/llm-integration.md must name exactly the MCP tools dhands-mcp registers.
 
 The tool table in that doc drifted from the code once already: it listed 22
 of 36 tools and two names that never existed (``alb_sleep_wake``,
@@ -29,7 +29,7 @@ _NOT_TOOLS: dict[str, str] = {}
 
 
 def _registered_tools() -> set[str]:
-    from alb.mcp.server import create_server
+    from devicehands.mcp.server import create_server
 
     server = create_server()
     return {t.name for t in asyncio.run(server.list_tools())}
@@ -52,6 +52,6 @@ def test_every_registered_tool_is_in_the_doc() -> None:
 def test_every_tool_name_in_the_doc_exists() -> None:
     unknown = sorted(_doc_names() - _registered_tools() - set(_NOT_TOOLS))
     assert not unknown, (
-        f"docs/llm-integration.md names tools alb-mcp does not register: {unknown} "
+        f"docs/llm-integration.md names tools dhands-mcp does not register: {unknown} "
         "(fix the doc, or add a non-tool word to _NOT_TOOLS with a reason)"
     )

@@ -1,10 +1,10 @@
-"""adb smart-socket client (alb.transport.adb_socket), against a fake server.
+"""adb smart-socket client (devicehands.transport.adb_socket), against a fake server.
 
 The fake speaks the real wire format and checks it: a request whose 4-hex
 length prefix does not match its payload is answered FAIL, not tolerated. It
 also stands in for the device: ``tcp:<port>`` is accepted only for ports it
 was told to serve, and refused with a message otherwise — the "nothing
-listening there" case that `alb port` must surface instead of crashing on.
+listening there" case that `dhands port` must surface instead of crashing on.
 
 `FakeAdbServer` / `FakeAdbThread` are shared with tests/remote/test_port_channel.py
 and tests/cli/test_port_cli.py. No real device or network is ever contacted:
@@ -21,8 +21,8 @@ from collections.abc import Iterator
 
 import pytest
 
-from alb.transport import adb_socket as m
-from alb.transport.adb_socket import (
+from devicehands.transport import adb_socket as m
+from devicehands.transport.adb_socket import (
     AdbEndpointUnsupported,
     AdbProtocolError,
     AdbRefused,

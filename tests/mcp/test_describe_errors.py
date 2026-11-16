@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from alb.infra.errors import ERROR_CODES
-from alb.mcp.tools import devices
+from devicehands.infra.errors import ERROR_CODES
+from devicehands.mcp.tools import devices
 
 Tool = Callable[..., Awaitable[dict[str, Any]]]
 

@@ -15,8 +15,8 @@ from typing import ClassVar
 
 import pytest
 
-from alb.remote.flash import FlashEvent, FlashResult
-from alb.remote.flash_timeline import FlashTimeline, new_timeline, serial_endpoint
+from devicehands.remote.flash import FlashEvent, FlashResult
+from devicehands.remote.flash_timeline import FlashTimeline, new_timeline, serial_endpoint
 
 
 @pytest.fixture(autouse=True)
@@ -99,7 +99,7 @@ async def test_job_and_uart_share_one_increasing_clock():
     host, port = await _serve([b"boot line one\nboot line two\n"])
     tl = new_timeline("flash-boot")
     tl.header(label="flash boot", detail={})
-    import alb.remote.flash_timeline as mod
+    import devicehands.remote.flash_timeline as mod
 
     original = mod.serial_endpoint
     mod.serial_endpoint = lambda: (host, port)
@@ -130,7 +130,7 @@ async def test_raw_log_keeps_every_byte():
     raw = b"\x1b[0mstage1\r\n\x00\xffgarbage\n"
     host, port = await _serve([raw])
     tl = new_timeline("flash-boot")
-    import alb.remote.flash_timeline as mod
+    import devicehands.remote.flash_timeline as mod
 
     mod.serial_endpoint = lambda: (host, port)
     try:
@@ -147,7 +147,7 @@ async def test_raw_log_keeps_every_byte():
 async def test_carriage_returns_are_stripped_from_lines():
     host, port = await _serve([b"with-cr\r\n"])
     tl = new_timeline("j")
-    import alb.remote.flash_timeline as mod
+    import devicehands.remote.flash_timeline as mod
 
     mod.serial_endpoint = lambda: (host, port)
     try:
@@ -167,7 +167,7 @@ async def test_trailing_partial_line_is_not_lost():
     never comes would hide it."""
     host, port = await _serve([b"complete\nno-newline-prompt> "])
     tl = new_timeline("j")
-    import alb.remote.flash_timeline as mod
+    import devicehands.remote.flash_timeline as mod
 
     mod.serial_endpoint = lambda: (host, port)
     try:
@@ -188,7 +188,7 @@ async def test_trailing_partial_line_is_not_lost():
 
 
 async def test_no_forwarder_is_recorded_not_raised(monkeypatch):
-    import alb.remote.flash_timeline as mod
+    import devicehands.remote.flash_timeline as mod
 
     monkeypatch.setattr(mod, "serial_endpoint", lambda: None)
     tl = new_timeline("j")
@@ -200,7 +200,7 @@ async def test_no_forwarder_is_recorded_not_raised(monkeypatch):
 
 
 async def test_unreachable_forwarder_is_recorded_not_raised(monkeypatch):
-    import alb.remote.flash_timeline as mod
+    import devicehands.remote.flash_timeline as mod
 
     # port 1 on loopback: reliably refused, no listener anywhere
     monkeypatch.setattr(mod, "serial_endpoint", lambda: ("127.0.0.1", 1))
@@ -213,7 +213,7 @@ async def test_unreachable_forwarder_is_recorded_not_raised(monkeypatch):
 
 def test_serial_endpoint_none_when_forwarder_absent(monkeypatch):
     """Reading status must not have the side effect of binding a port."""
-    from alb.remote import forwarder
+    from devicehands.remote import forwarder
 
     monkeypatch.setattr(forwarder, "_SERIAL_FORWARDER", None)
     assert serial_endpoint() is None
@@ -225,7 +225,7 @@ def test_serial_endpoint_none_when_forwarder_absent(monkeypatch):
 async def test_service_records_and_reports_the_artifact_dir(monkeypatch, tmp_path):
     """Recording lives in the service so the answer does not depend on which
     client started the job."""
-    from alb.remote.flash import FlashService
+    from devicehands.remote.flash import FlashService
 
     class _Ch:
         async def send(self, data): ...
@@ -241,7 +241,7 @@ async def test_service_records_and_reports_the_artifact_dir(monkeypatch, tmp_pat
         async def open_data_channel(self, **kw):
             return _Ch()
 
-    import alb.remote.flash_timeline as mod
+    import devicehands.remote.flash_timeline as mod
 
     monkeypatch.setattr(mod, "serial_endpoint", lambda: None)
     result = await FlashService(lambda: _Agent()).flash("boot", _image(tmp_path))
@@ -254,13 +254,13 @@ async def test_service_records_and_reports_the_artifact_dir(monkeypatch, tmp_pat
 
 async def test_service_survives_a_broken_recorder(monkeypatch):
     """A bench that cannot write artifacts must still be able to flash."""
-    import alb.remote.flash as flash_mod
-    from alb.remote.flash import FlashService
+    import devicehands.remote.flash as flash_mod
+    from devicehands.remote.flash import FlashService
 
     def boom(*a, **k):
         raise OSError("workspace is read-only")
 
-    monkeypatch.setattr("alb.remote.flash_timeline.new_timeline", boom)
+    monkeypatch.setattr("devicehands.remote.flash_timeline.new_timeline", boom)
 
     class _Ch:
         async def send(self, data): ...
@@ -300,8 +300,8 @@ def _image(tmp_path):
 
 async def test_devices_records_nothing(monkeypatch):
     """A ~60 ms query whose whole answer is its return value."""
-    import alb.remote.flash_timeline as mod
-    from alb.remote.flash import FlashService
+    import devicehands.remote.flash_timeline as mod
+    from devicehands.remote.flash import FlashService
 
     opened = []
     monkeypatch.setattr(mod, "serial_endpoint", lambda: opened.append(1) or None)
@@ -313,8 +313,8 @@ async def test_devices_records_nothing(monkeypatch):
 async def test_reboot_records_but_does_not_open_the_uart(monkeypatch):
     """The command returns in ~0.1 s; the board has not said anything yet.
     Keep the record, skip the port."""
-    import alb.remote.flash_timeline as mod
-    from alb.remote.flash import FlashService
+    import devicehands.remote.flash_timeline as mod
+    from devicehands.remote.flash import FlashService
 
     attached = []
 
@@ -329,8 +329,8 @@ async def test_reboot_records_but_does_not_open_the_uart(monkeypatch):
 
 async def test_flash_does_open_the_uart(monkeypatch, tmp_path):
     """The one op where §决定 4's correlation is the whole point."""
-    import alb.remote.flash_timeline as mod
-    from alb.remote.flash import FlashService
+    import devicehands.remote.flash_timeline as mod
+    from devicehands.remote.flash import FlashService
 
     attached = []
 
@@ -366,7 +366,7 @@ async def test_two_jobs_in_the_same_second_keep_separate_records(monkeypatch):
     try lands in the same second, and with one directory per second the
     second job's job.json replaced the first's — a successful write's
     record overwritten by the refusal that followed it."""
-    from alb.remote import flash_timeline
+    from devicehands.remote import flash_timeline
 
     monkeypatch.setattr(flash_timeline, "iso_timestamp", lambda: "2026-10-22T00-00-00")
     records = []

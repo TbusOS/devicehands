@@ -10,8 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from alb.api.server import create_app
-from alb.transport.base import ShellResult, Transport
+from devicehands.api.server import create_app
+from devicehands.transport.base import ShellResult, Transport
 
 
 class _FakeAdbStreamTransport(Transport):
@@ -57,7 +57,7 @@ class _FakeAdbStreamTransport(Transport):
 def client(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.logcat_stream_route.build_transport",
+        "devicehands.api.logcat_stream_route.build_transport",
         lambda **kwargs: _FakeAdbStreamTransport(),
     )
     app = create_app()
@@ -84,7 +84,7 @@ def test_stream_passes_filter_to_stream_read(monkeypatch, tmp_path) -> None:
         return _FakeAdbStreamTransport(last_kwargs=captured_kwargs)
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.logcat_stream_route.build_transport", _build)
+    monkeypatch.setattr("devicehands.api.logcat_stream_route.build_transport", _build)
     app = create_app()
     with TestClient(app) as c:
         with c.websocket_connect("/logcat/stream") as ws:
@@ -102,7 +102,7 @@ def test_stream_tags_shortcut_builds_filter(monkeypatch, tmp_path) -> None:
         return _FakeAdbStreamTransport(last_kwargs=captured_kwargs)
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.logcat_stream_route.build_transport", _build)
+    monkeypatch.setattr("devicehands.api.logcat_stream_route.build_transport", _build)
     app = create_app()
     with TestClient(app) as c:
         with c.websocket_connect("/logcat/stream") as ws:
@@ -119,7 +119,7 @@ def test_stream_init_failure_closes_with_error(monkeypatch, tmp_path) -> None:
     def _boom(**_: Any):
         raise RuntimeError("adb server unreachable")
 
-    monkeypatch.setattr("alb.api.logcat_stream_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.logcat_stream_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         with c.websocket_connect("/logcat/stream") as ws:
@@ -137,7 +137,7 @@ def test_stream_unsupported_transport_closes(monkeypatch, tmp_path) -> None:
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.logcat_stream_route.build_transport",
+        "devicehands.api.logcat_stream_route.build_transport",
         lambda **_: _NoStreamTransport(),
     )
     app = create_app()
@@ -174,7 +174,7 @@ def test_bad_filter_spec_rejected_with_close_frame(monkeypatch, tmp_path, spec) 
         return _FakeAdbStreamTransport()
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.logcat_stream_route.build_transport", _build)
+    monkeypatch.setattr("devicehands.api.logcat_stream_route.build_transport", _build)
     app = create_app()
     with TestClient(app) as c:
         with c.websocket_connect("/logcat/stream") as ws:
@@ -194,7 +194,7 @@ def test_good_filter_specs_pass(monkeypatch, tmp_path) -> None:
         return _FakeAdbStreamTransport(last_kwargs=captured_kwargs)
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.logcat_stream_route.build_transport", _build)
+    monkeypatch.setattr("devicehands.api.logcat_stream_route.build_transport", _build)
     app = create_app()
     with TestClient(app) as c:
         # Multi-token, mixed case, dotted tag, asterisk.
@@ -239,7 +239,7 @@ def test_midstream_error_sends_single_stream_error_frame(monkeypatch, tmp_path) 
     reason=stream_error — not get clobbered by a trailing `ended` (L-026)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.logcat_stream_route.build_transport",
+        "devicehands.api.logcat_stream_route.build_transport",
         lambda **_: _RaisingLogcatTransport(),
     )
     app = create_app()
@@ -280,7 +280,7 @@ def test_empty_filter_passes(monkeypatch, tmp_path) -> None:
         return _FakeAdbStreamTransport(last_kwargs=captured_kwargs)
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.logcat_stream_route.build_transport", _build)
+    monkeypatch.setattr("devicehands.api.logcat_stream_route.build_transport", _build)
     app = create_app()
     with TestClient(app) as c:
         # Whitespace-only filter is treated as no filter.
@@ -299,7 +299,7 @@ def test_stream_passes_buffers_to_stream_read(
     captured: dict[str, Any] = {}
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.logcat_stream_route.build_transport",
+        "devicehands.api.logcat_stream_route.build_transport",
         lambda **_: _FakeAdbStreamTransport(last_kwargs=captured),
     )
     with TestClient(create_app()) as c:
@@ -318,7 +318,7 @@ def test_no_buffers_means_the_boards_default(
     captured: dict[str, Any] = {}
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.logcat_stream_route.build_transport",
+        "devicehands.api.logcat_stream_route.build_transport",
         lambda **_: _FakeAdbStreamTransport(last_kwargs=captured),
     )
     with TestClient(create_app()) as c:
@@ -336,7 +336,7 @@ def test_bad_buffers_rejected_with_close_frame(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.logcat_stream_route.build_transport",
+        "devicehands.api.logcat_stream_route.build_transport",
         lambda **_: _FakeAdbStreamTransport(),
     )
     with TestClient(create_app()) as c:

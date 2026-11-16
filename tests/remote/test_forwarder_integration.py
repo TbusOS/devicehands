@@ -16,9 +16,9 @@ import asyncio
 import contextlib
 from typing import Any, ClassVar
 
-from alb.remote.forwarder import AdbForwarder, SerialForwarder
-from alb.remote.protocol import ChannelRole, ChannelType
-from alb.remote.registry import ChannelOpenError, DataChannel
+from devicehands.remote.forwarder import AdbForwarder, SerialForwarder
+from devicehands.remote.protocol import ChannelRole, ChannelType
+from devicehands.remote.registry import ChannelOpenError, DataChannel
 
 
 class _PipeChannel:
@@ -207,7 +207,7 @@ async def test_adb_forwarder_opens_daemon_tcp_channel():
 
 
 def test_serial_configured_and_forwarder_reads_env(monkeypatch):
-    from alb.remote import forwarder as fwd_mod
+    from devicehands.remote import forwarder as fwd_mod
 
     monkeypatch.delenv("ALB_AGENT_SERIAL_COM", raising=False)
     assert fwd_mod.serial_configured() is False
@@ -223,14 +223,14 @@ def test_serial_configured_and_forwarder_reads_env(monkeypatch):
 def test_err_text_names_an_empty_message_exception():
     """`str(TimeoutError())` is "" — the log line used to end in a bare colon
     and tell the operator nothing (7-06 field report)."""
-    from alb.remote.forwarder import _err_text
+    from devicehands.remote.forwarder import _err_text
 
     assert "dial back" in _err_text(TimeoutError())
     assert _err_text(ConnectionError()) == "ConnectionError"
     assert _err_text(ConnectionError("boom")) == "boom"
 
 
-# ── issue #4: one exclusive COM port, many alb readers ───────────────
+# ── issue #4: one exclusive COM port, many dhands readers ───────────────
 
 
 class _ExclusiveSerialAgent:
@@ -542,7 +542,7 @@ async def test_the_agents_reason_for_a_failed_open_is_kept_until_an_open_works()
 
 
 def test_agent_status_serves_the_serial_open_error(monkeypatch):
-    from alb.remote import forwarder
+    from devicehands.remote import forwarder
 
     class _Fwd:
         _server = None  # read by reset_forwarders() on teardown

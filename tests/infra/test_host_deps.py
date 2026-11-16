@@ -1,4 +1,4 @@
-"""Tests for infra.host_deps — the outside tools alb needs (2026-11-09).
+"""Tests for infra.host_deps — the outside tools dhands needs (2026-11-09).
 
 The installers are exercised against a fake home, fake downloads and fake
 subprocesses: nothing here touches the network or the real ~/.local.
@@ -18,7 +18,7 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from alb.infra import host_deps as hd
+from devicehands.infra import host_deps as hd
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -377,7 +377,7 @@ def test_install_doc_lists_every_dep() -> None:
 
 # ─── CLI + doctor read the same list ──────────────────────────────
 def test_cli_exit_code_follows_required_tools(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from alb.cli.main import app
+    from devicehands.cli.main import app
 
     runner = CliRunner()
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
@@ -394,7 +394,7 @@ def test_cli_exit_code_follows_required_tools(monkeypatch: pytest.MonkeyPatch, t
 
 
 def test_doctor_binaries_layer_is_the_same_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from alb.capabilities.doctor import probe_binaries
+    from devicehands.capabilities.doctor import probe_binaries
 
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     layer = probe_binaries()

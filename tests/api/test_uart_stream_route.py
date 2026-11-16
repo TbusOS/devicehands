@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.transport.base import ShellResult, Transport
+from devicehands.api.server import create_app
+from devicehands.transport.base import ShellResult, Transport
 
 
 class _FakeSerialStreamTransport(Transport):
@@ -67,7 +67,7 @@ class _FakeSerialStreamTransport(Transport):
 def client(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport",
+        "devicehands.api.uart_stream_route.build_transport",
         lambda **kwargs: _FakeSerialStreamTransport(),
     )
     app = create_app()
@@ -112,7 +112,7 @@ def test_stream_accepts_device_in_first_frame(client, monkeypatch) -> None:
         seen.update(kwargs)
         return _FakeSerialStreamTransport(chunks=[])
 
-    monkeypatch.setattr("alb.api.uart_stream_route.build_transport", _capture)
+    monkeypatch.setattr("devicehands.api.uart_stream_route.build_transport", _capture)
 
     with client.websocket_connect("/uart/stream") as ws:
         ws.send_json({"device": "TEST123"})
@@ -129,7 +129,7 @@ def test_stream_init_failure_closes_with_error(monkeypatch, tmp_path) -> None:
     def _boom(**kwargs: Any):
         raise RuntimeError("no serial port discoverable")
 
-    monkeypatch.setattr("alb.api.uart_stream_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.uart_stream_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         with c.websocket_connect("/uart/stream") as ws:
@@ -226,7 +226,7 @@ def test_stream_survives_idle_eof_and_catches_late_data(
     monkeypatch.chdir(tmp_path)
     t = _IdleThenDataTransport(eof_count=2)
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
     app = create_app()
     with TestClient(app) as c:
@@ -311,7 +311,7 @@ def test_bidirectional_write_false_uses_read_only_path(monkeypatch, tmp_path) ->
     monkeypatch.chdir(tmp_path)
     t = _FakeBidirectionalTransport()
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
     app = create_app()
     with TestClient(app) as c:
@@ -333,7 +333,7 @@ def test_bidirectional_writes_client_bytes_to_uart(monkeypatch, tmp_path) -> Non
     # Lots of chunks so server doesn't close before we send.
     t = _FakeBidirectionalTransport(chunks=[b"out\n"] * 50)
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
     app = create_app()
     with TestClient(app) as c:
@@ -356,7 +356,7 @@ def test_bidirectional_refused_when_transport_lacks_open_session(monkeypatch, tm
     refuse with reason='write_unsupported' rather than crashing."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport",
+        "devicehands.api.uart_stream_route.build_transport",
         lambda **kw: _FakeSerialStreamTransport(),  # no open_session
     )
     app = create_app()
@@ -407,7 +407,7 @@ def test_writer_oserror_yields_single_write_error_close(
 
     t.open_session = _open  # type: ignore[assignment]
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
     app = create_app()
     with TestClient(app) as c:
@@ -442,7 +442,7 @@ def test_oversized_write_frame_dropped_not_closed(
     monkeypatch.chdir(tmp_path)
     t = _FakeBidirectionalTransport(chunks=[b"out\n"] * 50)
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
     app = create_app()
     huge = b"A" * (64 * 1024 + 1)  # one byte over cap
@@ -486,7 +486,7 @@ def test_unsafe_device_sanitized_to_unknown_in_audit_session(
     monkeypatch.chdir(tmp_path)
     t = _FakeBidirectionalTransport(chunks=[b"out\n"] * 10)
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
     captured: list[dict[str, Any]] = []
 
@@ -495,7 +495,7 @@ def test_unsafe_device_sanitized_to_unknown_in_audit_session(
             captured.append(event)
 
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.get_bus", lambda: _FakeBus()
+        "devicehands.api.uart_stream_route.get_bus", lambda: _FakeBus()
     )
     app = create_app()
     huge = b"A" * (64 * 1024 + 1)
@@ -529,7 +529,7 @@ def test_oversized_write_frame_publishes_audit_event(
     monkeypatch.chdir(tmp_path)
     t = _FakeBidirectionalTransport(chunks=[b"out\n"] * 10)
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
 
     captured: list[dict[str, Any]] = []
@@ -539,7 +539,7 @@ def test_oversized_write_frame_publishes_audit_event(
             captured.append(event)
 
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.get_bus", lambda: _FakeBus()
+        "devicehands.api.uart_stream_route.get_bus", lambda: _FakeBus()
     )
 
     app = create_app()
@@ -614,7 +614,7 @@ def test_bidirectional_reconnects_on_link_eof(monkeypatch, tmp_path) -> None:
 
     t.open_session = _open  # type: ignore[assignment]
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
 
     app = create_app()
@@ -669,7 +669,7 @@ def test_reader_oserror_yields_single_stream_error_close(
 
     t.open_session = _open  # type: ignore[assignment]
     monkeypatch.setattr(
-        "alb.api.uart_stream_route.build_transport", lambda **kw: t,
+        "devicehands.api.uart_stream_route.build_transport", lambda **kw: t,
     )
     app = create_app()
     with TestClient(app) as c:

@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from alb.skills.generator import dump_registry_json, generate, render
+from devicehands.skills.generator import dump_registry_json, generate, render
 
 
 def test_render_mentions_all_transports() -> None:
     out = render()
-    assert "name: android-llm-bridge" in out
+    assert "name: devicehands" in out
     assert "## Supported transports" in out
     for t in ("adb", "ssh", "serial", "hybrid"):
         assert t in out
@@ -35,7 +35,7 @@ def test_generate_writes_file(tmp_path: Path) -> None:
     assert result == dest
     assert result.exists()
     content = result.read_text()
-    assert "android-llm-bridge" in content
+    assert "devicehands" in content
     assert "Capabilities" in content
 
 

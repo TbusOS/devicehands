@@ -9,11 +9,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api import serial_route
-from alb.api.server import create_app
-from alb.capabilities.breakin import BreakInResult
-from alb.infra.result import fail, ok
-from alb.transport.base import ShellResult
+from devicehands.api import serial_route
+from devicehands.api.server import create_app
+from devicehands.capabilities.breakin import BreakInResult
+from devicehands.infra.result import fail, ok
+from devicehands.transport.base import ShellResult
 
 SERIAL = "0123456789ABCDEF"
 

@@ -1,4 +1,4 @@
-"""Tests for alb.infra.metric_sampler.TokenSampler."""
+"""Tests for devicehands.infra.metric_sampler.TokenSampler."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.event_bus import (
+from devicehands.infra.event_bus import (
     EventBroadcaster,
     events_log_path,
     get_bus,
     reset_bus,
 )
-from alb.infra.metric_sampler import TokenSampler
+from devicehands.infra.metric_sampler import TokenSampler
 
 
 @pytest.fixture
@@ -230,7 +230,7 @@ async def test_observe_with_zero_or_negative(workspace) -> None:
 async def test_observe_caps_runaway_input(workspace) -> None:
     """A single observe(huge_n) must be capped to OBSERVE_MAX (defensive
     against malformed backends pushing one giant chunk)."""
-    from alb.infra.metric_sampler import OBSERVE_MAX
+    from devicehands.infra.metric_sampler import OBSERVE_MAX
 
     sampler = TokenSampler(session_id="s1", interval_s=0.1)
     sampler.start()

@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.filesync import pull, push
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.capabilities.filesync import pull, push
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 
 def _mk_transport(

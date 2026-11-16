@@ -1,0 +1,1203 @@
+"""SerialTransport — method G (UART).
+
+Two connection modes:
+    1. TCP (ser2net + Xshell reverse tunnel, the remote-Windows setup
+       described in docs/methods/07-uart-serial.md).
+    2. Local device (/dev/ttyUSB0, /dev/ttyACM0, …), when the host is
+       directly wired to the target.
+
+Capabilities:
+    - shell(cmd)          : prompt-based; best-effort, works for simple
+                            commands once a shell is reachable on UART.
+    - stream_read('uart') : raw byte stream; this is UART's primary use.
+    - reboot('normal')    : sends 'reboot' to the shell.
+    - push / pull         : unsupported (bandwidth too low).
+    - forward             : unsupported.
+
+UART's *unique* value is capturing boot logs / kernel panics / u-boot
+output when adb / sshd aren't up yet. The shell wrapper is provided for
+convenience but for heavy work you should use stream_read + alb_log_*.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import dataclasses
+import os
+import re
+import uuid
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from pathlib import Path
+from time import perf_counter
+from typing import Any
+
+from devicehands.infra.hub_serial import hub_serial_open_failure
+from devicehands.transport.base import ShellResult, Transport
+from devicehands.transport.serial_state import (
+    PatternSet,
+    SerialState,
+    SerialStateMachine,
+)
+
+
+# ─── Constants ─────────────────────────────────────────────────────
+DEFAULT_PROMPTS = (
+    b"$ ",    # unprivileged Android shell
+    b"# ",    # root shell
+    b"=> ",   # u-boot
+    b"> ",    # some bootloaders
+)
+
+
+# States where :meth:`SerialTransport.shell` can send a command and
+# expect a meaningful response. Everything outside this set is rejected
+# fast with a specific error code.
+_SHELL_CAPABLE = frozenset({
+    SerialState.SHELL_USER,
+    SerialState.SHELL_ROOT,
+    SerialState.UBOOT,
+    SerialState.RECOVERY,
+    SerialState.CRASH,     # soft crash — shell may still work; we warn
+    SerialState.UNKNOWN,   # nothing matched — fall back to best-effort
+})
+
+
+# Subset of shell-capable states that are POSIX-like — they support
+# command chaining with ``;`` and ``$?`` exit-code introspection. We
+# use marker-based wrapping on these to recover real exit codes and
+# precise command boundaries. U-Boot and Recovery don't qualify
+# (u-boot has no ``$?``; Android recovery has a reduced shell).
+_POSIX_SHELL_STATES = frozenset({
+    SerialState.SHELL_USER,
+    SerialState.SHELL_ROOT,
+    SerialState.CRASH,   # kernel crashed but userspace shell still POSIX
+})
+
+
+# Printed by the shell once a detached reboot is queued (see reboot()).
+_REBOOT_QUEUED = "__ALB_REBOOT_QUEUED__"
+
+
+# Map from non-shell-capable state → error code for shell() rejection.
+_STATE_REJECT: dict[SerialState, str] = {
+    SerialState.PANIC: "BOARD_PANICKED",
+    SerialState.IDLE: "BOARD_UNREACHABLE",
+    SerialState.LINK_REFUSED: "SERIAL_LINK_REFUSED",
+    SerialState.CORRUPTED: "SERIAL_BAUD_MISMATCH",
+    SerialState.SPL: "BOARD_BOOTING",
+    SerialState.KERNEL_BOOT: "BOARD_BOOTING",
+    SerialState.LINUX_INIT: "BOARD_BOOTING",
+    SerialState.LOGIN_PROMPT: "BOARD_NEEDS_LOGIN",
+    SerialState.FASTBOOT: "BOARD_IN_FASTBOOT",
+}
+
+
+@dataclass(frozen=True)
+class _SerialLink:
+    """An open reader/writer pair abstracting TCP and local-serial alike."""
+
+    reader: asyncio.StreamReader
+    writer: asyncio.StreamWriter
+    closer: Any  # optional extra callable to close on cleanup
+    mode: str  # "tcp" | "local"
+
+
+class SerialTransport(Transport):
+    name = "serial"
+    supports_boot_log = True
+    supports_recovery = False  # sshd/adbd are gone in recovery; u-boot yes but not recovery
+
+    def __init__(
+        self,
+        *,
+        device: str | None = None,          # e.g. "/dev/ttyUSB0"
+        tcp_host: str | None = None,        # e.g. "localhost"
+        tcp_port: int | None = None,        # e.g. 9001
+        baud: int = 115200,
+        prompts: tuple[bytes, ...] = DEFAULT_PROMPTS,
+        patterns: PatternSet | None = None,
+        newline: bytes = b"\n",
+        read_chunk: int = 4096,
+        handshake_timeout: float = 2.0,
+    ) -> None:
+        """SerialTransport — UART + optional ser2net TCP bridge.
+
+        Parameters
+        ----------
+        patterns
+            Regex set used by the :class:`SerialStateMachine` to classify
+            what's at the other end (shell / u-boot / kernel panic / etc).
+            Pass ``None`` to use the built-in defaults, or build a custom
+            set from ``config.toml`` via
+            :meth:`PatternSet.from_mapping`.
+        handshake_timeout
+            How long to wait during the initial probe before giving up
+            and declaring UNKNOWN. 2s is enough for ser2net even over a
+            slow tunnel; bump for very remote links.
+        prompts
+            Legacy byte-level prompt list used by the best-effort
+            ``_read_until_any`` / ``_strip_echo_and_prompt`` fallback
+            path (state = UNKNOWN). New deployments should rely on
+            ``patterns`` instead.
+        """
+        if device and (tcp_host or tcp_port):
+            raise ValueError("Pass either `device` or `tcp_host`+`tcp_port`, not both")
+        if not device and not (tcp_host and tcp_port):
+            raise ValueError(
+                "SerialTransport needs either a local device path "
+                "(/dev/ttyUSB*) or tcp_host+tcp_port (ser2net)."
+            )
+        self.device = device
+        self.tcp_host = tcp_host
+        self.tcp_port = tcp_port
+        self.baud = baud
+        self.prompts = prompts
+        self.patterns = patterns if patterns is not None else PatternSet.default()
+        self.newline = newline
+        self.read_chunk = read_chunk
+        self.handshake_timeout = handshake_timeout
+        self._link: _SerialLink | None = None
+
+    # ── Connection management ────────────────────────────────────
+    # Bounded retry budget for the ser2net "back-to-back connect" race
+    # (Bug-1): two `dhands serial …` commands separated by < ~200ms can hit
+    # the moment ser2net is still releasing the underlying serial fd from
+    # the previous client; the kernel then RSTs the second TCP connect.
+    # Retry only on transient resets — refused / timeout / generic OSError
+    # almost always mean a real configuration problem and should fail fast.
+    _TRANSIENT_CONNECT_ERRORS: tuple[type[BaseException], ...] = (
+        ConnectionResetError,
+        BrokenPipeError,
+    )
+    _CONNECT_BACKOFF_S: tuple[float, ...] = (0.1, 0.3, 0.6)
+
+    async def _open(self) -> _SerialLink:
+        """Open a connection. Caller is responsible for closing via _close()."""
+        if self.tcp_host and self.tcp_port:
+            return await self._open_tcp_with_retry()
+
+        assert self.device is not None
+        if not os.path.exists(self.device):
+            raise FileNotFoundError(
+                f"Serial device not found: {self.device}. "
+                "Check permissions (add user to `dialout` group) or the USB-serial cable."
+            )
+        try:
+            # Lazy import so the rest of dhands works even if pyserial-asyncio isn't installed.
+            import serial_asyncio  # type: ignore[import-not-found]
+        except ImportError as e:
+            raise ImportError(
+                "pyserial-asyncio is required for local serial devices. "
+                "Install with: uv add pyserial-asyncio"
+            ) from e
+
+        reader, writer = await serial_asyncio.open_serial_connection(
+            url=self.device, baudrate=self.baud
+        )
+        return _SerialLink(reader=reader, writer=writer, closer=None, mode="local")
+
+    async def _open_tcp_with_retry(self) -> _SerialLink:
+        """TCP connect with bounded retry on transient resets.
+
+        Layout: ``len(_CONNECT_BACKOFF_S) + 1`` attempts total, with each
+        backoff entry consumed as the wait *between* attempts. Default
+        ``_CONNECT_BACKOFF_S = (0.1, 0.3, 0.6)`` means 4 attempts dotted
+        across cumulative ~1.0s, matching the commit-message claim.
+        Non-transient errors (refused / timeout / ENETUNREACH / ENOENT-
+        style) raise on the first attempt — those reflect real misconfig,
+        not a race.
+        """
+        last_err: Exception | None = None
+        attempts = len(self._CONNECT_BACKOFF_S) + 1
+        for attempt in range(1, attempts + 1):
+            try:
+                async with asyncio.timeout(10):
+                    reader, writer = await asyncio.open_connection(
+                        self.tcp_host, self.tcp_port
+                    )
+                return _SerialLink(
+                    reader=reader, writer=writer, closer=None, mode="tcp"
+                )
+            except self._TRANSIENT_CONNECT_ERRORS as e:
+                last_err = e
+                if attempt < attempts:
+                    # Sleep entries map 1:1 to inter-attempt gaps:
+                    # attempt=1 → sleep[0], attempt=2 → sleep[1], ...
+                    await asyncio.sleep(self._CONNECT_BACKOFF_S[attempt - 1])
+                    continue
+                raise ConnectionError(
+                    f"ser2net endpoint {self.tcp_host}:{self.tcp_port} "
+                    f"kept resetting after {attempts} attempts: {e}"
+                ) from e
+            except (OSError, asyncio.TimeoutError) as e:
+                raise ConnectionError(
+                    f"Cannot reach ser2net endpoint "
+                    f"{self.tcp_host}:{self.tcp_port}: {e}"
+                ) from e
+        raise AssertionError(  # mypy doesn't track loop exhaustion
+            f"ser2net retry loop exited without return/raise: {last_err}"
+        )
+
+    async def _close(self, link: _SerialLink) -> None:
+        try:
+            link.writer.close()
+            try:
+                async with asyncio.timeout(2):
+                    await link.writer.wait_closed()
+            except asyncio.TimeoutError:
+                pass
+        except Exception:
+            pass
+
+    # ── Transport interface ──────────────────────────────────────
+    async def shell(self, cmd: str, *, timeout: int = 30) -> ShellResult:
+        """Run a command on the UART endpoint.
+
+        Flow:
+
+        1. Connect.
+        2. **Handshake** — probe for up to ``handshake_timeout`` seconds,
+           feeding all bytes into a :class:`SerialStateMachine`.
+           Classify the initial state.
+        3. **Route on state**:
+
+           * :data:`SerialState.PANIC` → fail with ``BOARD_PANICKED``,
+             return the panic tail as ``stdout`` for diagnostic value.
+           * :data:`SerialState.IDLE` → ``BOARD_UNREACHABLE`` (no bytes
+             observed at all — check power / cable / baud).
+           * :data:`SerialState.CORRUPTED` → ``SERIAL_BAUD_MISMATCH``.
+           * SPL / KERNEL_BOOT / LINUX_INIT → ``BOARD_BOOTING``.
+           * :data:`SerialState.LOGIN_PROMPT` → ``BOARD_NEEDS_LOGIN``.
+           * :data:`SerialState.FASTBOOT` → ``BOARD_IN_FASTBOOT``.
+           * SHELL / UBOOT / RECOVERY / CRASH / UNKNOWN → proceed.
+
+        4. Send ``cmd``.
+        5. Read until a legacy prompt pattern reappears (for now).
+           The richer marker-based exit-code handling lands in a later
+           commit; this one preserves the existing output-stripping
+           behaviour so all legacy tests keep passing.
+
+        Notes
+        -----
+        - UNKNOWN falls through to the best-effort path instead of
+          erroring. This preserves behaviour on weird endpoints that
+          don't emit a classifiable prompt (custom bootloaders, bespoke
+          RTOS shells), and matches the pre-state-machine contract.
+        - If the state transitions INTO a panic during command execution,
+          we return ``BOARD_PANICKED`` and include whatever we captured
+          in ``stdout``.
+        """
+        start = perf_counter()
+        try:
+            link = await self._open()
+        # OSError, not ConnectionError: pyserial raises SerialException (an
+        # OSError) for a busy / locked port, and it used to escape uncaught.
+        except (OSError, ImportError) as e:
+            return ShellResult(
+                ok=False,
+                exit_code=-1,
+                stderr=str(e),
+                error_code=_classify_connect_error(e),
+                duration_ms=int((perf_counter() - start) * 1000),
+            )
+
+        try:
+            sm = SerialStateMachine(patterns=self.patterns)
+
+            # ── Step 1: handshake ─────────────────────────────────
+            initial_state = await self._handshake(link, sm)
+
+            # ── Step 2: reject early if state can't run a command ─
+            if initial_state not in _SHELL_CAPABLE:
+                rejected = self._reject_for_state(initial_state, sm, start)
+                if initial_state is SerialState.LINK_REFUSED:
+                    rejected = await self._with_hub_reason(rejected)
+                return rejected
+
+            # ── Step 3: dispatch on state ──────────────────────────
+            # POSIX shells → marker-based wrapper, real exit codes,
+            # precise command boundaries even with printk noise.
+            # Everything else → legacy "send + read until prompt" path.
+            if initial_state in _POSIX_SHELL_STATES:
+                try:
+                    return await self._run_with_marker(
+                        link, sm, cmd, timeout, start, initial_state,
+                    )
+                except asyncio.CancelledError:
+                    # Cancelled from above (e.g. the chat's Stop button):
+                    # interrupt the command on the board the way a timeout
+                    # does, so the next command finds a free shell.
+                    await _abort_with_ctrl_c(link, sm)
+                    raise
+            return await self._run_legacy(link, sm, cmd, timeout, start)
+        finally:
+            await self._close(link)
+
+    # ── Command execution strategies ────────────────────────────────
+
+    async def _run_with_marker(
+        self,
+        link: _SerialLink,
+        sm: SerialStateMachine,
+        cmd: str,
+        timeout: int,
+        start: float,
+        initial_state: SerialState,
+    ) -> ShellResult:
+        """Execute ``cmd`` in a POSIX shell and capture real exit code.
+
+        Wraps the user's command with BEGIN/END sentinel lines plus
+        ``$?`` capture::
+
+            echo __ALB_BEG_<nonce>__; <user_cmd>; echo __ALB_END_<nonce>__=$?
+
+        Reads until the END marker line appears (with its ``=N`` suffix)
+        or we time out. The nonce is a fresh UUID hex for every call,
+        so collision with user content is practically impossible.
+
+        Why this is better than the legacy path:
+
+        - Real exit code in ``ShellResult.exit_code`` (non-zero → ``ok=False``).
+        - Command boundaries are exact; printk lines spraying into the
+          middle of output do not break stripping logic.
+        - Multi-line or specially-quoted commands round-trip cleanly —
+          the shell just runs them between our markers.
+
+        If the END marker never appears before timeout, we fall back to
+        a :code:`TIMEOUT_SHELL` result with whatever output arrived.
+        """
+        nonce = uuid.uuid4().hex[:12]
+        beg_marker = f"__ALB_BEG_{nonce}__"
+        end_marker = f"__ALB_END_{nonce}__"
+        wrapped = (
+            f"echo {beg_marker}; {cmd}; echo {end_marker}=$?\n"
+        ).encode("utf-8", errors="replace")
+
+        link.writer.write(wrapped)
+        await link.writer.drain()
+
+        deadline = perf_counter() + timeout
+        response = bytearray()
+        end_line_re = re.compile(
+            re.escape(end_marker).encode("ascii") + rb"=(\d+)\r?\n"
+        )
+        match: re.Match[bytes] | None = None
+
+        while perf_counter() < deadline:
+            remaining = max(0.05, deadline - perf_counter())
+            try:
+                async with asyncio.timeout(remaining):
+                    chunk = await link.reader.read(self.read_chunk)
+            except asyncio.TimeoutError:
+                break
+            if not chunk:
+                break
+            response.extend(chunk)
+            sm.feed(chunk)
+
+            # Mid-command panic — return what we have.
+            if sm.state == SerialState.PANIC:
+                return ShellResult(
+                    ok=False,
+                    exit_code=-1,
+                    stdout=bytes(response).decode("utf-8", errors="replace"),
+                    stderr="kernel panic during command execution",
+                    error_code="BOARD_PANICKED",
+                    duration_ms=int((perf_counter() - start) * 1000),
+                )
+
+            match = end_line_re.search(response)
+            if match:
+                break
+
+        if not match:
+            # Attempt graceful abort so the board doesn't keep running
+            # our wrapped command after we drop the connection — the
+            # next shell() would otherwise reconnect into a busy shell
+            # whose prompt arrives late and confuses state detection.
+            aborted = await _abort_with_ctrl_c(link, sm)
+            abort_note = (
+                "; sent Ctrl-C (board acknowledged)"
+                if aborted
+                else "; sent Ctrl-C (board did not acknowledge — may need reboot)"
+            )
+            return ShellResult(
+                ok=False,
+                exit_code=-1,
+                stdout=bytes(response).decode("utf-8", errors="replace"),
+                stderr=(
+                    f"Serial shell timed out after {timeout}s; "
+                    f"end marker {end_marker} never arrived" + abort_note
+                ),
+                error_code="TIMEOUT_SHELL",
+                duration_ms=int((perf_counter() - start) * 1000),
+            )
+
+        exit_code = int(match.group(1))
+        text = bytes(response).decode("utf-8", errors="replace")
+        body = _extract_between_markers(text, beg_marker, end_marker)
+        stdout, kernel_logs = _split_printk(body)
+
+        stderr_parts: list[str] = []
+        if sm.state == SerialState.CRASH and initial_state != SerialState.CRASH:
+            stderr_parts.append(
+                "warning: kernel crash trace observed during command; "
+                "shell is still up but state may be unstable"
+            )
+        if kernel_logs:
+            stderr_parts.append(
+                "[kernel_logs observed during command, filtered from stdout]\n"
+                + kernel_logs
+            )
+
+        return ShellResult(
+            ok=(exit_code == 0),
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr="\n\n".join(stderr_parts),
+            error_code=None if exit_code == 0 else "SHELL_NONZERO_EXIT",
+            duration_ms=int((perf_counter() - start) * 1000),
+        )
+
+    async def _run_legacy(
+        self,
+        link: _SerialLink,
+        sm: SerialStateMachine,
+        cmd: str,
+        timeout: int,
+        start: float,
+    ) -> ShellResult:
+        """Best-effort path for non-POSIX states (u-boot, recovery, unknown).
+
+        Sends the command, reads until any legacy prompt pattern shows
+        up at the tail, strips the echoed command line and trailing
+        prompt. Exit code is always 0 (these environments don't report
+        one) — ``ok=True`` means "we got a complete response", not
+        "the command succeeded".
+        """
+        payload = (cmd + "\n").encode("utf-8", errors="replace")
+        link.writer.write(payload)
+        await link.writer.drain()
+
+        try:
+            async with asyncio.timeout(timeout):
+                raw = await _read_until_any(link.reader, self.prompts)
+        except asyncio.TimeoutError:
+            return ShellResult(
+                ok=False,
+                exit_code=-1,
+                stderr=f"Serial shell timed out after {timeout}s",
+                error_code="TIMEOUT_SHELL",
+                duration_ms=int((perf_counter() - start) * 1000),
+            )
+
+        sm.feed(raw)
+
+        if sm.state == SerialState.PANIC:
+            return ShellResult(
+                ok=False,
+                exit_code=-1,
+                stdout=raw.decode("utf-8", errors="replace"),
+                stderr="kernel panic during command execution",
+                error_code="BOARD_PANICKED",
+                duration_ms=int((perf_counter() - start) * 1000),
+            )
+
+        text = raw.decode("utf-8", errors="replace")
+        stdout = _strip_echo_and_prompt(text, cmd, self.prompts)
+        return ShellResult(
+            ok=True,
+            exit_code=0,
+            stdout=stdout,
+            duration_ms=int((perf_counter() - start) * 1000),
+        )
+
+    # ── State machine plumbing ──────────────────────────────────────
+
+    async def _handshake(
+        self,
+        link: _SerialLink,
+        sm: SerialStateMachine,
+    ) -> SerialState:
+        """Probe the endpoint to determine the initial state.
+
+        Strategy, in order:
+
+        1. Opportunistic read: gobble up anything already buffered
+           (e.g., a prompt the device printed before we connected).
+           Short per-chunk timeout keeps this from blocking.
+        2. If that's inconclusive, send ``self.newline`` to nudge the
+           device. Most shells respond with a fresh prompt.
+        3. Read with the remaining handshake budget, feeding the state
+           machine on every chunk. Stop early on decisive states
+           (prompts, panic, corrupted).
+
+        Returns the final classified state.
+
+        Silence and a hang-up are tracked separately. Both leave an empty
+        buffer, but "the endpoint is there and quiet" (``IDLE``) and "the
+        endpoint closed on us" (``LINK_REFUSED``) point at opposite halves
+        of the chain, and collapsing them sends people to the bench to
+        debug a bridge problem.
+        """
+        deadline = perf_counter() + self.handshake_timeout
+        hung_up = False
+
+        # Step 1: opportunistic pre-read of pending bytes
+        for _ in range(5):
+            remaining = deadline - perf_counter()
+            if remaining <= 0:
+                break
+            try:
+                async with asyncio.timeout(0.1):
+                    chunk = await link.reader.read(self.read_chunk)
+            except asyncio.TimeoutError:
+                break
+            if not chunk:
+                hung_up = True
+                break
+            sm.feed(chunk)
+
+        if _is_decisive(sm.state):
+            return sm.state
+
+        # Step 2: nudge with newline
+        try:
+            link.writer.write(self.newline)
+            await link.writer.drain()
+        except (ConnectionResetError, BrokenPipeError):
+            # Writer died during nudge — that IS a hang-up, and with no bytes
+            # seen it is all we know about the link.
+            return self._empty_buffer_state(sm, hung_up=True)
+
+        # Step 3: drain until decisive or deadline
+        while perf_counter() < deadline:
+            remaining = max(0.05, deadline - perf_counter())
+            try:
+                async with asyncio.timeout(remaining):
+                    chunk = await link.reader.read(self.read_chunk)
+            except asyncio.TimeoutError:
+                break
+            if not chunk:
+                hung_up = True
+                break
+            sm.feed(chunk)
+            if _is_decisive(sm.state):
+                break
+
+        return self._empty_buffer_state(sm, hung_up=hung_up)
+
+    async def _with_hub_reason(self, result: ShellResult) -> ShellResult:
+        """A hang-up without a byte, told apart by the bench agent's own reason
+        when the local hub has one (infra/hub_serial.py): another program
+        holding the port and a COM that does not exist need different fixes,
+        and the hang-up alone looks the same for both."""
+        reason = await asyncio.to_thread(
+            hub_serial_open_failure,
+            self.tcp_host,
+            self.tcp_port,
+            within_s=self.handshake_timeout + _HUB_REASON_SLACK_S,
+        )
+        if reason is None:
+            return result
+        return dataclasses.replace(
+            result,
+            error_code=classify_open_failure(reason),
+            stderr=f"the bench agent could not open the serial port: {reason}",
+        )
+
+    @staticmethod
+    def _empty_buffer_state(sm: SerialStateMachine, *, hung_up: bool) -> SerialState:
+        """Classify a handshake that produced no classifiable bytes.
+
+        An endpoint that emitted literally nothing is ``IDLE`` or
+        ``LINK_REFUSED`` — both semantically richer than the default
+        ``UNKNOWN`` (which means "saw bytes but couldn't classify").
+
+        * ``LINK_REFUSED`` — it hung up. The bridge/agent could not reach
+          the port (another program holds it, the COM vanished). Nothing
+          reached the board, so nothing about the board is implied.
+        * ``IDLE`` — it stayed connected and said nothing: board powered
+          off, UART not wired on the device side, wrong port.
+
+        Bytes we DID classify always win: a real prompt or a panic is
+        better information than how the socket ended.
+        """
+        if sm.buffer_tail or sm.state != SerialState.UNKNOWN:
+            return sm.state
+        return SerialState.LINK_REFUSED if hung_up else SerialState.IDLE
+
+    def _reject_for_state(
+        self,
+        state: SerialState,
+        sm: SerialStateMachine,
+        start: float,
+    ) -> ShellResult:
+        """Build a structured :class:`ShellResult` for a non-runnable state.
+
+        The panic case deserves special care: we include the tail of
+        the buffer as ``stdout`` so the caller (or LLM) can see the
+        panic message without a second round-trip.
+        """
+        code = _STATE_REJECT[state]
+        duration = int((perf_counter() - start) * 1000)
+
+        stdout = ""
+        if state == SerialState.PANIC:
+            stdout = sm.snapshot(tail_bytes=800)["tail"]
+
+        # Default messages come from errors.py via the ShellResult
+        # pipeline, but a state-specific stderr makes the returned
+        # payload self-describing at a glance.
+        stderr_map = {
+            SerialState.PANIC:        "board is in kernel panic; only reboot can recover",
+            SerialState.IDLE:         "no output observed on UART after handshake",
+            SerialState.LINK_REFUSED: (
+                "the serial endpoint closed the connection without sending a byte "
+                "— the bridge never reached the UART, so this says nothing about the board"
+            ),
+            SerialState.CORRUPTED:    "UART stream is mostly non-printable (wrong baud?)",
+            SerialState.SPL:          "board is still in SPL / pre-u-boot phase",
+            SerialState.KERNEL_BOOT:  "board is still in kernel boot phase",
+            SerialState.LINUX_INIT:   "board is running init / systemd; no shell yet",
+            SerialState.LOGIN_PROMPT: "login prompt waiting for a username",
+            SerialState.FASTBOOT:     "board is in fastboot mode",
+        }
+        return ShellResult(
+            ok=False,
+            exit_code=-1,
+            stdout=stdout,
+            stderr=stderr_map[state],
+            error_code=code,
+            duration_ms=duration,
+        )
+
+    async def stream_read(
+        self, source: str, **kwargs: Any
+    ) -> AsyncIterator[bytes]:
+        """Stream raw UART bytes.
+
+        Accepts source='uart' (canonical) or source='dmesg' (for API
+        compatibility with other transports — in practice you'll still see
+        the full UART stream, filtered by capabilities/logging).
+        """
+        if source not in ("uart", "dmesg", "kmsg"):
+            raise ValueError(f"SerialTransport does not support source {source!r}")
+
+        try:
+            link = await self._open()
+        # OSError, not ConnectionError: pyserial raises SerialException (an
+        # OSError) for a busy / locked port, and it used to escape uncaught.
+        except (OSError, ImportError) as e:
+            # Yield nothing and let the caller handle the empty stream via
+            # its own timeout / duration limit. For better LLM diagnostics
+            # we also write a single synthetic marker line.
+            yield f"[dhands serial open failed: {e}]\n".encode()
+            return
+
+        try:
+            while True:
+                try:
+                    chunk = await link.reader.read(self.read_chunk)
+                except (ConnectionResetError, OSError):
+                    break
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            await self._close(link)
+
+    async def push(self, local: Path, remote: str) -> ShellResult:
+        return ShellResult(
+            ok=False,
+            exit_code=-1,
+            stderr="UART bandwidth is too low for file transfer; use adb/ssh instead.",
+            error_code="TRANSPORT_NOT_SUPPORTED",
+        )
+
+    async def pull(self, remote: str, local: Path) -> ShellResult:
+        return ShellResult(
+            ok=False,
+            exit_code=-1,
+            stderr="UART bandwidth is too low for file transfer; use adb/ssh instead.",
+            error_code="TRANSPORT_NOT_SUPPORTED",
+        )
+
+    async def reboot(self, mode: str = "normal") -> ShellResult:
+        if mode == "sideload":
+            # adbd is what arms recovery for sideload; a shell `reboot
+            # sideload` has no such step.
+            return ShellResult(
+                ok=False,
+                exit_code=-1,
+                stderr="Serial reboot to 'sideload' not supported; use adb.",
+                error_code="TRANSPORT_NOT_SUPPORTED",
+            )
+        target = "reboot" if mode == "normal" else f"reboot {mode}"
+        # Android's `reboot` never returns, so run in the foreground it
+        # leaves shell() waiting for an end marker that never comes — and
+        # the timeout then sends Ctrl-C, which can land in the bootloader
+        # we just asked for and stop it. Run it detached a second later
+        # instead; the shell answers at once with the token.
+        r = await self.shell(
+            f"(sleep 1; {target}) </dev/null >/dev/null 2>&1 & echo {_REBOOT_QUEUED}",
+            timeout=10,
+        )
+        if not r.ok:
+            return r
+        if _REBOOT_QUEUED not in (line.strip() for line in r.stdout.splitlines()):
+            # Only a POSIX shell prints the bare token; a U-Boot / recovery
+            # console answers with an error and the board stays where it is.
+            return ShellResult(
+                ok=False,
+                exit_code=-1,
+                stdout=r.stdout,
+                stderr=(
+                    f"Console did not run '{target}' (not at a Linux shell — "
+                    "U-Boot or recovery?). Check with: dhands serial status"
+                ),
+                error_code="TRANSPORT_NOT_SUPPORTED",
+                duration_ms=r.duration_ms,
+            )
+        return ShellResult(ok=True, exit_code=0, duration_ms=r.duration_ms)
+
+    async def detect_state(self) -> dict[str, Any]:
+        """Connect, run handshake, and return a state snapshot.
+
+        This is the programmatic entry point behind ``dhands serial status``
+        and the Web UI's device-state pill. It doesn't run a command —
+        just classifies what the endpoint is currently doing.
+
+        Returns a dict:
+
+        - ``ok`` — True if connect + handshake completed (even if
+          the state ended up UNKNOWN or IDLE).
+        - ``connected`` — True if the transport reached the endpoint.
+        - ``state`` — :class:`SerialState` value (string).
+        - ``tail`` — last ~256 bytes as utf-8 text (human-readable).
+        - ``history`` — list of transitions during the handshake.
+        - ``endpoint`` — ``host:port`` or device path.
+        - ``baud`` — configured baud rate.
+        - ``duration_ms`` — handshake wall time.
+        - On failure: ``error`` and ``error_code``.
+        """
+        start = perf_counter()
+        info: dict[str, Any] = {
+            "transport": "serial",
+            "mode": "tcp" if self.tcp_host else "local",
+            "endpoint": (
+                f"{self.tcp_host}:{self.tcp_port}"
+                if self.tcp_host else self.device
+            ),
+            "baud": self.baud,
+        }
+
+        try:
+            link = await self._open()
+        # OSError, not ConnectionError: pyserial raises SerialException (an
+        # OSError) for a busy / locked port, and it used to escape uncaught.
+        except (OSError, ImportError) as e:
+            info["ok"] = False
+            info["connected"] = False
+            info["error"] = str(e)
+            info["error_code"] = _classify_connect_error(e)
+            info["duration_ms"] = int((perf_counter() - start) * 1000)
+            return info
+
+        try:
+            sm = SerialStateMachine(patterns=self.patterns)
+            state = await self._handshake(link, sm)
+            snap = sm.snapshot()
+            info.update(
+                ok=True,
+                connected=True,
+                state=state.value,
+                tail=snap["tail"],
+                history=snap["history"],
+                buffer_bytes=snap["buffer_bytes"],
+                duration_ms=int((perf_counter() - start) * 1000),
+            )
+            return info
+        finally:
+            await self._close(link)
+
+    async def health(self) -> dict[str, Any]:
+        info: dict[str, Any] = {
+            "transport": "serial",
+            "mode": "tcp" if self.tcp_host else "local",
+            "endpoint": (
+                f"{self.tcp_host}:{self.tcp_port}"
+                if self.tcp_host
+                else self.device
+            ),
+            "baud": self.baud,
+        }
+        try:
+            link = await self._open()
+            info["ok"] = True
+            info["connected"] = True
+            await self._close(link)
+        except Exception as e:  # noqa: BLE001
+            info["ok"] = False
+            info["connected"] = False
+            info["error"] = str(e)
+            info["error_code"] = _classify_connect_error(e)
+        return info
+
+    # ── Helpers unique to serial ─────────────────────────────────
+    async def open_session(self) -> _SerialLink:
+        """Public version of `_open` for callers that need a single
+        long-lived link they can both `read` from and `write` to.
+
+        Used by the bidirectional `/uart/stream` WS (PR-C.c). Caller
+        owns the lifecycle and MUST call `close_session(link)` — the
+        regular `stream_read` iterator auto-closes on exit, but a WS
+        with separate read+write tasks needs an explicit lifecycle so
+        both tasks see the same physical UART (a 2nd `_open` would
+        either EBUSY on `/dev/ttyUSB*` or get rejected by single-client
+        ser2net configs).
+        """
+        return await self._open()
+
+    async def close_session(self, link: _SerialLink) -> None:
+        """Pair with `open_session`. Best-effort idempotent — `_close`
+        catches all exceptions including OSError on already-closed
+        StreamWriter, so calling close_session multiple times is safe
+        but not transactional. Don't rely on the second call having
+        any visible effect."""
+        await self._close(link)
+
+    # How long send_raw waits for evidence that the link survived our write.
+    # Paid ONLY on a silent console: `reader.read()` returns the moment any
+    # byte arrives, so a chatty endpoint (u-boot countdown, booting kernel —
+    # exactly when send timing matters) confirms in ~0 ms.
+    _SEND_CONFIRM_S = 0.25
+
+    async def send_raw(self, data: bytes) -> ShellResult:
+        """Fire-and-forget byte write — no prompt wait. Useful for u-boot
+        interrupt sequences (e.g. repeated b'\\x03' for Ctrl-C).
+
+        "Fire-and-forget" is about the BOARD: a UART never acknowledges, so we
+        cannot promise the console consumed the bytes. We can, however, promise
+        the *link* was still alive — and that promise used to be missing, which
+        is what made a write into a dead bridge report ``[ok] wrote N bytes``
+        while the board did nothing (issue #4).
+        """
+        start = perf_counter()
+        try:
+            link = await self._open()
+        except Exception as e:  # noqa: BLE001
+            return ShellResult(
+                ok=False, exit_code=-1, stderr=str(e),
+                error_code=_classify_connect_error(e),
+                duration_ms=int((perf_counter() - start) * 1000),
+            )
+        try:
+            link.writer.write(data)
+            await link.writer.drain()
+            if await self._link_died_after_write(link):
+                return await self._with_hub_reason(
+                    ShellResult(
+                        ok=False,
+                        exit_code=-1,
+                        stderr=(
+                            "the serial endpoint closed the connection right after the "
+                            "write — the bytes never reached the UART"
+                        ),
+                        error_code="SERIAL_SEND_UNCONFIRMED",
+                        duration_ms=int((perf_counter() - start) * 1000),
+                    )
+                )
+            return ShellResult(
+                ok=True, exit_code=0, stdout="",
+                duration_ms=int((perf_counter() - start) * 1000),
+            )
+        finally:
+            await self._close(link)
+
+    async def _link_died_after_write(self, link: _SerialLink) -> bool:
+        """True when the endpoint tore the connection down instead of carrying
+        our bytes.
+
+        Any byte read back, or a read that simply times out, both mean the link
+        is alive. Only a clean EOF / reset proves the write went nowhere.
+
+        Bytes observed here are discarded — nothing else is reading THIS
+        connection (each dhands command owns its own), and with the hub-side
+        fan-out every other reader gets its own copy of the same stream.
+        """
+        try:
+            async with asyncio.timeout(self._SEND_CONFIRM_S):
+                peek = await link.reader.read(self.read_chunk)
+        except TimeoutError:
+            return False
+        except (ConnectionResetError, OSError):
+            return True
+        return peek == b""
+
+
+# ─── Helpers ───────────────────────────────────────────────────────
+async def _read_until_any(
+    reader: asyncio.StreamReader,
+    tokens: tuple[bytes, ...],
+    *,
+    max_bytes: int = 512 * 1024,
+) -> bytes:
+    """Read until we see ANY of the tokens (simulating `readuntil` with N markers)."""
+    buf = b""
+    while True:
+        if len(buf) > max_bytes:
+            return buf
+        chunk = await reader.read(256)
+        if not chunk:
+            return buf
+        buf += chunk
+        for token in tokens:
+            idx = buf.rfind(token)
+            if idx != -1:
+                return buf[: idx + len(token)]
+
+
+def _strip_echo_and_prompt(
+    text: str, cmd: str, prompts: tuple[bytes, ...]
+) -> str:
+    """Remove the echoed command line and trailing prompt from a captured segment."""
+    # Drop leading echo: often '<cmd>\r\n'
+    cmd_echo = cmd.strip()
+    lines = text.splitlines(keepends=True)
+    if lines and cmd_echo and cmd_echo in lines[0]:
+        lines = lines[1:]
+    # Strip trailing prompt line
+    prompt_strs = tuple(p.decode("utf-8", errors="replace") for p in prompts)
+    if lines:
+        last = lines[-1].rstrip()
+        for p in prompt_strs:
+            if last.endswith(p.rstrip()):
+                lines = lines[:-1]
+                break
+    # Filter trailing empty lines
+    out = "".join(lines)
+    return re.sub(r"\r\n", "\n", out).strip("\n") + ("\n" if out.endswith("\n") else "")
+
+
+def _extract_between_markers(text: str, beg: str, end: str) -> str:
+    """Pull the user command's stdout from between BEG/END marker lines.
+
+    Raw text layout when a POSIX shell echoes back a wrapped command::
+
+        echo __ALB_BEG_abc__; some_cmd; echo __ALB_END_abc__=$?
+        __ALB_BEG_abc__
+        user output line 1
+        user output line 2
+        __ALB_END_abc__=0
+        root@host:/ #
+
+    We want only lines 2-3 — everything between the BEG line (which
+    the shell printed via ``echo``) and the END line (ditto).
+
+    The first line (the echoed command itself) contains BOTH markers
+    in substring form; we must skip it. Using a start-of-line anchor
+    on both markers distinguishes the echo from the real output lines.
+
+    Returns the extracted stdout. If markers aren't found on their own
+    line, returns ``""`` (safer than garbage).
+    """
+    beg_match = re.search(
+        rf"(?:^|\n){re.escape(beg)}\r?\n", text,
+    )
+    if beg_match is None:
+        return ""
+    body_start = beg_match.end()
+
+    end_match = re.search(
+        rf"(?:^|\n){re.escape(end)}=\d+\s*$",
+        text[body_start:], flags=re.MULTILINE,
+    )
+    if end_match is None:
+        # End marker missing — unusual, return whatever came after BEG
+        return text[body_start:].rstrip("\r\n")
+
+    body = text[body_start : body_start + end_match.start()]
+    # Strip trailing newlines leftover from the line break before END
+    return body.rstrip("\r\n")
+
+
+# Kernel printk timestamp prefix: ``[   123.456789] …``. Variable
+# leading whitespace, fractional seconds 6 digits. Strict — avoids
+# matching bracketed notes that look vaguely similar.
+_PRINTK_LINE_RE = re.compile(r"^\[\s*\d+\.\d{6}\]\s")
+
+
+def _split_printk(body: str) -> tuple[str, str]:
+    """Separate kernel-printk lines from normal command stdout.
+
+    Android / Linux kernels spray timestamped printk into the UART
+    stream regardless of what's running. When those lines land between
+    our BEG/END markers they pollute the user's stdout and make the
+    output look noisy to an LLM trying to parse it.
+
+    This helper splits each body line into either:
+
+    - **stdout** — lines that do NOT start with the printk timestamp
+      prefix ``[   123.456789]``.
+    - **kernel_logs** — lines that do.
+
+    Preserves line order within each side. Returns two strings
+    (stripped of trailing newlines).
+    """
+    stdout_lines: list[str] = []
+    kernel_lines: list[str] = []
+    for line in body.splitlines():
+        if _PRINTK_LINE_RE.match(line):
+            kernel_lines.append(line)
+        else:
+            stdout_lines.append(line)
+    return "\n".join(stdout_lines), "\n".join(kernel_lines)
+
+
+async def _abort_with_ctrl_c(
+    link: _SerialLink,
+    sm: SerialStateMachine,
+    *,
+    grace_s: float = 1.0,
+) -> bool:
+    """Try to gracefully abort whatever command is running on the board.
+
+    Sends a single ``\\x03`` (Ctrl-C) byte and waits briefly for the
+    shell to re-emit its prompt. This prevents the common hang-over
+    scenario:
+
+    1. ``shell()`` times out while the command is still producing output.
+    2. We close the TCP socket — but the board shell is still running
+       the command and piping bytes into an abandoned ser2net endpoint.
+    3. Next ``shell()`` reconnects; the handshake reads tail bytes from
+       that orphan output and misclassifies the state.
+
+    A Ctrl-C interrupts the command in the normal POSIX way, the
+    prompt re-appears, and a subsequent connection sees a clean state.
+
+    Returns ``True`` if a prompt came back within ``grace_s``, ``False``
+    otherwise. Failure is non-fatal — we've still tried, and the caller
+    shouldn't delay its error response on a stuck board.
+    """
+    try:
+        link.writer.write(b"\x03")
+        await link.writer.drain()
+    except (ConnectionResetError, BrokenPipeError):
+        return False
+
+    deadline = perf_counter() + grace_s
+    while perf_counter() < deadline:
+        remaining = max(0.05, deadline - perf_counter())
+        try:
+            async with asyncio.timeout(remaining):
+                chunk = await link.reader.read(256)
+        except asyncio.TimeoutError:
+            break
+        if not chunk:
+            break
+        sm.feed(chunk)
+        if sm.state in (
+            SerialState.SHELL_USER,
+            SerialState.SHELL_ROOT,
+            SerialState.UBOOT,
+            SerialState.RECOVERY,
+        ):
+            return True
+    return False
+
+
+def _is_decisive(state: SerialState) -> bool:
+    """True when the state is conclusive enough to stop the handshake.
+
+    "Decisive" means we have a definitive picture of what's on the
+    other end:
+
+    - **Prompts** (SHELL_*/UBOOT/RECOVERY/FASTBOOT/LOGIN_PROMPT): the
+      most recent emission ends with a specific prompt character, so
+      the endpoint is ready to receive a command (or clearly pre-shell
+      and waiting for something specific).
+    - **Broken** (PANIC/CORRUPTED): nothing we could do will make a
+      command run until the board is physically reset / the baud is
+      re-negotiated.
+
+    Boot-phase states (KERNEL_BOOT / LINUX_INIT / SPL) are
+    **intentionally NOT decisive** —— they're weak signals: a fully-
+    booted running system keeps emitting `init:` lines, `type=AVC`
+    denials, occasional `Starting kernel` strings in motd banners,
+    etc. Short-circuiting on them would misclassify a healthy shell
+    as "still booting" just because printk flowed through the handshake
+    window. Instead we keep reading until either a prompt appears
+    (overrides the boot-phase classification) or the deadline hits
+    (then the boot-phase state sticks — we tried).
+    """
+    return state in (
+        SerialState.SHELL_USER,
+        SerialState.SHELL_ROOT,
+        SerialState.UBOOT,
+        SerialState.RECOVERY,
+        SerialState.FASTBOOT,
+        SerialState.LOGIN_PROMPT,
+        SerialState.PANIC,
+        SerialState.CORRUPTED,
+    )
+
+
+# Substrings every OS/library uses to say "someone else already has this port".
+# pyserial raises SerialException (an OSError, NOT a PermissionError) in all of
+# these cases, so the type alone cannot tell them apart from a missing device.
+_BUSY_HINTS = (
+    "access is denied",            # Windows: another program holds the COM port
+    "could not exclusively lock",  # pyserial's flock() on Linux
+    "device or resource busy",
+    "resource temporarily unavailable",
+)
+# pyserial on Windows words an open failure as
+#   could not open port 'COM27': PermissionError(13, '<text>', None, 5)
+# with <text> in the system language ('拒绝访问。' on a Chinese system), so the
+# English hint above misses it. The Win32 error number in the last slot does
+# not change with the language: 5 is ERROR_ACCESS_DENIED — for a COM port,
+# another program holds it — and 2 is ERROR_FILE_NOT_FOUND, no such port.
+# Linux's "[Errno 13] Permission denied" (no dialout group) has neither shape.
+# How much older than the handshake the hub's recorded failure may be and
+# still be this one: the hub records it just before it hangs up on us.
+_HUB_REASON_SLACK_S = 10.0
+_WIN_ACCESS_DENIED_RE = re.compile(r"PermissionError\(13, .*, None, 5\)")
+_WIN_NOT_FOUND_RE = re.compile(r"FileNotFoundError\(2, .*, None, 2\)")
+
+
+def _busy_text(text: str) -> bool:
+    return any(h in text.lower() for h in _BUSY_HINTS) or bool(_WIN_ACCESS_DENIED_RE.search(text))
+
+
+def classify_open_failure(reason: str) -> str:
+    """Error code for the text an agent / bridge gave for not opening a port.
+
+    The agent's text is all the hub path has (see infra/hub_serial.py); the
+    code says which fix applies. Anything unrecognised stays a link refusal —
+    "the bridge never reached the UART" is still true."""
+    if _busy_text(reason):
+        return "SERIAL_PORT_BUSY"
+    if _WIN_NOT_FOUND_RE.search(reason) or "no such file or directory" in reason.lower():
+        return "SERIAL_PORT_NOT_FOUND"
+    if "permission denied" in reason.lower():
+        return "SERIAL_PERMISSION_DENIED"
+    return "SERIAL_LINK_REFUSED"
+
+
+def _classify_connect_error(exc: Exception) -> str:
+    # Busy beats every type-based rule below: the exception class is generic,
+    # the message is the only discriminator, and "someone else has the port"
+    # needs a different fix from "no such port" / "you lack permission".
+    if _busy_text(str(exc)):
+        return "SERIAL_PORT_BUSY"
+    if isinstance(exc, FileNotFoundError):
+        return "SERIAL_PORT_NOT_FOUND"
+    if isinstance(exc, PermissionError):
+        return "SERIAL_PERMISSION_DENIED"
+    if isinstance(exc, ImportError):
+        return "SYSTEM_DEPENDENCY_MISSING"
+    if isinstance(exc, ConnectionError):
+        return "SERIAL_PORT_NOT_FOUND"
+    return "ADB_COMMAND_FAILED"

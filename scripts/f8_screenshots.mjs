@@ -2,7 +2,7 @@
 /**
  * F.8 visual end-to-end screenshot run.
  *
- * Hits the live alb-api at http://127.0.0.1:8765/app/<route>, captures
+ * Hits the live dhands-hub at http://127.0.0.1:8765/app/<route>, captures
  * each top-level dashboard module at desktop (1440) and tablet (768)
  * viewports, and writes PNGs into the timestamped reports dir.
  *
@@ -46,7 +46,7 @@ let fail = 0;
 const fails = [];
 
 // Direct page.goto deep-links work after DEBT-014 fix landed
-// (`src/alb/api/ui_static.py SPAStaticFiles`). Earlier the script had
+// (`src/devicehands/api/ui_static.py SPAStaticFiles`). Earlier the script had
 // to load `/app/` first then push routes via history because the old
 // StaticFiles 404'd deep paths — that workaround is no longer needed.
 for (const vp of VIEWPORTS) {

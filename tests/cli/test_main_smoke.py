@@ -1,11 +1,11 @@
-"""Smoke tests for the `alb` CLI: it must at least start and show help/describe."""
+"""Smoke tests for the `dhands` CLI: it must at least start and show help/describe."""
 
 from __future__ import annotations
 
 import pytest
 from typer.testing import CliRunner
 
-from alb.cli.main import app
+from devicehands.cli.main import app
 
 runner = CliRunner()
 
@@ -13,13 +13,13 @@ runner = CliRunner()
 def test_help_exits_clean() -> None:
     r = runner.invoke(app, ["--help"])
     assert r.exit_code == 0
-    assert "android-llm-bridge" in r.stdout
+    assert "devicehands" in r.stdout
 
 
 def test_version() -> None:
     r = runner.invoke(app, ["version"])
     assert r.exit_code == 0
-    assert "alb" in r.stdout
+    assert "dhands" in r.stdout
 
 
 def test_describe_shows_transports_and_capabilities() -> None:
@@ -41,7 +41,7 @@ def test_describe_json() -> None:
 
 
 def test_bad_profile_flag_emits_bad_parameter() -> None:
-    """L-035: `alb --profile ../etc <cmd>` shows a friendly typer error
+    """L-035: `dhands --profile ../etc <cmd>` shows a friendly typer error
     rather than a Python traceback. Locks the part 140 meta-audit fix."""
     r = runner.invoke(app, ["--profile", "../etc", "version"])
     assert r.exit_code != 0
@@ -52,9 +52,9 @@ def test_bad_profile_flag_emits_bad_parameter() -> None:
 def test_bad_alb_profile_env_does_not_block_help(monkeypatch) -> None:
     """ALB_PROFILE env validation is LAZY (deferred to load_active call).
 
-    A leftover/stale env var should not block `alb --help` or
-    `alb <subcmd> --help`. The env is caught when subcommands actually
-    invoke `load_active()` (e.g. `alb status`), via `profile_path()`
+    A leftover/stale env var should not block `dhands --help` or
+    `dhands <subcmd> --help`. The env is caught when subcommands actually
+    invoke `load_active()` (e.g. `dhands status`), via `profile_path()`
     raising `InvalidProfileName`.
     """
     monkeypatch.setenv("ALB_PROFILE", "../etc")
@@ -66,8 +66,8 @@ def test_bad_alb_profile_env_does_not_block_help(monkeypatch) -> None:
 
 def test_bad_alb_profile_env_lazy_raise_in_subcommand(monkeypatch) -> None:
     """When a subcommand actually loads the profile, bad env raises."""
-    from alb.infra.config import load_profile
-    from alb.infra.workspace import InvalidProfileName
+    from devicehands.infra.config import load_profile
+    from devicehands.infra.workspace import InvalidProfileName
 
     monkeypatch.setenv("ALB_PROFILE", "../etc")
     with pytest.raises(InvalidProfileName):
@@ -75,7 +75,7 @@ def test_bad_alb_profile_env_lazy_raise_in_subcommand(monkeypatch) -> None:
 
 
 def test_bad_alb_profile_env_friendly_error_in_status_subcommand(monkeypatch) -> None:
-    """`alb status` with bad ALB_PROFILE must show friendly typer error,
+    """`dhands status` with bad ALB_PROFILE must show friendly typer error,
     not a Python traceback. Locks the part 145 e2e-smoke-discovered bug
     where part 143 lazy-raise lacked caller-side catch.
     """
@@ -90,7 +90,7 @@ def test_bad_alb_profile_env_friendly_error_in_status_subcommand(monkeypatch) ->
 
 
 def test_bad_alb_profile_env_doctor_treats_as_layer_finding(monkeypatch) -> None:
-    """`alb doctor` is intentionally different — bad ALB_PROFILE should
+    """`dhands doctor` is intentionally different — bad ALB_PROFILE should
     show up as a config-layer `err` finding, not crash. Doctor's purpose
     is to diagnose problems including its own config.
     """

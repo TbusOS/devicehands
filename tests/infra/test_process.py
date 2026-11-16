@@ -15,7 +15,7 @@ import sys
 
 import pytest
 
-from alb.infra.process import (
+from devicehands.infra.process import (
     ProcessResult,
     ProcessRunner,
     run,
@@ -63,10 +63,10 @@ def test_tail_stderr_empty_when_no_stderr() -> None:
 @pytest.mark.asyncio
 async def test_run_echo() -> None:
     """Trivial smoke — /bin/echo returns its arg on stdout."""
-    r = await run("/bin/echo", "hello alb")
+    r = await run("/bin/echo", "hello dhands")
     assert r.ok
     assert r.exit_code == 0
-    assert r.stdout.strip() == "hello alb"
+    assert r.stdout.strip() == "hello dhands"
     assert r.stderr == ""
     assert r.duration_ms >= 0
     assert not r.timed_out
@@ -257,7 +257,7 @@ async def test_processrunner_namespace_is_same_callable() -> None:
 
 # ── Platform guard ─────────────────────────────────────────────────────
 # We rely on /bin/sh and /bin/echo which exist on every Linux / macOS
-# developer machine. Skip on Windows — alb core dev happens on POSIX.
+# developer machine. Skip on Windows — dhands core dev happens on POSIX.
 
 
 @pytest.fixture(autouse=True)

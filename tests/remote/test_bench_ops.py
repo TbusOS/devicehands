@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from alb.remote.bench_ops import (
+from devicehands.remote.bench_ops import (
     OpSpec,
     ParamSpec,
     check_params,
@@ -20,7 +20,7 @@ from alb.remote.bench_ops import (
     ops_of,
     parse_ops,
 )
-from alb.remote.protocol import LEGACY_FLASH_MAX_BYTES
+from devicehands.remote.protocol import LEGACY_FLASH_MAX_BYTES
 
 # ── values, by kind ──────────────────────────────────────────────────────
 
@@ -196,7 +196,7 @@ def test_ops_of_prefers_the_reported_table():
 def test_a_row_with_an_unreadable_timeout_is_dropped_not_fatal() -> None:
     """parse_ops runs before the hub answers hello; an exception there drops
     the agent's session and it reconnects forever. One bad row is skipped."""
-    from alb.remote.bench_ops import parse_ops
+    from devicehands.remote.bench_ops import parse_ops
 
     table = parse_ops(
         [
@@ -215,8 +215,8 @@ def test_a_row_with_an_unreadable_timeout_is_dropped_not_fatal() -> None:
 def test_shape_rules_do_not_let_a_trailing_newline_through(value: str) -> None:
     """`$` also matches before a final newline; `\\Z` does not. What the
     check passed must be exactly what reaches fastboot's argv."""
-    from alb.remote.bench_ops import OP_NAME_RE, PARTITION_RE
-    from alb.remote.flash_plan import VAR_RE
+    from devicehands.remote.bench_ops import OP_NAME_RE, PARTITION_RE
+    from devicehands.remote.flash_plan import VAR_RE
 
     assert PARTITION_RE.match(value) is None
     assert OP_NAME_RE.match(value) is None

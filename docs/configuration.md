@@ -9,7 +9,7 @@ tags: [configuration, reference, env, serial, adb, ssh, hub, agent, llm-friendly
 
 # 配置参考
 
-> alb 的配置分在环境变量和 6 种文件里。本页按任务列出每一项:作用、默认值、哪个程序读、读它的代码文件。
+> dhands 的配置分在环境变量和 6 种文件里。本页按任务列出每一项:作用、默认值、哪个程序读、读它的代码文件。
 > 写进去也不起作用的项单独标了 **无效**,集中列在 [第十节](#十设了无效的项)。
 > `tests/test_docs_configuration.py` 会检查代码里出现的每个 `ALB_*` 变量都写在本页,代码加了变量而本页没写,测试就失败。
 
@@ -17,15 +17,15 @@ tags: [configuration, reference, env, serial, adb, ssh, hub, agent, llm-friendly
 
 ## 一、谁读哪份配置
 
-alb 有四个程序。它们不在同一个地方读配置:
+dhands 有四个程序。它们不在同一个地方读配置:
 
 ```
 Linux 机器(hub 所在)
-  alb / alb-mcp ...... 环境变量、config.toml、profiles/<name>.toml
-      |                .env.local / .env 只有 alb 读,alb-mcp 不读
+  dhands / dhands-mcp ...... 环境变量、config.toml、profiles/<name>.toml
+      |                .env.local / .env 只有 dhands 读,dhands-mcp 不读
       |  连 127.0.0.1 上 hub 开的转发口:adb 默认 5037,串口默认 9001
       v
-  alb-api(hub) ...... hub.env(run-hub.sh 导入)、boards.toml、
+  dhands-hub(hub) ...... hub.env(run-hub.sh 导入)、boards.toml、
       ^                .env.local / .env、config.toml、profiles
       |  WebSocket,agent 主动连 hub(hub_url + token)
 Windows 台架主机
@@ -35,7 +35,7 @@ Windows 台架主机
   板子
 ```
 
-| 配置来源 | `alb`(CLI) | `alb-mcp` | `alb-api`(hub) | Windows agent |
+| 配置来源 | `dhands`(CLI) | `dhands-mcp` | `dhands-hub`(hub) | Windows agent |
 |---|---|---|---|---|
 | 进程的环境变量 | 读 | 读(只有 MCP 客户端配置里给的) | 读 | 只读 `ALB_AGENT_LAUNCHER`;`run-agent.bat` 另读 `ALB_AGENT_NO_PAUSE` |
 | `.env.local` / `.env` | 读 | **不读** | 读 | 不读 |
@@ -45,28 +45,28 @@ Windows 台架主机
 | `boards.toml`(`ALB_BENCH_BOARDS` 指向它) | 不读 | 不读 | 读 | 不读 |
 | `clients/windows-agent/agent.conf` | 不读 | 不读 | 不读 | 读 |
 
-出处:`.env` 文件由 `src/alb/infra/env_loader.py` 加载,只有 `src/alb/cli/main.py` 和 `src/alb/api/server.py` 调用它;`alb-mcp` 的入口 `src/alb/mcp/server.py` 不加载。agent 的配置读取在 `clients/windows-agent/alb_agent.py`(`_load_config`)。
+出处:`.env` 文件由 `src/devicehands/infra/env_loader.py` 加载,只有 `src/devicehands/cli/main.py` 和 `src/devicehands/api/server.py` 调用它;`dhands-mcp` 的入口 `src/devicehands/mcp/server.py` 不加载。agent 的配置读取在 `clients/windows-agent/alb_agent.py`(`_load_config`)。
 
 ### 1.1 改了配置要重启
 
-- `alb` 每条命令是一个新进程,改完下一条命令就生效。
-- `alb-mcp` 和 `alb-api` 是常驻进程。环境变量在进程启动时就定了;config.toml 和 profile 在第一次建传输时读一次,之后一直用这份(`src/alb/transport/factory.py` 的 `active_settings` 缓存)。**改完要重启这两个进程。**
-- Windows agent 改了 `agent.conf` 要重启 agent,或者用 `alb bench agent-update` 推一份新的。
+- `dhands` 每条命令是一个新进程,改完下一条命令就生效。
+- `dhands-mcp` 和 `dhands-hub` 是常驻进程。环境变量在进程启动时就定了;config.toml 和 profile 在第一次建传输时读一次,之后一直用这份(`src/devicehands/transport/factory.py` 的 `active_settings` 缓存)。**改完要重启这两个进程。**
+- Windows agent 改了 `agent.conf` 要重启 agent,或者用 `dhands bench agent-update` 推一份新的。
 
 ### 1.2 优先级
 
 | 要决定的事 | 优先级(左边赢) | 代码 |
 |---|---|---|
-| 环境变量从哪来 | shell 里已有的 > `.env.local` > `.env` > 程序默认值 | `src/alb/infra/env_loader.py` |
-| 用哪种传输 | `alb --transport` > `ALB_TRANSPORT` > profile 的 `primary_transport` > `adb` | `src/alb/transport/factory.py` |
-| 用哪个 adb 程序 | `ALB_ADB_PATH` > `[transport.adb] bin_path` > PATH 上的 `adb` | `src/alb/infra/config.py` |
-| 连哪个 adb server | `[transport.adb] server_socket` > `ADB_SERVER_SOCKET` > 本机 hub 的转发口 > adb 默认 5037 | `src/alb/infra/adb_endpoint.py` |
-| 串口连哪里 | `ALB_SERIAL_DEVICE` > `ALB_SERIAL_TCP` > `[transport.serial] default_tcp_host:default_tcp_port` | `src/alb/transport/factory.py` |
-| ssh 连哪台 | `ALB_SSH_HOST` > profile 里第一条 `transport = "ssh"` 的 `ssh_host` | `src/alb/transport/factory.py` |
-| ssh 端口 / 用户 / 密钥 | `ALB_SSH_*` > `[transport.ssh]` 的对应键 | `src/alb/transport/factory.py` |
-| hub 串口转发开哪个 COM | `alb bench board use` 选中的板子 > `ALB_AGENT_SERIAL_COM` / `ALB_AGENT_SERIAL_BAUD` | `src/alb/remote/bench_board.py` |
+| 环境变量从哪来 | shell 里已有的 > `.env.local` > `.env` > 程序默认值 | `src/devicehands/infra/env_loader.py` |
+| 用哪种传输 | `dhands --transport` > `ALB_TRANSPORT` > profile 的 `primary_transport` > `adb` | `src/devicehands/transport/factory.py` |
+| 用哪个 adb 程序 | `ALB_ADB_PATH` > `[transport.adb] bin_path` > PATH 上的 `adb` | `src/devicehands/infra/config.py` |
+| 连哪个 adb server | `[transport.adb] server_socket` > `ADB_SERVER_SOCKET` > 本机 hub 的转发口 > adb 默认 5037 | `src/devicehands/infra/adb_endpoint.py` |
+| 串口连哪里 | `ALB_SERIAL_DEVICE` > `ALB_SERIAL_TCP` > `[transport.serial] default_tcp_host:default_tcp_port` | `src/devicehands/transport/factory.py` |
+| ssh 连哪台 | `ALB_SSH_HOST` > profile 里第一条 `transport = "ssh"` 的 `ssh_host` | `src/devicehands/transport/factory.py` |
+| ssh 端口 / 用户 / 密钥 | `ALB_SSH_*` > `[transport.ssh]` 的对应键 | `src/devicehands/transport/factory.py` |
+| hub 串口转发开哪个 COM | `dhands bench board use` 选中的板子 > `ALB_AGENT_SERIAL_COM` / `ALB_AGENT_SERIAL_BAUD` | `src/devicehands/remote/bench_board.py` |
 | Windows agent 的设置 | 命令行参数 > `agent.conf` > 内置默认值 | `clients/windows-agent/alb_agent.py` |
-| `alb chat` 的模型后端 | 命令行参数 > 环境变量 > 后端默认值 | `src/alb/cli/chat_cli.py` |
+| `dhands chat` 的模型后端 | 命令行参数 > 环境变量 > 后端默认值 | `src/devicehands/cli/chat_cli.py` |
 
 两个容易踩的地方:
 
@@ -81,7 +81,7 @@ Windows 台架主机
 
 | 接法 | 要配的 | 不用配的 |
 |---|---|---|
-| 串口线插在跑 alb 的这台 Linux 上 | `ALB_SERIAL_DEVICE`,波特率 `default_baud` | TCP 那几项 |
+| 串口线插在跑 dhands 的这台 Linux 上 | `ALB_SERIAL_DEVICE`,波特率 `default_baud` | TCP 那几项 |
 | 串口在别的机器上,经 ser2net 或 ssh 隧道转成 TCP | `ALB_SERIAL_TCP` 或 `default_tcp_host` / `default_tcp_port` | `default_baud`(TCP 模式不用它) |
 | 台架:串口插在 Windows 台架主机,经 hub 转发 | hub 上配 COM 和波特率;客户端一般什么都不用配 | 客户端的 `default_baud` |
 
@@ -91,32 +91,32 @@ Windows 台架主机
 
 ```bash
 export ALB_SERIAL_DEVICE=/dev/ttyUSB0
-alb --transport serial shell 'uname -a'
+dhands --transport serial shell 'uname -a'
 ```
 
-- 波特率读 `[transport.serial] default_baud`,默认 115200。不知道波特率,用 `alb serial probe --device /dev/ttyUSB0` 挨个试。
-- 打不开设备时,检查当前用户在不在 `dialout` 组(`src/alb/transport/serial.py` 的报错就这么提示)。
-- `alb serial` 下除 `probe` 以外的子命令(`capture`、`shell`、`send`、`break-in`、`health`、`status`、`learn`),`--device` 参数**不能**填 `/dev/ttyUSB0`:它按 adb 序列号的格式检查,路径里有 `/` 会被拒(`src/alb/transport/factory.py` 调 `is_safe_device`)。本机串口路径要用 `ALB_SERIAL_DEVICE`。只有 `alb serial probe --device` 收路径。
-- `alb setup serial --device /dev/ttyUSB0 --save` 只把波特率存进 config.toml,**不存设备路径**(`src/alb/cli/setup_cli.py`)。存完下次还是要设 `ALB_SERIAL_DEVICE`。
-- 给 `alb-mcp` 用时,变量要写在 MCP 客户端的配置里,例如 `claude mcp add alb -e ALB_SERIAL_DEVICE=/dev/ttyUSB0 -- …`。
+- 波特率读 `[transport.serial] default_baud`,默认 115200。不知道波特率,用 `dhands serial probe --device /dev/ttyUSB0` 挨个试。
+- 打不开设备时,检查当前用户在不在 `dialout` 组(`src/devicehands/transport/serial.py` 的报错就这么提示)。
+- `dhands serial` 下除 `probe` 以外的子命令(`capture`、`shell`、`send`、`break-in`、`health`、`status`、`learn`),`--device` 参数**不能**填 `/dev/ttyUSB0`:它按 adb 序列号的格式检查,路径里有 `/` 会被拒(`src/devicehands/transport/factory.py` 调 `is_safe_device`)。本机串口路径要用 `ALB_SERIAL_DEVICE`。只有 `dhands serial probe --device` 收路径。
+- `dhands setup serial --device /dev/ttyUSB0 --save` 只把波特率存进 config.toml,**不存设备路径**(`src/devicehands/cli/setup_cli.py`)。存完下次还是要设 `ALB_SERIAL_DEVICE`。
+- 给 `dhands-mcp` 用时,变量要写在 MCP 客户端的配置里,例如 `claude mcp add dhands -e ALB_SERIAL_DEVICE=/dev/ttyUSB0 -- …`。
 
 ### 2.2 经 TCP 转发(ser2net、ssh 反向隧道)
 
-不设任何东西时,alb 连 `localhost:9001`。端点不同就改 config.toml 或设环境变量:
+不设任何东西时,dhands 连 `localhost:9001`。端点不同就改 config.toml 或设环境变量:
 
 ```bash
-alb setup serial --tcp-host localhost --tcp-port 9001 --save   # 探测通过后写进 config.toml
+dhands setup serial --tcp-host localhost --tcp-port 9001 --save   # 探测通过后写进 config.toml
 # 或者只对当前 shell 生效
 export ALB_SERIAL_TCP=127.0.0.1:19001
 ```
 
-- `ALB_SERIAL_TCP` 的格式是 `host:port`。写成 `:19001`,host 取 `default_tcp_host`。值里没有 `:` 时整个变量被忽略,退回 config.toml 的端点(`src/alb/transport/factory.py`)。
-- TCP 模式下波特率由转发的那一端决定,alb 的 `default_baud` 不起作用。
+- `ALB_SERIAL_TCP` 的格式是 `host:port`。写成 `:19001`,host 取 `default_tcp_host`。值里没有 `:` 时整个变量被忽略,退回 config.toml 的端点(`src/devicehands/transport/factory.py`)。
+- TCP 模式下波特率由转发的那一端决定,dhands 的 `default_baud` 不起作用。
 - 搭 ser2net 和隧道的步骤见 [`methods/07-uart-serial.md`](./methods/07-uart-serial.md)。
 
 ### 2.3 台架(经 hub)
 
-hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转发口(`src/alb/remote/forwarder.py`)。这正好是客户端的默认端点,所以 hub 同一台机器上的 `alb` / `alb-mcp` 什么都不用配。
+hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转发口(`src/devicehands/remote/forwarder.py`)。这正好是客户端的默认端点,所以 hub 同一台机器上的 `dhands` / `dhands-mcp` 什么都不用配。
 
 要配的都在 hub 上:
 
@@ -124,17 +124,17 @@ hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转�
 |---|---|---|
 | `ALB_AGENT_SERIAL_COM` | 让 agent 打开哪个 COM 口,例如 `COM5` | 不设:hub 不开串口转发 |
 | `ALB_AGENT_SERIAL_BAUD` | 这个 COM 口的波特率 | 115200 |
-| `ALB_BENCH_BOARDS` | 多块板子轮流接同一个 COM 口时,板子表的路径;运行中用 `alb bench board use <name>` 切换 | 不设:没有板子表 |
+| `ALB_BENCH_BOARDS` | 多块板子轮流接同一个 COM 口时,板子表的路径;运行中用 `dhands bench board use <name>` 切换 | 不设:没有板子表 |
 | `ALB_SERIAL_FORWARD_PORT` | 串口转发口的端口 | 9001 |
 
-- 选中的板子记在 `<workspace>/bench/board.json`,hub 重启后还在。选中的板子不在表里、或表格写错时,hub 退回 `ALB_AGENT_SERIAL_COM` / `ALB_AGENT_SERIAL_BAUD`,原因显示在 `/agent/status`(`src/alb/remote/bench_board.py`)。
-- 转发口只绑 `127.0.0.1`。alb 不在 hub 那台机器上时,要自己先把端口转过来。
+- 选中的板子记在 `<workspace>/bench/board.json`,hub 重启后还在。选中的板子不在表里、或表格写错时,hub 退回 `ALB_AGENT_SERIAL_COM` / `ALB_AGENT_SERIAL_BAUD`,原因显示在 `/agent/status`(`src/devicehands/remote/bench_board.py`)。
+- 转发口只绑 `127.0.0.1`。dhands 不在 hub 那台机器上时,要自己先把端口转过来。
 - 改了 `ALB_SERIAL_FORWARD_PORT`,每个客户端都要设 `ALB_SERIAL_TCP=127.0.0.1:<新端口>`:命令行用的写进 `.env.local`,MCP 的写进 MCP 客户端配置,hub 自己的网页串口控制台写进 `hub.env`。
 - `boards.toml` 的写法见 [第九节](#93-boardstoml)。
 
 ### 2.4 串口相关的 config.toml 键
 
-都在 `[transport.serial]` 下,由 `src/alb/infra/config.py` 解析,`src/alb/transport/factory.py` 使用。
+都在 `[transport.serial]` 下,由 `src/devicehands/infra/config.py` 解析,`src/devicehands/transport/factory.py` 使用。
 
 | 键 | 作用 | 默认值 |
 |---|---|---|
@@ -145,11 +145,11 @@ hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转�
 | `pty_link_dir` | **无效**:解析了,没有代码用它 | 空 |
 | `prompts`(写成 `[transport.serial.prompts]` 表) | 改写识别板子状态的正则,见下 | 不设,用内置正则 |
 
-`[transport.serial.prompts]` 的键只能是这 11 个:`uboot`、`spl`、`kernel_boot`、`linux_init`、`login_prompt`、`shell_user`、`shell_root`、`recovery`、`fastboot`、`panic`、`crash`(`src/alb/transport/serial_state.py` 的 `DEFAULT_PATTERNS`)。写了别的键,建串口传输时报 `unknown serial state pattern key`。`alb serial learn` 会照着板子的实际提示符生成一段可以直接贴进来的配置。
+`[transport.serial.prompts]` 的键只能是这 11 个:`uboot`、`spl`、`kernel_boot`、`linux_init`、`login_prompt`、`shell_user`、`shell_root`、`recovery`、`fastboot`、`panic`、`crash`(`src/devicehands/transport/serial_state.py` 的 `DEFAULT_PATTERNS`)。写了别的键,建串口传输时报 `unknown serial state pattern key`。`dhands serial learn` 会照着板子的实际提示符生成一段可以直接贴进来的配置。
 
 ### 2.5 其它
 
-- `alb reboot` 在没指定传输、adb 又找不到设备时,会改走串口重启(`src/alb/cli/power_cli.py` 调 `serial_fallback_for`),所以只用 adb 的人也可能用到上面的串口配置。设了 `ALB_TRANSPORT` 或 `--device` 就不会这样。
+- `dhands reboot` 在没指定传输、adb 又找不到设备时,会改走串口重启(`src/devicehands/cli/power_cli.py` 调 `serial_fallback_for`),所以只用 adb 的人也可能用到上面的串口配置。设了 `ALB_TRANSPORT` 或 `--device` 就不会这样。
 
 ---
 
@@ -157,10 +157,10 @@ hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转�
 
 ### 3.1 本机 USB
 
-板子插在跑 alb 的这台机器上:装好 adb 就能用,不用配。
+板子插在跑 dhands 的这台机器上:装好 adb 就能用,不用配。
 
-- adb 不在 PATH 上:设 `ALB_ADB_PATH=/path/to/adb`,或写 `[transport.adb] bin_path`。`ALB_ADB_PATH` 赢(`src/alb/infra/config.py`)。
-- 没有 adb:`alb setup deps --install` 下载 Android Platform-Tools,装到 `~/.local/share/alb`,不需要 root。内网下载不了 Google 的地址时,设 `ALB_PLATFORM_TOOLS_URL=<zip 地址>` 换成镜像(`src/alb/infra/host_deps.py`)。
+- adb 不在 PATH 上:设 `ALB_ADB_PATH=/path/to/adb`,或写 `[transport.adb] bin_path`。`ALB_ADB_PATH` 赢(`src/devicehands/infra/config.py`)。
+- 没有 adb:`dhands setup deps --install` 下载 Android Platform-Tools,装到 `~/.local/share/alb`,不需要 root。内网下载不了 Google 的地址时,设 `ALB_PLATFORM_TOOLS_URL=<zip 地址>` 换成镜像(`src/devicehands/infra/host_deps.py`)。
 - 多台设备时用 `--device <序列号>` 选。profile 里的 `[[devices]]` 列表**不**用来选 adb 设备。
 
 ### 3.2 远程 adb server
@@ -168,7 +168,7 @@ hub 连上 agent、并且配了 COM 口后,会在 `127.0.0.1:9001` 开串口转�
 adb server 在别的机器上(例如经 ssh 隧道转过来):
 
 ```bash
-export ADB_SERVER_SOCKET=tcp:127.0.0.1:5037     # adb 自己的变量,alb 原样传给 adb
+export ADB_SERVER_SOCKET=tcp:127.0.0.1:5037     # adb 自己的变量,dhands 原样传给 adb
 ```
 
 要长期固定,写进 config.toml:
@@ -182,13 +182,13 @@ server_socket = "tcp:127.0.0.1:5037"
 
 ### 3.3 经 hub(台架)
 
-hub 连上 agent 后,在 `127.0.0.1:5037` 开 adb 转发口(`src/alb/remote/forwarder.py`)。hub 机器自己也跑着 adb server 时会抢同一个端口,这时在 `hub.env` 里把转发口挪开:
+hub 连上 agent 后,在 `127.0.0.1:5037` 开 adb 转发口(`src/devicehands/remote/forwarder.py`)。hub 机器自己也跑着 adb server 时会抢同一个端口,这时在 `hub.env` 里把转发口挪开:
 
 ```bash
 ALB_ADB_FORWARD_PORT=15037
 ```
 
-**挪开以后不要手动设 `ADB_SERVER_SOCKET` 去对上它。** 同一台机器上的 `alb` / `alb-mcp` 会问 hub 转发口在哪(GET `/agent/status`),自动用上(`src/alb/infra/adb_endpoint.py`)。
+**挪开以后不要手动设 `ADB_SERVER_SOCKET` 去对上它。** 同一台机器上的 `dhands` / `dhands-mcp` 会问 hub 转发口在哪(GET `/agent/status`),自动用上(`src/devicehands/infra/adb_endpoint.py`)。
 
 ### 3.4 adb server 地址怎么定(ADR-057)
 
@@ -204,60 +204,60 @@ ALB_ADB_FORWARD_PORT=15037
 - 用 hub 时,`ADB_SERVER_SOCKET` 和 `server_socket` 都不要设。什么都不设的 shell,反而跟着转发口走。
 - 自动发现只问**本机**的 hub。地址由 `ALB_API_URL`,或 `ALB_API_HOST` + `ALB_API_PORT` 决定;指向别的机器时不做自动发现(`_hub_is_local`)。
 - 等 hub 回答最多 0.4 秒,hub 没开不影响普通命令。
-- 设备列表为空、而 hub 那边能看到设备、端口又对不上时,`alb devices` 和 `alb_status` 会直接说出这个矛盾(`endpoint_conflict`)。
+- 设备列表为空、而 hub 那边能看到设备、端口又对不上时,`dhands devices` 和 `alb_status` 会直接说出这个矛盾(`endpoint_conflict`)。
 
 ---
 
 ## 四、ssh
 
-ssh 传输连的是板子上的 sshd(dropbear、Termux openssh 等)。用 `alb --transport ssh …` 或 `ALB_TRANSPORT=ssh` 选它。
+ssh 传输连的是板子上的 sshd(dropbear、Termux openssh 等)。用 `dhands --transport ssh …` 或 `ALB_TRANSPORT=ssh` 选它。
 
 | 变量 | config.toml 里对应的键 | 作用 | 默认值 |
 |---|---|---|---|
 | `ALB_SSH_HOST` | 无;profile 里 `transport = "ssh"` 的 `ssh_host` | 板子地址 | 无,两处都没有就报错 |
 | `ALB_SSH_PORT` | `[transport.ssh] default_port` | 端口 | 22 |
 | `ALB_SSH_USER` | `[transport.ssh] default_user` | 用户名 | `root` |
-| `ALB_SSH_KEY` | `[transport.ssh] key_path` | 私钥路径 | 不设:alb 不传密钥参数,由 asyncssh 按它自己的默认找 |
+| `ALB_SSH_KEY` | `[transport.ssh] key_path` | 私钥路径 | 不设:dhands 不传密钥参数,由 asyncssh 按它自己的默认找 |
 | `ALB_SSH_KNOWN_HOSTS` | `[transport.ssh] known_hosts` | known_hosts 文件 | 不设:用 `~/.ssh/known_hosts` 严格校验 |
 | 无 | `[transport.ssh] connect_timeout` | 连接超时(秒) | 15 |
 
-- 代码:`src/alb/transport/factory.py`、`src/alb/transport/ssh.py`。
+- 代码:`src/devicehands/transport/factory.py`、`src/devicehands/transport/ssh.py`。
 - 关掉主机密钥校验(新刷的板子常用):只能在 config.toml 写 `known_hosts = ""`。环境变量设成空字符串会被当成没设,退回 config.toml 的值。
 - profile 里设备的 `ssh_port` **无效**,端口只看 `ALB_SSH_PORT` 和 `default_port`。
-- `alb setup ssh <host>` 只检查连通、提示怎么放公钥,不读上面这些变量。
-- `alb doctor` 的 ssh 检查只看 `ALB_SSH_HOST` / `ALB_SSH_USER` / `ALB_SSH_PORT` 三个环境变量,不看 config.toml(`src/alb/capabilities/doctor.py`)。
+- `dhands setup ssh <host>` 只检查连通、提示怎么放公钥,不读上面这些变量。
+- `dhands doctor` 的 ssh 检查只看 `ALB_SSH_HOST` / `ALB_SSH_USER` / `ALB_SSH_PORT` 三个环境变量,不看 config.toml(`src/devicehands/capabilities/doctor.py`)。
 
 ---
 
-## 五、hub(alb-api)
+## 五、hub(dhands-hub)
 
-hub 推荐用 `deploy/hub/run-hub.sh` 启动:它把同目录的 `hub.env` 导入环境再启动 `alb-api`。第一次先 `cp hub.env.example hub.env` 再改。下面的变量都写在 `hub.env` 里。串口和板子表那几项见 [2.3](#23-台架经-hub)。
+hub 推荐用 `deploy/hub/run-hub.sh` 启动:它把同目录的 `hub.env` 导入环境再启动 `dhands-hub`。第一次先 `cp hub.env.example hub.env` 再改。下面的变量都写在 `hub.env` 里。串口和板子表那几项见 [2.3](#23-台架经-hub)。
 
 | 变量 | 作用 | 默认值 | 代码 |
 |---|---|---|---|
-| `ALB_AGENT_TOKEN` | agent 连 hub 时要带的令牌,和 agent.conf 的 `token` 一致 | 不设:`/agent/*` 不校验令牌 | `src/alb/api/agent_route.py` |
-| `ALB_API_HOST` | hub 监听的地址 | `0.0.0.0`(所有网卡) | `src/alb/api/server.py` |
-| `ALB_API_PORT` | hub 监听的端口 | 8765 | `src/alb/api/server.py` |
-| `ALB_ADB_FORWARD_PORT` | adb 转发口的端口 | 5037 | `src/alb/remote/forwarder.py` |
-| `ALB_WS_DEFLATE` | 设成 `1` 打开 WebSocket 压缩 | 关 | `src/alb/api/server.py` |
-| `ALB_BENCH_SSH_HOST` | `alb bench agent-start` 用来 ssh 到台架主机的 Host(hub 用户 `~/.ssh/config` 里的名字) | 不设:命令报 `AGENT_START_NOT_CONFIGURED` | `src/alb/remote/agent_start.py` |
-| `ALB_BENCH_AGENT_TASK` | 台架主机上启动 agent 的计划任务名 | `alb-agent` | `src/alb/remote/agent_start.py` |
-| `ALB_AGENT_BUNDLE_DIR` | `alb bench agent-update` 推给 agent 的文件从哪个目录取 | 本仓库的 `clients/windows-agent` | `src/alb/remote/agent_update.py` |
-| `ALB_LOG_LEVEL` | hub 日志级别,名字(`DEBUG`)或数字都行 | `INFO` | `src/alb/api/log_setup.py` |
-| `ALB_WARMUP` | 设成 `0` 关掉启动时的模型预热 | 开(只在设了 `ALB_OLLAMA_MODEL` 时预热) | `src/alb/api/server.py` |
-| `ALB_TPS_SAMPLE_INTERVAL_S` | 网页上模型生成速度(token/s)的采样间隔,秒;不是正数时用默认值 | 1.0 | `src/alb/infra/metric_sampler.py` |
+| `ALB_AGENT_TOKEN` | agent 连 hub 时要带的令牌,和 agent.conf 的 `token` 一致 | 不设:`/agent/*` 不校验令牌 | `src/devicehands/api/agent_route.py` |
+| `ALB_API_HOST` | hub 监听的地址 | `0.0.0.0`(所有网卡) | `src/devicehands/api/server.py` |
+| `ALB_API_PORT` | hub 监听的端口 | 8765 | `src/devicehands/api/server.py` |
+| `ALB_ADB_FORWARD_PORT` | adb 转发口的端口 | 5037 | `src/devicehands/remote/forwarder.py` |
+| `ALB_WS_DEFLATE` | 设成 `1` 打开 WebSocket 压缩 | 关 | `src/devicehands/api/server.py` |
+| `ALB_BENCH_SSH_HOST` | `dhands bench agent-start` 用来 ssh 到台架主机的 Host(hub 用户 `~/.ssh/config` 里的名字) | 不设:命令报 `AGENT_START_NOT_CONFIGURED` | `src/devicehands/remote/agent_start.py` |
+| `ALB_BENCH_AGENT_TASK` | 台架主机上启动 agent 的计划任务名 | `alb-agent` | `src/devicehands/remote/agent_start.py` |
+| `ALB_AGENT_BUNDLE_DIR` | `dhands bench agent-update` 推给 agent 的文件从哪个目录取 | 本仓库的 `clients/windows-agent` | `src/devicehands/remote/agent_update.py` |
+| `ALB_LOG_LEVEL` | hub 日志级别,名字(`DEBUG`)或数字都行 | `INFO` | `src/devicehands/api/log_setup.py` |
+| `ALB_WARMUP` | 设成 `0` 关掉启动时的模型预热 | 开(只在设了 `ALB_OLLAMA_MODEL` 时预热) | `src/devicehands/api/server.py` |
+| `ALB_TPS_SAMPLE_INTERVAL_S` | 网页上模型生成速度(token/s)的采样间隔,秒;不是正数时用默认值 | 1.0 | `src/devicehands/infra/metric_sampler.py` |
 
 几点说明:
 
 - **令牌只保护 `/agent/*`**,hub 其余接口不校验身份。`ALB_API_HOST=0.0.0.0` 时 hub 启动会打一行警告。hub 要放在可信网络里。
 - 不要把 `ALB_API_HOST` 改成 `127.0.0.1`:台架主机上的 agent 就连不进来了。
 - `ALB_WS_DEFLATE` 默认关,是因为压缩在 hub 自己的事件循环里做,推大镜像时 hub 反而成了瓶颈(ADR-062)。hub 和 agent 之间网很慢时才打开。
-- `ALB_BENCH_BOARDS` 写相对路径时,是相对 hub 进程的当前目录。`run-hub.sh` 只在用 `uv run` 启动时先 `cd` 到仓库根目录;装好的 `alb-api` 在 PATH 上时不切目录。写绝对路径最稳。
+- `ALB_BENCH_BOARDS` 写相对路径时,是相对 hub 进程的当前目录。`run-hub.sh` 只在用 `uv run` 启动时先 `cd` 到仓库根目录;装好的 `dhands-hub` 在 PATH 上时不切目录。写绝对路径最稳。
 - hub 也读 `.env.local` / `.env`,但 `hub.env` 导入的值优先。
 
 ### 5.1 命令行怎么找到 hub
 
-`alb flash …`、`alb bench …` 要发请求给 hub;adb 和串口的自动发现也要问 hub。它们按下面的顺序定 hub 地址(`src/alb/cli/flash_cli.py`、`src/alb/infra/adb_endpoint.py`):
+`dhands flash …`、`dhands bench …` 要发请求给 hub;adb 和串口的自动发现也要问 hub。它们按下面的顺序定 hub 地址(`src/devicehands/cli/flash_cli.py`、`src/devicehands/infra/adb_endpoint.py`):
 
 | 变量 | 作用 | 默认值 |
 |---|---|---|
@@ -293,12 +293,12 @@ agent 是 `clients/windows-agent/` 里的 `alb_agent.py`,跑在插着板子的 W
 | `edl_firehose` | 9008 模式用的 fh_loader 路径 | 不设 |
 | `edl_root` | 9008 刷机包所在的目录,hub 只能指定它下面的目录 | 不设 |
 | `tool_exe.<tool>` | 登记一个厂商烧录工具:exe 的绝对路径。`<tool>` 是自己起的名字,规则同板子名 | 不设 |
-| `tool_root.<tool>` | 这个工具的刷机包根目录,`alb flash tool --pkg` 只能指定它下面的目录 | 不设(登记了工具就必填) |
+| `tool_root.<tool>` | 这个工具的刷机包根目录,`dhands flash tool --pkg` 只能指定它下面的目录 | 不设(登记了工具就必填) |
 | `tool_cwd.<tool>` | `package`:在包目录里运行;`job`:每次一个临时目录 | `package` |
 | `tool_timeout.<tool>` | 秒,1-1700;到点连工具起的子进程一起结束 | 1500 |
 | `tool_ok.<tool>` / `tool_fail.<tool>` / `tool_note.<tool>` | 正则:必须出现才算成功 / 出现就算失败 / 匹配的行列进结果 | 不设:只看退出码 |
 | `tool_usb.<tool>` | 下载模式的 `VID:PID`,逗号分隔;运行前查 USB 上有没有,参数里的 `{com}` 换成它的 COM 口 | 不设:不查 |
-| `tool_usage.<tool>` | 说明文字,`alb flash tools` 里显示;重复写这一行就是多行 | 不设 |
+| `tool_usage.<tool>` | 说明文字,`dhands flash tools` 里显示;重复写这一行就是多行 | 不设 |
 
 文件格式规则(`_load_config`):
 
@@ -322,13 +322,13 @@ hub 那边和 agent 有关的变量(`ALB_AGENT_TOKEN`、`ALB_AGENT_SERIAL_COM`�
 
 ---
 
-## 七、网页助手和 alb chat 的模型后端
+## 七、网页助手和 dhands chat 的模型后端
 
-两处会用到模型:命令行的 `alb chat`,和 hub 网页上的助手。后端有三种:`ollama`、`openai-compat`、`anthropic`。`llama-cpp` 还没实现,选它会报错,提示改用 `openai-compat` 连 llama.cpp 自带的服务。
+两处会用到模型:命令行的 `dhands chat`,和 hub 网页上的助手。后端有三种:`ollama`、`openai-compat`、`anthropic`。`llama-cpp` 还没实现,选它会报错,提示改用 `openai-compat` 连 llama.cpp 自带的服务。
 
-| 变量 | 作用 | 默认值 | `alb chat` 读 | hub 读 |
+| 变量 | 作用 | 默认值 | `dhands chat` 读 | hub 读 |
 |---|---|---|---|---|
-| `ALB_AGENT_BACKEND` | `alb chat --backend` 的默认值 | `ollama` | 读 | 不读 |
+| `ALB_AGENT_BACKEND` | `dhands chat --backend` 的默认值 | `ollama` | 读 | 不读 |
 | `ALB_OLLAMA_URL` | Ollama 地址 | `http://localhost:11434` | 读 | 读 |
 | `ALB_OLLAMA_MODEL` | 模型名(注意下面第一条) | `qwen2.5:3b` | 读 | 读 |
 | `ALB_OLLAMA_NUM_CTX` | 请 Ollama 开多大的上下文(token 数);`0` 表示不发这个参数,用 Ollama 自己的默认 | 16384 | 读 | 读 |
@@ -341,11 +341,11 @@ hub 那边和 agent 有关的变量(`ALB_AGENT_TOKEN`、`ALB_AGENT_SERIAL_COM`�
 | `ALB_OPENAI_COMPAT_MODEL` | **无效**:报错提示里叫你设它,但代码不读,设了没用 | 无 | 不读 | 不读 |
 | `ALB_AGENT_TOOL_RESULT_MAX_CHARS` | 一次工具结果最多给模型看多少字符,`0` 表示不截。只截模型那份,页面上显示全文 | 4000 | 读 | 读 |
 
-代码:`src/alb/cli/chat_cli.py`、`src/alb/api/chat_route.py`、`src/alb/agent/backends/__init__.py`、`src/alb/agent/backends/ollama.py`、`src/alb/agent/backends/anthropic.py`、`src/alb/agent/backends/openai_compat.py`、`src/alb/agent/loop.py`。
+代码:`src/devicehands/cli/chat_cli.py`、`src/devicehands/api/chat_route.py`、`src/devicehands/agent/backends/__init__.py`、`src/devicehands/agent/backends/ollama.py`、`src/devicehands/agent/backends/anthropic.py`、`src/devicehands/agent/backends/openai_compat.py`、`src/devicehands/agent/loop.py`。
 
 要注意的行为:
 
-- **`ALB_OLLAMA_MODEL` 对所有后端都生效。** `alb chat --model` 的环境变量就是 `ALB_OLLAMA_MODEL`(`chat_cli.py`);hub 在请求没带模型名时也取 `ALB_OLLAMA_MODEL`(`chat_route.py`)。所以设了它,再选 `anthropic` 或 `openai-compat`,发过去的是 Ollama 的模型名,`ALB_ANTHROPIC_MODEL` 不起作用。用别的后端时,用 `--model` 明确指定。
+- **`ALB_OLLAMA_MODEL` 对所有后端都生效。** `dhands chat --model` 的环境变量就是 `ALB_OLLAMA_MODEL`(`chat_cli.py`);hub 在请求没带模型名时也取 `ALB_OLLAMA_MODEL`(`chat_route.py`)。所以设了它,再选 `anthropic` 或 `openai-compat`,发过去的是 Ollama 的模型名,`ALB_ANTHROPIC_MODEL` 不起作用。用别的后端时,用 `--model` 明确指定。
 - `openai-compat` 后端没有默认模型名,必须用 `--model` 指定(或者设 `ALB_OLLAMA_MODEL`,见上一条)。
 - hub 的网页助手选 `openai-compat` 时,地址和 key 只能用默认值(`http://localhost:8080/v1`、不带 key),因为 hub 不读 `ALB_OPENAI_COMPAT_URL` / `ALB_OPENAI_COMPAT_KEY`。
 - hub 启动时会预热 `ALB_OLLAMA_MODEL` 指定的模型,`ALB_WARMUP=0` 关掉;没设 `ALB_OLLAMA_MODEL` 时不预热。
@@ -358,10 +358,10 @@ hub 那边和 agent 有关的变量(`ALB_AGENT_TOKEN`、`ALB_AGENT_SERIAL_COM`�
 
 | 变量 | 作用 | 默认值 | 谁读 | 代码 |
 |---|---|---|---|---|
-| `ALB_WORKSPACE` | 工作目录:日志、截图、会话、profile、`bench/board.json` 都放这里 | 当前目录下有 `workspace/` 就用它,否则 `~/.alb-workspace` | CLI / MCP / hub | `src/alb/infra/workspace.py` |
-| `ALB_LOG_LEVEL` | hub 的日志级别 | `INFO` | hub | `src/alb/api/log_setup.py` |
+| `ALB_WORKSPACE` | 工作目录:日志、截图、会话、profile、`bench/board.json` 都放这里 | 当前目录下有 `workspace/` 就用它,否则 `~/.alb-workspace` | CLI / MCP / hub | `src/devicehands/infra/workspace.py` |
+| `ALB_LOG_LEVEL` | hub 的日志级别 | `INFO` | hub | `src/devicehands/api/log_setup.py` |
 
-- 不设 `ALB_WORKSPACE` 时,工作目录跟着**进程的当前目录**变。在不同目录下运行 `alb`,会用到不同的工作目录,profile 也跟着变(profile 在 `<workspace>/profiles/` 下)。`alb-mcp` 的当前目录由启动它的 MCP 客户端决定。要固定就设 `ALB_WORKSPACE`。
+- 不设 `ALB_WORKSPACE` 时,工作目录跟着**进程的当前目录**变。在不同目录下运行 `dhands`,会用到不同的工作目录,profile 也跟着变(profile 在 `<workspace>/profiles/` 下)。`dhands-mcp` 的当前目录由启动它的 MCP 客户端决定。要固定就设 `ALB_WORKSPACE`。
 - config.toml 的 `[workspace] root` **无效**:能解析,但决定工作目录的函数只看 `ALB_WORKSPACE`。
 - Windows agent 的日志由 agent.conf 的 `log_file` 决定,见 6.1。
 
@@ -371,7 +371,7 @@ hub 那边和 agent 有关的变量(`ALB_AGENT_TOKEN`、`ALB_AGENT_SERIAL_COM`�
 
 ### 9.1 config.toml
 
-位置:`ALB_CONFIG` 指定的路径;没设时是 `$XDG_CONFIG_HOME/alb/config.toml`;`XDG_CONFIG_HOME` 也没设时是 `~/.config/alb/config.toml`。代码:`src/alb/infra/config.py`。
+位置:`ALB_CONFIG` 指定的路径;没设时是 `$XDG_CONFIG_HOME/alb/config.toml`;`XDG_CONFIG_HOME` 也没设时是 `~/.config/alb/config.toml`。代码:`src/devicehands/infra/config.py`。
 
 | 位置 | 键 | 作用 | 默认值 |
 |---|---|---|---|
@@ -387,14 +387,14 @@ hub 那边和 agent 有关的变量(`ALB_AGENT_TOKEN`、`ALB_AGENT_SERIAL_COM`�
 
 读文件时的两种失败,表现不一样:
 
-- **TOML 语法错**:整份文件被忽略,全部用默认值,**不报错**(`_load_config_file` 吞掉 `TOMLDecodeError`)。配置改了却像没改,先查语法。`alb doctor` 的 config 一层会显示读的是哪个文件。
+- **TOML 语法错**:整份文件被忽略,全部用默认值,**不报错**(`_load_config_file` 吞掉 `TOMLDecodeError`)。配置改了却像没改,先查语法。`dhands doctor` 的 config 一层会显示读的是哪个文件。
 - **键名写错**(例如在 `[transport.serial]` 下写 `device = "/dev/ttyUSB0"`):读配置时报 `TypeError: … unexpected keyword argument 'device'`,读配置的命令都会失败。
 
-`[permissions]` 无效的原因:板子上的命令一律放行(2026-10-23 定,见 [`permissions.md`](./permissions.md)),`src/alb/infra/permissions.py` 的检查总是返回 allow,没有代码读这一节。
+`[permissions]` 无效的原因:板子上的命令一律放行(2026-10-23 定,见 [`permissions.md`](./permissions.md)),`src/devicehands/infra/permissions.py` 的检查总是返回 allow,没有代码读这一节。
 
 ### 9.2 profile:`<workspace>/profiles/<name>.toml`
 
-用哪个 profile:`ALB_PROFILE`,没设就用 config.toml 的 `default_profile`。名字只能是字母数字开头、由字母数字 `_` `-` 组成、最长 64 个字符。文件不存在不报错,当成空 profile。代码:`src/alb/infra/config.py`。
+用哪个 profile:`ALB_PROFILE`,没设就用 config.toml 的 `default_profile`。名字只能是字母数字开头、由字母数字 `_` `-` 组成、最长 64 个字符。文件不存在不报错,当成空 profile。代码:`src/devicehands/infra/config.py`。
 
 | 位置 | 键 | 作用 | 默认值 |
 |---|---|---|---|
@@ -408,13 +408,13 @@ hub 那边和 agent 有关的变量(`ALB_AGENT_TOKEN`、`ALB_AGENT_SERIAL_COM`�
 | `[[devices]]` | `serial_tcp_port` | **无效**,串口端点见 2.2 | |
 | `[permissions]` | 同 config.toml | **无效** | |
 
-- `[[devices]]` 目前只有上面那一个用处。alb 不按这张表选 adb 设备,也不按它选串口。
-- `alb --profile <name>` 这个参数**只影响 `alb status` 显示的 profile 名**,不影响用哪个传输(`src/alb/cli/main.py` 只在 `status` 里用它;`src/alb/transport/factory.py` 建传输时只看 `ALB_PROFILE`)。要切 profile,设 `ALB_PROFILE`。
+- `[[devices]]` 目前只有上面那一个用处。dhands 不按这张表选 adb 设备,也不按它选串口。
+- `dhands --profile <name>` 这个参数**只影响 `dhands status` 显示的 profile 名**,不影响用哪个传输(`src/devicehands/cli/main.py` 只在 `status` 里用它;`src/devicehands/transport/factory.py` 建传输时只看 `ALB_PROFILE`)。要切 profile,设 `ALB_PROFILE`。
 - profile 的 TOML 语法错也是不报错、当成空 profile;键名写错同样报 `TypeError`。
 
 ### 9.3 boards.toml
 
-hub 的板子表,`ALB_BENCH_BOARDS` 指向它,模板是 `deploy/hub/boards.toml.example`。代码:`src/alb/remote/bench_board.py`。
+hub 的板子表,`ALB_BENCH_BOARDS` 指向它,模板是 `deploy/hub/boards.toml.example`。代码:`src/devicehands/remote/bench_board.py`。
 
 ```toml
 [boards.board-a]
@@ -438,9 +438,9 @@ note = "左边排针上的调试串口"
 
 ### 9.5 .env.local / .env
 
-模板是仓库根目录的 `.env.example`。代码:`src/alb/infra/env_loader.py`。
+模板是仓库根目录的 `.env.example`。代码:`src/devicehands/infra/env_loader.py`。
 
-- 只有 `alb` 和 `alb-api` 读,`alb-mcp` 不读。MCP 用的变量写在 MCP 客户端配置里(写法见 [`llm-integration.md`](./llm-integration.md))。
+- 只有 `dhands` 和 `dhands-hub` 读,`dhands-mcp` 不读。MCP 用的变量写在 MCP 客户端配置里(写法见 [`llm-integration.md`](./llm-integration.md))。
 - 一行一个 `KEY=VALUE`,可以带 `export ` 前缀,值两边的一对引号会去掉。
 - `#` 只在行首算注释。`KEY=1 # 说明` 的值是 `1 # 说明`。
 - shell 里已经有的变量不会被覆盖。
@@ -458,11 +458,11 @@ note = "左边排针上的调试串口"
 | config.toml / profile 的 `[permissions]` | 没有代码读,板子命令一律放行 | 无 |
 | `[transport.serial] pty_link_dir` | 没有代码读 | 无 |
 | profile `[[devices]]` 的 `alias`、`ssh_port`、`serial_tcp_port` | 没有代码读 | `ALB_SSH_PORT`、`ALB_SERIAL_TCP` |
-| `alb setup serial --device … --save` 存设备路径 | 只存了波特率 | `ALB_SERIAL_DEVICE` |
-| `alb --profile <name>` 切换传输 | 只影响 `alb status` 的显示 | `ALB_PROFILE` |
+| `dhands setup serial --device … --save` 存设备路径 | 只存了波特率 | `ALB_SERIAL_DEVICE` |
+| `dhands --profile <name>` 切换传输 | 只影响 `dhands status` 的显示 | `ALB_PROFILE` |
 | `ALB_OPENAI_COMPAT_MODEL` | 只出现在报错提示里,代码不读 | `--model` |
 | `ALB_ANTHROPIC_MODEL`(同时设了 `ALB_OLLAMA_MODEL` 时) | 被 `ALB_OLLAMA_MODEL` 盖掉 | `--model` |
-| hub 的 `ALB_OPENAI_COMPAT_URL` / `ALB_OPENAI_COMPAT_KEY` | hub 不读,只有 `alb chat` 读 | 无 |
+| hub 的 `ALB_OPENAI_COMPAT_URL` / `ALB_OPENAI_COMPAT_KEY` | hub 不读,只有 `dhands chat` 读 | 无 |
 | `ALB_SSH_KNOWN_HOSTS=""` 关掉密钥校验 | 空字符串被当成没设 | config.toml `known_hosts = ""` |
 | `ALB_TRANSPORT=hybrid` | 没有这种传输,报 `Unknown transport: hybrid` | `adb` / `ssh` / `serial` |
 | hub 的 `ALB_SERIAL_FORWARD_PORT` 改了以后,客户端什么都不设 | 客户端仍连 9001 | 客户端设 `ALB_SERIAL_TCP` |
@@ -471,20 +471,20 @@ note = "左边排针上的调试串口"
 
 ## 十一、AI 怎么查配置
 
-给通过 MCP 用 alb 的 AI:
+给通过 MCP 用 dhands 的 AI:
 
-1. 先调 `alb_status`。adb 传输会返回 `server_socket`(连的是哪个 adb server)和 `server_socket_source`(这个地址来自哪:`config` / `env` / `hub` / `default`)。来源不是 `hub`、而设备列表又是空的,先按第 3.4 节查是不是连错了 server;alb 能看出矛盾时,结果里还有一条 `hint` 直接说明。
+1. 先调 `alb_status`。adb 传输会返回 `server_socket`(连的是哪个 adb server)和 `server_socket_source`(这个地址来自哪:`config` / `env` / `hub` / `default`)。来源不是 `hub`、而设备列表又是空的,先按第 3.4 节查是不是连错了 server;dhands 能看出矛盾时,结果里还有一条 `hint` 直接说明。
 2. 工具失败时,看返回的 `error.suggestion`,里面写了该设哪个变量或跑哪条命令。查错误码用 `alb_describe_errors`。
-3. 环境问题让人跑 `alb doctor`:它列出 `ALB_WORKSPACE`、`ADB_SERVER_SOCKET`、`ALB_CONFIG`、`ALB_PROFILE` 的值,读的是哪份 config.toml,用的是哪个 profile。
-4. 要知道某个变量是干什么的、谁读它,查本页。记住 `alb-mcp` 不读 `.env.local`,它的环境变量只来自 MCP 客户端配置。
+3. 环境问题让人跑 `dhands doctor`:它列出 `ALB_WORKSPACE`、`ADB_SERVER_SOCKET`、`ALB_CONFIG`、`ALB_PROFILE` 的值,读的是哪份 config.toml,用的是哪个 profile。
+4. 要知道某个变量是干什么的、谁读它,查本页。记住 `dhands-mcp` 不读 `.env.local`,它的环境变量只来自 MCP 客户端配置。
 
 ---
 
-## 附:不以 ALB_ 开头、但会影响 alb 的变量
+## 附:不以 ALB_ 开头、但会影响 dhands 的变量
 
 | 变量 | 作用 | 代码 |
 |---|---|---|
-| `ADB_SERVER_SOCKET` | adb 自己的变量,指定 adb server 地址,见 3.4 | `src/alb/infra/adb_endpoint.py`、`src/alb/transport/adb.py` |
-| `XDG_CONFIG_HOME` | config.toml 的默认目录,见 9.1 | `src/alb/infra/config.py` |
-| `ANTHROPIC_API_KEY` | `ALB_ANTHROPIC_KEY` 没设时用它 | `src/alb/agent/backends/__init__.py`、`src/alb/cli/chat_cli.py` |
-| `OPENAI_API_KEY` | `ALB_OPENAI_COMPAT_KEY` 没设时 `alb chat` 用它 | `src/alb/cli/chat_cli.py` |
+| `ADB_SERVER_SOCKET` | adb 自己的变量,指定 adb server 地址,见 3.4 | `src/devicehands/infra/adb_endpoint.py`、`src/devicehands/transport/adb.py` |
+| `XDG_CONFIG_HOME` | config.toml 的默认目录,见 9.1 | `src/devicehands/infra/config.py` |
+| `ANTHROPIC_API_KEY` | `ALB_ANTHROPIC_KEY` 没设时用它 | `src/devicehands/agent/backends/__init__.py`、`src/devicehands/cli/chat_cli.py` |
+| `OPENAI_API_KEY` | `ALB_OPENAI_COMPAT_KEY` 没设时 `dhands chat` 用它 | `src/devicehands/cli/chat_cli.py` |

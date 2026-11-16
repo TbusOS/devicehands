@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from alb.remote import protocol as p
-from alb.remote.protocol import (
+from devicehands.remote import protocol as p
+from devicehands.remote.protocol import (
     ChannelRole,
     ChannelType,
     ProtocolError,

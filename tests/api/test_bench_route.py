@@ -7,9 +7,9 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.remote.bench_board import PartitionList
-from alb.remote.flash import FlashEvent, FlashResult
+from devicehands.api.server import create_app
+from devicehands.remote.bench_board import PartitionList
+from devicehands.remote.flash import FlashEvent, FlashResult
 from tests.remote.bench_tables import new_agent_ops
 
 
@@ -43,7 +43,7 @@ class _Svc:
 
 @pytest.fixture
 def svc(monkeypatch):
-    import alb.api.bench_route as route
+    import devicehands.api.bench_route as route
 
     s = _Svc()
     monkeypatch.setattr(route, "get_flash_service", lambda: s)

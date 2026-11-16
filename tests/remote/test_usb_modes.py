@@ -8,7 +8,7 @@ fastboot; they must not look the same here.
 
 from __future__ import annotations
 
-from alb.remote.usb_modes import annotate, classify
+from devicehands.remote.usb_modes import annotate, classify
 
 
 def _dev(**kw) -> dict:

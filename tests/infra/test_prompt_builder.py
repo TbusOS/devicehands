@@ -1,4 +1,4 @@
-"""Tests for alb.infra.prompt_builder."""
+"""Tests for devicehands.infra.prompt_builder."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.prompt_builder import (
+from devicehands.infra.prompt_builder import (
     DEFAULT_ROLE,
     DEFAULT_SAFETY_RULES,
     DEFAULT_TOOL_NORMS,
@@ -277,7 +277,7 @@ def test_reply_language_is_in_the_cached_static_part() -> None:
 
 
 def test_reply_language_note() -> None:
-    from alb.infra.prompt_builder import reply_language_note
+    from devicehands.infra.prompt_builder import reply_language_note
 
     assert reply_language_note("zh") == "(请用简体中文回答)"
     assert reply_language_note("en") == "(Please answer in English.)"
@@ -286,7 +286,7 @@ def test_reply_language_note() -> None:
 
 
 def test_agent_user_note_names_the_model_inside_the_language_note() -> None:
-    from alb.infra.prompt_builder import agent_user_note
+    from devicehands.infra.prompt_builder import agent_user_note
 
     zh = agent_user_note("zh", model="ling3-tiny", context_tokens=16384)
     assert zh is not None
@@ -304,7 +304,7 @@ def test_agent_user_note_names_the_model_inside_the_language_note() -> None:
 
 
 def test_agent_user_note_without_a_model_is_the_language_note() -> None:
-    from alb.infra.prompt_builder import agent_user_note
+    from devicehands.infra.prompt_builder import agent_user_note
 
     assert agent_user_note("zh") == "(请用简体中文回答)"
     assert agent_user_note("en", model=None, context_tokens=16384) == "(Please answer in English.)"
@@ -316,7 +316,7 @@ def test_agent_user_note_without_a_model_is_the_language_note() -> None:
 def test_agent_user_note_names_the_selected_board() -> None:
     """2026-11-05: not knowing the board, the model spent two tool calls
     finding its serial before it could answer."""
-    from alb.infra.prompt_builder import agent_user_note
+    from devicehands.infra.prompt_builder import agent_user_note
 
     zh = agent_user_note("zh", model="ling3-tiny", context_tokens=16384, device="board-a")
     assert zh is not None
@@ -342,7 +342,7 @@ def test_agent_user_note_ends_by_saying_small_talk_needs_no_tool() -> None:
     """2026-11-09: on the English page "hi" set off alb_shell and a write-up
     of the board (2 of 5 runs failed); the same sentence in the system
     prompt changed nothing, at the end of the note it fixed it."""
-    from alb.infra.prompt_builder import agent_user_note
+    from devicehands.infra.prompt_builder import agent_user_note
 
     en = agent_user_note("en", model="ling3-tiny", context_tokens=16384, device="board-a")
     assert en is not None

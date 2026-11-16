@@ -7,15 +7,15 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.agent.backend import (
+from devicehands.agent.backend import (
     BackendError,
     ChatResponse,
     LLMBackend,
     Message,
     ToolSpec,
 )
-from alb.agent.backends.ollama import _build_usage_dict
-from alb.agent.playground import (
+from devicehands.agent.backends.ollama import _build_usage_dict
+from devicehands.agent.playground import (
     PlaygroundMetrics,
     PlaygroundParams,
     PlaygroundResult,

@@ -1,4 +1,4 @@
-"""`alb port open` / `alb port check` (ADR-057 endpoint resolution + port_channel).
+"""`dhands port open` / `dhands port check` (ADR-057 endpoint resolution + port_channel).
 
 The fake adb server runs on its own thread here because the commands call
 ``asyncio.run()`` themselves — a fake on the test's loop would never get to
@@ -17,9 +17,9 @@ from collections.abc import Iterator
 import pytest
 from typer.testing import CliRunner
 
-from alb.cli import port_cli
-from alb.infra.adb_endpoint import AdbEndpoint
-from alb.remote.port_channel import PortChannel
+from devicehands.cli import port_cli
+from devicehands.infra.adb_endpoint import AdbEndpoint
+from devicehands.remote.port_channel import PortChannel
 from tests.transport.test_adb_socket import FakeAdbServer, FakeAdbThread, free_port
 
 runner = CliRunner()
@@ -29,7 +29,7 @@ runner = CliRunner()
 def _short_half_close_grace(monkeypatch: pytest.MonkeyPatch) -> None:
     """A closed client keeps its device stream for the grace (port_channel,
     "Half-close"); these tests are not about that wait."""
-    monkeypatch.setattr("alb.remote.port_channel.HALF_CLOSE_GRACE_S", 0.05)
+    monkeypatch.setattr("devicehands.remote.port_channel.HALF_CLOSE_GRACE_S", 0.05)
 
 
 @pytest.fixture

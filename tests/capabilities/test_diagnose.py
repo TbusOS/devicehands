@@ -8,7 +8,7 @@ import pytest
 
 from pathlib import Path
 
-from alb.capabilities.diagnose import (
+from devicehands.capabilities.diagnose import (
     _count_cpu_cores,
     _parse_bugreportz_output,
     _parse_getprop,
@@ -19,8 +19,8 @@ from alb.capabilities.diagnose import (
     bugreport,
     devinfo,
 )
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 
 # ─── Parsers ───────────────────────────────────────────────────────
@@ -376,7 +376,7 @@ async def test_devinfo_names_the_chip_and_each_cluster() -> None:
 def test_cpu_layout_ignores_an_echoed_command_and_empty_values() -> None:
     """A serial console echoes the command line back; cores without cpufreq
     print `cpuN=`."""
-    from alb.capabilities.diagnose import _CPU_LAYOUT_CMD, _parse_cpu_layout
+    from devicehands.capabilities.diagnose import _CPU_LAYOUT_CMD, _parse_cpu_layout
 
     # No soc_id line after the echo (a board without soc0 prints `soc_id=`, a
     # cut-off capture may print nothing): the echo's own "soc_id=$(cat" must
@@ -386,7 +386,7 @@ def test_cpu_layout_ignores_an_echoed_command_and_empty_values() -> None:
 
 
 def test_an_unknown_core_is_shown_by_its_numbers() -> None:
-    from alb.capabilities.diagnose import _cpu_clusters, _parse_cpuinfo_cores
+    from devicehands.capabilities.diagnose import _cpu_clusters, _parse_cpuinfo_cores
 
     cores = _parse_cpuinfo_cores(
         "processor\t: 0\nCPU implementer\t: 0x41\nCPU part\t: 0xd03\n\n"
@@ -400,7 +400,7 @@ def test_an_unknown_core_is_shown_by_its_numbers() -> None:
 
 def test_no_clusters_when_nothing_tells_cores_apart() -> None:
     """x86 emulators print neither part numbers nor, often, cpufreq."""
-    from alb.capabilities.diagnose import _cpu_clusters, _parse_cpuinfo_cores
+    from devicehands.capabilities.diagnose import _cpu_clusters, _parse_cpuinfo_cores
 
     cores = _parse_cpuinfo_cores("processor\t: 0\nvendor_id\t: GenuineIntel\n")
     assert _cpu_clusters(cores, {}) == []

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command hub launcher: loads hub.env (next to this script) and starts
-# alb-api. Extra arguments are passed through.
+# dhands-hub. Extra arguments are passed through.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,19 +24,19 @@ if [ "${ALB_AGENT_TOKEN:-}" = "change-me" ]; then
     echo "[run-hub] token in hub.env (generate one: openssl rand -hex 16)." >&2
 fi
 
-# Prefer an installed alb-api; fall back to `uv run` inside a repo checkout.
+# Prefer an installed dhands-hub; fall back to `uv run` inside a repo checkout.
 # Print which one runs — an old `pip install .` would otherwise silently
 # shadow the checkout you are editing.
-if command -v alb-api >/dev/null 2>&1; then
-    echo "[run-hub] using $(command -v alb-api)"
-    exec alb-api "$@"
+if command -v dhands-hub >/dev/null 2>&1; then
+    echo "[run-hub] using $(command -v dhands-hub)"
+    exec dhands-hub "$@"
 fi
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 if [ -f "$REPO_ROOT/pyproject.toml" ] && command -v uv >/dev/null 2>&1; then
-    echo "[run-hub] using uv run alb-api in $REPO_ROOT"
+    echo "[run-hub] using uv run dhands-hub in $REPO_ROOT"
     cd "$REPO_ROOT"
-    exec uv run alb-api "$@"
+    exec uv run dhands-hub "$@"
 fi
-echo "[run-hub] alb-api is not on PATH and no uv checkout was found." >&2
+echo "[run-hub] dhands-hub is not on PATH and no uv checkout was found." >&2
 echo "[run-hub] Install the package (pip install .) or install uv." >&2
 exit 1

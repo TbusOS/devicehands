@@ -7,9 +7,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.transport.adb import AdbDevice
-from alb.transport.base import ShellResult, Transport
+from devicehands.api.server import create_app
+from devicehands.transport.adb import AdbDevice
+from devicehands.transport.base import ShellResult, Transport
 
 
 class _FakeAdbTransport(Transport):
@@ -80,7 +80,7 @@ class _ExplodingDevicesTransport(_FakeAdbTransport):
 def client(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **kwargs: _FakeAdbTransport(),
     )
     app = create_app()
@@ -104,7 +104,7 @@ def test_lists_two_devices(client) -> None:
 def test_transport_without_devices_method_returns_empty(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **kwargs: _NoDevicesTransport(),
     )
     app = create_app()
@@ -118,7 +118,7 @@ def test_transport_without_devices_method_returns_empty(monkeypatch, tmp_path) -
 def test_devices_call_failure_reported_inline(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **kwargs: _ExplodingDevicesTransport(),
     )
     app = create_app()
@@ -138,7 +138,7 @@ def test_build_transport_failure_reported_inline(monkeypatch, tmp_path) -> None:
     def _boom(**kwargs: Any):
         raise ValueError("Unknown transport: xyz")
 
-    monkeypatch.setattr("alb.api.devices_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.devices_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         r = c.get("/devices")
@@ -216,7 +216,7 @@ class _DevinfoTransport(_FakeAdbTransport):
 def test_device_details_happy(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **kwargs: _DevinfoTransport(),
     )
     app = create_app()
@@ -248,7 +248,7 @@ def test_device_details_build_transport_failure(monkeypatch, tmp_path) -> None:
     def _boom(**kwargs: Any):
         raise ValueError("no transport configured")
 
-    monkeypatch.setattr("alb.api.devices_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.devices_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         r = c.get("/devices/TEST/details")
@@ -269,7 +269,7 @@ def test_device_details_devinfo_failure(monkeypatch, tmp_path) -> None:
                                duration_ms=0, error_code="ADB_COMMAND_FAILED")
 
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **kwargs: _BadShellTransport(),
     )
     app = create_app()
@@ -380,7 +380,7 @@ class _SystemTransport(_FakeAdbTransport):
 def test_device_system_happy(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **kwargs: _SystemTransport(),
     )
     app = create_app()
@@ -414,7 +414,7 @@ def test_device_system_partial_failure_still_returns_data(monkeypatch, tmp_path)
             return ShellResult(ok=False, exit_code=1, stderr="",
                                duration_ms=0, error_code="ADB_COMMAND_FAILED")
 
-    monkeypatch.setattr("alb.api.devices_route.build_transport",
+    monkeypatch.setattr("devicehands.api.devices_route.build_transport",
                         lambda **kwargs: _MostFailTransport())
     app = create_app()
     with TestClient(app) as c:
@@ -433,7 +433,7 @@ def test_device_system_getprop_failure_returns_inline(monkeypatch, tmp_path) -> 
             return ShellResult(ok=False, exit_code=1, stderr="device offline",
                                duration_ms=0, error_code="ADB_COMMAND_FAILED")
 
-    monkeypatch.setattr("alb.api.devices_route.build_transport",
+    monkeypatch.setattr("devicehands.api.devices_route.build_transport",
                         lambda **kwargs: _NoPropsTransport())
     app = create_app()
     with TestClient(app) as c:
@@ -445,7 +445,7 @@ def test_device_system_getprop_failure_returns_inline(monkeypatch, tmp_path) -> 
 
 def test_device_system_endpoint_listed_in_schema(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.devices_route.build_transport",
+    monkeypatch.setattr("devicehands.api.devices_route.build_transport",
                         lambda **kwargs: _SystemTransport())
     app = create_app()
     with TestClient(app) as c:
@@ -457,8 +457,8 @@ def test_device_system_endpoint_listed_in_schema(monkeypatch, tmp_path) -> None:
 # ─── /devices/{serial}/screenshot + /ui-dump (PR-G) ────────────────
 def test_device_screenshot_happy(monkeypatch, tmp_path) -> None:
     """Endpoint reads the PNG file from disk and inlines it as base64."""
-    from alb.capabilities.ui import ScreenshotData
-    from alb.infra.result import ok as ok_result
+    from devicehands.capabilities.ui import ScreenshotData
+    from devicehands.infra.result import ok as ok_result
 
     png_file = tmp_path / "snap.png"
     png_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"FAKEDATA" * 4)
@@ -467,7 +467,7 @@ def test_device_screenshot_happy(monkeypatch, tmp_path) -> None:
         return ok_result(
             data=ScreenshotData(
                 path=str(png_file),
-                device_path="/sdcard/alb-screenshot-x.png",
+                device_path="/sdcard/dhands-screenshot-x.png",
                 size_bytes=png_file.stat().st_size,
                 width=1080,
                 height=2400,
@@ -475,9 +475,9 @@ def test_device_screenshot_happy(monkeypatch, tmp_path) -> None:
         )
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.devices_route.screenshot", fake_screenshot)
+    monkeypatch.setattr("devicehands.api.devices_route.screenshot", fake_screenshot)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **_: _FakeAdbTransport(),
     )
     app = create_app()
@@ -496,14 +496,14 @@ def test_device_screenshot_happy(monkeypatch, tmp_path) -> None:
 
 def test_device_screenshot_capability_failure_inline(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
-    from alb.infra.result import fail as fail_result
+    from devicehands.infra.result import fail as fail_result
 
     async def fake_screenshot(transport, **kwargs):
         return fail_result(code="SCREENCAP_FAILED", message="device asleep")
 
-    monkeypatch.setattr("alb.api.devices_route.screenshot", fake_screenshot)
+    monkeypatch.setattr("devicehands.api.devices_route.screenshot", fake_screenshot)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **_: _FakeAdbTransport(),
     )
     app = create_app()
@@ -520,7 +520,7 @@ def test_device_screenshot_build_transport_failure(monkeypatch, tmp_path) -> Non
     def _boom(**_):
         raise RuntimeError("no transport configured")
 
-    monkeypatch.setattr("alb.api.devices_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.devices_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         body = c.post("/devices/TEST/screenshot").json()
@@ -529,8 +529,8 @@ def test_device_screenshot_build_transport_failure(monkeypatch, tmp_path) -> Non
 
 
 def test_device_ui_dump_happy(monkeypatch, tmp_path) -> None:
-    from alb.capabilities.ui import UIDumpData, UINode
-    from alb.infra.result import ok as ok_result
+    from devicehands.capabilities.ui import UIDumpData, UINode
+    from devicehands.infra.result import ok as ok_result
 
     root = UINode(
         index=0, class_name="android.widget.FrameLayout",
@@ -554,9 +554,9 @@ def test_device_ui_dump_happy(monkeypatch, tmp_path) -> None:
         )
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("alb.api.devices_route.ui_dump", fake_ui_dump)
+    monkeypatch.setattr("devicehands.api.devices_route.ui_dump", fake_ui_dump)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **_: _FakeAdbTransport(),
     )
     app = create_app()
@@ -571,14 +571,14 @@ def test_device_ui_dump_happy(monkeypatch, tmp_path) -> None:
 
 def test_device_ui_dump_capability_failure_inline(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
-    from alb.infra.result import fail as fail_result
+    from devicehands.infra.result import fail as fail_result
 
     async def fake_ui_dump(transport, **kwargs):
         return fail_result(code="UIAUTOMATOR_FAILED", message="device locked")
 
-    monkeypatch.setattr("alb.api.devices_route.ui_dump", fake_ui_dump)
+    monkeypatch.setattr("devicehands.api.devices_route.ui_dump", fake_ui_dump)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **_: _FakeAdbTransport(),
     )
     app = create_app()
@@ -592,7 +592,7 @@ def test_device_ui_dump_capability_failure_inline(monkeypatch, tmp_path) -> None
 def test_pr_g_endpoints_listed_in_schema(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "alb.api.devices_route.build_transport",
+        "devicehands.api.devices_route.build_transport",
         lambda **_: _FakeAdbTransport(),
     )
     app = create_app()

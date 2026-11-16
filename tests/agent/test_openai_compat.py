@@ -9,8 +9,8 @@ from typing import Any
 import httpx
 import pytest
 
-from alb.agent.backend import BackendError, Message, ToolSpec
-from alb.agent.backends.openai_compat import OpenAICompatBackend
+from devicehands.agent.backend import BackendError, Message, ToolSpec
+from devicehands.agent.backends.openai_compat import OpenAICompatBackend
 
 
 def _mock_transport(handler: callable) -> httpx.MockTransport:  # type: ignore[valid-type]
@@ -269,7 +269,7 @@ async def test_chat_serialises_assistant_tool_calls() -> None:
         )
 
     b = OpenAICompatBackend(model="x", transport=_mock_transport(handler))
-    from alb.agent.backend import ToolCall
+    from devicehands.agent.backend import ToolCall
 
     msgs = [
         Message(role="user", content="..."),

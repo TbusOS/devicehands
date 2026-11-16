@@ -13,7 +13,7 @@ import sys
 
 import pytest
 
-from alb.transport.exit_marks import ARM_MAX_BYTES, ARM_TIMEOUT_S, SETUP, ExitMarks
+from devicehands.transport.exit_marks import ARM_MAX_BYTES, ARM_TIMEOUT_S, SETUP, ExitMarks
 
 M = b"\x1b]133;D;%d\x07"
 
@@ -80,7 +80,7 @@ def test_holding_back_is_bounded() -> None:
 
 
 async def _codes_from(argv: list[str], env: dict[str, str]) -> tuple[list[int], bytes]:
-    from alb.transport.interactive import open_pty_subprocess
+    from devicehands.transport.interactive import open_pty_subprocess
 
     shell = await open_pty_subprocess(*argv, env=env)
     loop = asyncio.get_running_loop()

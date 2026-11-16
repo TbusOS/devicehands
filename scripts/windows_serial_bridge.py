@@ -1,7 +1,7 @@
 """Minimal Windows COM <-> TCP bridge (ser2net replacement).
 
 Use this on Windows to expose a local COM port as a TCP listener, paired with
-an Xshell reverse tunnel (-R <port>:localhost:<port>) to reach an alb instance
+an Xshell reverse tunnel (-R <port>:localhost:<port>) to reach an dhands instance
 on a Linux host. See docs/methods/07-uart-serial.md for the full architecture.
 
 Why this instead of ser2net:
@@ -20,9 +20,9 @@ Setup (Windows):
     3. In Xshell: Connection → SSH → Tunnelling → Add
        Type=Remote, source=localhost:<port>, dest=localhost:<port>
 
-On the Linux side (alb host):
-    alb setup serial --tcp-host localhost --tcp-port 19001 --baud 1500000
-    alb serial capture --duration 10
+On the Linux side (dhands host):
+    dhands setup serial --tcp-host localhost --tcp-port 19001 --baud 1500000
+    dhands serial capture --duration 10
 
 Bandwidth is UART-level (< 200 KB/s even at 1.5 Mbaud), so performance is
 dominated by the serial line, not the TCP/SSH path.

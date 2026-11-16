@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# android-llm-bridge · uninstall script
+# devicehands · uninstall script
 #
 # Remove the project's local Python environment and optionally the
 # runtime artifacts, uv, and uv-managed Pythons. Completely user-local.
@@ -40,7 +40,7 @@ usage() {
     cat <<USAGE
 Usage: $(basename "$0") [options]
 
-Uninstall android-llm-bridge's local artifacts. Does NOT require root.
+Uninstall devicehands's local artifacts. Does NOT require root.
 
 By default this script removes ONLY:
   - ${REPO_ROOT}/.venv/
@@ -59,7 +59,7 @@ Options:
   --remove-uv-python   Delete ~/.local/share/uv/ entirely (uv cache + all
                        uv-managed Python installations).
                        ${YELLOW}⚠ Only if you won't use uv again.${NC}
-  --remove-host-tools  Delete what 'alb setup deps --install' put in your home:
+  --remove-host-tools  Delete what 'dhands setup deps --install' put in your home:
                        ~/.local/share/alb/ (Platform-Tools, mksh) and the links
                        in ~/.local/bin that point into it. web/node_modules and
                        Playwright's browsers (~/.cache/ms-playwright, shared with
@@ -113,7 +113,7 @@ if [[ ${FORCE} -eq 0 ]]; then
     [[ ${REMOVE_UV_PYTHON} -eq 1 && -d "${HOME}/.local/share/uv" ]] && \
         echo "  • ~/.local/share/uv/ (${RED}ALL uv-managed Pythons${NC})"
     [[ ${REMOVE_HOST_TOOLS} -eq 1 && -d "${ALB_DATA}" ]] && \
-        echo "  • ${ALB_DATA}/ and its links in ~/.local/bin (adb, fastboot, mksh installed by alb)"
+        echo "  • ${ALB_DATA}/ and its links in ~/.local/bin (adb, fastboot, mksh installed by dhands)"
     echo
     read -rp "Continue? [y/N] " ans
     if [[ ! "${ans}" =~ ^[Yy]$ ]]; then
@@ -180,7 +180,7 @@ if [[ ${REMOVE_UV_PYTHON} -eq 1 ]]; then
     fi
 fi
 
-# ─── Step 6 · tools 'alb setup deps --install' fetched (optional) ─
+# ─── Step 6 · tools 'dhands setup deps --install' fetched (optional) ─
 if [[ ${REMOVE_HOST_TOOLS} -eq 1 ]]; then
     # Only links that point into ~/.local/share/alb are ours; anything else
     # in ~/.local/bin with the same name belongs to the user.
@@ -200,9 +200,9 @@ fi
 
 # ─── Step 7 · PATH notice ────────────────────────────────────────
 for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-    if [[ -f "${rc}" ]] && grep -q 'android-llm-bridge installer' "${rc}" 2>/dev/null; then
+    if [[ -f "${rc}" ]] && grep -q 'devicehands installer' "${rc}" 2>/dev/null; then
         log_warn "${rc} still contains a PATH line added by the installer:"
-        grep -n 'android-llm-bridge installer' "${rc}" | sed 's/^/       /'
+        grep -n 'devicehands installer' "${rc}" | sed 's/^/       /'
         log_warn "Remove it manually if you no longer need ~/.local/bin on PATH."
     fi
 done
@@ -219,7 +219,7 @@ ${DIM}What was NOT touched:${NC}
   - workspace/ (unless --purge-workspace)
   - uv itself (unless --remove-uv)
   - uv-managed Pythons (unless --remove-uv-python)
-  - adb / fastboot / mksh fetched by alb (unless --remove-host-tools)
+  - adb / fastboot / mksh fetched by dhands (unless --remove-host-tools)
 
 ${DIM}To fully remove the repo too:${NC}
     rm -rf "${REPO_ROOT}"

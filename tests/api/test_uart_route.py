@@ -9,10 +9,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.capabilities.logging import DmesgSummary
-from alb.infra.result import fail, ok
-from alb.transport.base import ShellResult, Transport
+from devicehands.api.server import create_app
+from devicehands.capabilities.logging import DmesgSummary
+from devicehands.infra.result import fail, ok
+from devicehands.transport.base import ShellResult, Transport
 
 
 class _FakeSerialTransport(Transport):
@@ -54,7 +54,7 @@ def workspace(tmp_path, monkeypatch):
 @pytest.fixture
 def client(workspace, monkeypatch):
     monkeypatch.setattr(
-        "alb.api.uart_route.build_transport",
+        "devicehands.api.uart_route.build_transport",
         lambda **kwargs: _FakeSerialTransport(),
     )
     app = create_app()
@@ -72,7 +72,7 @@ def test_capture_runs_and_returns_artifact_meta(client, workspace, monkeypatch) 
         assert transport.name == "serial"
         return ok(data=DmesgSummary(lines=2, errors=0, duration_captured_ms=5000), artifacts=[artifact])
 
-    monkeypatch.setattr("alb.api.uart_route.capture_uart", fake_capture)
+    monkeypatch.setattr("devicehands.api.uart_route.capture_uart", fake_capture)
 
     r = client.post("/uart/capture", params={"duration": 5})
     assert r.status_code == 200
@@ -96,7 +96,7 @@ def test_capture_build_transport_failure_returns_inline(workspace, monkeypatch) 
     def _boom(**kwargs: Any):
         raise RuntimeError("no serial transport configured")
 
-    monkeypatch.setattr("alb.api.uart_route.build_transport", _boom)
+    monkeypatch.setattr("devicehands.api.uart_route.build_transport", _boom)
     app = create_app()
     with TestClient(app) as c:
         r = c.post("/uart/capture", params={"duration": 5})
@@ -114,7 +114,7 @@ def test_capture_capability_failure_returns_inline(client, monkeypatch) -> None:
             category="transport",
         )
 
-    monkeypatch.setattr("alb.api.uart_route.capture_uart", fake_capture)
+    monkeypatch.setattr("devicehands.api.uart_route.capture_uart", fake_capture)
     r = client.post("/uart/capture", params={"duration": 5})
     body = r.json()
     assert body["ok"] is False
@@ -198,7 +198,7 @@ def test_list_captures_runs_in_worker_thread_l033(
         seen.append(getattr(fn, "__name__", repr(fn)))
         return await real_to_thread(fn, *args, **kwargs)
 
-    monkeypatch.setattr("alb.api.uart_route.asyncio.to_thread", tracking_to_thread)
+    monkeypatch.setattr("devicehands.api.uart_route.asyncio.to_thread", tracking_to_thread)
     (workspace / "logs").mkdir()
     r = client.get("/uart/captures")
     assert r.status_code == 200

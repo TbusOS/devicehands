@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
+from devicehands.api.server import create_app
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +26,7 @@ class _Service:
 
 @pytest.fixture
 def ws(monkeypatch, tmp_path: Path) -> Path:
-    import alb.api.flash_route as route
+    import devicehands.api.flash_route as route
 
     monkeypatch.setenv("ALB_WORKSPACE", str(tmp_path))
     monkeypatch.setattr(route, "get_flash_service", lambda: _Service())
@@ -76,7 +76,7 @@ def _client() -> TestClient:
 
 
 def test_list_is_newest_first_with_row_counts_and_running(monkeypatch, ws: Path) -> None:
-    import alb.api.flash_route as route
+    import devicehands.api.flash_route as route
 
     _job(ws, "flash-boot-2026-10-23T09-00-00", {"ok": True, "code": ""}, label="flash boot", op="flash")
     _job(ws, "plan-pkg-2026-10-23T10-00-00", PLAN_FAILED, label="plan pkg", op="plan")

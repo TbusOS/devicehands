@@ -8,8 +8,8 @@ from typing import Any
 import httpx
 import pytest
 
-from alb.agent.backend import BackendError, Message, ToolSpec
-from alb.agent.backends.ollama import OllamaBackend
+from devicehands.agent.backend import BackendError, Message, ToolSpec
+from devicehands.agent.backends.ollama import OllamaBackend
 
 
 def _mock_transport(handler: callable) -> httpx.MockTransport:  # type: ignore[valid-type]
@@ -190,7 +190,7 @@ async def test_chat_serialises_assistant_tool_calls_in_history() -> None:
             json={"model": "q", "message": {"role": "assistant", "content": "ok"}, "done": True},
         )
 
-    from alb.agent.backend import ToolCall
+    from devicehands.agent.backend import ToolCall
 
     b = OllamaBackend(transport=_mock_transport(handler))
     history = [
@@ -491,7 +491,7 @@ async def test_num_ctx_is_sent_and_can_be_overridden() -> None:
 
 
 def test_num_ctx_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    from alb.agent.backends import get_backend
+    from devicehands.agent.backends import get_backend
 
     monkeypatch.setenv("ALB_OLLAMA_NUM_CTX", "32768")
     # with kwargs, as the chat route calls it (no-kwargs calls are cached for probes)
@@ -545,7 +545,7 @@ async def test_stream_refuses_a_reply_whose_prompt_filled_the_window() -> None:
 
 
 def test_the_new_code_is_in_the_catalog() -> None:
-    from alb.infra.errors import ERROR_CODES
+    from devicehands.infra.errors import ERROR_CODES
 
     assert ERROR_CODES["LLM_CONTEXT_TRUNCATED"].category == "system"
 
@@ -601,7 +601,7 @@ async def test_stream_does_not_double_tool_calls_repeated_on_done() -> None:
 def test_timeout_default_and_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ollama sends nothing until the whole prompt is read: 170 s for the
     tool list on the bench's CPU, past the old 120 s."""
-    from alb.agent.backends import get_backend
+    from devicehands.agent.backends import get_backend
 
     assert OllamaBackend().timeout == 600.0
     monkeypatch.setenv("ALB_OLLAMA_TIMEOUT", "900")
@@ -618,7 +618,7 @@ def test_connect_timeout_is_short_and_apart_from_the_reply_timeout(monkeypatch: 
     """With one number httpx waited the whole 600 s to connect: an Ollama
     machine that is off held a chat page question that long before any
     error."""
-    from alb.agent.backends import get_backend
+    from devicehands.agent.backends import get_backend
 
     t = OllamaBackend()._get_client().timeout
     assert (t.connect, t.read, t.write, t.pool) == (10.0, 600.0, 600.0, 600.0)

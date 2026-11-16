@@ -1,4 +1,4 @@
-"""Tests for alb.infra.metric_store.MetricStore (ADR-049 read model).
+"""Tests for devicehands.infra.metric_store.MetricStore (ADR-049 read model).
 
 Time is injected via a fake clock so bucketing / pruning / is_warm are
 deterministic (no sleeps).
@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from alb.infra.event_bus import EventBroadcaster, make_event
-from alb.infra.metric_store import (
+from devicehands.infra.event_bus import EventBroadcaster, make_event
+from devicehands.infra.metric_store import (
     MetricStore,
     aggregate_rates,
     coerce_rate,

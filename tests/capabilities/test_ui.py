@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.ui import (
+from devicehands.capabilities.ui import (
     ScreenshotData,
     UIDumpData,
     UINode,
@@ -21,7 +21,7 @@ from alb.capabilities.ui import (
     screenshot,
     ui_dump,
 )
-from alb.transport.base import ShellResult
+from devicehands.transport.base import ShellResult
 
 
 # ─── PNG header parsing ───────────────────────────────────────────
@@ -181,7 +181,7 @@ def test_xml_parser_multiple_top_nodes_synthesised() -> None:
     </hierarchy>"""
     root, _ = _parse_uiautomator_xml(xml)
     assert root is not None
-    assert root.class_name == "alb.SyntheticHierarchyRoot"
+    assert root.class_name == "devicehands.SyntheticHierarchyRoot"
     assert len(root.children) == 2
 
 
@@ -350,7 +350,7 @@ async def test_ui_dump_happy_path(tmp_path: Path) -> None:
         {
             "uiautomator dump": ShellResult(
                 ok=True, exit_code=0,
-                stdout="UI hierchary dumped to: /sdcard/alb-ui.xml\n",
+                stdout="UI hierchary dumped to: /sdcard/dhands-ui.xml\n",
             ),
             "rm -f": ShellResult(ok=True, exit_code=0),
             "dumpsys activity top": ShellResult(

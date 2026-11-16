@@ -11,9 +11,9 @@ from typing import Any, ClassVar
 
 import pytest
 
-from alb.capabilities.adbd import remount, root, unroot
-from alb.infra.permissions import Behavior, PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.capabilities.adbd import remount, root, unroot
+from devicehands.infra.permissions import Behavior, PermissionResult
+from devicehands.transport.base import ShellResult
 
 
 def _ok(stdout: str = "", exit_code: int = 0) -> ShellResult:
@@ -119,7 +119,7 @@ async def test_root_refused_on_production_build() -> None:
 async def test_root_refusal_is_recognised_whatever_the_exit_status() -> None:
     """The adb client decides the exit status, not adbd; a refusal that comes
     back non-zero must still say ADB_ROOT_REFUSED with the `su 0` hint, not a
-    generic "check alb devices"."""
+    generic "check dhands devices"."""
     t = FakeAdb(replies={"root": _ok("adbd cannot run as root in production builds\n", 1)})
     r = await root(t, poll_sec=0)
     assert not r.ok and r.error is not None
@@ -404,7 +404,7 @@ async def test_remount_failure_is_reported_not_fixed() -> None:
     assert r.error.code == "ADB_REMOUNT_FAILED"
     assert "Read-only file system" in r.error.message
     assert "disable-verity" in r.error.suggestion
-    assert "alb adb root" in r.error.suggestion
+    assert "dhands adb root" in r.error.suggestion
     # Suggested in text only — never issued.
     assert ["disable-verity"] not in t.calls
     assert t.calls == [["remount"]]

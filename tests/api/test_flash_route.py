@@ -15,8 +15,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
-from alb.remote.flash import FlashEvent, FlashResult
+from devicehands.api.server import create_app
+from devicehands.remote.flash import FlashEvent, FlashResult
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +56,7 @@ class _FakeService:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, service: Any) -> Any:
-    import alb.api.flash_route as route
+    import devicehands.api.flash_route as route
 
     monkeypatch.setattr(route, "get_flash_service", lambda: service)
     return service
@@ -101,7 +101,7 @@ def test_progress_lines_precede_the_verdict(monkeypatch):
     assert resp.status_code == 400
 
     # now with a real workspace file
-    import alb.api.flash_route as route
+    import devicehands.api.flash_route as route
 
     monkeypatch.setattr(route, "_resolve_image", lambda rel: rel)
     with TestClient(create_app()) as c:
@@ -197,13 +197,13 @@ class _PlanService:
         self.runs: list = []
 
     def agent_view(self):
-        from alb.remote.flash_plan import AgentView
+        from devicehands.remote.flash_plan import AgentView
         from tests.remote.bench_tables import new_agent_ops
 
         return AgentView(caps=_PLAN_CAPS, partitions=self.partitions, ops=new_agent_ops())
 
     async def run_plan(self, plan, *, reboot_wait_s, uart_after_s=0.0, on_event=None):
-        from alb.remote.flash_plan import PlanResult
+        from devicehands.remote.flash_plan import PlanResult
 
         self.runs.append((plan, reboot_wait_s))
         self.uart_after = uart_after_s
@@ -216,7 +216,7 @@ class _PlanService:
 
 
 def _workspace_package() -> str:
-    from alb.infra.workspace import workspace_root
+    from devicehands.infra.workspace import workspace_root
 
     pkg = workspace_root() / "images" / "board-x"
     pkg.mkdir(parents=True)
@@ -294,7 +294,7 @@ def test_a_package_directory_linked_into_the_workspace_is_read(
     how it gets flashed without a copy per build. Before 2026-11-12 the
     manifest in such a directory was refused ("path escapes workspace")
     while the images next to it were read through links all along."""
-    from alb.infra.workspace import workspace_root
+    from devicehands.infra.workspace import workspace_root
 
     build_out = tmp_path / "build-tree" / "out"
     build_out.mkdir(parents=True)
@@ -326,7 +326,7 @@ def test_plan_run_refuses_a_plan_that_changed_since_it_was_shown(monkeypatch):
     rel = _workspace_package()
     with TestClient(create_app()) as c:
         shown = c.post("/api/flash/plan", json={"manifest": rel}).json()
-        from alb.infra.workspace import workspace_root
+        from devicehands.infra.workspace import workspace_root
 
         (workspace_root() / "images" / "board-x" / "boot.img").write_bytes(b"C" * 64)
         resp = c.post(
@@ -395,7 +395,7 @@ async def test_a_client_that_hangs_up_leaves_no_queue_reader_behind() -> None:
     import asyncio
     import gc
 
-    import alb.api.flash_route as route
+    import devicehands.api.flash_route as route
 
     loop = asyncio.get_running_loop()
     reports: list[str] = []

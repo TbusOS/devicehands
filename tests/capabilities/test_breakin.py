@@ -17,13 +17,13 @@ from typing import Any
 
 import pytest
 
-from alb.capabilities.breakin import (
+from devicehands.capabilities.breakin import (
     DEFAULT_EXPECT,
     break_in,
     parse_send_keys,
 )
-from alb.infra.permissions import PermissionResult
-from alb.transport.base import ShellResult
+from devicehands.infra.permissions import PermissionResult
+from devicehands.transport.base import ShellResult
 
 COUNTDOWN = b"Hit any key to stop autoboot:  3"
 

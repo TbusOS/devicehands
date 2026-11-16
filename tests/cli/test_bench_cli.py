@@ -1,12 +1,12 @@
-"""`alb bench` — rendering and confirmation (ADR-059)."""
+"""`dhands bench` — rendering and confirmation (ADR-059)."""
 
 from __future__ import annotations
 
 import pytest
 from typer.testing import CliRunner
 
-from alb.cli import bench_cli
-from alb.cli.main import app
+from devicehands.cli import bench_cli
+from devicehands.cli.main import app
 from tests.remote.bench_tables import new_agent_ops
 
 runner = CliRunner()
@@ -14,7 +14,7 @@ runner = CliRunner()
 
 @pytest.fixture
 def hub(monkeypatch):
-    """Stand-in for alb-api: the op table, and a recorder for runs."""
+    """Stand-in for dhands-hub: the op table, and a recorder for runs."""
     state: dict = {"runs": [], "final": {"ev": "done", "ok": True, "duration_s": 0.1}}
 
     def fetch_ops():

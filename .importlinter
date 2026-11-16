@@ -16,38 +16,38 @@
 ; error), so the allowlist cannot silently go stale.
 
 [importlinter]
-root_package = alb
+root_package = devicehands
 
 [importlinter:contract:layers]
 name = Dependencies flow downward only
 type = layers
 layers =
-    alb.cli | alb.mcp | alb.api | alb.skills
-    alb.capabilities | alb.agent
-    alb.transport
-    alb.remote
-    alb.infra
+    devicehands.cli | devicehands.mcp | devicehands.api | devicehands.skills
+    devicehands.capabilities | devicehands.agent
+    devicehands.transport
+    devicehands.remote
+    devicehands.infra
 unmatched_ignore_imports_alerting = error
 ignore_imports =
     ; --- lower layer imports upper layer (5 pairs) ---
     ; capabilities -> cli: doctor reuses probe helpers that live in the CLI package.
-    alb.capabilities.doctor -> alb.cli._probes
+    devicehands.capabilities.doctor -> devicehands.cli._probes
     ; remote -> transport: the port channel builds on the adb socket client (top-level import).
-    alb.remote.port_channel -> alb.transport.adb_socket
+    devicehands.remote.port_channel -> devicehands.transport.adb_socket
     ; infra -> remote: read the hub forwarder state in-process (lazy import in a function).
-    alb.infra.adb_endpoint -> alb.remote.forwarder
+    devicehands.infra.adb_endpoint -> devicehands.remote.forwarder
     ; infra -> remote: read the agent registry in-process (lazy import in a function).
-    alb.infra.adb_endpoint -> alb.remote.registry
+    devicehands.infra.adb_endpoint -> devicehands.remote.registry
     ; infra -> remote: read the serial forwarder snapshot in-process (lazy import in a function).
-    alb.infra.hub_serial -> alb.remote.forwarder
+    devicehands.infra.hub_serial -> devicehands.remote.forwarder
     ; --- same-layer interface packages import each other (5 pairs) ---
     ; api -> mcp: the HTTP tools route registers the MCP tool set.
-    alb.api.tools_route -> alb.mcp.tools
+    devicehands.api.tools_route -> devicehands.mcp.tools
     ; api -> mcp: chat route builds agent tools from the MCP executor (lazy import).
-    alb.api.chat_route -> alb.mcp.executor
+    devicehands.api.chat_route -> devicehands.mcp.executor
     ; cli -> mcp: chat command builds agent tools from the MCP executor (lazy import).
-    alb.cli.chat_cli -> alb.mcp.executor
+    devicehands.cli.chat_cli -> devicehands.mcp.executor
     ; cli -> mcp: CLI transport construction lives in the MCP package.
-    alb.cli.common -> alb.mcp.transport_factory
+    devicehands.cli.common -> devicehands.mcp.transport_factory
     ; cli -> skills: the skills command calls the skill generator.
-    alb.cli.skills_cli -> alb.skills.generator
+    devicehands.cli.skills_cli -> devicehands.skills.generator

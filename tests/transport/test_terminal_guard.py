@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from alb.transport.terminal_guard import (
+from devicehands.transport.terminal_guard import (
     DEFAULT_DANGER_RULES,
     DangerRule,
     TerminalGuard,
@@ -234,7 +234,7 @@ async def test_guard_allow_session_refuses_metachar_commands() -> None:
     for the session would let the user later mutate $X to bypass the
     deny list. respond_hitl must REFUSE to add metachar lines to
     `_session_allowed` (still approve once, just not for session)."""
-    from alb.transport.terminal_guard import (
+    from devicehands.transport.terminal_guard import (
         DangerRule,
         TerminalGuard,
         _has_shell_metachars,

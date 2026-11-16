@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from alb.api.server import create_app
+from devicehands.api.server import create_app
 
 
 @pytest.fixture
@@ -180,7 +180,7 @@ def test_scan_runs_in_worker_thread_l033(monkeypatch, client, workspace) -> None
         return await real_to_thread(fn, *args, **kwargs)
 
     monkeypatch.setattr(
-        "alb.api.sessions_route.asyncio.to_thread", tracking_to_thread
+        "devicehands.api.sessions_route.asyncio.to_thread", tracking_to_thread
     )
 
     _make_session(workspace, "20260511-thr", created="2026-05-11T00:00:00+00:00")
@@ -270,7 +270,7 @@ def test_detail_scan_runs_in_worker_thread_l033(monkeypatch, client, workspace) 
         return await real_to_thread(fn, *args, **kwargs)
 
     monkeypatch.setattr(
-        "alb.api.sessions_route.asyncio.to_thread", tracking_to_thread
+        "devicehands.api.sessions_route.asyncio.to_thread", tracking_to_thread
     )
 
     sid = "20260518-thread"
@@ -288,7 +288,7 @@ def test_title_is_the_first_user_line_and_source_is_reported(
     (sdir / "meta.json").write_text(json.dumps({**meta, "source": "cli"}))
     long_line = "抓 30 秒 logcat 看开机卡在哪 " + "x" * 100
     with (sdir / "messages.jsonl").open("w", encoding="utf-8") as f:
-        f.write(json.dumps({"role": "system", "content": "you are alb"}) + "\n")
+        f.write(json.dumps({"role": "system", "content": "you are dhands"}) + "\n")
         f.write("not json\n")
         f.write(json.dumps({"role": "user", "content": "   "}) + "\n")
         f.write(json.dumps({"role": "user", "content": long_line + "\nsecond line"}) + "\n")
@@ -307,7 +307,7 @@ def test_old_sessions_have_empty_title_and_source(client: TestClient, workspace:
 
 
 def test_new_sessions_record_their_source(workspace: Path) -> None:
-    from alb.agent.session import ChatSession
+    from devicehands.agent.session import ChatSession
 
     s = ChatSession.create(backend="ollama", model="m", source="web")
     assert json.loads(s.meta_file.read_text())["source"] == "web"

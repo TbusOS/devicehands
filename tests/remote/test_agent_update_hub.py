@@ -13,12 +13,12 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from alb.api.server import create_app
-from alb.cli import bench_cli
-from alb.cli.main import app
-from alb.remote import agent_update as au
-from alb.remote import protocol as p
-from alb.remote.flash import FlashEvent, FlashResult
+from devicehands.api.server import create_app
+from devicehands.cli import bench_cli
+from devicehands.cli.main import app
+from devicehands.remote import agent_update as au
+from devicehands.remote import protocol as p
+from devicehands.remote.flash import FlashEvent, FlashResult
 from tests.remote.bench_tables import new_agent_ops
 
 _SRC = Path(__file__).resolve().parents[2] / "clients" / "windows-agent"
@@ -242,7 +242,7 @@ async def test_a_lost_answer_then_a_rollback_is_reported_as_such(tmp_path):
 async def test_a_lost_answer_and_no_restart_says_so(tmp_path):
     r = await _run_lost(tmp_path, lambda _new: _Registry(_Conn("old")), reconnect_timeout_s=0.1)
     assert r.code == "AGENT_UPDATE_NO_RETURN"
-    assert "without an answer" in r.error and "alb bench log update" in r.error
+    assert "without an answer" in r.error and "dhands bench log update" in r.error
 
 
 async def test_a_job_failure_that_is_not_a_lost_answer_passes_through(tmp_path):
@@ -309,7 +309,7 @@ def test_an_old_agent_has_no_build(monkeypatch):
 
 
 def test_the_endpoint_streams_and_passes_the_config_text(monkeypatch):
-    import alb.api.bench_route as route
+    import devicehands.api.bench_route as route
 
     seen: dict[str, Any] = {}
 
@@ -329,7 +329,7 @@ def test_the_endpoint_streams_and_passes_the_config_text(monkeypatch):
 
 
 def test_ops_reports_which_build_this_hub_would_send(monkeypatch):
-    import alb.api.bench_route as route
+    import devicehands.api.bench_route as route
 
     class _S:
         def agent_summary(self):
@@ -339,7 +339,7 @@ def test_ops_reports_which_build_this_hub_would_send(monkeypatch):
             return True
 
         def partition_list(self):
-            from alb.remote.bench_board import PartitionList
+            from devicehands.remote.bench_board import PartitionList
 
             return PartitionList([])
 
@@ -409,7 +409,7 @@ def test_cli_explains_a_rollback(hub):
     }
     r = runner.invoke(app, ["bench", "agent-update", "--yes"])
     assert r.exit_code == 1
-    assert "AGENT_UPDATE_ROLLED_BACK" in r.output and "alb bench log update" in r.output
+    assert "AGENT_UPDATE_ROLLED_BACK" in r.output and "dhands bench log update" in r.output
 
 
 def test_ops_says_when_the_bench_runs_an_older_copy(hub):
@@ -422,4 +422,4 @@ def test_ops_says_when_the_bench_runs_an_older_copy(hub):
     }
     r = runner.invoke(app, ["bench", "ops"])
     assert r.exit_code == 0, r.output
-    assert "this hub has new" in r.output and "alb bench agent-update" in r.output
+    assert "this hub has new" in r.output and "dhands bench agent-update" in r.output

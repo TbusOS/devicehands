@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from alb.capabilities.metrics import (
+from devicehands.capabilities.metrics import (
     MetricSample,
     MetricSampler,
     MetricsStreamer,
@@ -26,7 +26,7 @@ from alb.capabilities.metrics import (
     get_streamer,
     shutdown_all_streamers,
 )
-from alb.transport.base import ShellResult
+from devicehands.transport.base import ShellResult
 
 
 # ─── Section splitter ─────────────────────────────────────────────
@@ -303,7 +303,7 @@ async def test_sampler_second_call_computes_deltas(monkeypatch: pytest.MonkeyPat
 
     # Pin monotonic so elapsed_s == 1.0 on the second call.
     times = iter([1000.0, 1001.0])
-    monkeypatch.setattr("alb.capabilities.metrics.monotonic", lambda: next(times))
+    monkeypatch.setattr("devicehands.capabilities.metrics.monotonic", lambda: next(times))
 
     r1 = await sampler.sample()
     r2 = await sampler.sample()

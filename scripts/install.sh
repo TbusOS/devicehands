@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# android-llm-bridge · install script
+# devicehands · install script
 #
 # Install the project into a user-local, isolated Python environment.
 # Does NOT require root. Does NOT touch the system Python (/usr/bin/python3).
@@ -42,7 +42,7 @@ usage() {
     cat <<USAGE
 Usage: $(basename "$0") [options]
 
-Install android-llm-bridge into a user-local Python 3.11+ environment.
+Install devicehands into a user-local Python 3.11+ environment.
 Requires no root.
 
 Options:
@@ -66,7 +66,7 @@ What this script does (nothing outside your home directory):
      download one into ~/.local/share/uv/python/.
   4. Run 'uv sync' in the project repo to create .venv/ with all deps.
   5. Run a pytest smoke test (tests/test_smoke.py).
-  6. Check the outside tools pip cannot install ('alb setup deps --install'):
+  6. Check the outside tools pip cannot install ('dhands setup deps --install'):
      adb / fastboot are downloaded into ~/.local/share/alb and linked into
      ~/.local/bin when missing; tools that need sudo (ssh, rsync, picocom,
      socat) or another machine (Ollama) are listed with how to install them.
@@ -102,7 +102,7 @@ fi
 
 if [[ ! -f "${REPO_ROOT}/pyproject.toml" ]]; then
     log_err "pyproject.toml not found at ${REPO_ROOT}."
-    log_err "Is ${SCRIPT_DIR} really a scripts/ dir inside the android-llm-bridge repo?"
+    log_err "Is ${SCRIPT_DIR} really a scripts/ dir inside the devicehands repo?"
     exit 1
 fi
 
@@ -114,7 +114,7 @@ echo
 # ─── Step 1 · uv ─────────────────────────────────────────────────
 # uv is the installer the rest of this script relies on: it fetches a
 # Python 3.11 without root, builds .venv/ from uv.lock (the exact package
-# versions the tests ran with) and runs alb inside it. It is one prebuilt
+# versions the tests ran with) and runs dhands inside it. It is one prebuilt
 # program -- nothing gets compiled. Tried in this order:
 #   1. a uv that is already installed
 #   2. the official installer from astral.sh (it fetches the binary from
@@ -297,8 +297,8 @@ if [[ ${MODIFY_PATH} -eq 1 ]]; then
     if [[ -n "${ZSH_VERSION:-}" || "${SHELL:-}" == */zsh ]]; then
         RC_FILE="${HOME}/.zshrc"
     fi
-    LINE='export PATH="$HOME/.local/bin:$PATH"   # added by android-llm-bridge installer'
-    if grep -qF 'android-llm-bridge installer' "${RC_FILE}" 2>/dev/null; then
+    LINE='export PATH="$HOME/.local/bin:$PATH"   # added by devicehands installer'
+    if grep -qF 'devicehands installer' "${RC_FILE}" 2>/dev/null; then
         log_ok "PATH entry already present in ${RC_FILE}"
     else
         touch "${RC_FILE}"
@@ -309,7 +309,7 @@ if [[ ${MODIFY_PATH} -eq 1 ]]; then
 fi
 
 # ─── Step 3 · Python ─────────────────────────────────────────────
-# alb needs Python >= 3.11 (pyproject.toml). Use one this machine already
+# dhands needs Python >= 3.11 (pyproject.toml). Use one this machine already
 # has (an earlier uv download, or e.g. /usr/bin/python3.11); download only
 # when there is none. --system skips the project's own .venv.
 PY_FOUND="$("${UV_BIN}" python find --system "${PYTHON_VERSION}" 2>/dev/null || true)"
@@ -320,7 +320,7 @@ else
     if ! "${UV_BIN}" python install "${PYTHON_VERSION}" 2>&1 | tee "${UV_TMP}/python.log" | indent; then
         log_err "Could not download Python ${PYTHON_VERSION}."
         log_err "Why: $(last_line "${UV_TMP}/python.log")"
-        log_err "alb needs Python ${PYTHON_VERSION}+ and this machine has none. Any one of these fixes it, then re-run ./scripts/install.sh:"
+        log_err "dhands needs Python ${PYTHON_VERSION}+ and this machine has none. Any one of these fixes it, then re-run ./scripts/install.sh:"
         log_err "  1. Behind a proxy:"
         log_err "       export HTTPS_PROXY=http://<proxy>:<port> HTTP_PROXY=http://<proxy>:<port>"
         log_err "  2. github.com reachable only through a mirror:"
@@ -371,19 +371,19 @@ fi
 DEPS_ARGS=(--install)
 [[ ${WITH_DEV} -eq 1 ]] && DEPS_ARGS+=(--dev)
 [[ ${ASSUME_YES} -eq 1 ]] && DEPS_ARGS+=(--yes)
-log_info "Checking outside tools: alb setup deps ${DEPS_ARGS[*]}"
+log_info "Checking outside tools: dhands setup deps ${DEPS_ARGS[*]}"
 DEPS_OK=1
-"${UV_BIN}" run --project "${REPO_ROOT}" alb setup deps "${DEPS_ARGS[@]}" || DEPS_OK=0
+"${UV_BIN}" run --project "${REPO_ROOT}" dhands setup deps "${DEPS_ARGS[@]}" || DEPS_OK=0
 
 # ─── Summary ─────────────────────────────────────────────────────
 echo
 if [[ ${DEPS_OK} -eq 1 ]]; then
-    log_ok "android-llm-bridge installed successfully."
+    log_ok "devicehands installed successfully."
 else
-    log_warn "android-llm-bridge's Python part is installed, but a tool it needs is missing."
+    log_warn "devicehands's Python part is installed, but a tool it needs is missing."
     log_warn "The list above says how to install each one. A download that broke off often"
     log_warn "works on the next try; to try the installs again, or to check after fixing by hand:"
-    log_warn "  cd ${REPO_ROOT} && uv run alb setup deps --install$( [[ ${WITH_DEV} -eq 1 ]] && echo ' --dev')"
+    log_warn "  cd ${REPO_ROOT} && uv run dhands setup deps --install$( [[ ${WITH_DEV} -eq 1 ]] && echo ' --dev')"
 fi
 echo
 cat <<NEXT
@@ -394,13 +394,13 @@ ${GREEN}Next steps:${NC}
 
   ${DIM}# Try it out:${NC}
   cd ${REPO_ROOT}
-  uv run alb describe                  # list all transports + capabilities
-  uv run alb status                    # health check
-  uv run alb devices                   # list connected devices (needs transport setup)
+  uv run dhands describe                  # list all transports + capabilities
+  uv run dhands status                    # health check
+  uv run dhands devices                   # list connected devices (needs transport setup)
 
   ${DIM}# Use from Claude Code or Codex CLI (registers the MCP server once):${NC}
-  claude mcp add alb -- uv run --project "${REPO_ROOT}" alb-mcp
-  codex mcp add alb -- uv run --project "${REPO_ROOT}" alb-mcp
+  claude mcp add dhands -- uv run --project "${REPO_ROOT}" dhands-mcp
+  codex mcp add dhands -- uv run --project "${REPO_ROOT}" dhands-mcp
 
 ${DIM}Docs:      ${REPO_ROOT}/docs/
 Uninstall: ${REPO_ROOT}/scripts/uninstall.sh${NC}
