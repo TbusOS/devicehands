@@ -5,13 +5,15 @@ M2 beta — ships `GET /health` and `POST /chat` (non-streaming).
 Streaming (`GET /chat/ws`), OpenAPI fine-tuning, and auth come in M3.
 
 Usage:
-    dhands-hub                       # defaults: 0.0.0.0:8765
-    dhands-hub --port 9000           # (via env DHANDS_API_PORT)
+    dhands-hub                       # start the server, defaults: 0.0.0.0:8765
+    DHANDS_API_PORT=9000 dhands-hub  # listen on another port
+    dhands-hub --help | --version    # print and exit, server not started
     uvicorn devicehands.api.server:app    # bring your own ASGI runner
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
 import os
@@ -53,6 +55,9 @@ from devicehands.api.uart_route import router as uart_router
 from devicehands.api.uart_stream_route import router as uart_stream_router
 from devicehands.api.ui_static import mount_ui
 from devicehands.infra.env_loader import load_env_files
+
+# Port dhands-hub listens on when DHANDS_API_PORT is not set.
+DEFAULT_API_PORT = 8765
 
 # Load .env.local / .env so DHANDS_* values reach FastAPI request handlers.
 load_env_files()
@@ -217,8 +222,41 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-def main() -> None:
-    """Entry point referenced by pyproject.toml `[project.scripts]`."""
+_HELP_EPILOG = """\
+Running dhands-hub with no arguments starts the HTTP + WebSocket server
+in the foreground (web UI, REST API, bench agent endpoint). Press Ctrl-C
+to stop it. Settings come from environment variables (also read from
+.env.local / .env in the current directory):
+
+  DHANDS_API_HOST      address to listen on (default 0.0.0.0, all interfaces)
+  DHANDS_API_PORT      port to listen on (default {port})
+  DHANDS_AGENT_TOKEN   token a bench agent must send (default: not checked)
+  DHANDS_WORKSPACE     data directory for logs, sessions, bench state
+  DHANDS_CONFIG        path of config.toml
+  DHANDS_WS_DEFLATE    1 = compress WebSocket frames (default off)
+  DHANDS_LOG_LEVEL     log level name or number (default INFO)
+
+See docs/configuration.md for the full list.
+"""
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="dhands-hub",
+        description="DeviceHands hub: serve the web UI, REST API and the bench agent endpoint.",
+        epilog=_HELP_EPILOG.format(port=DEFAULT_API_PORT),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"dhands-hub {__version__}",
+    )
+    return parser
+
+
+def _serve(host: str, port: int, deflate: bool) -> None:
+    """Start uvicorn in the foreground. Split out so tests can replace it."""
     try:
         import uvicorn
     except ImportError:
@@ -227,9 +265,26 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+    uvicorn.run(
+        "devicehands.api.server:app",
+        host=host,
+        port=port,
+        reload=False,
+        ws_per_message_deflate=deflate,
+    )
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Entry point referenced by pyproject.toml `[project.scripts]`.
+
+    Arguments are parsed before anything else: `--help` / `--version`
+    print and exit 0, an unknown argument exits 2. Neither starts the
+    server. With no arguments the server starts as before.
+    """
+    _build_arg_parser().parse_args(sys.argv[1:] if argv is None else argv)
 
     host = os.environ.get("DHANDS_API_HOST", "0.0.0.0")
-    port = int(os.environ.get("DHANDS_API_PORT", "8765"))
+    port = int(os.environ.get("DHANDS_API_PORT", str(DEFAULT_API_PORT)))
     if host == "0.0.0.0":
         # Security audit 2026-05-02 finding MID 2: dhands-hub binds all
         # interfaces by default + has no auth. Anyone with network
@@ -251,13 +306,7 @@ def main() -> None:
     # so the flag reaches the app it serves. Tests build their own apps
     # with create_app() and never warm a model.
     app.state.warm_model = True
-    uvicorn.run(
-        "devicehands.api.server:app",
-        host=host,
-        port=port,
-        reload=False,
-        ws_per_message_deflate=deflate,
-    )
+    _serve(host, port, deflate)
 
 
 if __name__ == "__main__":

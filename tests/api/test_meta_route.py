@@ -156,7 +156,8 @@ def test_alb_api_main_does_not_override_uvicorn_ws_ping(monkeypatch) -> None:
 
     from devicehands.api.server import main
 
-    main()
+    # [] = no command-line arguments; main() would otherwise read pytest's argv.
+    main([])
 
     # If ANY ws_ping_* override appears here, uvicorn's defaults are
     # being clobbered. Default = 20.0s for both.
@@ -211,7 +212,8 @@ def _run_main(monkeypatch, deflate_env: str | None) -> dict:
         monkeypatch.setenv("DHANDS_WS_DEFLATE", deflate_env)
     from devicehands.api.server import main
 
-    main()
+    # [] = no command-line arguments; main() would otherwise read pytest's argv.
+    main([])
     return captured
 
 
