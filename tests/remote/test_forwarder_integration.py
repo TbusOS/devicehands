@@ -147,6 +147,29 @@ async def test_detach_closes_listener_no_eaddrinuse():
             await server.wait_closed()
 
 
+async def test_detach_returns_while_a_client_is_still_connected():
+    """An adb server keeps its connection to the forwarder open. From Python
+    3.12 Server.wait_closed() waits for that connection, so detach() (the
+    hub's shutdown) hung until the client left by itself."""
+    server, adb_port = await _start_echo_server()
+    fwd = AdbForwarder(lambda: _FakeAgent("127.0.0.1", adb_port), port=0)
+    await fwd.attach()
+    reader, writer = await asyncio.open_connection("127.0.0.1", fwd.port)
+    try:
+        writer.write(b"hi")
+        await writer.drain()
+        assert await asyncio.wait_for(reader.readexactly(2), timeout=5) == b"hi"
+        await asyncio.wait_for(fwd.detach(), timeout=5)
+        assert await asyncio.wait_for(reader.read(), timeout=5) == b""
+    finally:
+        writer.close()
+        with contextlib.suppress(Exception):
+            await writer.wait_closed()
+        server.close()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(server.wait_closed(), timeout=5)
+
+
 async def test_attach_is_idempotent():
     agent = _FakeAgent("127.0.0.1", 1)
     fwd = AdbForwarder(lambda: agent, port=0)
