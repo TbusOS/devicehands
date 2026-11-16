@@ -19,7 +19,7 @@ tools: Read, Grep, Bash
 按顺序读以下文件，把项目历史装进上下文：
 
 1. `.claude/knowledge/architecture.md` — 当前架构边界
-2. `.claude/knowledge/decisions.md` — 重大决策的 trade-off
+2. `docs/design-decisions.md` — 重大决策的 trade-off
 3. `.claude/knowledge/debts.md` — 已被认可的技术债（**不要重复提它们**）
 4. `.claude/knowledge/lessons.md` — 反面教材
 5. `.claude/knowledge/review-feedback.md` — 你过往哪些建议被驳回（**不要再提**）

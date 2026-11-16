@@ -35,7 +35,7 @@ argument-hint: [评审对象描述：sketch 路径 / commit / 模块名]
    - 是否把"建议加入 knowledge" 草案落地到 `.claude/knowledge/` 文件？
 
 5. **落地知识更新**（用户同意后）：
-   - 更新 `.claude/knowledge/decisions.md` / `debts.md` / `lessons.md`
+   - 更新 `docs/design-decisions.md` / `debts.md` / `lessons.md`
    - 把驳回的建议写到 `.claude/knowledge/review-feedback.md`
 
 ## 不要做

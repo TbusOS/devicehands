@@ -21,7 +21,7 @@
  *
  * Why DashboardPage opens TWO instances of this hook (one with
  * includeMetrics=false for the timeline, one with =true for the
- * LiveSession spark): see ADR-022 in .claude/knowledge/decisions.md —
+ * LiveSession spark): see ADR-022 in docs/design-decisions.md —
  * timeline's pause/resume must NOT freeze the metric stream.
  *
  * Hook contract: options must contain only **primitive** values

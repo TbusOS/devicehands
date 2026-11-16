@@ -22,7 +22,7 @@ tools: Read, Grep
 ## 必做的预读
 
 1. `.claude/knowledge/lessons.md` — React UI baseline 规则全文
-2. `.claude/knowledge/decisions.md` — 是否有 mockup vNN 切换决策
+2. `docs/design-decisions.md` — 是否有 mockup vNN 切换决策
 3. `.claude/knowledge/review-feedback.md` — 过往被驳回的建议
 4. 当前最新 mockup：`docs/webui-preview-v2.html`（如有 v3+ 用最新）
 5. 评审对象（被改的 React 文件）

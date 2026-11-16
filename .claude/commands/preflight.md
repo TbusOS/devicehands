@@ -103,7 +103,7 @@ agents 同时跑（一条消息含 7 个 Agent tool call）：
 
 ## knowledge 更新建议
 - `.claude/knowledge/architecture.md` 是否需要更新：<是 / 否，理由>
-- `.claude/knowledge/decisions.md`：<新 ADR 草案>
+- `docs/design-decisions.md`：<新 ADR 草案>
 - `.claude/knowledge/debts.md`：<新债条目>
 - `.claude/knowledge/lessons.md`：<新教训>
 - `.claude/knowledge/review-feedback.md`：<驳回条目自动写入>

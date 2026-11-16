@@ -60,6 +60,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: uv run lint-imports
 
+      - name: ADR reference check
+        # Every ADR-NNN mentioned in the repository must have an entry in
+        # docs/design-decisions.md.
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: uv run python scripts/check_adr_refs.py
+
       - name: Unit tests
         # TEMPORARY: macOS and Windows have never run the test suite, so test
         # failures there do not fail the job yet. Tighten this (remove

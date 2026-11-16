@@ -16,7 +16,7 @@ tools: Read, Grep, Bash
 
 1. `CLAUDE.md`（项目根）—— 禁用词清单 / 中立性规则（**这是硬性 ABSOLUTE**）
 2. `.claude/knowledge/lessons.md` —— 历史敏感词翻车记录
-3. `.claude/knowledge/decisions.md` —— 是否有"为什么用 dangerouslySetInnerHTML"等 ADR
+3. `docs/design-decisions.md` —— 是否有"为什么用 dangerouslySetInnerHTML"等 ADR
 4. `.claude/knowledge/review-feedback.md` —— 过往被驳回的安全建议
 
 ## 自动 grep checklist · 来自历史 lesson · 每次必跑

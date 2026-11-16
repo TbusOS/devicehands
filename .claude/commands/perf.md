@@ -41,7 +41,7 @@ argument-hint: [范围：commit / 模块 / 全局]
 
 5. **更新 knowledge**（如果产生新发现）：
    - 新性能债 → `.claude/knowledge/debts.md`
-   - "为什么不优化 X" 的决策 → `.claude/knowledge/decisions.md`
+   - "为什么不优化 X" 的决策 → `docs/design-decisions.md`
 
 ## 不要做
 

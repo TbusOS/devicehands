@@ -16,7 +16,7 @@ tools: Read, Grep, Bash, WebFetch
 ## 必做的预读
 
 1. `.claude/knowledge/architecture.md` — 当前架构边界（核心）
-2. `.claude/knowledge/decisions.md` — 历史 ADR + trade-off
+2. `docs/design-decisions.md` — 历史 ADR + trade-off
 3. `.claude/knowledge/debts.md` — 已知技术债
 4. `.claude/knowledge/lessons.md` — 反面教材
 5. `.claude/knowledge/review-feedback.md` — 你过往被驳回的建议

@@ -2,7 +2,7 @@
 title: 关键设计决策记录 (ADR)
 type: design-doc
 created: 2026-04-15
-updated: 2026-04-16
+updated: 2026-11-16
 owner: sky
 tags: [adr, decisions, rationale]
 ---
@@ -11,10 +11,97 @@ tags: [adr, decisions, rationale]
 
 > 每条决策回答：**什么 / 为什么 / 考虑过什么替代 / 代价**。
 > 参考 [ADR 模式](https://adr.github.io/)，但本文档是聚合版，单条不 break out。
+> 2026-11-16 起,原 `.claude/knowledge/decisions.md` 里的 ADR-018~070 原文并入本文,编号不变;两边同号的 001、007、016、017 处理方式见下面的索引。
+
+---
+
+## 索引
+
+001~017 原本就在本文;018~070 原在 `.claude/knowledge/decisions.md`,2026-11-16 原文搬入本文;071 是新立的。
+
+- 「状态」照抄各条原文,太长的截取开头,「…」表示后面还有;原文没写状态的写「未标注」。
+- 「后续」只记 ADR-071 的取代关系。条目之间的其他修订关系(例如 043 修订 041)见各条原文。
+- 两份文件里同号的 001、007、016、017:007、016、017 以本文条目为正文,原知识库的简版附在该条末尾;原知识库的 001 讲的是 Transport 抽象,与本文 004 是同一件事,附在 004 末尾。
+
+| 编号 | 标题 | 状态(原文) | 一句话 | 后续 |
+|---|---|---|---|---|
+| 001 | 核心语言选 Python 3.11+ | 未标注 | 主程序用 Python 3.11+。 | 部分被 ADR-071 取代 |
+| 002 | 包管理用 uv（不用 pip / poetry） | 未标注 | 依赖、虚拟环境和运行入口交给 uv 管。 |  |
+| 003 | 架构三层：Interface / Capability / Transport | 未标注 | 接入层只做薄壳,业务集中在能力层,底层走传输抽象。 | 部分被 ADR-071 取代 |
+| 004 | Transport 抽象层作为架构核心 | 未标注 | 能力层操作设备一律经 `Transport` 抽象类,不直接调 adb、ssh、串口命令。末尾附原知识库里讲同一件事的简版(原编号 001)。 | 部分被 ADR-071 取代 |
+| 005 | 第一版方案选 A + B + C + G | 未标注 | 第一版只做 adb USB、adb WiFi、板子 sshd、UART 四种连接。 | 部分被 ADR-071 取代 |
+| 006 | 权限系统作为第一版必做（借鉴 Claude Code） | 未标注 | 第一版就内置权限系统:黑名单、工具级检查、多层策略。 | 部分被 ADR-071 取代 |
+| 007 | 长日志用"workspace 分层 + LLM 换页"（借鉴 MemGPT） | 未标注 | 长日志落到工作区,只把路径和摘要交给模型,模型按需搜索或翻页。末尾附原知识库简版。 |  |
+| 008 | 结构化 Result 替代异常（LLM-first） | 未标注 | 工具和能力统一返回结构化 `Result`,不抛未包装的异常。 |  |
+| 009 | MCP 作为 LLM 接入标准（不自造协议） | 未标注 | 模型接入用 MCP,不自造协议;Web 接口另外保留。 |  |
+| 010 | 产物路径规范化（`workspace/devices/<serial>/...`） | 未标注 | 工具产生的文件统一放在 `workspace/devices/<serial>/...` 下。 | 部分被 ADR-071 取代 |
+| 011 | SKILL.md 自动生成（借鉴 CLI-Anything） | 未标注 | `SKILL.md` 从命令树和 MCP 工具定义自动生成。 |  |
+| 012 | 元数据驱动注册表（借鉴 claude-code2） | 未标注 | 传输、能力、错误码用集中的元数据表登记。 |  |
+| 013 | 从反面定义 LLM 规则（借鉴 my-claude-cli） | 未标注 | `llm/CLAUDE.md` 用「不应该做什么」的写法给模型定规则。 |  |
+| 014 | Web UI 和 MCP/CLI 分工 | 未标注 | 命令行和 MCP 给模型用,Web 界面给人看,Web 接口给外部集成。 |  |
+| 015 | Undo / 快照机制（M2） | 未标注 | 撤销和快照放到 M2,M1 只在传输接口留钩子。 |  |
+| 016 | Agent 层：可插拔 LLM Backend + 本地小模型支持（架构预留） | M1 预留架构;实现分 M2 / M3 两阶段 | 加 agent 层和 `LLMBackend` 抽象类,让本地小模型也能做工具路由。末尾附原知识库简版。 |  |
+| 017 | Web Tier 1 技术栈、本地 LLM、离线部署 | M2.5 起步;持续到 M3 | 前端用 React、Vite、TypeScript、TanStack,资源全部本地化,离线部署是正式形态。末尾附原知识库简版。 | 部分被 ADR-071 取代 |
+| 018 | audit 升级为事件总线（C 档重构） | accepted;replaces "GET /audit 扫盘 + 10s 轮询" | 审计从事后扫文件加轮询,改成事件总线推送。 |  |
+| 019 | token 事件不广播 | accepted | 聊天流里的 token 事件不进事件总线。 |  |
+| 020 | agents 团队工程方法论（本次） | accepted | 用独立的评审 agents 做代码、架构、性能、界面评审。 |  |
+| 021 | token 不广播但聚合 tps_sample（F.1 实施时定） | accepted;extends ADR-019 | token 仍不广播,但聚合成 `tps_sample` 事件供吞吐图使用。 |  |
+| 022 | Dashboard 同页双 WS 实例（F.5 实施时定） | accepted;reverses ADR-018 备选 (c) under ADR-021 conditions | Dashboard 同一页开两个 WS 实例,业务流和指标流分开。 |  |
+| 023 | SPA fallback 跨部署 surface 异构实现 | accepted (2026-04-29,…) | SPA 深链回退在不同部署形态上各自实现。 |  |
+| 024 | LLMBackend ABC capability 改用 class attribute（amends ADR-016） | accepted, supersedes ABC default-method-with-sentinel-flag pattern | `LLMBackend` 的能力声明改用类属性,不再靠返回值里的标记字段。 |  |
+| 025 | per-backend 并行 useQueries · Dashboard 健康探测 polling 分层 | accepted(描述当前实现,未来 N≥6 时重审) | 每个后端的健康探测各发一路请求并行跑,轮询频率分层。 |  |
+| 026 | (seed) backend 配置边界：CLI flag 还是 config 文件 | seed(…) | 后端配置放命令行参数还是配置文件,待定。 |  |
+| 027 | BackendSpec.runs_on_cpu → host_compute_type 三态 | ✅ accepted 2026-05-02(…) | `runs_on_cpu` 布尔值改成三态的 `host_compute_type`。 |  |
+| 028 | device 信息分层 · dashboard summary vs inspect details | ✅ accepted 2026-05-01(…) | 设备信息分两层:看板放摘要,详情页放全部字段。 |  |
+| 029 | device 信息刷新策略 · auto polling vs button vs WS push | ✅ accepted 2026-05-01(…) | 设备信息每 30 秒自动刷新,另有手动刷新按钮。 |  |
+| 030 | (seed) stream hook 抽象时机评估（useUart/Logcat/Terminal Session） | seed(…) | 三个流式 hook 什么时候抽成公共抽象,待定。 |  |
+| 031 | (seed) filesync HITL 写在 endpoint 层 vs PermissionEngine | seed(…) | 推送到敏感路径的确认先写在接口层,等权限引擎扩展后再下沉。 | 被 ADR-071 整条取代 |
+| 032 | Inspect 8 tabs 走 unmount/remount，不做 keepAlive | accepted(perf-audit 2026-05-02 显式 trade-off) | 详情页 8 个页签切换时卸载重建,不做保活。 |  |
+| 033 | (seed) transport capability 用 ABC class-attr 标，不 hasattr 检测 | seed(…) | 传输的能力暂用 `hasattr` 检测,出现第二个实现时改成抽象类上的类属性。 | 部分被 ADR-071 取代 |
+| 034 | (seed) alb-api 默认 bind 127.0.0.1，0.0.0.0 须显式开启 | seed(…) | alb-api 默认只监听 127.0.0.1,监听全部网卡要显式打开。 |  |
+| 035 | LlamaCpp 嵌入式 backend deferred · 改 step 顺序 step 2/3 互换 | ✅ accepted 2026-05-02(M3 ship 决策) | 嵌入式 llama.cpp 后端推迟,步骤顺序调换。 |  |
+| 036 | 流式文件传输用 WS 而非 SSE / Job-Model · MID-6 协议形态拍板 | ✅ accepted 2026-05-06(…) | 文件传输的进度和取消走 WebSocket,不用 SSE 或作业模型。 |  |
+| 037 | (seed) transport 配置常量（retry / timeout / backoff）用 class attribute，不 module-level | seed(…) | 传输的重试、超时、退避常量写成类属性,不写成模块级常量。 |  |
+| 038 | 每个 feature page / inspect sub-tab 配 use<X>.ts hook · 数据层与 view 强制分层 | formal · … | 每个功能页和详情子页签配一个 `use<X>.ts` hook,数据层和视图分开。 |  |
+| 039 | (seed) 危险 / 长操作通用 UX hook 三件套 · useArmedAction + useElapsedSeconds + useDeviceReset | seed · #1 #2 已实现 · #3 待抽(…) | 危险或耗时操作的交互用三个通用 hook 表达。 |  |
+| 040 | vitest config 和 vite config 拆双文件 · 实测真因 + 维护契约 | accepted · … | vitest 和 vite 的配置拆成两个文件。 |  |
+| 041 | hook 组织规则 · lib/hooks/ vs lib/ vs features/<x>/ | accepted — … | hook 按 `lib/hooks/`、`lib/`、`features/<x>/` 三处分放。 |  |
+| 042 | (空号) | — | 空号,未使用。 | |
+| 043 | wrapper hook 抽取临界 = N ≥ 2 consumer · 否则 useMemo inline | accepted · … · 修订 ADR-041 | 有两个及以上使用方才抽包装 hook,否则就地 `useMemo`。 |  |
+| 044 | `lib/hooks/*` 复合 viewModel 返回必须 useMemo 稳定 reference | accepted · … | `lib/hooks/*` 返回的组合对象必须用 `useMemo` 保持引用稳定。 |  |
+| 045 | `lib/ws.ts` shareKey opt-in pool + late-joiner microtask replay | accepted · 关 DEBT-047 (5/26 AP-1) | `lib/ws.ts` 按 shareKey 共用连接,后加入的订阅方补发最近的数据。 |  |
+| 046 | `lib/ws.ts` pool view.send() epoch-scoped payload dedup | accepted · … | 共用连接的 `send()` 在同一个连接周期内去重。 |  |
+| 047 | `lib/ws.ts` Pool-level Options · first-caller-wins 语义 | accepted · … | 共用连接的选项以第一个调用方为准。 |  |
+| 048 | WS 消费者边界：何时走 `lib/ws.ts`、何时允许 raw WebSocket（round11 AR9-4） | 未标注 | 规定哪些 WS 消费者必须走 `lib/ws.ts`,哪些可以直接用 WebSocket。 |  |
+| 049 | metrics 物化读模型：event bus 双消费者 + MetricStore 投影 + per-backend 吞吐 | 未标注 | 指标改成事件总线上的物化读模型,按后端统计吞吐。 |  |
+| 050 | 远程设备接入：agent 出站拨回家 + 信令/数据面分离 + per-channel 独立连接 | 未标注 | 远程板子由台架 agent 主动拨回 hub,信令和数据分开,每个通道一条连接。 | 部分被 ADR-071 取代 |
+| 051 | alb-api 为设备流量唯一中枢进程：OS 级 loopback forwarder + MCP 新依赖方向 | 未标注 | alb-api 是设备流量唯一的中枢进程,转发器是系统级的本机监听端口。 | 部分被 ADR-071 取代 |
+| 052 | 反向代理 channel 的 retry 角色：adb=daemon 失败即报 / serial=独占网关 bounded retry（L-034 落地） | 未标注 | 反向代理通道按类型定重试:adb 失败即报,串口有限次重试。 |  |
+| 053 | data-plane dial-back 鉴权用 per-channel secret，不用 agent_id-on-query（DEBT-084 cid-binding 半落地） | 未标注 | 数据通道拨回时用每个通道各自的密钥鉴权。 |  |
+| 054 | 独占串口的反向代理必须共享一条 channel + fan-out，不是"每条本地连接一条 channel"（issue #4 根因） | 未标注 | 独占的串口只开一条通道,多个本地连接共享。 |  |
+| 055 | dial-back 凭证走 header 不走 query，外加 access log 兜底脱敏 | 已实现 · 2026-08-07 | 拨回凭证放在请求头,不放在查询串;访问日志再做一次脱敏。 |  |
+| 056 | fastboot 走"作业通道"而不是第三个 forwarder;烧录与 UART 编进同一条时间轴 | 设计已定 · 2026-08-07 · 实现分期(见末尾) | fastboot 走作业通道;烧录和串口记在同一条时间轴上。 |  |
+| 057 | adb server 端点由代码解析,不由 shell 携带 | 已落地 | adb server 的地址由代码按固定四层解析,不靠 shell 里的环境变量。 | 部分被 ADR-071 取代 |
+| 058 | 整包烧录按清单跑:整份先查完再动手,确认的是哪份就跑哪份 | 已落地(…真烧未跑) | 整包烧录按清单执行:先整份检查,确认的是哪份就执行哪份。 |  |
+| 059 | Windows 侧的操作收成一张操作表:加一个操作只登记一行 | 设计待确认 | 台架侧的操作收成一张操作表,加一个操作只登记一行。 | 部分被 ADR-071 取代 |
+| 060 | hub 推送新版台架 agent:Windows 上自己换版本,连不上就退回旧版 | 已实现,… | hub 给台架推送新版 agent,新版连不回来就退回旧版。 |  |
+| 061 | hub 经 ssh 拉起台架 agent:`alb bench agent-start` | 已实现,… | hub 经 ssh 启动台架上的 agent。 |  |
+| 062 | hub 的 WebSocket 默认不压缩:`ALB_WS_DEFLATE=1` 才打开 | 已实现 | hub 的 WebSocket 默认不压缩。 |  |
+| 063 | 台架板子表:串口指向哪块板,hub 运行中切换 | 第一期(串口)、第二期(…)都已实现 | 台架板子表:串口指向哪块板,hub 运行中可以切换。 |  |
+| 064 | Web 界面 v3:改用 Material 3,按「板子」组织页面 | 已实现(分支 feat/webui-v3-m3) | Web 界面改用 Material 3,按板子组织页面。 |  |
+| 065 | hub 的 WebSocket 允许多个协程同时等发送缓冲:替换 websockets 旧版的 `_drain_helper` | 已实现 | hub 的 WebSocket 允许多个协程同时等发送缓冲。 |  |
+| 066 | 高通 9008(EDL)烧录做进台架 agent:三个操作,包按 `edl_root` 下的相对目录点名 | 已实现(…) | 9008 紧急下载(EDL)烧录做进台架 agent。 |  |
+| 067 | 网页助手:工具结果交给模型前截短,页面照样看全文 | 已实现 · 2026-11-05 | 网页助手把工具结果截短后再交给模型,页面上仍显示全文。 |  |
+| 068 | 台架 agent 透传厂商烧录工具:台架上登记过的工具,参数原样转发 | 已实现(…) | 台架 agent 透传登记过的厂商烧录工具,参数原样转发。 | 部分被 ADR-071 取代 |
+| 069 | 多板多口:一张板子表,USB 和串口按「板子 + 口名」找;烧录在插板子的电脑上跑登记的工具 | 第 2 版(…),2026-11-12 user 批准(…);A0 已实现 | 一块板多个口:按「板子 + 口名」寻址,烧录在插板子的电脑上执行。 | 部分被 ADR-071 取代 |
+| 070 | 去掉按板分区名单:写哪些分区以厂商烧录清单为准,只烧几个分区用 `--only` | 已实现(公开仓,待部署) | 去掉按板的分区名单,写哪些分区以厂商烧录清单为准。 |  |
+| 071 | DeviceHands 框架设计取代的旧决定 | 已定 · 2026-11-16 | 列出新框架设计取代的旧条目,并指向新设计。 |  |
 
 ---
 
 ## ADR-001 · 核心语言选 Python 3.11+
+
+> 状态:部分被 ADR-071 取代(见该条)。
 
 **决策**：核心实现使用 Python 3.11+。
 
@@ -59,6 +146,8 @@ tags: [adr, decisions, rationale]
 
 ## ADR-003 · 架构三层：Interface / Capability / Transport
 
+> 状态:部分被 ADR-071 取代(见该条)。
+
 **决策**：接入层（CLI/MCP/API）只是薄壳，业务逻辑集中在 capability 层，底层走 transport 抽象。
 
 **为什么**：
@@ -78,6 +167,8 @@ tags: [adr, decisions, rationale]
 
 ## ADR-004 · Transport 抽象层作为架构核心
 
+> 状态:部分被 ADR-071 取代(见该条)。
+
 **决策**：所有"操作设备"的能力经 `Transport` ABC，禁止 capability 直接调 adb / ssh / serial 命令。
 
 **为什么**：
@@ -93,9 +184,34 @@ tags: [adr, decisions, rationale]
 **代价**：
 - ABC 接口要想清楚，一旦定了不能随便改 —— **这是为什么 M0 花大力气写架构文档**
 
+### 补充:Transport 抽象的简版,原载 `.claude/knowledge/decisions.md`
+
+以下是该文件里编号为 ADR-001 的原文。它和本文的 ADR-001(语言选 Python)不是同一件事,讲的是本条 ADR-004 的内容,所以放在这里;编号以本文为准。只把标题降了两级。
+
+#### ADR-001 · Transport 抽象 + 4 实现
+
+- **日期**：M1 早期（2026-04 初）
+- **状态**：accepted
+
+**上下文**：alb 要支持多种连接 Android 板子的方式（USB adb / WiFi adb /
+SSH / 串口）。
+
+**决策**：抽 `Transport` ABC，4 个实现（adb / ssh / serial / hybrid）。
+`build_transport()` 工厂按 `ALB_TRANSPORT` 环境变量 / config / device
+profile 选。HybridTransport 智能路由（先 adb 再 ssh 再 serial）。
+
+**备选**：每种方式独立 CLI（`alb-adb` / `alb-ssh`）。
+
+**Trade-off**：放弃 CLI 简洁性 / 获得统一 capability layer。
+
+**何时推翻**：新增第 5 种连接方式（如 Wi-Fi USB tethering）需要 fork
+出新 ABC 时。
+
 ---
 
 ## ADR-005 · 第一版方案选 A + B + C + G
+
+> 状态:部分被 ADR-071 取代(见该条)。
 
 **决策**：M1 只落地 adb USB（+SSH 隧道）、adb WiFi、板子 sshd、UART 串口四种，D/E/F 留接口。
 
@@ -116,6 +232,8 @@ tags: [adr, decisions, rationale]
 ---
 
 ## ADR-006 · 权限系统作为第一版必做（借鉴 Claude Code）
+
+> 状态:部分被 ADR-071 取代(见该条)。
 
 **决策**：M1 内置权限系统（黑名单 pattern + tool 级 check_permissions + 多层策略覆盖）。
 
@@ -152,6 +270,26 @@ tags: [adr, decisions, rationale]
 - LLM 要学会"按需换页"的模式 —— 通过 tool description 和 CLAUDE.md 引导
 
 **M3 扩展**：后台定期提取"关键事件"（crash/ANR）到结构化摘要。
+
+### 简版,原载 `.claude/knowledge/decisions.md`
+
+以下是该文件里 ADR-007 的原文,与本条讲的是同一个决定,只把标题降了两级。
+
+#### ADR-007 · long log 不进 LLM context
+
+- **日期**：M1 早期
+- **状态**：accepted
+
+**上下文**：logcat / dmesg 等日志可能数 MB；如果整段塞进 chat 给 LLM，
+context window 爆 + 成本失控。
+
+**决策**：长日志一律落盘 `workspace/devices/<serial>/logs/<file>.txt`，
+LLM 只看到 `{ok, summary, artifact: "/path/to/log"}`。Agent 想读细节
+要主动调 read_artifact tool 拿摘要。
+
+**Trade-off**：增加一次 tool call 往返 / 节省 90%+ context。
+
+**何时推翻**：模型 context window 普遍 ≥ 1M tokens 时可重新评估。
 
 ---
 
@@ -197,6 +335,8 @@ tags: [adr, decisions, rationale]
 ---
 
 ## ADR-010 · 产物路径规范化（`workspace/devices/<serial>/...`）
+
+> 状态:部分被 ADR-071 取代(见该条)。
 
 **决策**：所有工具产生的文件走统一规范路径，不允许随意落盘。
 
@@ -337,9 +477,32 @@ tags: [adr, decisions, rationale]
 
 **详见** [`agent.md`](./agent.md)。
 
+### 简版,原载 `.claude/knowledge/decisions.md`
+
+以下是该文件里 ADR-016 的原文,与本条讲的是同一个决定,只把标题降了两级。
+
+#### ADR-016 · LLMBackend ABC
+
+- **日期**：M2 早期（2026-04 中）
+- **状态**：accepted
+
+**上下文**：M2 要支持 Ollama / OpenAI-compat / Llama.cpp / Anthropic
+四类 backend。每个 SDK 风格不同。
+
+**决策**：抽 `LLMBackend` ABC（`chat` / `stream` / `health`），统一
+`Message` / `ToolCall` / `ChatResponse` 类型。`get_backend(name)` lazy
+工厂。
+
+**备选**：直接用 LiteLLM / OpenAI-compat 协议归一化。
+
+**Trade-off**：自己维护 ABC 和 4 个实现 / 不引第三方依赖（offline-purity
+原则）。
+
 ---
 
 ## ADR-017 · Web Tier 1 技术栈、本地 LLM、离线部署
+
+> 状态:部分被 ADR-071 取代(见该条)。
 
 **状态**：M2.5 起步；持续到 M3。
 
@@ -430,6 +593,3845 @@ src/alb/api/ui_static.py   # FastAPI StaticFiles 挂 docs/app
 - bundle 比 Svelte 大 ~40KB gzip
 - shadcn 模式要自己维护组件源码（同时也是优势：完全可控）
 - 离线 bundle 打包流程比纯 pip install 多几步（CI 自动化吸收）
+
+### 简版,原载 `.claude/knowledge/decisions.md`
+
+以下是该文件里 ADR-017 的原文,与本条讲的是同一个决定,只把标题降了两级。
+
+#### ADR-017 · Web Tier 1 技术栈
+
+- **日期**：2026-04-23
+- **状态**：accepted
+
+**上下文**：M2 step 4 起前端 Tier 1 — Chat UI + 设备看板 + HITL + 产物
+栏。要选技术栈。
+
+**决策**：React 19 + Vite + TS strict + TanStack Router + TanStack Query
++ shadcn/ui + Radix + lucide。**不引 Tailwind**（沿用 anthropic.css
+token + class-based css）。
+
+**Trade-off**：抛弃 Tailwind 的开发速度 / 保持品牌视觉一致 + offline
+bundle 干净（不引大量未用的工具类）。
+
+**何时推翻**：UI 复杂度上升到需要 design system level（不再是 dashboard
++ 几个表单）的时候。
+
+---
+
+## ADR-018 · audit 升级为事件总线（C 档重构）
+
+- **日期**：2026-04-28
+- **状态**：accepted；replaces "GET /audit 扫盘 + 10s 轮询"
+
+**上下文**：D 档 step 3 用 GET /audit + 10s 轮询给前端 Timeline 数据。
+但要做 LiveSessionCard（"系统中正在跑的 session"），轮询撑不住。
+
+**决策**：把 audit 从"事后扫 messages.jsonl + terminal.jsonl"重构为：
+1. in-process `EventBroadcaster`（fan-out + 持久化）
+2. `workspace/events.jsonl` 全局事件日志（schema 固化）
+3. `WS /audit/stream` snapshot + 实时增量 + pause/resume
+4. chat_route / terminal_route 都是 producer
+5. 前端 useAuditStream 替代轮询；useLiveSession 共享同一个 stream，
+   纯函数 reduce 派生 LiveSession 视图
+
+**备选**：
+- (a) 给前端轮询加快频率 — 治标不治本
+- (b) 引第三方 message bus（Redis / NATS）— 违反 offline-purity
+- (c) 两个 WS 各连各的 — 浪费连接
+- (d) 同一 WS 多消费者过滤 — pause 语义耦合
+
+**Trade-off**：
+- 放弃：实现复杂度（broadcaster + jsonl + WS 协议）
+- 获得：实时性 first-class / 单一数据源 / 不引第三方依赖 / 多 UI 区共享
+
+**何时推翻**：单进程容量不够（多 worker / 多机）时迁移到 Redis pub-sub。
+
+---
+
+## ADR-019 · token 事件不广播
+
+- **日期**：2026-04-28（C.2 实施时定）
+- **状态**：accepted
+
+**上下文**：chat stream 里 `token` 事件密度 ~ 50-200 Hz。如果都进 bus
+fan-out，慢消费者队列必爆。
+
+**决策**：token 事件**不**广播。bus 只收 user / tool_call_start /
+tool_call_end / done / error 这 5 类关键事件。
+
+**Trade-off**：
+- 放弃：UI 实时按字滚动的能力（要的话用 chat ws 直连，不用 audit ws）
+- 获得：bus 队列稳定 / 不需要复杂背压机制
+
+**遗留问题**：LiveSession tps 退化为整段平均，spark 没数据。这是
+F 档要解决的（用 1Hz 聚合的 tps_sample 事件代替 token 事件）。
+
+---
+
+## ADR-020 · agents 团队工程方法论（本次）
+
+- **日期**：2026-04-28
+- **状态**：accepted
+
+**上下文**：项目要进入更高质量节奏（F 档 + 后续 A/G/E）。需要独立
+视角的代码 / 架构 / 性能 / UI 评审，不能只靠主对话。
+
+**决策**：
+1. 7 个项目专属 agents（code-reviewer / architecture-reviewer /
+   performance-auditor / ui-fluency-auditor / mockup-baseline-checker /
+   visual-audit-runner / security-and-neutrality-auditor）
+2. 6 个 slash commands（review / arch / perf / ui-check / security /
+   preflight）
+3. `.claude/knowledge/` 团队记忆（agents 必读，主对话写）
+4. agents 默认只读，写权限严格分层（5/7 完全只读，2/7 只能写
+   `.claude/reports/<agent>-<ts>.md`）
+5. 写权限互斥靠 timestamp + agent name 命名（永不撞）
+6. agents 要有"质疑能力"（不只是"对当前规则打分"，还要质疑规则本身）
+7. 知识库随项目演进，"越用越聪明"（review-feedback.md 累积反馈 →
+   调 prompt / 升 lessons / 立新 ADR）
+
+**备选**：不建团队，每次评审手写 prompt。
+
+**Trade-off**：放弃灵活性 / 获得一致性 + 可复用 + 可对外展示。
+
+**何时推翻**：发现 7 个 agents 角色边界混乱（频繁互相重叠）时合并；
+或某 agent 一直没用上时移除。
+
+---
+
+## ADR-021 · token 不广播但聚合 tps_sample（F.1 实施时定）
+
+- **日期**：2026-04-28
+- **状态**：accepted；extends ADR-019
+
+**上下文**：ADR-019 决定 chat token 事件不广播到 bus（密度太高）。但
+LiveSession 的 spark / KPI 的 LLM throughput 都需要 tps 数据源（DEBT-001
+/ DEBT-004 登记）。F.1 要补这个数据源。
+
+**决策**：
+1. token 事件**仍然不广播**到 bus（ADR-019 不变）
+2. 引入 `MetricSampler`（src/alb/infra/metric_sampler.py · TokenSampler 类），
+   每 chat session 一个，1Hz 聚合 + publish `tps_sample` 事件到 bus
+3. `tps_sample` 是新加的 **metric kind**（第 6 种 bus event kind）。
+   bus event kinds 从此分两类：
+   - **business kinds**：user / assistant / tool_call_start / tool_call_end /
+     done / error / command / deny / hitl_*
+   - **metric kinds**：tps_sample（未来可加 cmd_rate / push_rate 等）
+4. 订阅方默认**只收 business kinds**。`/audit/stream` 通过首条 message
+   `{include_metrics: true}` opt-in；`GET /audit` 通过 `?include_metrics=true`
+   opt-in
+5. token 数从 backend ABC 的 token 事件携带（`{"type":"token","delta":"...",
+   "tokens": 1}`），AgentLoop 加 `on_raw_token` 回调把真实 token 数喂给
+   sampler。**不**走"chars/4 估算"，避免 2-3× 精度偏差
+
+**备选**：
+- (a) 让 done 事件带完整 tps spark 数组 — 一次性，非流式，UI 看不到滚动
+- (b) chars/4 估算 token — 中文 / emoji 偏差 2-3×，spark 失真
+- (c) sampler 内联到 chat_route — 失去未来复用（terminal 命令速率等）
+
+**Trade-off**：
+- 放弃：bus event schema 极简（5 类 → 6 类），多一个回调路径
+- 获得：实时 spark / KPI 真实 throughput 数据源 / metric 流可独立扩展
+  / 不污染 timeline UI（默认过滤）
+
+**何时推翻**：metric kinds 多到 ≥ 5 类时，应抽 `MetricBus` 独立通道。
+
+---
+
+## ADR-022 · Dashboard 同页双 WS 实例（F.5 实施时定）
+
+- **日期**：2026-04-28
+- **状态**：accepted；**reverses ADR-018 备选 (c) under ADR-021 conditions**
+
+**上下文**：ADR-018（C 档 audit 升级为事件总线）当时把"两个 WS 各连各
+的"作为备选 (c) 否决，理由是"浪费连接"。ADR-021 引入 metric kinds +
+`include_metrics` opt-in 后，business 流的 pause/resume（user 控
+timeline）和 metric 流（永远 live，喂 LiveSession spark）的 lifetime
+语义已经不一致 —— 共享同一连接做客户端 demux 会让 timeline pause 冻结
+metric 流，违反"metric 跟随设备运行"的设计意图。trade-off 反转。
+
+**决策**：DashboardPage 同时持有两个 useAuditStream 实例：
+1. `useAuditStream({includeMetrics: false})` —— ActivityTimeline 用
+2. `useAuditStream({includeMetrics: true})` —— useLiveSession 喂数据用
+
+Hook 不抽 useDualAuditStream（callsite 单一时是 premature abstraction，
+按 architecture-reviewer 维度 1 的"两个实际场景才抽象"原则）。
+
+`useAuditStream({includeMetrics: true}).pause/resume` 加运行时
+console.warn 防止误用（metric 流不应 user-pausable）。
+
+**备选**：
+- (a) 单 WS 共享 + 客户端 demux + 独立 pause 状态机 —— 复杂度高，且
+  当前规模 N=2 时双连接更直白
+- (b) 抽 useDualAuditStream wrapper —— premature，等第二个 page 也要
+  双流时再抽
+
+**Trade-off**：
+- 放弃：单连接简洁
+- 获得：独立 pause 语义 / 独立重连 / hook API 不变 / server 端 fan-out
+  queue 1× → 2×（可接受）
+
+**何时推翻**：
+- (a) 同页连接数 ≥ 4
+- (b) SessionDetailPage 等带 sessionId 过滤的消费者出现
+- 任一触发 → 评估方案 (a)（多消费者 + 客户端独立 pause 状态机）
+
+**反思 ADR-018 的备选 c**：当时否决理由"浪费连接"在 localhost
+单租户 + N=2 时不成立；隐性优势"独立 pause 语义"在 ADR-021 引入
+metric 流后变成必须。**这次反转给后续 reviewer 重要信号**：ADR
+备选段不是永久判决，新事实出现时应主动反转 + 立新 ADR（见 L-015）。
+
+---
+
+## ADR-023 · SPA fallback 跨部署 surface 异构实现
+
+**Status**：accepted (2026-04-29，DEBT-014/015 关闭物)
+
+**Context**：
+项目有两个 Web UI 部署 surface，TanStack Router HTML5 history 模式
+要求服务端在深链 / 刷新时 fallback 到 SPA shell：
+
+- **alb-api dev/local**（FastAPI + StaticFiles）：用户主路径
+- **GH Pages prod**（静态托管）：方法论展示 + offline-first 演示
+
+DEBT-014 / DEBT-015 是同一不变量（"SPA route 直访不能 404"）的两
+个部署 surface 实例化。
+
+**Decision**：**两 surface 异构实现**：
+
+| surface | 机制 | 实现 | 跳转 |
+|---|---|---|---|
+| alb-api | server-side intercept | `SPAStaticFiles(StaticFiles)` 子类 override get_response，404 + path tail 无扩展名 → 服务 index.html | 1 hop |
+| GH Pages | client-side roundtrip | `docs/404.html` redirect script + `docs/app/index.html` recovery script（spa-github-pages 套路） | 2 hops + history.replaceState 静默还原 |
+
+**不统一的原因**：GH Pages 静态托管无 server-side hook，server-side
+intercept 不可行。这是部署 surface 硬约束，不是设计偏好。
+
+**共享不变量**（写入 architecture.md 关键不变量段）：
+- SPA route 路径段不能含 `.`（DEBT-014 启发式：`tail.includes(".")` 判
+  为 asset）
+- SPA route 路径段不能含 `?` `#` `&`（DEBT-015 用作 spa-github-pages
+  协议保留）
+- SPA route 不能以 `assets/` 开头（与 vite build 产物冲突）
+- 任一违反 → 后端启发式 / GH Pages redirect 误判，浏览器深链 / 刷新
+  404
+
+**备选**：
+- (a) 两 surface 都用 client-side roundtrip：alb-api 也走 404.html，
+  统一一套机制 —— **否决**：alb-api 有 server hook 用之，多一次
+  redirect 是无谓的 user-perceived latency
+- (b) 项目迁出 GH Pages（Cloudflare Pages / Vercel / Netlify 都支持
+  `_redirects` server-side rewrite）—— **暂不**：GH Pages 是项目方法
+  论展示用，迁移收益边际
+
+**Trade-off**：
+- 放弃：两 surface 一套实现，需双写双测
+- 获得：每个 surface 用最适合的机制（alb-api 一次 200 / GH Pages 走
+  社区标准 spa-github-pages 协议），用户体感都是"深链直达"
+
+**何时推翻**：
+- 迁出 GH Pages → 备选 (b) 触发，client-side roundtrip 可删
+- 共享不变量被新需求打破（比如某天非要支持 `.` 路由名）→ 重审两
+  surface 的 fallback 协议
+
+**关联**：DEBT-014 / DEBT-015 / L-017 端到端验证铁律 / **L-018**
+静态托管 SPA URL 闪现。
+
+---
+
+## ADR-024 · LLMBackend ABC capability 改用 class attribute（amends ADR-016）
+
+**Status**: accepted, supersedes ABC default-method-with-sentinel-flag pattern
+**Date**: 2026-04-30
+**Context**: DEBT-017 主 commit `67c0820` 在 ABC 默认 `health()` 里加
+`implemented: False` sentinel，由端点 `if not result.get("implemented")`
+反查这个 dict key 来判定"未接探测"。arch reviewer / code reviewer
+同时指出 3 处脆性：
+
+1. OllamaBackend.health() 不返回 `implemented` 字段，端点靠"key 缺失
+   == implemented=True"的隐式 fallthrough。下一个 backend 复制 ABC
+   模板做基础时，留 `implemented: False` 又返回 reachable=True →
+   端点把它判成 unprobed，明明在跑显示成"未探测"，**静默错读**。
+2. dict-as-interface 没有 schema：endpoint 读 `result.get("model_present")`、
+   `result.get("model")` 等，concrete backend 加字段 / 改字段 / 漏字段
+   都不 type-check。
+3. ChatResponse / ToolCall / Message 早已 dataclass 化，`health()`
+   仍返回 dict，是孤儿。
+
+**Decision**：
+
+1. ABC 加 `class.has_health_probe: bool = False`，与
+   `supports_tool_calls` / `supports_streaming` / `runs_on_cpu` 一组，
+   显式 declare capability。
+2. ABC 默认 `health()` 改 `raise NotImplementedError` —— "调用未接探测
+   的 health()" 是 programmer error，loud failure 比 silent placeholder
+   值得。
+3. 新增 `HealthResult` dataclass（`reachable: bool | None` /
+   `model: str | None` / `model_present: bool | None` / `error: str | None`），
+   `health()` 返回 typed value。
+4. endpoint 改读 `getattr(type(b), "has_health_probe", False)` 决定
+   是否调 health()；调用后读 `result.reachable` / `result.model` /
+   `result.model_present` / `result.error` typed 字段。
+
+**Trade-off**：
+- 放弃：dict-as-interface 的"加字段不破坏老调用方"灵活
+- 获得：static type 校验 / IDE 补全 / capability 显式声明 / "忘了
+  override" loud failure / ChatResponse-级别契约一致性
+
+**备选**：
+- (a) 保留 dict 但加 `TypedDict` schema —— **否决**：runtime 不强
+  制，只骗 mypy，丢失"忘了 override 应失败"信号
+- (b) 改 dict + 显式 enum field 替代 sentinel —— **否决**：本质还
+  是约定胜过类型，下次评审还要重审
+- (c) 当前选项 dataclass + class attr —— **采用**
+
+**何时推翻**：
+- 加 OpenAI-compat 后发现需要返回比 4 字段更灵活的 metadata（比如
+  rate-limit headers）—— 扩 dataclass 而非回 dict
+- 出现某 backend 需"探测能力随运行时配置改变"（has_health_probe 不
+  是静态而是动态）—— 那时改 instance attribute / property，不是回
+  dict
+
+**测试覆盖**：`test_health_abc_default_raises`（直接 unit 验证 ABC
+default raise）+ `test_health_no_probe_wired`（_FakeBackend 没 set
+has_health_probe → endpoint 短路给 no_probe）+ `test_health_with_method`
+（has_health_probe=True 走真探测分支）。
+
+**关联**：
+- ADR-016（LLMBackend ABC 设计原则）—— 本 ADR 是对它的 amendment
+- DEBT-017（运行时 health 缺口）—— 主 commit `67c0820` 落，本 ADR
+  在 follow-up 的 commit 里 supersede 掉 sentinel pattern
+- L-019（待写）：ABC 默认方法用 sentinel flag 表达 capability 否定
+  是反模式
+
+---
+
+## ADR-025 · per-backend 并行 useQueries · Dashboard 健康探测 polling 分层
+
+**Status**: accepted（描述当前实现，未来 N≥6 时重审）
+**Date**: 2026-04-30
+**Context**: DEBT-017 给 Dashboard 加"每个 backend 独立 health
+probe"。N=4 today（1 ollama beta + 3 planned）。两个设计选择需文档：
+
+1. **per-backend useQuery（fan-out）vs single batch endpoint**：
+   - 当前选 fan-out（`useQueries` 4 路并行 GET /playground/backends/<n>/health）
+   - perf-auditor 测算 N=8 时 32 r/min idle，N=16 时 65 r/min
+   - alternative: `GET /playground/backends/health` batch 一次返回
+     所有 backend health
+2. **polling 频率分层**：
+   - 静态 manifest（注册表 / 描述）：60 s
+   - 运行时 health：15 s（normal）/ 60 s（after error，TanStack
+     refetchInterval 函数式 backoff）
+   - 长期 metrics window：5 min（DEBT-008 cache 候选）
+   - 真实时（audit / tps_sample）：WebSocket（ADR-022 双 WS 实例）
+
+**Decision**：
+
+1. fan-out 直到 N ≥ 6 backends 或 idle QPS > 1。理由：失败隔离（一个
+   probe 挂死不影响其他）+ TanStack 单 query 状态独立 + 每 query
+   各自 backoff。
+2. 频率分层定调：60 s manifest / 15 s health / 60 s health-on-error
+   / 5 min metrics / WS realtime。新增同档 polling 沿用此层级。
+3. health useQueries 显式配置：
+   - `enabled: api.status !== "planned"` —— planned 不浪费 round-trip
+   - `refetchOnWindowFocus: false` —— 与 interval 重叠的 focus
+     refetch 在 N 路 fan-out 时会雪崩
+   - `refetchIntervalInBackground: false` —— hidden tab 不该烧
+     daemon，10-100× 节省
+   - `retry: 1` —— probe 失败本身就是要展示的信号，retry-storm 噪声
+
+**Trade-off**：
+- 放弃：N≥6 时 batch endpoint 的请求量收敛
+- 获得：N<6 时 fan-out 简单 / 失败隔离 / 单 query 独立 backoff
+
+**备选**：
+- (a) batch endpoint —— 暂不（N=4 还在 fan-out 甜点；切换成本不高，
+  M3 加 OpenAI-compat 时再评估）
+- (b) WebSocket push（server 主动 push health change）—— **否决**：
+  health 不是高频信号（变化≈daemon up/down 事件），polling 足够
+
+**何时推翻**：
+- N ≥ 6 backend 真上线 → 触发 batch endpoint 评估
+- DEBT-006（events.jsonl rotate）期间发现 health polling 是 events
+  写盘热点 → polling 频率重审
+- M2.5 Windows standalone 上线后 idle 桌面 app 长开 → 进 visibility-
+  aware refetch 也覆盖一阶段
+
+**关联**：DEBT-017 / DEBT-NEW-C(httpx client 复用) / ADR-022 双 WS
+
+---
+
+## ADR-026 (seed) · backend 配置边界：CLI flag 还是 config 文件
+
+**Status**: seed（M3 step 1 留下，待 M3 step 2 LlamaCpp 落地时拍板）
+**Date**: 2026-04-30
+**Context**: M3 step 1 (commit `344fb47`) 加 OpenAICompatBackend 时
+chat_cli 加了 `--openai-url` + `--api-key` 两个 flag。当前 chat_cli
+共 `--ollama-url` / `--openai-url` / `--api-key` 3 flag。M3 step 2
+LlamaCpp 需 `--gguf-path` / `--n-ctx` / `--n-gpu-layers`，M3 step 3
+Anthropic 需 `--anthropic-key` / `--system-prompt`。预计 N=4 backend
+后 chat_cli 累积 8-10 个 backend-specific flag，CLI 助记可读性下降，
+而且很多 flag 跨 backend 不通用（如 `--api-key` 既给 openai-compat 又
+给 anthropic 用，但 anthropic 还另需 `--anthropic-version`）。
+
+**Decision**：暂不决策，留 seed。M3 step 2 LlamaCpp 落地时拍板。
+
+**3 备选**：
+
+- (a) **保持 N×flag**（每个 backend 自己的 flag 集合）—— 当前模式，
+  扩展性 O(N×params)，到 N=4 就 8-10 个 flag。优势：CLI 直观；劣势：
+  flag 长尾 + 不复用。
+- (b) **`--backend-arg key=value` 多次重复**（generic 通配）—— sklearn
+  / mvn 风格，`alb chat --backend openai-compat --backend-arg base_url=
+  http://localhost:1234/v1 --backend-arg api_key=sk-...`。优势：1 个
+  flag 覆盖所有 backend；劣势：autocomplete 弱、help 文档拆碎、不能
+  做类型校验。
+- (c) **`~/.alb/config.toml` `[backends.openai-compat]` 段**（最规
+  范）—— TOML 已是 pyproject 共识。优势：可分 profile / 每 backend
+  独立 default / 易在 IDE 编辑；劣势：boilerplate 高、首次使用要先
+  写 config。
+
+**推荐方向**（待 M3 step 2 验证）：(c) 配 (a) tail-flags（少数 hot
+override 用 flag，长尾走 config）。即 `--ollama-url` / `--openai-url`
+/ `--api-key` 留作 hot override，但 `--n-ctx` / `--system-prompt` 等
+长尾沉到 config。
+
+**何时拍板**：M3 step 2 LlamaCpp PR 必含本 ADR 决策。本 seed 在该 PR
+里被升为正式 ADR。
+
+**关联**：DEBT-019 (httpx client 复用，独立维度) / L-020 (N≥3 抽象
+原则在 CLI flag 维度同样适用)
+
+---
+
+## ADR-027 · BackendSpec.runs_on_cpu → host_compute_type 三态
+
+**Status**: ✅ accepted 2026-05-02（M3 step 2 commit `332d743`）
+**Date**: 2026-04-30 seed → 2026-05-02 升正式
+**Context**: 原 `BackendSpec.runs_on_cpu: bool` 语义模糊：
+- OllamaBackend `runs_on_cpu=True` —— 字面对（本机 CPU 推理）
+- OpenAICompatBackend `runs_on_cpu=True` —— 字面**错**（上游可能 8×H100
+  GPU server，alb-host 只发 HTTP）
+- AnthropicBackend `runs_on_cpu=False` —— 字面**也错**（alb-host 根本
+  不跑模型，是 SaaS API）
+
+字段实际语义 = "alb-host 端的 CPU/GPU 需求"，但字面"runs on cpu" 误导
+用户以为是"模型在 CPU 跑"。
+
+**Decision**：选 **(b) `host_compute_type: 'cpu' | 'gpu' | 'remote'`** 三态
+enum。M3 step 2 Anthropic 落地时一并改（早一步落，比 seed 提的"M3 step
+3 Anthropic"更早，因为 step 2/3 顺序在 ship 前调换 —— LlamaCpp 嵌入式
+有 4 个 footgun deferred，Anthropic 提到 step 2）。
+
+**3 备选回顾 + 拒方理由**：
+
+- ❌ (a) `host_gpu_required: bool`（反向布尔）—— 拒：仍只能表达 2 态，
+  "remote" 概念表达不出（Anthropic / OpenAI-compat 用 False 还是 True？
+  False 显然不准）。
+- ✅ (b) `host_compute_type: 'cpu' | 'gpu' | 'remote'` 三态 —— 选这个。
+  序列化 / 前端 enum 改动可控（实际只 1 个 TS interface + 1 个 surface
+  方法），表达精确。
+- ❌ (c) 拆 `host_cpu_only: bool` + `inference_remote: bool` —— 拒：
+  两个布尔表达三态，4 组合用 3 个有歧义状态空间。
+
+**ship 实际清单**（commit `332d743` cross-cut 9 文件 · 纯 rename）：
+
+- `BackendSpec.host_compute_type: str` 替换 `runs_on_cpu: bool`
+- 4 实例 reclassify：ollama=cpu / openai-compat=remote / llama-cpp=cpu /
+  anthropic=remote
+- `LLMBackend` ABC 类属性同步改名（默认 `"cpu"`）
+- `OllamaBackend` / `OpenAICompatBackend` 改 `host_compute_type`
+- `playground_route` 响应字段改 + `playground_cli` 表头从 "CPU?" 改 "host"
+- `web/src/lib/api.ts` `ApiBackend` interface 改三态 union type
+- `docs/agent.md` + `docs/web-api.md` 同步说明
+
+**API 破坏性变更**（pre-1.0 + 仅 dashboard 展示用，无外部消费者）：
+GET /playground/backends 响应 `runs_on_cpu` 字段消失，新增
+`host_compute_type`。
+
+**未做的事 / 遗留**：
+- 前端 `LlmBackendCards` 当前不渲染 host_compute_type（仅 status 标签）。
+  以后如果加"按 host type 过滤"功能，三态 enum 已就位
+- ADR-026（CLI flag 还是 config 文件）仍 seed —— 等 LlamaCpp / 第 4
+  backend 落地再拍。本步只新增 anthropic 2 个 flag (`--anthropic-key` /
+  `--anthropic-url`)，N×flag 模式未到拐点
+
+**关联**：M3 step 1 arch-reviewer #6 / architecture.md 字段语义条目 ·
+  ADR-016 (LLMBackend ABC 设计原则) · M3 step 2 commit `332d743`
+
+---
+
+## ADR-028 · device 信息分层 · dashboard summary vs inspect details
+
+**Status**: ✅ accepted 2026-05-01（DEBT-022 PR-A commit `fe92583`）
+**Date**: 2026-04-30 / 2026-05-01 升正式
+**Context**: 2026-04-30 真机验证暴露 device card 信息薄（只 serial / product /
+model / transport 4 字段）。用户诉求要补 SoC / RAM / 存储 / 电池 / 分区表 /
+内存布局 / flash 布局 / 网络 / 温度。`alb_devinfo` 工具已实现 9 字段，
+追加 ~50 字段后 dashboard 单卡装不下，必须分层。
+
+**Decision**：选 (a) **2 endpoint 分层**。`/devices/{serial}/details` 用于
+dashboard summary（PR-A 已落地，commit `fe92583`），`/devices/{serial}/system`
+留给 inspect 详情页（DEBT-022 PR-B）。
+
+**3 备选回顾**：
+
+- (a) ✅ **2 endpoint 分层**：summary + system 各自维护。优势：dashboard
+  payload 小、刷新快；劣势：2 个 endpoint 维护，summary/full 字段定义需对齐
+- (b) **1 endpoint + level 参数**：`?level=summary|full`。劣势：level=full
+  时 payload 大，dashboard 误传 full 会拖慢
+- (c) **GraphQL 风格 fields 选择**：劣势：本仓没 GraphQL 基础设施、字段名
+  暴露 schema 锁死
+
+**为什么 (a)**：
+- summary 30s polling、full 按需手动拉，刷新频率不一样 → 2 endpoint 自然
+- summary 字段稳定（PR-A 实际落 13 字段：model/brand/sdk/release/abi/
+  hardware/serialno/uptime/battery/storage + extras{soc,cores,khz,ram_t,
+  ram_a,display,temp_c}），full 字段会随时间扩张（PR-B 加 partition /
+  memory layout / flash layout / 网络接口） → 解耦版本演进
+- PR-A 实际落地后 dashboard payload ~600 bytes（vs full ~5-10 KB
+  预估）—— 30s × N 设备 polling 成本可控
+
+**关联**：DEBT-022 / ADR-029（refresh 策略，独立维度）
+
+---
+
+## ADR-029 · device 信息刷新策略 · auto polling vs button vs WS push
+
+**Status**: ✅ accepted 2026-05-01（DEBT-022 PR-A commit `fe92583`，简化版）
+**Date**: 2026-04-30 / 2026-05-01 升正式
+**Context**: device summary 数据有些字段动（电池 / 温度 / RAM 用量 / 存储用量
+/ 在线状态），有些静（model / SoC / build / Android 版本）。刷新机制
+3 备选。
+
+**Decision**：选 (a) **`refetchInterval: 30000` auto polling + manual refetch button**。
+PR-A 简化版只用 1 个 useQuery（不拆静态/动态字段），N=1 设备实测 30s × 1 = 1
+fetch/min 成本可忽略。N≥4 设备时再考虑拆 2 个 useQuery。
+
+**3 备选回顾**：
+
+- (a) ✅ **`refetchInterval: 30000` auto polling + 手动 refetch 按钮**：
+  react-query 原生模式。优势：dev 简单 / 跟现有 useBackends pattern 一致；
+  劣势：N 设备 × 30s polling 会累 / electron 后台 tab 浪费
+- (b) **button-only 手动刷新**：劣势：电池/温度永远滞后，违反"实时面板"定位
+- (c) **WebSocket push**：劣势：alb-api 要主动 polling 板子（成本转移）+ 设计
+  WS event schema + 频繁数据触发 React 重渲染抖动
+
+**为什么 (a) 简化版**：
+- N=1 设备时拆 2 个 useQuery 是过度设计 —— polling 成本 = 30s × 1 = 1
+  fetch/min，可忽略
+- N≥4 设备的拆分动作留给 PR-B 或之后真出现 polling 拥塞时再做（"don't
+  design for hypothetical future requirements" 原则）
+- manual refetch button 走 `queryClient.invalidateQueries(['device-details'])`
+  全 cards 同时重 fetch（DashboardPage 顶层 RefreshCw 按钮）
+
+**升级路径**（N≥4 设备时）：
+- DeviceCard 内部 useDeviceDetails 拆成 useDeviceDetailsStatic（不
+  refetchInterval）+ useDeviceDetailsLive（refetchInterval=30000，只查
+  battery/temp/ram_avail）
+- ADR-025 (polling 分层) 模式可复用
+
+**关联**：DEBT-022 / ADR-028（分层 endpoint，独立维度）/ ADR-025（polling
+分层模式 · 已落地的 backend health polling 可复用）
+
+---
+
+## ADR-030 (seed) · stream hook 抽象时机评估（useUart/Logcat/Terminal Session）
+
+**Status**: seed（DEBT-022 PR-D/E 落地观察 · N=4 出现时拍板）
+**Date**: 2026-05-01
+**Context**: PR-C.b/PR-D/PR-E 三个 stream 风格 hook 已落地：
+- `useUartStream` (~110 行) · read-only · WS /uart/stream
+- `useLogcatStream` (~125 行) · read-only · WS /logcat/stream + filter/tags
+- `useTerminalSession` (~190 行) · bidirectional · WS /terminal/ws +
+  sendBytes/sendResize/HITL
+
+共有逻辑（~80 行 / hook）：
+- WS lifecycle（open/message/error/close）
+- state machine: idle → connecting → ready → ended/error
+- onBytes 订阅者 Set + 派发
+- cleanup 在 unmount + manual disconnect
+
+差异：
+- read-only vs bidirectional（terminal 加 sendBytes/sendResize）
+- 协议 close 帧形态（uart/logcat: `{type:"close"}` · terminal:
+  `{type:"control", action:"close"}`）
+- ready 后续帧（terminal 有 hitl_request / closed.exit_code）
+
+**Decision**：暂不抽，留 seed。N=4（PR-G adb screenshot 用 streaming
+fb 抓 / 或 PR-F metrics chart 复用 stream pattern）出现时再评估，跟 ADR-024
+"ABC 第 1 个非首例消费者 = 免费 stress test" 同思路。
+
+**3 备选**（待 N=4 时拍板）：
+
+- (a) **抽 useStreamWs(path, opts) base hook**：返回通用 state/error/
+  onBytes/cleanup，sub-hook 调 base + 加自己的 sendBytes/HITL 处理。
+  优势：dedup ~80 行 × N；劣势：base hook 不知所有协议变体（HITL /
+  exit_code / control 帧形态），还得加 hooks/callback 注入
+- (b) **共享 utility 函数**（不抽 hook）：`createWsStateMachine()` +
+  `createOnBytesEmitter()` 当工厂，hook 内部组合。优势：每个 hook 还
+  自治；劣势：抽不彻底
+- (c) **不抽，3 个 hook 共存**：N=3 不抽是合理保守做法（参考 L-020
+  "N=3 才是抽 base 的安全时机"）
+
+**为什么 seed 不立刻拍**：N=3 处于"ABC 第 1 个非首例消费者"边界，
+PR-E 落地后 ShellTab 的 bidirectional + HITL 让差异性显著，base hook
+的接口设计还不清晰（多塞 callback 还是抽 protocol adapter 不明）。
+等 N=4 出现，base 接口形状会被第 4 个消费者"压"出来。
+
+**何时拍板**：DEBT-022 batch 内出现第 4 个 stream 消费者时（PR-F
+metrics stream 复用 / PR-G screenshot streaming / PR-H file pull
+progress stream 等候选）。
+
+**关联**：L-020 (N=3 才抽 base class) · ADR-024 (ABC 第 1 个非首例
+消费者 = 免费 stress test) · DEBT-022 PR-C.b/D/E
+
+**N=4 落地复核 2026-05-01**：PR-F (`useMetricsStream`) 落地后评估为
+"协议差异化（JSON sample + history snapshot + control_ack）共有逻辑反少"，
+不抽 base hook，等 N=5。详见 `.claude/knowledge/debts.md` PR-F 关闭段。
+
+**N=5 落地复核 2026-05-01**：PR-H (`useFileBrowser`) 落地为 useQuery+useMutation
+组合，**不是 stream hook**，对 ADR-030 不构成新数据点。stream hook 方向 N=5
+仍未出现，seed 维持。下一次评估等 PR-C.c (双向 UART 输入) 或 PR-G v2
+(streaming framebuffer) 出现。
+
+---
+
+## ADR-031 (seed) · filesync HITL 写在 endpoint 层 vs PermissionEngine
+
+> 状态:被 ADR-071 整条取代(见该条)。
+
+**Status**: seed（PR-H 落地观察 · M2 PermissionEngine 加 filesync 规则后再拍）
+**Date**: 2026-05-01
+**Context**: PR-H push endpoint 命中 sensitive 路径前缀（/system /vendor
+/data /dev /proc /sys /persist /oem /boot /recovery /metadata，
+/data/local/tmp 例外）需要 HITL 二次确认。M1 `infra.permissions.default_check`
+现在只识 shell `cmd` 字符串，不接 filesync action。两条路：
+
+- **(a) endpoint 层 inline HITL**（PR-H 选）：`files_route.device_push`
+  自己判 `_is_sensitive_remote(remote)` + `force` flag，命中返回
+  `requires_confirm=true`。缺点：HITL 规则散落 in routing；优点：M1
+  engine 不动，0 接口面变更
+- **(b) 下沉到 PermissionEngine**：扩展 `default_check` 接 `filesync.push`
+  action，从 `input_data["remote"]` 读路径前缀；endpoint 直接走
+  `transport.check_permissions("filesync.push", ...)`。缺点：要扩 engine
+  + 加配置层（user 能改名单）；优点：和 shell HITL 同进同退，policy 集中
+- **(c) endpoint 层简版 + 标记 follow-up**：（当前 PR-H）
+
+**Decision**：选 (c) 为 v1。等 M2 PermissionEngine 加 filesync.push /
+filesync.pull action 类型 + multi-layer config（defaults < profile <
+session）时下沉。届时 endpoint 改成纯转发：`r = await transport.
+check_permissions("filesync.push", {"remote": ...})` 命中 `behavior=ask`
+就返回 `requires_confirm`，跟 shell HITL 完全同形态。
+
+**何时拍板**：M2 PermissionEngine 扩展 spec 出炉时（与 ADR-013 / 权限
+engine M2 路线绑定）。届时这条 seed 升正式 + 改 endpoint。
+
+**关联**：DEBT-022 PR-H · ADR-013（PermissionEngine 设计 ·
+M1→M2 路线）· `infra/permissions.py` default_check
+
+---
+
+## ADR-032 · Inspect 8 tabs 走 unmount/remount，不做 keepAlive
+
+**Status**: accepted（perf-audit 2026-05-02 显式 trade-off）
+**Date**: 2026-05-02
+**Context**: PR-A/B/C.a/C.b/D/E/F/G/H ship 后 inspect 页 8 tab 全部接
+真数据。`InspectPage.tsx` 采用 `tab === "X" ? <XTab /> : null` 的
+unmount/remount 模式：
+
+- 切走 tab → 完全 unmount，hook 走 cleanup（WS 关 / fetch abort / xterm
+  dispose）
+- 切回 tab → 重新 mount，hook init（new WebSocket / new useQuery /
+  new Terminal()）
+
+代价：切 tab 一次 ≈ 50-200 ms blocking + WS 重连 ~50 ms。3 个 stream
+hook（uart/logcat/shell）尤其重，xterm.js 实例化 + WS handshake +
+history replay 串行。
+
+**Decision**：**保持 unmount/remount，不做 keepAlive**。
+
+**3 备选**：
+- (a) 当前 unmount/remount —— 简单，无背景占用，切 tab 慢 100 ms 量级
+- (b) keepAlive（隐藏 tab 仍挂载）—— 切 tab 0 ms，但隐藏 tab 持续
+  占 WS 带宽 + xterm 仍渲染（用户切走时 UART 仍 byte 流入 = 静默浪费）
+- (c) 选择性 keepAlive（只 stream tabs 保活） —— 切 tab 50 ms，但代码
+  +200 行（双层 mount state），且与 React 18 Suspense lazy load 冲突
+
+**为什么选 (a)**：
+- 用户行为模式：debug 时长时间锁定一个 tab，切 tab 频率 < 1/min
+- 100 ms 切换延迟在能接受边界（< 200 ms = "snappy" 心理阈值）
+- (b)(c) 的隐藏 tab 资源占用是**累计**问题：开 4 tab 一晚，UART byte
+  通道一直吃 USB serial 带宽 + xterm 一直 render，远比"切 tab 慢 100 ms"
+  代价大
+- 4 个 stream hook cleanup 已验证 OK（`useEffect(() => () => cleanup(), [])`），
+  unmount 路径无泄漏，技术债 0
+
+**何时反悔**：
+- 用户报告"切 tab 卡" → 触 ui-fluency-auditor 实测延迟，> 250 ms 再考虑 (c)
+- React 19 出新 keepAlive 原语（Activity 组件）成熟时，可零成本上 (b)
+  for stream tabs
+
+**关联**：perf-audit `.claude/reports/perf-audit-debt022-2026-05-02.md`
+finding MID #5 · L-020 (N=3 才抽抽象 · keepAlive 抽象 N=1 不上)
+
+---
+
+## ADR-033 (seed) · transport capability 用 ABC class-attr 标，不 hasattr 检测
+
+> 状态:部分被 ADR-071 取代(见该条)。
+
+**Status**: seed（PR-C.c review 5/02 提出，N=2 transport 出现时升正式）
+**Date**: 2026-05-02
+**Context**: PR-C.c bidirectional UART 加 `SerialTransport.open_session()`
+公开 API。`uart_stream_route._run_bidirectional` 用 `hasattr(transport,
+"open_session")` 检测能力 —— 是 duck-typing 检测。
+
+**问题**：未来 SSHTransport / HybridTransport 给一个 `open_session` 占位
+返回 `NotImplementedError` → `hasattr` 通过 → init_failed 而非
+write_unsupported（误报到客户端）。和 DEBT-017 / ADR-024 已修过的
+"LLMBackend dict-sentinel reachable=False" 反模式同形态（L-019 sentinel
+反模式）。
+
+**3 备选**：
+- (a) **保 hasattr**：v1 简单，只支持 SerialTransport 真实需求，1
+  consumer 不构成 spec 设计动力
+- (b) **加 class-attr 显式 capability**：`Transport.supports_bidirectional_uart:
+  bool = False`，SerialTransport 重写 True，路由用
+  `getattr(type(transport), "supports_bidirectional_uart", False)`。和
+  ADR-024 LLMBackend `class_attr: has_health_probe` 同 pattern
+- (c) **细化 ABC**：把 open_session 提到 Transport ABC 上 + 抛
+  NotImplementedError 默认实现。但污染 ABC 表面 — 不是所有 transport
+  都该有"双向 UART"概念
+
+**Decision**：**v1 选 (a) 保 hasattr，等 N=2 transport 出现时升 (b)**。
+理由：
+- 当前 N=1 (SerialTransport)，扩 ABC 等于"为还没存在的需求设计接口"，
+  违反 L-020 (N=3 才抽抽象，本场景 N≥2 即可考虑)
+- (b) 升正式时 SerialTransport 改 1 行 + Transport ABC 加 1 默认 attr +
+  路由改 getattr 即可，cost 低
+- 何时升：第 2 个 transport（最可能是 HybridTransport）想接 bidirectional
+  UART 时
+
+**何时拍板**：HybridTransport 实现 bidirectional UART / 或第 2 个 capability
+detection 用 hasattr 出现时（任一触发 spec 出炉）。
+
+**升正式时方法名固化**（arch-reviewer 2026-05-02 补）：升 ABC class-attr
+时，方法名同步标准化为 `open_session/close_session`（避免下个 transport
+起名 `acquire_session/release_session` 等再制造 hasattr 多名混乱）。
+capability slot + method 命名约定一并立。
+
+**关联**：L-019 (sentinel 反模式 · dict reachable=False 是 hasattr 同
+形态) · ADR-024 (LLMBackend has_health_probe class-attr capability 已落)
+· DEBT-017 close (sentinel 反模式实例)
+
+---
+
+## ADR-034 (seed) · alb-api 默认 bind 127.0.0.1，0.0.0.0 须显式开启
+
+**Status**: seed（security-audit 5/02 提出 · 等下 milestone 切默认）
+**Date**: 2026-05-02
+**Context**: `src/alb/api/server.py:110` 默认 `ALB_API_HOST="0.0.0.0"` —
+绑所有网卡。今日 PR-H + PR-C.c + PR-E.v2 ship 后，alb-api 暴露的
+write 类 endpoint 实质增多：
+
+- `POST /devices/{s}/files/push` (sensitive 路径 HITL，但 /sdcard 直通)
+- `POST /devices/{s}/files/pull` (任意设备路径 → workspace)
+- `WS /uart/stream?write=true` (字节直写 UART · 可中断 u-boot · 可注 sysrq)
+- `WS /terminal/ws` (adb shell + HITL · approve once / session)
+- `POST /devices/{s}/screenshot` / `ui-dump` / `system` 信息泄露
+
+无 auth。任意 LAN 内可达者全功能调用。security-audit `MID 2`。
+
+**3 备选**：
+- (a) **保 0.0.0.0 默认 + 加启动警告**（v1 当前选）：commit `75a07d7`
+  已加 `[alb-api] WARNING: bound 0.0.0.0 with no auth ...`，不破坏现
+  有部署
+- (b) **改默认到 127.0.0.1 + LAN 暴露走 `ALB_API_HOST=0.0.0.0`**：安
+  全默认（principle of least privilege），但破坏 dev/CI 部署 — 用户
+  从公开 GitHub Pages → 内网 alb-api 走 95 ssh tunnel + alb-api 在 95
+  侧 0.0.0.0 监听 + windows 这边 ssh -L 转发，需要额外 docs 提示
+- (c) **加 token auth 默认 + 0.0.0.0 仍开**：M3 step 3 候选，复杂度高，
+  当前 milestone 不做
+
+**Decision**：v1 选 (a) · 下个 milestone 切 (b)。
+
+**何时拍板**：
+- M3 step 3 / 或 alb-api 开始外网部署（GitHub Pages 直连 host 而不是
+  dev 隧道）时，必须 (b) 至少 + 文档化 `ALB_API_HOST=0.0.0.0` 启动
+  required for LAN
+- 或 security-auditor 后续 audit 发现 MID 2 仍 outstanding 时升正式
+
+**关联**：security-audit `.claude/reports/security-audit-2026-05-02.md`
+finding MID 2 · L-027 (HITL bypass 已修，0.0.0.0 暴露面是放大该问题
+的运维维度)
+
+---
+
+## ADR-035 · LlamaCpp 嵌入式 backend deferred · 改 step 顺序 step 2/3 互换
+
+**Status**: ✅ accepted 2026-05-02（M3 ship 决策）
+**Date**: 2026-05-02
+**Context**: M3 原计划：step 1 OpenAICompat → step 2 LlamaCpp 嵌入式 →
+step 3 Anthropic。step 1 已 ship（commit `344fb47`，2026-04-30）。
+step 2 LlamaCpp 嵌入式调研后发现 4 个真实工程 footgun，不应当下做。
+
+**4 footgun 评估**：
+
+1. **sync/async 桥接复杂度**：`llama-cpp-python` 是 sync 库（C++ binding）。
+   alb 全 async。chat 可用 `asyncio.to_thread()` 一调；但 streaming 需要
+   thread + asyncio.Queue 双向桥接，每个 token 跨线程推送，正确性 / 取消
+   / 异常传播都是非平凡工程
+2. **依赖体积**：50+ MB binary wheel · pip 装失败要本机编译（要 C++
+   toolchain · macOS / Linux 各架构 wheel 矩阵庞大）
+3. **测试不可行**：单测需 GGUF 文件（最小也是几百 MB）；只能 importorskip
+   skip 大部分逻辑，CI 几乎无覆盖
+4. **抽象验证强度低**：LlamaCpp 跟 Ollama 都是 CPU 推理同形态
+   （`host_compute_type="cpu"`）。M3 真正要回答的设计问题是 ABC 能不能
+   容纳"完全异构"的 backend —— Anthropic（云 SaaS · 计费 / API key /
+   速率限制 / 协议差异 / cache_control）是更强的 ABC 验证
+
+**Decision**：M3 step 2/3 顺序互换，先 ship Anthropic（commits 81~84），
+LlamaCpp 嵌入式 deferred。registry 保留 `llama-cpp` 条目 status="planned"
+作占位。
+
+**用户替代方案**：用 `openai-compat` backend 接 llama.cpp 自带的 OpenAI
+兼容 server：
+```bash
+# 一端：起 llama.cpp 内置 server
+python3 -m llama_cpp.server --model path.gguf --port 8080
+
+# 另一端：alb 用 openai-compat 接它
+alb chat --backend openai-compat --openai-url http://localhost:8080/v1 \
+         --model default
+```
+零额外代码，已经 work。
+
+**何时重新评估**：
+- 用户明确报告"必须嵌入式 / 不能起 daemon"的真实场景（移动 alb-host 单
+  进程发布等）
+- llama-cpp-python 出现纯 async API（项目层修了 sync 桥接 footgun）
+- 有"alb-host 必须 GPU 推理"的 backend 需求（届时 LlamaCpp on CUDA 是
+  自然选择，host_compute_type="gpu" 字段已就位）
+
+**关联**：ADR-016 (LLMBackend ABC) · ADR-027 (host_compute_type 三态) ·
+M3 step 2 commits 81~84 (Anthropic 实际 ship)
+
+---
+
+## ADR-036 · 流式文件传输用 WS 而非 SSE / Job-Model · MID-6 协议形态拍板
+
+**Status**: ✅ accepted 2026-05-06（MID-6 step 1-3 ship · commits 89-92）
+**Date**: 2026-05-06
+**Context**: 2026-05-02 functional audit MID-6 报"Files tab Pull/Push 无
+Cancel 无 progress"。前端 useMutation 走同步 POST，没法在传输中给反馈
+也没法 cancel。多 GB push 卡住时用户只能干瞪眼。3 个协议形态选项：
+
+- (a) **WS per-op** — 新 WS endpoint，配置帧 → progress 流 → done/cancelled。
+  Cancel 走控制帧 + 浏览器关 tab WS 断 = 自动 cancel
+- (b) **Job model** — POST 起 job 返 `{job_id}` · GET /jobs/{id} 轮询 ·
+  DELETE /jobs/{id} 取消
+- (c) **SSE on POST** — POST 直返 SSE event 流，AbortController 关连接
+
+**Decision**：选 **(a) WS per-op**，2026-05-06 commits 89-92 ship。
+
+**理由**：
+
+1. **Infrastructure 复用**：项目已有 4 WS endpoint（uart/stream / terminal/ws /
+   logcat/stream / metrics/stream），WS lifecycle 模式成熟（_CloseState
+   outer-finally 单 close-frame · L-026），新加 2 endpoint 复用现有形态
+2. **Cancel 语义最干净**：浏览器关 tab → WS 断 → recv_loop catch → 通过
+   queue 通知 pump → cancel adb subprocess。**同 1 套 cancel 路径处理
+   两种 cancel 来源**（显式控制帧 + 隐式 disconnect）。Job model 需要单
+   独 DELETE endpoint + job lifecycle，多一倍状态空间
+3. **单 endpoint 无状态**：每个 WS 是独立连接，结束即 GC。Job model 需
+   server-side job registry（cleanup / TTL / lookup），多一层架构债
+4. **进度推送即时**：WS 是 push 模型，server 解析 adb stdout 即可 send。
+   Job model 是 pull，client 轮询有延迟 + 无效请求
+
+**拒方理由**：
+
+- ❌ (b) Job model：2 额外 endpoint + job 状态机 + cleanup TTL + lookup 索引。
+  对 alb 这种 single-user dev tool 复杂度溢出。Job model 价值在多 client /
+  跨 session 场景（task 提交完关浏览器，下次连回拿结果），alb 用户在线全程
+- ❌ (c) SSE：cancel 不可靠（依赖 server 检测 client gone），AbortController
+  在 fetch 上的 cancel 是 client-side 关连接，server 进程是否真停取决于
+  其框架。WS 控制帧是显式 in-band 信号，更可靠
+
+**Protocol 落地**（commits 89-92）：
+
+```
+C → S  config first-frame  {local?, remote, force?}
+S → C  ready               {direction, local, remote}
+S → C  progress * N        {percent, bytes_transferred, file}
+C → S  cancel control      {type:"cancel"}
+S → C  closed (terminal)   {reason, ok, bytes_transferred,
+                            duration_ms, error?}
+```
+
+**附带架构收获**（commit 90 调试触发）：
+
+- L-031 立项：Python 3.11+ `asyncio.CancelledError` 是 BaseException 子类，
+  `contextlib.suppress(Exception)` 不抓。finally 清理 cancel 过的 task →
+  CancelledError 漏出 → testclient 报"看似无关"错误
+- 嵌套 async generator (push_stream → _stream_transfer) outer aclose 不
+  自动传染 inner，标准模式：`inner = gen(); try: async for x in inner:
+  yield x; finally: await inner.aclose()`（这个不立 lesson · 已包含在
+  L-031 反面教材内）
+
+**未做的事 / 遗留**：
+
+- 真机 e2e 验证（M3 step 4 · 用户 ad-hoc 操作 · 待）
+- 进度反馈精度：adb 在 pipe mode 不一定输出 [N%] 行（modern adb 35.x 输出，
+  老版可能不输出）。退化模式：useFileTransferStream 显示不确定动画（30%
+  宽度 + 1.4s slide），用户仍看到"在动"
+- POST `/files/pull` + `/files/push` 旧端点保留（backend 仍可用，前端不再
+  调用），下个清理 batch 再删
+
+**Effect 测试**: 841 pass（5/02 780 → +61：MID 收头 + Anthropic + retroactive
+regression）/ typecheck 0 / sensitive 0 / 主 bundle 110 KB gzip 持平 ·
+FilesTab chunk +1.01 KB gzip（hook + 进度 UI 全在 lazy chunk）
+
+**关联**：DEBT-029 (audit MID 8/8 关) · L-026 (WS 多 task close-frame race ·
+本 ADR 应用) · L-031 (suppress + 嵌套 generator · 本 ADR 实施触发) ·
+ADR-024 (LLMBackend ABC capability · 同形态用 class-attr 暴露能力) ·
+functional-audit-2026-05-02.md MID-6
+
+---
+
+## ADR-037 (seed) · transport 配置常量（retry / timeout / backoff）用 class attribute，不 module-level
+
+**Status**: seed（part 132 立 L-034 时部分论证，part 134 self-audit
+architecture-reviewer 建议升 seed）
+**Date**: 2026-05-09
+**Decider**: architecture-reviewer self-audit + 主对话同意
+
+**Context**：
+
+part 131 (`fb236ac`) 在 `SerialTransport` 加 ECONNRESET 重试时，把 retry
+触发异常集合 + backoff 序列两个常量放在了 class attribute
+（`SerialTransport._TRANSIENT_CONNECT_ERRORS` / `_CONNECT_BACKOFF_S`），
+而不是 module-level 常量。L-034 lesson 明确 transport retry 范围按角色
+判定（per-connection 网关 vs daemon），本 ADR 把"放在 class 上"这个
+落点决策正式约定下来。
+
+**Decision**：
+
+Transport 子类的连接行为常量（retry trigger 异常集合、backoff 序列、
+timeout 上限、connect window 等）**放 class attribute，不放 module-level
+constants**。
+
+**Why class attribute**：
+
+1. **不同 transport 角色需要不同策略**（L-034）：ser2net per-connection
+   网关 retry RST 必要；adb / sshd listen-socket daemon retry RST 掩盖
+   真 bug。module-level 常量会被错误复用
+2. **测试可干净注入**：`monkeypatch.setattr(Cls, "_X", ...)` 隔离作用域，
+   不污染其他 transport 测试
+3. **子类显式 override**：未来 SshTransport 加自己的 retry 必须显式
+   `_TRANSIENT_CONNECT_ERRORS = (...)`，比 module-level 静默继承更难错
+4. **与 ADR-024 / ADR-033 一致**：capability via class-attr pattern 已
+   立先例（LLMBackend / Transport ABC），retry policy 是同 pattern
+
+**Consequences**：
+
+- 第 N 个 transport 加 retry 时，复制粘贴一份 class attribute 而非 import
+  shared module-level constant —— 看似 dup，实际语义独立
+- module-level shared constant 会让"为什么 SshTransport 用了 ser2net 的
+  backoff" 变成 latent bug
+- 当前 N=1 (Serial) 远未到拐点
+
+**Reverses if**：3 个以上 transport 复用了完全相同的 retry policy（说明
+确实是通用 transport 行为），抽 mixin / module-level 才有意义。届时
+立新 ADR override 本 seed。
+
+**关联**：
+
+- L-034（per-connection vs daemon · 本 ADR 的语义来源）
+- ADR-024（LLMBackend ABC capability via class-attr · 同 pattern 先例）
+- ADR-033 seed（transport capability via class-attr · 同 pattern 邻居）
+- 实操 commit `fb236ac` part 131 + `a1612aa` part 134
+
+---
+
+## ADR-038 · 每个 feature page / inspect sub-tab 配 use<X>.ts hook · 数据层与 view 强制分层
+
+**Date**: 2026-05-21 seed (`244111a` AppTab) · 2026-05-22 promoted to
+formal ADR after Playground (commit R `8a61c3e`) implemented the same
+shape as a third independent instance — 5/22 arch audit LOW#6 confirms
+the pattern.
+
+**Decision**: 每个 feature page (top-level activity-bar 入口) **或**
+inspect sub-tab 的数据层（query / mutation / mutation invalidation）
+**必须**抽到独立 `use<X>.ts` / `use<X>Actions.ts` / `use<X>Chat.ts`
+hook 文件。Component 只 import 这些 hook 加 UI 组合，**不直接**调
+`useQuery` / `useMutation` / `useQueryClient` / `fetch*` / `post*` /
+`connect()`。
+
+**Rationale**: N=3 (PowerTab/usePower + AppTab/useAppActions +
+Playground/usePlayground + usePlaygroundChat) 已稳定:
+
+- 数据层与 UI 强分层 → 单元测试可以单独 mock fetch* / connect() 跑 hook
+- mutation invalidation 集中（如 `useAppInstallMutation` 自带
+  `onSuccess: invalidate ["app-list"]`），不再在 component 里重复
+- 抽出来后 useEffect 依赖能稳定（hook 返回的 mutation 对象 stable
+  across re-render）—— 配合 hook 内 `useCallback([])` 写法
+- 跨 feature 复用（如 DevicePicker 引 lib/hooks/useDevices · AuditPage
+  引 lib/hooks/useAuditStream · 见 AA `6e2c40f` layering 修）
+
+**Counter-argument**: 单 mutation / 单 query 抽 hook 是过度抽象。但
+feature page / inspect tab 平均 3-6 mutation + 1-2 query, 不抽就
+500+ 行平铺。**单 query/0 mutation 例外**: 如 SystemInfo,
+ChartsTab — inline useQuery 即可。
+
+**变种**:
+- Chat 类长流: 主 hook + 同名 `Chat.ts` 拆 WS lifecycle (usePlayground
+  + usePlaygroundChat)
+- Shared 跨 feature: 升到 `lib/hooks/` 而不是 `features/<X>/`
+  (见 AA `6e2c40f` · arch HIGH#6 修)
+
+**Status**: formal · 14 feature 中:
+- 用模式: Power / App / Playground (主+chat) / Devices (lib/hooks) /
+  AuditStream (lib/hooks) / Files / Sessions
+- 单 query 例外: SystemInfo / Charts / UART / Logcat / Shell /
+  Screenshot / UiDump / LogSearch / Diag (其中部分有同名 use*.ts 但
+  形态不一致 · 下次改动时同款重构)
+
+**Reverses if**：某 feature 演化成纯 view-only (只读 single endpoint
+poll), 抽 hook 反而增重 — 案例提交 ADR override 本 ADR。
+
+**关联**：
+
+- L-020（ABC 第 1 个非首例消费者 = 抽象设计的免费检验 · N=2 不抽象）
+  —— 本 ADR 在 N=3 升正式
+- L-025（新 useQuery hook 必 sweep refetchInterval/OnWindowFocus 两 flag）
+- commit F `244111a` (AppTab) · usePower.ts (PowerTab 原型) ·
+  commit R `8a61c3e` (Playground 双 hook) · commit AA `6e2c40f` (lib
+  共享层抽出)
+
+---
+
+## ADR-039 (seed) · 危险 / 长操作通用 UX hook 三件套 · useArmedAction + useElapsedSeconds + useDeviceReset
+
+**Date**: 2026-05-21（commit D `f887198` useArmedAction · commit H
+`aacf691` useElapsedSeconds · commit G `0f6f439` device reset 模式
+未抽 hook 但模式重复 4 处）
+
+**Decision**: 危险或长操作的 UX 用通用 hook 三件套表达，不每个 card
+inline:
+
+1. **useArmedAction(onFire, opts)** — 两步确认（first click 武装 ·
+   8s timeout / 二次 click 真触发）· `{ armed, trigger, disarm }`
+2. **useElapsedSeconds(active)** — 任何 30s+ 长 op 的实时 elapsed
+   counter（防"静默 spinner"）
+3. **useDeviceReset(device, ...mutations)** —（**待抽** · 当前 4 处
+   inline `useEffect(() => mutations.forEach(m=>m.reset()), [device])`）
+   切设备 reset 之前的 mutation 结果
+
+**Rationale**:
+
+- "危险 op 需 HITL / 长 op 需进度反馈 / 切设备需 reset" 这三类问题
+  在 ar7 之外的项目（Doctor / Sessions / Files / Playground）也
+  会遇到, 抽 hook 防衰减
+- L-029（共享 modal 三件套基线）+ 本 ADR 共同构成"危险/长操作"完整模式
+
+**Status**: seed · #1 #2 已实现 · #3 待抽（part L 入档但代码留给后续
+commit, 4 处 inline 模式稳定后再抽）。当用户触发"加新 mutation
+忘 device reset"事故时升级为强制 ADR。
+
+**关联**：
+
+- L-029（destructive op a11y 三件套）· 本 ADR 是其行为补集
+- L-037（elapsed timer 必要性）· #2 的根因
+- commit D / H / G · 三个 hook 的实操
+
+---
+
+（后续 ADR 在主对话决策时按此格式追加）
+
+---
+
+## ADR-040 · vitest config 和 vite config 拆双文件 · 实测真因 + 维护契约
+
+**Status**: accepted · 关 5/25 arch audit MID-5 + DEBT-053
+
+**Context**:
+
+5/25 arch audit 怀疑双 config 是误诊（"vitest 的 defineConfig 也是从
+vite re-export，应该可单 config 解决"）。AH-5 实测验证：
+
+- vite 的 `defineConfig`（from `"vite"`）的 `UserConfigExport` 类型
+  **不包含 `test` 字段**。加 `/// <reference types="vitest" />` 三斜
+  线指令也不行 —— 它只 augment 周围环境声明，不 augment
+  `UserConfigExport` 联合。直接写 `test: { ... }` 报 TS2769。
+
+- vitest 的 `defineConfig`（from `"vitest/config"`）**确实** 暴露
+  `test` 字段，但其 `UserConfig` 中
+  `build.rollupOptions.output.manualChunks` 类型 **narrow 成 array-
+  of-output 形式**，拒绝我们生产构建用的
+  `{ xterm: [...] }` record 形式。
+
+两个都是真错。单 config 任何一种写法都要在生产构建侧（manualChunks
+易读形式）或测试侧（test 段无法识别）牺牲一个。
+
+**Decision**:
+
+保持双 config：
+- `vite.config.ts` 用 `defineConfig from "vite"` · 写 build / server /
+  resolve / plugins · **不写 test 段**
+- `vitest.config.ts` 用 `defineConfig from "vitest/config"` · 写
+  plugins + resolve + test 段 · **不写 build 段**
+
+**Maintenance contract**:
+
+任何 plugins / alias / resolve / 任何 spec 也需要的 vite-side 配置
+**必须**在两个文件里同步写。今天两份文件共享：
+- `react()` plugin
+- `@` → `./src` alias
+
+新加任何条件时检查两边。
+
+**Rationale**:
+
+- 单 config 试过（AH-5 临时合并）· 实测 build 失败 · 已删验证分支
+- 替代方案"as any 强转 test 字段"或"魔改 vite 类型"都更脏
+- 双 config 显式 · 维护契约清晰 · 类型完全正确
+
+**关联**：
+
+- 5/25 audit arch MID-5（vitest 双 config 真因误诊）· 本 ADR 是对那
+  条 finding 的"实测后反驳"
+- DEBT-053（hook test mock pattern · vi.hoisted N=2 抽 helper）
+- 任何升级 vite / vitest 主版本时重测：可能未来某个版本两边类型趋同
+
+---
+
+## ADR-041 · hook 组织规则 · lib/hooks/ vs lib/ vs features/<x>/
+
+**Status**: accepted — slot-allocation rule (lib/hooks/ vs lib/ vs
+features/<x>/) still authoritative. The "raw hook + feature wrapper
+必须分离" 子条款 amended by ADR-043 (wrapper 抽取临界 N ≥ 2 consumer)
+on 2026-05-25.
+
+**Context**:
+
+5/25 arch HIGH-3: lib/hooks/ 与 lib/ 命名分裂 — 4 hook 分 2 目录无
+判定依据 (useDevices / useAuditStream 在 hooks/ · useArmedAction /
+useElapsedSeconds 在 lib/ 裸放 · useDashboardQuery 在 lib/ 裸放)。
+AH-1 commit 把 4 个业务 hook 统一到 lib/hooks/ · useDashboardQuery
+留 lib/ 作 query factory 例外。
+
+**Decision**:
+
+强制 3 槽：
+
+- `web/src/lib/hooks/<useX>.ts` = **多 feature 共享的业务 hook** ·
+  数据 fetch / WS lifecycle / 状态 hook · 必须只返 raw (服务端原
+  shape) · 不允许 import features/ (反向依赖触发 arch HIGH)
+- `web/src/lib/<utility>.ts` = **非 hook 的纯 utility** · api.ts /
+  ws.ts / format.ts / deviceFormat.ts / dashboardQuery.ts (薄封装
+  TanStack Query) / types.ts (跨 feature union) 这类 · 不带 React
+  state · 不带 useEffect
+- `web/src/features/<x>/use<Y>.ts` = **单 feature 专属 hook** · view
+  projection wrapper / 业务编排 hook · 可以 import lib/hooks/ +
+  features/<x>/types · 不允许跨 feature import (除非通过 lib/hooks/)
+
+**Amendment to "raw hook + wrapper" sub-clause** (added 2026-05-25 by
+ADR-043, restated 5/26 AO-5 for clarity)：原 ADR-041 第 4 段 "raw
+vs view-model 拆分必须在 boundary 上显式 · feature wrapper 做
+projection (mapToDeviceCard / mapAuditToTimeline) · lib hook 不知道
+feature view shape" **只在 N ≥ 2 consumer 时强制**。N=1 时直接在
+consumer 内 useMemo + 纯映射函数（放 features/<x>/mappers.ts 或
+lib/<thing>Format.ts），不抽 wrapper hook —— AL-2 commit 撤回
+useDeviceCards / useAuditTimeline 两个 N=1 wrapper 验证了这条。
+**槽位规则（3 槽 · lib/hooks/ 不准 import features/）保留。** 详见
+ADR-043 + L-052。
+
+**Why**:
+
+- AA commit (5/22) 把 useDevices / useAuditStream 提到 lib/ 但留在
+  hooks/ subfolder · AG commit (5/25) 又把 useArmedAction /
+  useElapsedSeconds 直接放 lib/ — bikeshed-prone (作者要二选一无
+  judge)
+- raw vs view-model 拆分必须在 boundary 上显式 · feature wrapper
+  做 projection (mapToDeviceCard / mapAuditToTimeline) · lib hook 不
+  知道 feature view shape
+
+**Enforcement**:
+
+- 任何 lib/hooks/<X>.ts grep 自身 import features/ → audit HIGH
+- 新加共享 hook 默认 lib/hooks/ · 默认 raw shape · feature wrapper
+  自己做投影
+- code-reviewer agent grep checklist 加: lib/hooks/*.ts 内
+  `import.*features/` → flag
+
+**Rationale**:
+
+- 单一规则消除"该放哪"的判断分歧
+- raw / view-model 分离让 lib hook 测试不依赖 feature types
+- 跨 feature 共享只通过 lib · 不通过 sibling feature
+
+**关联**：
+
+- AH-1 commit · arch HIGH-3 fix
+- AH-2 commit · arch HIGH-4 fix (raw / wrapper split 实操)
+- L-048 (提层提一半 = 反向依赖 trap)
+- DEBT-053 (test mock helper 抽 · 跟随同一 lib/hooks/ 不变量)
+
+---
+
+## ADR-043 · wrapper hook 抽取临界 = N ≥ 2 consumer · 否则 useMemo inline
+
+**Status**: accepted · 关 5/25 第二轮 arch HIGH-2 · 修订 ADR-041
+
+**Context**:
+
+5/25 第二轮 arch HIGH-2 反例 (`useDeviceCards` / `useAuditTimeline`)：
+ADR-041 第 1 槽规则把 "raw hook 不返 view-model" 当硬约束 · AH-2
+commit 顺应规则建了 2 个 thin wrapper hook (每个 ~10-12 行有效代码 ·
+只服务 DashboardPage 1 个 consumer) · arch reviewer 抓 "wrapper 是为
+规则的规则" + `mapAuditToTimeline` 跨 sibling cross-import (DEBT-055
+也认了 mapper 归宿没定)。
+
+**Decision**:
+
+wrapper hook 抽取的临界数：
+
+- **N=1 consumer**：raw hook + 纯 mapping 函数（放 `features/<x>/
+  mappers.ts` 或 `lib/<thing>Format.ts` 看归属）+ consumer 内
+  `useMemo`。不抽 wrapper hook。
+- **N=2 consumer**：抽 wrapper hook 到首消费 feature (`features/<x>/
+  use<Y>.ts`)，第二消费者从兄弟 feature import 这个 wrapper。
+- **N ≥ 3 跨 feature**：把 wrapper 升到 `lib/hooks/<X>.ts` raw +
+  每个 feature 各自 wrapper · ADR-041 第 1 槽规则适用。
+
+**Why**:
+
+- **N=1 wrapper 是 over-design**：thin wrapper 加 render boundary +
+  API surface + 测试 mock 层 · 但没换来任何复用收益
+- **N=1 用 useMemo inline** 让 consumer 看见完整 view 投影路径 ·
+  reviewer 一眼看清 · 不需要打开 wrapper 文件看里面是不是 thin
+- **mapping 函数** 抽到 mappers.ts 后 N=2 consumer 出现时升 wrapper
+  代价 ~10 行 · 不预先付
+
+**Enforcement**:
+
+- 任何新增 `features/<x>/use<Y>.ts` thin wrapper (只是 useMemo + map)
+  → audit MID · 该考虑撤回 inline
+- mappers.ts 文件命名约定：feature-specific projection functions
+  (mapFooToBar / dotFor / formatRel)
+- lib/types.ts 文件命名约定：跨 feature 共享的 domain union (Transport
+  / DeviceStatus 等 atomic enum)
+
+**Rationale**:
+
+- AL-2 commit 撤回 useDeviceCards / useAuditTimeline 实测：DashboardPage
+  inline `useMemo` 反而比 wrapper 直观 · 行数差不多 · 0 测试要改
+- 关联 N=2 抽象规则（L-020 已有）的 hook 化版本
+
+**关联**:
+
+- AL-2 commit · arch HIGH-2 fix
+- L-052 (thin wrapper hook 是规则压力的副产物)
+- DEBT-055 (mapAuditToTimeline 归宿)  → 关 (mappers.ts 决定下来了)
+- ADR-041 修订 (第 1 槽规则保留 · "必须 wrapper" 条款撤回)
+
+---
+
+## ADR-044 · `lib/hooks/*` 复合 viewModel 返回必须 useMemo 稳定 reference
+
+**Status**: accepted · 关 5/25 第三轮 arch HIGH-1
+
+**Context**:
+
+5/25 第三轮 arch HIGH-1 实测发现：AM-2 给 `useDevices` 加了
+`useMemo<DevicesRawViewModel>(...)` 包返回对象 · 但 `useAuditStream`
+没加 · 返回裸 object literal。consumer DashboardPage 用
+`useMemo(() => ({...auditStream, events: auditEvents}), [auditStream,
+auditEvents])` 是 **假 memo** —— auditStream 每 render 新 ref ·
+deps 永不命中 · 下游 ActivityTimeline / KpiStrip / 其他 React.memo
+子组件全 invalidate。
+
+同源问题影响所有 lib/hooks/* 复合 hook (return `{ field, fn, ... }`
+而非 primitive)。useDevices 和 useAuditStream 写法不对称是 reviewer
++ 新人陷阱。
+
+**Decision**:
+
+`web/src/lib/hooks/<X>.ts` **复合 viewModel** 返回必须 `useMemo`
+包裹 · deps 列稳定 reference 字段：
+
+```ts
+return useMemo<ViewModel>(
+  () => ({
+    field1: stableField1,
+    field2: stableField2,
+    callback1, // 已是 useCallback
+  }),
+  [stableField1, stableField2, callback1],
+);
+```
+
+**例外**：
+- 返回 primitive 或单值的 hook (useElapsedSeconds 返 number ·
+  useArmedAction 返 single fn · useDashboardQuery 透传 react-query
+  hook 结果) 不需要 · 反正 ref 本来就稳
+- 内部 callback 必须用 useCallback (不要每 render 新函数)
+- state 数组用 useState(()→[]) 初值化 · React 自身保证 ref 稳
+
+**Enforcement**:
+
+- code-reviewer agent grep checklist 加：`lib/hooks/*.ts` 的 return
+  是裸字面量对象 `return { ... }` 而非 `return useMemo(...)` →
+  flag MID
+- 新加 lib/hooks/<X>.ts 必须从这条规则开始 · 不再"先 ship 后包"
+- 现状审计 (5/26)：useDevices ✓ · useAuditStream ✓ (AO-2 修)
+  · useWsChatStream 返 `{ phase, settled, start, cancel, reset }`
+  · phase/settled 是 useState · start/cancel/reset 是 useCallback
+  · ref 已稳但**未 useMemo 包** → DEBT-064 候选 (低优先 · 不破)
+
+**Rationale**:
+
+- 消除 useDevices vs useAuditStream 对称性 trap (reviewer 看其中一
+  个会以为另一个也包了)
+- consumer 可以放心 `useMemo([hookReturn])` · 不用拼字段级 deps
+- 配合 ADR-043 (N≥2 才抽 wrapper) · raw hook 已经 stable · consumer
+  inline useMemo 不需要再包字段级 deps (AO-2 DashboardPage 仍写
+  字段级是冗余防御 · 历史代码可逐步收敛)
+
+**关联**：
+
+- AO-2 commit (useAuditStream useMemo wrap · 关 H1)
+- AM-2 commit (useDevices useMemo wrap · ref 稳定立 baseline)
+- DEBT-047 (WS pool dedup · 未来 connect() 也要 useMemo 包返回)
+- L-054 (lib/hooks/* 返回 ref 契约不对称是 trap)
+
+---
+
+## ADR-045 · `lib/ws.ts` shareKey opt-in pool + late-joiner microtask replay
+
+**Status**: accepted · 关 DEBT-047 (5/26 AP-1)
+
+**Context**:
+
+`/audit/stream` 同屏被 AuditPage + Dashboard timeline + LiveSession
+spark 3 处 hook 独立 connect · 服务端 fan-out 3 倍 snapshot · 客户端
+3 倍 setState。需要给 N→1 dedup · 但不能影响 useWsChatStream (chat
+per-turn 必须独占 socket · 池化会跨 turn 喂错 token)。
+
+且服务器协议是"open → 收到 client config → 发 snapshot → live deltas"
+。第 N 个 view subscribe 时 underlying 早已 open + snapshot 发完 ·
+那个 view 永远等不到 open / 等不到 snapshot · UI 卡 connecting。
+
+**Decision**:
+
+`connect(path, opts)` 的 `opts.shareKey` 控制行为：
+
+- **缺省 (`shareKey === undefined`)**: 走 `soloConnect()` · 1 caller
+  1 underlying socket · 完全保留 pre-DEBT-047 语义 · useWsChatStream
+  / 任何不愿被池化的 caller 默认安全
+- **提供 (`shareKey: string`)**: 进 `Map<path|shareKey, PoolEntry>`
+  pool · 同键复用 · 不同键 / 不同 path 互不影响 · view.close()
+  refcount-- · 0 时真 close + 删 entry
+
+新 view subscribe 时若 underlying.readyState === OPEN · 排
+`queueMicrotask` · 给 listener 顺次回放 `{kind:"open"}` +
+`entry.cachedSnapshot` (若有) · 微任务前 view.close() / unsub 都
+能 short-circuit (防 leak listener)。
+
+cachedSnapshot 只在 JSON `data.type === "snapshot"` 时更新 · delta
+不覆盖 · 保证晚到 view 总收"最近一次完整 snapshot" 而非中间帧。
+
+**备选**:
+
+1. ❌ **总是池化** — useWsChatStream 跨 turn 复用会喂错 token · 拒
+2. ❌ **server-driven dedup** (按 session_id 让服务器记 subscriber
+   list) — 后端复杂 + 跨进程更难 · 暂不动 backend
+3. ❌ **subscribe 时 short-poll fetch snapshot** — 多 1 个 HTTP
+   round-trip · 比 microtask replay 慢 100ms+
+4. ❌ **同步 emit open in subscribe()** — 破坏"事件总是异步" 的
+   listener 契约 · 容易和 listener 内 `clientRef.current = client`
+   赋值争 · microtask 队列保证赋值已完成
+
+**Trade-off**:
+
+- 放弃 (历史 · 5/26 AR-1 后已消除)：~~晚到 view 第一次仍走
+  `useAuditStream` 的 open handler · 触发 `client.send({minutes,
+  include_metrics})` · 服务器**再发一次 snapshot 广播给所有 view** ·
+  已有 view setState 重渲一次。冗余 1 帧。~~
+- **5/26 AR-1 修正**：AR-1 给 pool 加 send dedup-by-payload-per-epoch
+  (见 ADR-046)。晚到 view 的 synth-open handler 调 `client.send(config)`
+  时 · 若同 epoch 内首 view 已发同 payload · 直接 drop · 服务器不重发
+  snapshot · 那 1 帧冗余消除。**新 trade-off**: 晚到 view 必须靠
+  `cachedSnapshot` 微任务回放 bootstrap · cachedSnapshot 可能已过期
+  (数小时未刷新) · 引入"stale snapshot + 未来 delta" 视觉短暂不一致。
+  风险面从"罕见"(原: 偶发 reconnect 风暴期) 升为"必然" (任何 N≥2
+  shared view 的 bootstrap)。见 **DEBT-065** (5/26 第五轮 arch HIGH-1
+  + ui-f MID-1 提) · LOW→MID 升级 · 建议加 `cachedSnapshotAt` +
+  age check (e.g. >5min 不回放 · 强制 send 跳 dedup) 治本。
+- 获得：N→1 socket / N→1 server fan-out / N→1 server-bound send
+  (AR-1 加强) / 晚到 view 0 延迟 converge
+- 协议 0 改 · backend 0 改 · useAuditStream 0 改 (AM-3 已 pre-wire)
+
+**Enforcement** (写进 architecture-reviewer agent grep checklist):
+
+- 任何新 `lib/hooks/*.ts` 用 `connect()` · 必须明确"是否能池化":
+  - 一次性 turn-scoped / 上下文不能共享 → **缺 shareKey**
+  - 多 caller 配置完全一致 / 共享视图合理 → **填 shareKey** ·
+    用 `JSON.stringify(config-knobs)` 字符串
+- `shareKey` 序列化字段顺序是 wire 契约 · 改要更新
+  `useAuditStream.shareKey.test.ts` 钉住的字节序列
+- `lib/ws.ts` cachedSnapshot 探测条件 (`data?.type === "snapshot"`)
+  是 duck typing · 协议方加新 snapshot-shape 消息时需要扩这里
+
+**触发推翻条件**:
+
+- 出现"配置略有差异但还是想池化"的 caller (e.g. minutes=5 vs 30 想
+  共享底层 socket) → 需要 server-side multiplex 或重设计 shareKey
+  策略
+- 微任务回放仍跟 useState 时序竞 (实测 race) → 改 task / 改 sync
+- WS server 端引入 真 server-side dedup → 客户端 pool 退化为 no-op
+  · 删 makeView 简化
+- **DEBT-065 真实命中** (stale cachedSnapshot 被用户 visible) → 重
+  evaluate dedup vs fresh snapshot 取舍 · 可能要把 dedup 改成
+  payload-equality + age 双键
+
+**关联**:
+
+- DEBT-047 (CLOSED by AP-1 / AP-2 / AP-3)
+- DEBT-065 (MID · cachedSnapshot 过期路径 · AR-1 后 risk 放大)
+- ADR-022 (Dashboard 同页双 WS 实例 · pool 不能跨 metric 配置共享)
+- ADR-041 + ADR-043 + ADR-044 (hook layer 三槽 + N≥2 wrapper + 复
+  合 return useMemo · 同源工程化主题)
+- ADR-046 (5/26 AR-1 send dedup-by-epoch 单独决策 · 备选 A/B/C +
+  推翻条件)
+- AM-3 commit (`useAuditStream` shareKey pre-wire) · L-055 (pre-wire
+  让 DEBT 落地变 1-file diff)
+- L-056 (lib 行为契约修改即使 caller 0 改也需 ADR · ADR-046 案例)
+- `web/src/lib/ws.ts:80` (`PoolEntry`) / `web/src/lib/ws.test.ts`
+  (28 spec)
+
+---
+
+## ADR-046 · `lib/ws.ts` pool view.send() epoch-scoped payload dedup
+
+**Status**: accepted · 关 ui-f HIGH-1 (5/26 第四轮) · AR-1 落地
+
+**Context**:
+
+ADR-045 落地 (5/26 AP-1) 后 · 第四轮 ui-fluency-auditor 实测 reconnect
+风暴: N view 共 1 pool entry · underlying socket 网抖 reconnect →
+"open" event fan-out 给 N listener → N 个 `useAuditStream` listener
+各自调 `client.send({minutes, include_metrics})` → 服务器收 N 次同
+config → 回 N 次 snapshot → fan-out N×N = N² setState。
+
+需要把 N 次冗余 send 收敛到 1 次 · 但不能改 caller 协议 · 也不能改
+后端。
+
+**Decision**:
+
+`makeView.send(data)` 在 view 层做 **per-epoch payload dedup**:
+
+- `PoolEntry` 加 `currentEpoch: number` · underlying 每次 "open"
+  事件 (含 reconnect) bump 1
+- `PoolEntry` 加 `lastSentPayload: {epoch, payload: string} | null`
+  tracker
+- view.send() 流程:
+  1. binary 帧 (ArrayBuffer / typed array / Blob / SharedArrayBuffer)
+     完全 pass through · 不 dedup
+  2. text-shape (string / object) 序列化为 string · 与 tracker 比对:
+     若 `tracker.epoch === currentEpoch && tracker.payload === payload`
+     → drop
+  3. 否则更新 tracker · forward 到 underlying.send()
+- 新 epoch 来时 tracker.epoch !== currentEpoch · 自然 mismatch ·
+  payload 被 re-send · 服务器拿到新 config
+
+**备选**:
+
+1. ✅ **A (当前 · 选)**: pool 内部记 epoch · view 透明 dedup · caller
+   0 改 · 复杂度内聚在 ws.ts
+2. ❌ **B**: 让 caller 显式标 `send(data, {idempotent: true})` · 更
+   灵活但每个 caller 都要思考 idempotency · 增加心智负担 · YAGNI
+   今天
+3. ❌ **C**: 服务端 dedup 配置消息 (服务器侧改) · 后端复杂 + 多进程
+   去重难 · 拒
+
+**Trade-off**:
+
+- 放弃: 灵活性 — 若未来 caller 需要"不同 payload 也算重复" (e.g.
+  不同 minutes 都该幂等) 或"同 payload 跨 epoch 主动 force-send" ·
+  A 不直接支持 · 需扩 send opt (升级备选 B)
+- 获得: caller 0 改 · 复杂度全在 ws.ts · 1 文件 diff · 7 spec 钉契约
+- 放弃: 极端 corner case · 若 caller 不慎传含 `{时间戳: now()}` 的
+  payload · 每次序列化都不同 · dedup 永不命中 · 退化为无 dedup ·
+  silent perf 退化 (但功能 0 影响)
+
+**5/26 AT-2 修正 (第六轮 code/arch HIGH-2)**: 原 AS-2 实现把
+"stale-snapshot 路径 force re-send" 信号塞到 `entry.lastSentPayload
+= null` · 这是 **entry 级状态** · view A 触发 clear 把 dedup tracker
+撕掉 · 影响所有 sibling view 的下一次 send · 等效于 N view × N 次
+force-send → N² snapshot 重发 · **正好打掉本 ADR 想省的那部分**。
+AT-2 改为 **per-view `forceNextSendFresh` flag** · 只让"观察到 stale
+cache 的那个 view" 跳 dedup 一次 · sibling view 的 dedup tracker
+不被破坏。dedup 不变量重新闭合: same `(epoch, payload)` 跨 view 仍只
+到服务器 1 次 (除非有 view 显式 force-fresh)。
+
+**Enforcement**:
+
+- 任何 lib/ws.ts send dedup 行为变更必须先改本 ADR
+- 新增 `send(opt)` 字段要在 Options interface JSDoc 标 "see ADR-046"
+- ws.test.ts 7 spec 是契约 baseline · 删除任何一条要更 ADR-046 推翻
+- **新增 entry-level mutable state 必须先评估 "view 间 side-effect"** ·
+  AT-2 教训: pool entry 是共享的 · 单 view 操作不该 implicitly 影响
+  sibling view 的决策状态 · force-flag 等"一次性触发器"必须 per-view
+
+**触发推翻条件**:
+
+- 出现真需"不同 payload 也想 idempotent"caller → 升级到备选 B 加
+  `send(data, {idempotent: true | "same-payload-same-epoch"})` opt
+- 出现真需"同 payload 跨 epoch force-send"caller → 加
+  `send(data, {forceFresh: true})` opt
+- 服务端引入 application-level dedup → 客户端 dedup 退化为 no-op
+  · 删 send dedup 简化
+  · **协调成本**: 撤销前需后端 PR 同步落地 + 前端发版滞后 ≥ 1 release ·
+    避免窗口期"前后端双重 dedup" 或 "双不 dedup" 错位
+
+**关联**:
+
+- ADR-045 (shareKey opt-in pool · 上层决策 · trade-off 节已更新指向
+  本 ADR)
+- DEBT-065 (MID · cachedSnapshot 过期 · AR-1 后 risk 放大 · 本决策
+  的副作用)
+- DEBT-068 (LOW · pool dedup 真实命中率追踪 · 验证本决策实际收益)
+- AR-1 commit (5/26 落地)
+- L-056 (5/26 新写 · "lib 行为契约修改即使 caller 0 改也需 ADR"
+  · 本 ADR 是案例)
+- `web/src/lib/ws.ts` (`makeView.send` 实现) / `web/src/lib/ws.test.ts`
+  (7 dedup spec)
+
+---
+
+## ADR-047 · `lib/ws.ts` Pool-level Options · first-caller-wins 语义
+
+**Status**: accepted · 5/26 AU-4 (第七轮 arch MID-4)
+
+**Context**:
+
+`lib/ws.ts` 的 `Options` 接口 4 个 pool-level 字段分两类:
+
+**Entry key 字段 (1)** — 参与 pool 寻址 · 不同值 → 不同 entry · 不在
+同 entry 内"竞争":
+- `shareKey` (since DEBT-047 AP-1) · 和 `path` 组成 entry key tuple
+
+**Entry value 字段 (3)** — 同 entry 内只有 1 份值 · "first caller to
+mint the pool entry wins · 后续 callers 的同字段值 silently ignored":
+- `maxBackoffMs` (since 项目早期)
+- `noReconnect` (since 项目早期)
+- `staleSnapshotMs` (since AT-3)
+
+这 3 个 value 字段各自 JSDoc 里散写 "this matches the existing
+first-caller semantics" · 但**全 codebase grep 不到一个 ADR 立这条
+规则**。后续 reviewer / 新 contributor 加第 5 个 pool-level 字段时
+不知道该明示 first-caller-wins · 容易破。第七轮 arch MID-4 提:"4 个
+JSDoc 文字契约 + 0 个 ADR 强制 = 一致性靠 reviewer 偶然发现"。
+
+**当前观察 (AV-1 / 5/26 第八轮 arch MID-2 修订)**:
+- `staleSnapshotMs` — **已实战验证**: useAuditStream 3 caller 共 entry
+  · 验证过跨 caller 协调脆弱 (AU-3 commit 已统一 30min)
+- `maxBackoffMs` — **已实战验证**: 所有 caller 用 lib default · 0 caller
+  override · "first-caller-wins" 自然不冲突
+- `noReconnect` — **0 场景验证**: 唯一传 `noReconnect:true` 的 caller
+  是 `useWsChatStream` (chat 一次性 · 不要重连) · 但它**不传 shareKey ·
+  走 soloConnect · 0 进 pool**。"first-caller-wins" 对 noReconnect
+  当前**未经实战** · 若未来出现 `{noReconnect:true, shareKey:"X"}` 与
+  `{noReconnect:false, shareKey:"X"}` 共 entry · first-caller-wins 立刻
+  破 (chat 一次 ping 锁死 entry · 持续监听 view 拿不回 reconnect ·
+  ADR-047 必须重审)
+
+**未验证字段处置** (AW-2 / 5/27 第九轮 arch MID-2):
+"0 场景验证"标注只是观察 · 不是结论。`noReconnect` 字段不能永远停在
+这个状态 — **下一次 audit cycle · 或第一次真出现 chat+listener 共 entry
+case (无论哪个先到)**，必须从以下 2 选 1 落槌:
+
+- **方案 X (推荐 · 字段降级 ViewOptions)**: `noReconnect` 从
+  pool-level Options 移除 · 改走 per-view state (chat 的真实语义就是
+  per-view 一次性 · 不该是 entry 字段)。配合 DEBT-078 PoolOptions /
+  ViewOptions 拆分一起做。
+- **方案 Y (字段保留 + 显式拒绝合并)**: `noReconnect` 留在 Options ·
+  但 connect 命中现有 entry 时若 `opts.noReconnect !== entry.noReconnect`
+  立即 throw (不走 first-caller-wins silent ignore)。比 X 改动小 · 但
+  违反 ADR-047 主条款 (entry value silently win) · 需要给 noReconnect
+  开特例条款 · 复杂度增量真实。
+
+**禁止**: 不允许在 noReconnect 字段上保持当前的"first-caller-wins 但
+未经验证"状态超过一个 audit cycle。下一轮 (或触发事件) 必须落子。
+
+**Decision**:
+
+`lib/ws.ts Pool-level Options` 的 **value 字段** (`maxBackoffMs` /
+`noReconnect` / `staleSnapshotMs`) 遵循 first-caller-wins:
+
+- pool entry 由 (path, shareKey) tuple 创建 · entry 一旦创建 · 所有
+  value 字段值锁死
+- 后续 `connect(path, opts')` 同 (path, shareKey) 命中现有 entry →
+  返新 view · 但 entry 内部 value 字段不变 · `opts'` 同字段值 silently
+  被丢
+- `shareKey` 是 entry key · 不参与 value 竞争 (不同 shareKey → 不同
+  entry · 各自独立)
+- view-level options (未来扩展) 应该走不同机制 (per-view state in
+  makeView · 不存 entry · 见 AT-2 `forceNextSendFresh` 模式)
+
+**备选**:
+
+1. ✅ **A (当前 · 选)**: first-caller-wins · documented + enforced by ADR
+2. ❌ **B (last-caller-wins)**: 第 N 个 connect 改 entry 字段 · 破坏
+   稳定性 (Dashboard 设 5min · AuditPage 后到改 30min · Dashboard 静默
+   收到行为变化)
+3. ❌ **C (per-caller override)**: 每个 view 持本 view 的 options · 需
+   makeView 拷一份 · 复杂度 + memory · 暂无 use case 证明值得
+4. ❌ **D (assert 不一致即抛)**: 第 N caller 字段值跟 entry 不同 → throw
+   · 太严 · 破坏 caller 独立性 (Dashboard 和 AuditPage 不该需要协调)
+
+**Trade-off**:
+
+- 放弃: 灵活性 — caller 无法保证自己的 options 真生效 · 必须依赖
+  约定 (所有 caller 同字段传同值)
+- 获得: pool entry 行为可预测 · 不会因 caller mount 顺序 silently 漂
+- 获得: 0 复杂度增量 · 当前实现已是 first-caller-wins
+
+**Enforcement** (写进 architecture-reviewer agent grep checklist):
+
+- 任何新加 `Options` 字段必须在 JSDoc 标"first-caller-wins"且关联本
+  ADR
+- 新 caller 用 pool-level option 时 · 若同 shareKey 其他 caller 已存
+  在 · 必须传相同值 (or assume 自己拿不到这个值的预期效果)
+- 跨页面共享 pool entry 的 callers (Dashboard / AuditPage 同 /audit/
+  stream) 应**统一选 1 个常量** · 避免各自传不同值后 first-caller-wins
+  silently 失效
+- spec 钉契约: `useAuditStream.shareKey.test.ts` 已示范怎么钉
+  shareKey 不含 staleSnapshotMs
+
+**触发推翻条件**:
+
+- 出现真需 per-view override 的 caller (e.g. 同 entry · view A 想
+  noReconnect=true · view B 想 false) → 该字段从 Options 升级为
+  per-view state · 走 makeView 闭包模式 (AT-2 forceNextSendFresh
+  case)
+- pool-level 字段数 ≥ 6 → 考虑拆 `PoolOptions` (entry-level) vs
+  `ClientOptions` (view-level) interface (DEBT-078 综合拐点 watchdog
+  的触发条件之一)
+
+**关联**:
+
+- ADR-045 (shareKey opt-in pool · entry 创建机制)
+- ADR-046 (send dedup · 也是 entry-level 状态 · 但 view 可以 force
+  跳一次 = per-view override 范式 见 AT-2)
+- DEBT-078 (lib/ws.ts 综合拐点 watchdog · 5 字段时考虑拆 PoolOptions
+  vs ClientOptions)
+- AU-3 commit (useAuditStream + Dashboard + AuditPage 全部 wire
+  30 min · 是 first-caller-wins 跨 caller 协调的样板)
+- L-056 (lib 行为契约修改即使 caller 0 改也需 ADR · 本 ADR 是案例)
+
+---
+
+## ADR-048 · WS 消费者边界：何时走 `lib/ws.ts`、何时允许 raw WebSocket（round11 AR9-4）
+
+**背景**: 全仓 7 个 WebSocket 消费者，只有 2 个走 `lib/ws.ts` 的 `connect()`
+（`useAuditStream` 池化 · `useWsChatStream` solo），其余 5 个 inspect hook
+（`useUartStream` / `useLogcatStream` / `useMetricsStream` / `useTerminalSession` /
+`useFileTransferStream`）各自 `new WebSocket(wsUrl(...))` 手写生命周期（~100 行/个）。
+ADR-045 的 Enforcement 只约束"新 `lib/hooks/*.ts` 用 `connect()` 必须决定是否池化"，
+对 `features/` 下手写 raw WebSocket **零规则** —— 新 contributor 加第 6 个流式 hook
+时无边界可循（round11 AR9-4：decisions/lessons/debts grep 0 命中）。
+
+**决定（边界规则）**:
+
+| 流的特征 | 走哪 |
+|---|---|
+| 共享（多 view 同 URL+参数）/ 可重连 / JSON 帧为主 | **`lib/ws.ts`**（池化 `shareKey` 或 solo `noReconnect`） |
+| 一次性 · 用户显式 connect · binary/双向会话为主（UART 双向 / terminal PTY+HITL / file transfer progress+cancel） | **允许 raw `WebSocket`**，但 hook JSDoc **必须写明为何不走 lib/ws** |
+
+**为什么不现在统一重写这 5 个**: 它们协议各异（UART 双向 binary / terminal HITL /
+file transfer progress+cancel），强行抽成一个 client 是 premature —— 注意这是"5 份
+**重复**未抽象"而非"1 场景提前抽象"，方向与 L-052 相反，所以保留 raw 是对的。但
+"保留 raw" 必须是**有意决定 + JSDoc 记录**，不是默认放任。
+
+**代价 / 已知**: lib 层的容错改进（AR-3 listener try/catch 不截断 fan-out、
+Blob→ArrayBuffer demux、统一 error 事件）不覆盖这 5 个 hook；CR-1 / UI-3 的
+stale-socket 守护就是因此要在 5 个 hook 各修一遍。**触发迁移**见 DEBT-081：任一
+inspect hook 将来需要 reconnect/backoff，或踩 listener-throw 截断 fan-out，就迁到
+`lib/ws.ts` solo 模式（`noReconnect` 可表达"UART 板掉了不自动重连"语义），而不是再
+手写第 N 份。
+
+**Enforcement**: architecture-reviewer grep checklist 加一条 —— 见到
+`features/**/use*Stream*.ts` / `use*Session.ts` 里 `new WebSocket(` 时，确认 JSDoc
+有"为何 raw 不走 lib/ws"说明；新增第 6 个流式 hook 必须先对照本表。
+
+**关联**: ADR-045（池化 opt-in · 本 ADR 补 features/ 边界）· ADR-046/047（pool 语义）·
+DEBT-081（迁移触发账）· CR-1 / UI-3（5 hook 各修一遍 stale-socket 的代价实例）·
+L-052（thin wrapper 是"提前抽象"反面 · 本 ADR 是"重复未抽象"的有意保留 · 两者区分）
+
+---
+
+## ADR-049 · metrics 物化读模型：event bus 双消费者 + MetricStore 投影 + per-backend 吞吐
+
+**背景**: Dashboard be-card 要 per-backend token 吞吐 sparkline（round10 MBC-3 ·
+web UI 多后端并发）。现状 `tps_sample` 事件无 backend 维度，`/metrics/summary`
+**每次轮询全量扫 `events.jsonl`**（O(整个日志)，DEBT-008）。两个被否的方案：
+(a) 新建 `infra/throughput.py` 内存分桶环 + 新端点 —— 与已有 `tps_sample` /
+`metrics_summary` 管线平行重复（架构评审 v1 否）；(b) 最小改动只给 tps_sample 加
+backend + `/metrics/summary` 加 `group_by` —— 但保留扫文件读路径，per-backend
+`group_by` 把 O(文件) 放大到分组量级（用户定调"按性能/扩展性最优、该重构就重构"，
+v2 不够）。
+
+**决定（物化读模型 / materialized read model）**:
+
+1. **event bus 第二类消费者** —— `EventBroadcaster.add_listener(fn)` 同步进程内
+   listener，`publish()` 里**先于** queue 扇出 + 落盘调用，每个包 try/except 隔离。
+   契约：cheap · 同步 · 无 IO · 不抛。与原有异步 queue 订阅者（WS streamer，容忍背压、
+   满则 drop）并存。
+2. **`infra/metric_store.py` MetricStore** —— bus 的投影：注册成 listener，维护按
+   `(kind, backend/session)` 的滚动样本窗口。`summary(window, session_id)` +
+   `throughput_series(window, buckets, group_by=backend)`，O(1) ingest / O(窗口) 读。
+   幂等 `attach/detach`，`reset_metric_store()` 供测试。
+3. **重构 `/metrics/summary` 双路径** —— 窗口被读模型覆盖（`is_warm`）走内存；冷启动
+   或窗口 > 容量（900s）走原 `_read_tps_samples` **文件扫兜底**（免 tail 回放，复用
+   现成代码）。新增**非破坏** `source:"memory"|"file"` 字段。`group_by=backend` 始终
+   走内存（live near-window view）。
+4. **`tps_sample` 加 `backend` + `source` 维度** —— chat_route 传 `backend=llm.name`；
+   playground WS 接 sampler（`source="playground"`，补吞吐盲区）。口径 = `on_raw_token`
+   （含工具轮 = "backend 实际吐了多少 token"）。
+5. **前端** —— `fetchBackendThroughput()` → `useBackends` 折进 `BackendRuntimeState`
+   up 变体（非 60s static 的 BackendCardData，消除撕裂态）→ `LlmBackendCards` 用抽出的
+   `scaleSparkPoints`（per-card 归一化）喂 `<Sparkline>`，无数据走 `empty` 平虚线。
+
+**为什么不建平行管线 / 不丢文件持久化**: 读模型是 bus 事件的**投影**（单一源 =
+bus），不是第二个记录点 —— 与 ADR-027"扩字段不扩系统"、ADR-021"加 metric kind 类"
+同源。`tps_sample` **仍落 events.jsonl**（留离线历史 + 文件兜底），写量不变，故
+DEBT-006（rotation）不被本 ADR 加重。
+
+**边界（write model vs read model 解耦）**: `events.jsonl` = durable 写模型（audit
+历史、长窗口兜底）；MetricStore = ephemeral 读模型（近窗口快读）。读模型**永不读文件**；
+重启后空、一个窗口内自填，期间 scalar summary 落文件兜底（`source` 如实标）。
+
+**代价 / 已知**:
+- 单进程假设：同步 listener + 内存投影只在单 worker 成立（uvicorn 当前单 worker）。
+  多 worker 会分裂读模型 —— 上多 worker 前需把读模型移到共享存储或每 worker 各算。
+- 重启后约 1 窗口 scalar summary 走文件兜底、sparkline 部分/空（可接受，自愈）。
+- 长窗口（> 容量 900s）summary 仍走 O(文件) 扫 —— DEBT-008 的扫文件成本只剩这条罕见路径。
+
+**Enforcement**:
+- listener 契约由 `publish()` 的 try/except 隔离兜底（一个坏 listener 不炸 chat 持久化）。
+- **新 metric 需求先查 `tps_sample` / `metric_store` 现有管线能否加字段/投影满足**，
+  再考虑新存储；见到提案新建 `infra/*throughput*` / `*rate*` 内存聚合先 grep
+  `tps_sample` + `metric_store`（L-060）。
+- `conftest.py` autouse fixture 成对有序 `reset_metric_store()+reset_bus()`，防 per-test
+  `create_app()` lifespan 把 listener 重复注册到共享 bus（重复计数）。
+
+**关联**: ADR-021（metric kind 类 · 本 ADR 是其首个 per-backend 消费者）· ADR-018（bus）·
+ADR-027（扩字段不扩系统先例）· DEBT-008（**本 ADR 关闭**：扫文件读路径退到冷/长窗口兜底）·
+DEBT-006（不受影响 · tps 仍持久化）· L-060（先查现有管线 · "复用"要审被复用物性能）·
+round10 MBC-3（关闭）· feedback_optimize_for_quality_not_simplicity（用户定调）
+
+---
+
+## ADR-050 · 远程设备接入：agent 出站拨回家 + 信令/数据面分离 + per-channel 独立连接
+
+> 状态:部分被 ADR-071 取代(见该条)。
+
+**背景**: 北极星 = Linux 上的 alb 中枢让 LLM（经 MCP，含外部 Claude Code / Cursor /
+Codex 等客户端）和人（经 Web UI）调试**物理接在 Windows 主机上**的安卓设备：ADB over
+USB + UART 控制台，Linux 侧驱动、Windows 零 per-session 脚本、COM/baud on-demand、
+不依赖第三方终端工具。现状靠 Windows 发起的 SSH 反向隧道手动建（每会话手跑桥脚本 +
+手配 `-R` 端口）。
+
+候选传输（架构评审压测）：
+- overlay 网（Tailscale/WireGuard）/ tunnel daemon（frp/cloudflared）只解决"网络可达"，
+  **都不能 on-demand 开 COM 口 / 列设备** → agent 控制面无论如何都得写，它们省不掉。
+- agent 管 SSH（`asyncssh` 已是依赖、可 in-process reverse-forward）→ 拿成熟数据面但
+  引入第二信任域（key 分发），且开 COM 仍需自研 RPC。
+- 自造**单 WS 全多路复用**（初稿）→ `adb pull`（MB/s）head-of-line block 掉 UART 交互。
+
+**决定**:
+1. **agent 出站拨回家** —— Windows agent 主动开 `wss://<hub>/agent/connect`（出站，
+   NAT/防火墙友好，无入站端口，无 SSH key，无第三方终端）。复用 alb-api TLS + token
+   鉴权（单信任域）。
+2. **信令面 / 数据面分离** —— 拨回家那条 WS **只跑控制**：`hello`（agent_id/version/
+   caps + token）、`heartbeat`、`list_com`/`list_adb`、`open_channel{type,params}`、
+   `close_channel`。
+3. **per-channel 独立连接** —— `open_channel` 后 agent 为该 channel **回拨一条独立连接**，
+   hub 绑到对应 forwarder。`adb pull` 与 UART 键入物理隔离，消除 HoL。
+4. **channel 类型**：`tcp`（给 adb，target 白名单仅 `127.0.0.1:5037`，防 agent 变开放
+   代理）、`serial`（`{com,baud}`，on-demand，无预分配端口池）。
+5. **agent 形态**：无头服务 + 系统托盘（状态/重连/日志/设置）+ 可选 `127.0.0.1` 只读
+   状态页。**操作面只在 Linux 侧（Web/CLI/MCP）**，Windows 不出现选 COM/连设备的操作
+   UI。agent 静态配置（hub URL/token/name）装一次，COM/baud 是 hub 下发的 per-session 参数。
+
+**为什么不选 SSH / overlay / 单 WS 多路复用**: SSH 引第二信任域且仍需自研控制面；
+overlay/daemon 不解决"开 COM"；单 WS 多路复用对交互流有 HoL。出站 WS 信令 +
+per-channel 连接同时拿到：去第三方终端/SSH、NAT 友好、on-demand COM、交互不被大流量
+饿死、单信任域复用 alb-api 鉴权。`asyncssh` 数据面留作 fallback（若 raw-WS 字节搬运/
+背压实现超预期难）。
+
+**代价 / 已知**:
+- 自己拥有一套 wire 协议（组帧/背压/重连），要配 parity test。
+- 信令面断 → 所有数据 channel 视为失效（agent 重连后重 `hello`，hub 标 offline 拆 forwarder）。
+- 多 host fleet 的设备寻址不在本 ADR（见 ADR-051 / DEBT-083）。
+
+**Enforcement**:
+- channel 必须带显式 role（见 ADR-052），adb 与 serial 不能抹平成统一 `tcp` channel。
+- `tcp` channel target 强制白名单，禁止任意 host:port。
+- agent 代码进公开仓·品牌中立（同 `scripts/windows_serial_bridge.py`）；真实 COM/baud/
+  hub-IP/token 留本地 config 不提交。
+
+**关联**: ADR-051（alb-api 单中枢 + forwarder）· ADR-052（channel retry 角色）·
+ADR-048（WS 消费者边界）· ADR-D 草案（多实例 backend · 独立排）· 设计稿
+`.claude/reports/alb-remote-agent-design-draft.md`
+
+---
+
+## ADR-051 · alb-api 为设备流量唯一中枢进程：OS 级 loopback forwarder + MCP 新依赖方向
+
+> 状态:部分被 ADR-071 取代(见该条)。
+
+**背景**: dial-home（ADR-050）下 agent 的 WS 只连到一个 hub 端点。但 `alb-api`
+（uvicorn asyncio）和 `alb-mcp`（FastMCP stdio，被 Claude Code/Cursor/Codex 当
+subprocess 拉起）是**两个独立 OS 进程**。若 forwarder 是"alb-api asyncio loop 里的
+对象"，独立的 alb-mcp 进程根本触不到它 → "LLM 经 MCP 调设备"主路断（评审 critical）。
+
+**决定**:
+1. **forwarder = alb-api 进程开的真·OS 级 loopback listener** —— `127.0.0.1:5037`
+   （adb）+ serial 端点。它**就是操作系统资源**，任何本地进程（独立的 alb-mcp / CLI /
+   Web）都能 `connect()`。
+2. **alb-api 成为所有设备流量的唯一中枢进程** —— 持有 agent registry（`{agent_id→WS}`）
+   + forwarder。MCP/CLI/Web 全是它的本地 socket 客户端，**transport / capabilities /
+   MCP 工具零改动**（仍 `ADB_SERVER_SOCKET=tcp:localhost:5037`）。
+3. **依赖方向变更（铁律）** —— dial-home 模式下 **alb-api 必须常驻且先于 MCP 运行**。
+   今天 alb-mcp 可脱离 alb-api 独立连真设备；之后 alb-mcp **强依赖 alb-api 在跑**。这是
+   实质依赖方向变化，不是"plumbing swap"。
+4. **forwarder 生命周期** —— **进程级单例**（`get_adb_forwarder()`，registry 后端，
+   复用 ADR-049 幂等 attach 模式），**不是 per-connection 对象**。`attach()` 幂等绑 OS
+   listener，第一个 agent 连上时懒绑（避免无 agent / 测试场景空绑 5037），重连 / 第二
+   agent 调 `attach()` 是 no-op → **无 EADDRINUSE 竞态**。agent 断开**不** detach（listener
+   常驻，无 active agent 时新本地连接 fail-fast），仅 alb-api lifespan shutdown
+   `shutdown_adb_forwarder()` 真拆。forwarder 经 `registry.current_agent()` 路由到当前
+   agent（P0 单 agent；多 agent 寻址 DEBT-083）。
+5. **单设备单 host 用固定端口** —— `127.0.0.1:5037`（adb）+ `127.0.0.1:19001`（serial），
+   与今隧道端口一致 → MCP/CLI/serial transport **真零配置改**。动态端口只在多 host /
+   多 COM 并发（P4）引入。
+
+**为什么**: OS 级 socket 是唯一能让"独立 MCP 进程"复用"alb-api 持有的 agent 连接"的
+机制（进程间无共享内存/loop）。固定端口让 keystone invariant（呈现成现有本地端点 → 核
+零改）对单设备 adb+serial 双路都成立。
+
+**代价 / 已知**:
+- alb-mcp 多了"alb-api 必须在跑"的运行期前提（文档要写清：先起 alb-api + agent 连上，
+  Claude Code 的 alb-mcp 才能经 forwarder 操作设备）。
+- 一个设备的 agent 连接只能被一个 hub 端点持有 → MCP **不能**各开自己的 forwarder
+  （会与 alb-api 抢同一 agent/COM）。
+- 多 host 时固定 5037 listener 与多 agent 冲突 → 寻址要进 `build_transport`（DEBT-083）。
+
+**Enforcement**:
+- forwarder 必须是真 OS listener，**禁止**做成只在 alb-api loop 内可见的对象（否则 MCP
+  路径不通，评审 critical）。
+- 部署文档明确"alb-api 常驻先行"前提。
+- 多 host 落地前先消化 `factory` 无 host 维度的债（DEBT-083）。
+
+**关联**: ADR-050（dial-home 拓扑）· ADR-052（channel role）· ADR-049（lifespan 幂等
+attach 先例）· `transport/factory.build_transport`（CLI/MCP/API 共用入口）· DEBT-083
+
+**后续可能推翻条件（P4 multi-agent · 2026-06-18 opus review DEFER）**: 单例 forwarder
+决定在真出现 ≥2 host/≥2 COM 需求 + 单 agent 真机 E2E 跑通前**保持不变**（触发器未到,P4 暂
+不实现）。届时:**agent-0 保 canonical 5037/9001**（保留幂等 attach,不回退本 ADR 修的
+EADDRINUSE 竞态）,agents 1..N 进 registry-keyed forwarder map（不是"全员 per-agent 实例",
+那会让 agent-0 端口也动态化、破坏 keystone invariant + 请回竞态）。寻址前置=先接设备枚举
+（list_adb/com_list → /agent/status）,寻址 key 由真实枚举数据压出。详见 [[L-062]] / DEBT-083。
+
+---
+
+## ADR-052 · 反向代理 channel 的 retry 角色：adb=daemon 失败即报 / serial=独占网关 bounded retry（L-034 落地）
+
+**背景**: ADR-050 两类 data channel 在 transport 角色上是**异类**，但初稿抹平成"两种
+tcp channel"并暗示统一 retry。L-034（2026-05-09 part 131）：被代理端是 listen-socket
+daemon 还是 per-connection 独占网关，决定能不能 retry。
+
+**决定**:
+1. **adb channel = listen-socket daemon 语义 → 失败即报，零 retry**。Windows adb server
+   是常驻 daemon；连 5037 的 `ECONNRESET`/`BrokenPipe` 几乎一定是真问题（USB 重授权 /
+   设备掉线 / server crash），retry 会把真错误吸成静默重试，追溯极慢（违反 L-034）。每条
+   adb-client→hub 入站 TCP = 一条独立端到端 channel，连接关即 channel 关，不跨连接复用、
+   不应用层重连。
+2. **serial channel = per-connection 独占网关 → 允许 bounded retry**。ser2net 风格桥有
+   fd-release race（连续两命令间），沿用 `SerialTransport._open_tcp_with_retry` 的
+   bounded backoff（3 次 0.1/0.3/0.6s 自愈）。
+3. **channel spec 带显式 role 字段**（`daemon` | `gateway`），代码按 role 决定 retry
+   策略，不靠 channel type 名隐式推断。
+
+**为什么**: 抹平两类性质相反的端 → 要么给 adb 误加 retry（掩盖真错），要么给 serial 去
+retry（踩 fd race）。显式 role 是唯一不诱导误判的抽象。
+
+**代价 / 已知**: code review 多一条 checklist（新增 channel 类型必须声明 role + 给出
+"被代理端是 daemon 还是独占网关"的判断依据）。
+
+**Enforcement**:
+- code-reviewer checklist 加规则：反向代理新增 channel 类型时，必须按 L-034 分清 daemon
+  （失败即报）vs 独占网关（bounded retry），禁止抹平成统一 `tcp` channel 后误加 retry。
+- adb channel 实现禁止出现重连/retry 循环。
+
+**关联**: ADR-050（channel 模型）· ADR-051（forwarder）· L-034（listen-socket daemon
+反模式 · 本 ADR 扩到反向代理新场景）· `SerialTransport._open_tcp_with_retry`（gateway
+正例来源）
+
+---
+
+## ADR-053 · data-plane dial-back 鉴权用 per-channel secret，不用 agent_id-on-query（DEBT-084 cid-binding 半落地）
+
+**背景**: ADR-050 数据面是"agent 收到 `open_channel` 后拨回 `/agent/channel?cid=...`，
+hub 按 cid 对回 pending forwarder 请求"。P0 只用 cid（uuid4 122bit 不可猜）+ 端点级共享
+token（`ALB_AGENT_TOKEN`）门禁。architecture-reviewer（2026-06-18 opus）指出这是
+defense-in-depth 缺口（DEBT-084）：**cid 是路由 key 不是凭证**，任何持有效共享 token 的
+进程只要拿到一个 live cid，就能拨回 `/agent/channel` resolve 走那条 channel 的 data plane。
+单 agent 下 hub 从不把 A 的 cid 发给别人，暴露面小；但多 agent 落地前必须堵。
+
+**决定**:
+1. **hub 在 `open_channel` 时 mint 一个 per-channel secret**（`protocol.new_csecret()` =
+   `secrets.token_urlsafe(32)`，256bit），与 cid 一同 `register_pending(cid, csecret)`，
+   并**只**随 `open_channel` 帧下发到 owning agent 的信令 WS（别的 agent / 进程拿不到）。
+2. **dial-back 必须出示该 secret**（`/agent/channel?cid=...&csecret=...`）。
+   `resolve_pending(cid, channel, csecret)` 用 `hmac.compare_digest` 常量时间比对，cid 未知/
+   已 done/secret 不匹配/secret 缺失 → 一律 False → 关 WS。
+3. **secret 走 query string**（与既有 token 同 posture，wss 加密）——不引入数据面 per-frame
+   header（数据面仍是纯 raw bytes，ADR-050 不变）。
+4. **拒绝 `agent_id`-on-query 方案**：共享 token 下 agent_id 可随意伪造 = security theater；
+   per-channel secret 才是不可伪造的真凭证（只流向 owning agent）。
+
+**为什么**: cid 当凭证是"路由 key 兼做鉴权"的经典错。per-channel secret 把"谁能拨回这条
+channel"从"任何持 token 者 + 知道 cid"收紧到"收到这条 open_channel 的那个 agent"。即使
+no-token dev posture 也变强（数据面从只验 cid 变成额外需要 256bit secret）。这是 DEBT-084
+评审本身指定的机制，单 agent 即可独立落地（不依赖多 agent），所以先做。
+
+**边界（不在本 ADR）**: `current_agent()` 的多 agent 寻址（按 (agent_id|device) 选 agent）
+**仍未做**，与 DEBT-083 一起留到真多 agent 落地（L-062：单实例 E2E + 真实枚举前不设计多实例
+寻址）。本 ADR 只落 DEBT-084 的 cid-binding/数据面鉴权半。
+
+**代价 / 已知**: agent 客户端 `alb_agent.py` 与 hub 协议常量须 lockstep（已同步 `_channel_url`
+带 csecret）。secret 进 URL 有被日志记录的理论风险，但与既有 token-on-query 同等 posture，
+未引入新面。
+
+**Enforcement**:
+- `resolve_pending` 永远要求 csecret 匹配（与 `ALB_AGENT_TOKEN` 是否配置无关）。
+- 新增任何 data channel 类型，dial-back 必须带 csecret 并经 `resolve_pending` 核验，禁止只验 cid。
+
+**关联**: ADR-050（数据面 dial-back 模型）· DEBT-084（cid-binding 半本 ADR 落地，current_agent
+寻址半仍 open）· DEBT-083（多 agent 寻址，一并）· L-063（自包含安全硬化可先于 deferred 的多
+agent 寻址落地）
+
+---
+
+## ADR-054 · 独占串口的反向代理必须共享一条 channel + fan-out，不是"每条本地连接一条 channel"（issue #4 根因）
+
+**背景**: ADR-050 定"每条本地连接开一条独立 data channel"，对 adb 是对的（listen-socket
+daemon 多客户端友好），对 serial 是**错的**：agent 侧 `serial.Serial(com, baud)` 是**操作系统
+独占打开**，第二条 channel 必然打不开。真机 2026-08-04 issue #4 实测三个后果：
+① `capture` 跑着时 `serial shell` 必报 `BOARD_UNREACHABLE`（板子其实是好的 —— handshake
+读到 0 字节 → IDLE → 误报）；② `serial send` 报 `[ok] wrote N bytes` 但字节被丢弃（写进了
+本地 socket，forwarder 还卡在 10s dial-back 超时里没开始读，超时后连字节带连接一起扔）；
+③ 两个 capture 并发，后起的抓 0 字节。合起来是"边抓取边操作板子"整条路走不通 —— 而
+UART 抓取最重要的用途（抓完整启动日志 = 先起抓取再触发重启）恰好只能这么做。
+
+**决定**:
+1. **serial forwarder 全进程共享一条 agent channel**（`_SerialSession`），引用计数：第一条
+   本地连接开，最后一条走关。RX 复制给每个订阅者，TX 各方合流（`_send_lock` 串行，避免两个
+   写方的帧交错）。**adb 保持每连接一条 channel 不变**（daemon 语义没这个约束）。
+2. **每订阅者一条有界队列 + 自己的写任务**（`_SUB_QUEUE_MAX=256`）。慢读方溢出就**踢掉它**，
+   不阻塞共享 pump —— 否则一个不读的 Web 页面会让 capture 丢启动字节。
+3. **关闭在锁内做**（`_release`）：refs 归零后必须等 channel 真关完才允许下一次 open，
+   否则就是同一个独占竞态倒过来。
+4. **agent 开口失败要回帧**（`channel_error` verb，协议里早有、之前从没人发过；hub 端
+   `registry.fail_pending`）。之前唯一的失败信号是 10s dial-back 超时，而那 10s 正是
+   `send` 静默丢字节的窗口。
+5. **open 失败按 ADR-052 的 gateway 角色 bounded retry**（0.15/0.35s 两次）：覆盖上一条
+   session 刚关、agent 还没释放 COM 句柄的交接缝。真被别的程序占着的口照样失败，只是晚 0.5s。
+
+**为什么**: UART 物理上就是**广播介质** —— 板子打印的每个字节所有读方都该看见，任何读方都
+可以敲字符。所以"共享 + fan-out"不是绕过独占限制的 workaround，而是唯一忠于介质语义的模型。
+替代方案：(a) 只加错误码 `SERIAL_BUSY`（能把"浪费半小时"降到"看一眼提示"，但"边抓边操作"
+仍然走不通，而那是 UART 抓取的头号用途）；(b) agent 侧多路复用（要在 agent 里再造一套
+订阅分发，且直连 /dev/ttyUSB 拓扑用不上）。选 hub 侧 forwarder，因为它是所有本地连接的
+唯一汇聚点，改一处覆盖 CLI / MCP / Web 三个客户端。
+
+**边界（不在本 ADR）**: **直连拓扑**（`alb serial` 直接开 `/dev/ttyUSB*` 或直连 ser2net，
+不经 hub forwarder）仍然是一个进程一个独占句柄 —— 那里没有汇聚点可以 fan-out。对它只做
+诚实报错：`_classify_connect_error` 认 busy 文本（Windows "Access is denied" / pyserial
+"Could not exclusively lock port"）→ `SERIAL_PORT_BUSY`，与 `SERIAL_PORT_NOT_FOUND`
+分开（同是 SerialException，只有 message 能区分，而两者的修法完全不同）。
+
+**代价 / 已知**: serial forwarder 从无状态变成有状态（session + refcount + 锁），
+`detach()` 要扫两次防竞态创建的 session 漏关。`/agent/status` 多一个
+`forwarders.serial.readers` 字段暴露当前共享读方数（运维要能看见"是 alb 自己在共享"还是
+"别的程序占着口"）。
+
+**Enforcement**:
+- 新增反向代理 channel 类型时，除 ADR-052 的 role 判断外，还要判**被代理端是否独占打开**：
+  独占 → 必须共享 + fan-out + 引用计数；多客户端 daemon → 每连接一条。
+- `send_raw` 之类"只写不读"的路径禁止无条件报成功：至少要确认链路在写入后没被对端拆掉
+  （`SERIAL_SEND_UNCONFIRMED`）。报告"成功"却什么都没发生，比报错代价高得多。
+
+**关联**: ADR-050（每连接一条 channel —— serial 侧被本 ADR 修正）· ADR-051（forwarder 单例）·
+ADR-052（gateway bounded retry —— 本 ADR 用它覆盖 COM 句柄交接缝）· issue #4
+
+---
+
+## ADR-055 · dial-back 凭证走 header 不走 query，外加 access log 兜底脱敏
+
+**状态**: 已实现 · 2026-08-07
+
+**背景**: agent 拨回数据面时把 agent token 和 per-channel secret 放在 query string
+里(`/agent/channel?cid=…&token=…&csecret=…`)。uvicorn 的 access logger 打印**完整
+request line**,包含 query —— 于是每开一条 channel,两个活凭证就以明文写进 hub 日志。
+实际后果不是理论风险:排查 issue #4 时 `tail` hub 日志,token 直接出现在终端输出里。
+
+**决定**:
+1. **凭证改走 header**(`x-alb-token` / `x-alb-csecret`),query 里只留 `cid`。
+2. **query 形式继续接受**,但打一次 warning 提示重新部署 agent。
+3. **装脱敏 filter**(`alb/api/access_log.py`),把 `token=` / `csecret=` /
+   `password=` 等一批 key 的值换成 `***`,重写 `record.args` 而不是格式化后的文本。
+4. filter 在 **lifespan startup** 装,不在 `main()` 装。
+5. filter **同时挂 `uvicorn.access` 和 `uvicorn.error`**,并**逐个扫描字符串参数**,
+   不认死下标。
+
+**为什么**:
+- **为什么 header 而不是"关掉 access log"**:access log 是排查隧道问题的主要手段
+  (哪条 cid 什么时候拨回来、状态码是什么)。关掉等于为了防泄露把眼睛蒙上。改凭证位置
+  只损失"看得见凭证",不损失任何排查信息。
+- **为什么 query 形式还留着**:agent 跑在操作员的 Windows 机器上,靠人工重新部署。
+  hub 升级把还没更新的 agent 锁在门外 = 现场断连,而这正是远程调试最难恢复的故障。
+  留 fallback + 打 warning,让升级顺序解耦。
+- **为什么 filter 不是多余的**:fallback 存在期间,凭证仍然会出现在 query 里 —— filter
+  才是那些请求的实际保护。它同时覆盖将来任何"顺手把 secret 放 query"的路由。
+- **为什么改 `record.args` 不改 `record.msg`**:uvicorn 的日志 record 是结构化的
+  (`msg` 是格式串,`args` 是参数元组)。改格式化后的文本会让 JSON log shipper 拿到的
+  结构体仍然带明文;改 arg 则两条路径都干净。
+- **★ 为什么必须挂两个 logger、且不能认死下标**:uvicorn 把请求目标写在**两处不同格式**:
+  HTTP 走 `uvicorn.access`、格式 `'%s - "%s %s HTTP/%s" %d'`,目标在 `args[2]`;
+  **WebSocket 升级走 `uvicorn.error`**、格式 `'%s - "WebSocket %s" [accepted]'`,
+  目标在 `args[1]`(`uvicorn/protocols/websockets/websockets_impl.py:108` 取 logger、
+  `:263` 打这条行)。而拨回家用的**正是 WebSocket** —— 只挂 access + 认死 `args[2]`
+  的写法,恰好漏掉唯一真正泄露的那条行。**这条是拿真机 hub 日志比对时才发现的**:
+  单测按自己臆想的格式造 record,自然全绿。教训:验证"日志里没有 X"必须去看真日志,
+  不能只看自己构造的 record。
+- **为什么装在 lifespan 而不是 `main()`**:hub 也可以用 `uvicorn alb.api.server:app`
+  起,那条路径根本不走 `main()`;而 uvicorn 的 `dictConfig` 在导入 app **之前**执行,
+  startup 是唯一"一定在日志配置之后、且每条启动路径都会走"的点。
+
+**代价 / 已知**:
+- `websockets` 下限从 `>=12.0` 提到 `>=13.0` —— agent 用的 `websockets.asyncio.client`
+  在 12.x 里不存在(实测 12.0 wheel 无 `websockets/asyncio/client.py`),`additional_headers=`
+  也是这套新 API 的参数。原来的 `>=12.0` 本来就是错的下限。
+- **已经泄露的 token 必须轮换**:改代码不能把日志里已经写下的字节收回来。三处同时换
+  (hub env / agent.conf / 共享目录那份)+ 重启 hub 和 agent。
+
+**Enforcement**:
+- 新增任何"带凭证的连接"时,凭证一律 header / 帧内字段,**禁止 query param**。
+- 新增 query param 时自问:它会不会进 access log?会 → 它就不能是 secret。
+
+**关联**: ADR-050(拨回家拓扑)· ADR-053(per-channel secret 的由来)· DEBT-084
+
+---
+
+## ADR-056 · fastboot 走"作业通道"而不是第三个 forwarder;烧录与 UART 编进同一条时间轴
+
+**状态**: 设计已定 · 2026-08-07 · 实现分期(见末尾)
+
+**背景**: alb 能把板子**推进** fastboot(`cli/power_cli.py:22` 的 mode 收 `fastboot`),
+但隧道里只有两条路(`remote/forwarder.py:234` AdbForwarder · `:387` SerialForwarder),
+`grep -rn "ChannelForwarder)" src/` 没有第三条。净效果是**能进不能出**:进去之后远端只能
+从串口看见它在 fastboot,`errors.py:214` `BOARD_IN_FASTBOOT` 给的建议原文
+"Use adb / fastboot tools to leave fastboot" —— 而那两样远端都够不着,唯一恢复手段是
+有人去碰那台 Windows 机器。对着"无人值守"的 CI 和 agent 场景,这比"暂不支持 fastboot"
+更咬人:功能缺失可预期,"能进不能出"要到现场才发现。
+
+### 决定 1 · fastboot 是**作业通道(job channel)**,不是 ChannelForwarder 子类
+
+前两条 channel 是**字节流代理**:两端各有一个真实端点(监听 socket / 字符设备),中间对拷。
+fastboot **没有可代理的端点** —— USB 协议由 `fastboot.exe` 自己讲完。需要的动作是
+"把一个文件送过去 + 在对端跑一条命令 + 收回进度和退出码",这是 RPC 不是 proxy。
+
+**没有它会怎样**: 硬套 forwarder 会得到一个假抽象 —— 要么在 hub 侧凭空造一个"本地
+fastboot 端口"(不存在),要么把 argv 当字节流灌过去(见决定 5,那是后门)。
+
+**替代方案为什么没选**:
+- **USB-over-IP**(usbip / 商用 USB 网络共享):两侧都要内核模块 / 签名驱动,而 fastboot
+  内部会触发 USB reset,usbip 对 reset 不稳。为"只做烧录"这个收敛场景开销过大。
+- **在 agent 上开一个 fastboot TCP 服务再用 AdbForwarder 代理**:等于多一个进程、多一份
+  生命周期,而且它天然是 daemon 语义(多客户端),掩盖了"设备一次只能被一个作业独占"这件事。
+
+### 决定 2 · 作业通道复用现有 data channel,只加一层 5 字节帧头
+
+不新开 WS 路由。`AgentConnection.open_data_channel(ctype=JOB, ...)` 直接复用已经打磨过的
+那条拨回流程:per-channel secret(ADR-053)、pending 超时、`channel_error` 快速失败(issue #4)。
+帧格式 `kind(1B) + length(4B BE) + payload`,`kind` 只有 `C`(控制 JSON)/ `D`(数据块)。
+
+**为什么不用 WS 原生 text/binary 帧区分**: 那要新开一条拨回路由,把 csecret 校验、pending
+注册、超时、错误回帧**全部再实现一遍**。第二套鉴权路径是最容易长歪的东西 —— 新增 60 行
+可测的 codec,比新增一条平行的认证入口便宜得多。
+
+**为什么不用"JSON 一行 + 紧跟裸字节"**: `recv()` 返回的是任意切分的 chunk,行边界和二进制
+载荷混在一个流里,解析器要处理"半行 + 半块"的所有交错。定长帧头把这些歧义一次消掉。
+
+### 决定 3 · 并发模型:**烧录串行 + UART fan-out**,两件事分开
+
+ADR-054 定的是"被代理端独占 → 必须共享 + fan-out"。fastboot 也独占设备,但**结论相反**:
+
+| | UART | fastboot |
+|---|---|---|
+| 介质语义 | **广播** —— 板子打的每个字节所有读方都该看见 | **独占作业** —— 两个人同时烧同一个分区没有任何正确语义 |
+| 正确做法 | 共享一条 channel + fan-out 给所有读方 | **一把锁,一次一个作业**;第二个请求明确报"忙",不排队不静默 |
+| fan-out 用在哪 | 读方 | **只用于进度流** —— CLI / web / 日志都该看见同一份进度 |
+
+**没有分清会怎样**: 照 ADR-054 抄成"共享 + fan-out"会做出"两个人能同时烧"——最坏结果。
+照 adb 抄成"每连接一条 channel"则是同一个错的另一面。**判据不是"独占吗",而是
+"多个读方看同一份数据有意义吗"**:UART 有,烧录没有。
+
+### 决定 4 · ★ 烧录会话把 UART 编进**同一条时间轴**,不是让人自己开第二条命令
+
+`alb flash` 在串口已配置时**默认挂上 UART**,产物落
+`workspace/devices/<serial>/flash/<ts>/`:
+
+| 文件 | 内容 |
+|---|---|
+| `timeline.jsonl` | **主产物** —— 作业事件与 UART 行交错,同一个时钟盖章 |
+| `uart.log` | 裸字节原样留档(bootloader 阶段有大量非行导向的字节,行化会丢东西) |
+| `job.json` | 作业结果:分区 / 大小 / sha256 / 退出码 / 耗时 |
+
+**为什么必须在采集端合并**: 裸串口字节流**自身没有时间戳**。如果让调用方开两条命令、
+事后把两个文件按时间凑起来,时间信息在采集那一刻就已经丢了,谁也补不回来。而"边烧边看 UART"的
+**全部价值就是相关性** —— "写 `vendor_cfg` 的那 3 秒里板子打了什么"。合并晚一步做,
+这个问题就永远答不了。对 AI 尤其致命:它只能读到两个各自独立、时间凑不到一起的文件。
+
+**什么场景会用到**: 烧完不起来 —— timeline 里能直接看到 flash 成功之后 bootloader
+在哪一步停住;烧录中途板子掉电 —— UART 最后几行就是原因。
+
+### 决定 5 · argv 由 **agent 侧模板拼装**,hub 只送结构化字段
+
+hub 发 `{op, partition, size, sha256}`;分区名过 agent 自己的白名单,镜像路径由 agent
+生成临时文件,`fastboot.exe` 路径来自 agent 自己的配置。**hub 永远不能传一整条命令行**。
+
+**没有它会怎样**: 这条通道就成了"让远端在那台 Windows 上跑任意可执行文件"——一个后门。
+这和现在 tcp channel 的 `ALLOWED_TCP_TARGETS` 是同一条规矩:**代理方永远不信任控制方
+给的目标,自己再查一遍**。
+
+### 决定 6 · 先核对完整性再开烧,宁可不烧也不烧一半
+
+控制帧先带 `size + sha256`,agent 收齐、核对通过才启动 `fastboot.exe`。校验失败直接报错,
+不落盘、不执行。**写分区被打断可能让板子起不来**,而"传输是否完整"是唯一能在动手之前
+就确定的事 —— 不利用它是白白把风险留到不可逆的那一步。
+
+### 决定 7 · 能力协商,不靠超时发现
+
+agent 的 `hello` 现在写死 `caps=["adb"]`(`alb_agent.py:354`)。加 `fastboot` cap:
+agent 找不到 `fastboot.exe` 就不报这个 cap,hub 直接告诉调用方"这台 agent 没有 fastboot",
+而不是发过去等超时。**能立刻知道的事不要用超时去发现**。
+
+### 代价 / 已知
+
+- agent 多一个执行外部程序的能力 —— 用决定 5 和 7 把它约束成"只能跑自己配置里的那一个
+  程序、参数自己拼"。
+- hub 侧多一个有状态单例(作业锁 + 当前作业),`/agent/status` 要暴露 `flash.busy`,
+  运维要能看见"是谁占着"。
+- 大镜像走流式会压满隧道。本 ADR **只覆盖流式**;SMB 路径留到 P3,判据是"单文件 > 256MB
+  且同一镜像会反复烧"。
+
+### 分期(按"先解掉真实阻塞"排,不按代码量)
+
+| 期 | 内容 | 解决什么 |
+|---|---|---|
+| P0 | job 通道 + `fastboot devices` / `fastboot reboot` | **能进不能出** |
+| P1 | 单分区流式烧录 + sha256 校验 + 进度 | 几百字节的厂商配置分区(今天的实际阻塞) |
+| P2 | UART 编进同一条时间轴(决定 4) | 烧完不起来时能当场看到原因 |
+| P3 | 整目录烧录 · SMB 大镜像 · web 一键页面 | CI 全量烧 / 易用性 |
+
+**关联**: ADR-050(拨回家 + 数据面)· ADR-052(channel retry 角色)· ADR-054(独占端点
+共享 + fan-out —— 本 ADR 给出它的**边界**:判据是"多读方看同一份数据有没有意义")·
+issue #3
+
+---
+
+## ADR-057 · adb server 端点由代码解析,不由 shell 携带
+
+> 状态:部分被 ADR-071 取代(见该条)。
+
+**日期**: 2026-08-10 · **状态**: 已落地 · **触发**: 真机故障(见"代价"一节)
+
+### 问题
+
+adb 客户端**指错了 server 不会报错**。指到另一个 adb server,它连上、回答
+`host:version`、报告**零台设备**;指到没人监听的端口,它**自己起一个 server**,
+同样零台设备。没有失败路径 —— "端点错了"和"板子没插"是同一个观测结果。
+
+只有一个 adb server 时这无所谓。alb 把远端台架的 adb server 转发到本地端口那一刻
+(ADR-050)就不再无所谓了:本机现在有两个 adb server,一个手上有板子一个没有,
+区别只是一个端口号,而这个端口号存在**操作者的 shell 里**。
+
+更根本的错位:端口是 **hub 进程**选的(`ALB_ADB_FORWARD_PORT`),却由**另一个进程**
+(CLI)消费,两者之间没有任何通道,只有"人记得去 export 一个对得上的值"。
+
+### 决定 1 · 解析放进 `alb.infra.adb_endpoint`,优先级写死四层
+
+| 层 | 来源 | 理由 |
+|---|---|---|
+| 1 | config.toml `[transport.adb] server_socket` | 操作者的明确选择 |
+| 2 | `ADB_SERVER_SOCKET` 环境变量 | adb 自己的约定 |
+| 3 | **本机 hub 的 adb forwarder,运行时问出来** | 唯一不会过期的来源 |
+| 4 | 无 —— adb 自己的默认 | |
+
+第 3 层是关键:**去问真正 bind 了那个端口的进程**。hub 内部是一次函数调用
+(`forwarder_status()`),CLI 侧是一次到本机 hub 的 HTTP GET。这个答案不可能过期 ——
+如果它错了,那 forwarder 本身也错了。任何手工维护的副本(shell profile、配置文件、
+wiki 上一行)都是第二份事实源,而且**过期的样子和"板子没插"一模一样**。
+
+### 决定 2 · 环境变量仍然压过自动发现
+
+**替代方案(否决)**:让自动发现压过 env,这样今天这个故障当场就好了。
+
+否决理由:`ADB_SERVER_SOCKET` 不是 alb 的变量,它指挥那个 shell 里**所有** adb 客户端。
+alb 悄悄绕过它,会造成同一个终端里 `alb devices` 有设备、`adb devices` 没设备 ——
+操作者要调试的从一个真相变成两个。对付过期环境变量的办法是**当场说破**(决定 3),
+不是绕开设它的人。
+
+由此得到一个值得写明的推论:**什么都不 export 的 shell 现在是配置得最好的 shell**,
+因为第 3 层会跟着 forwarder 走,它挪到哪都对。
+
+### 决定 3 · "零设备"必须自诊断,而且只在唯一那个场景开口
+
+`endpoint_conflict()` 只在**两个条件同时成立**时出声:我们指向的不是 forwarder,
+**并且**forwarder 另一头的台架**正握着设备**。
+
+- 只有端口不同 → 闭嘴。一台机器上并存两个 adb server 是正常配置,在这里报警会在
+  每台开发机上天天响,然后被无视。
+- unix socket / 解析不出端口 → 闭嘴。**制造一个不存在的冲突,比漏报一次代价更大**。
+
+消息里必须同时有:两个端口、值来自哪里、台架看见的设备序列号、以及一条能直接执行的
+修法。旧提示"0 visible — plug in / authorize / check tunnel"给了三个方向,
+恰恰没有真正那个原因。
+
+### 决定 4 · 通道**打开成功**也要记一行 INFO
+
+在此之前 hub 和 agent 两侧的成功路径都是静默的,只有失败才打日志。后果是
+"adb 隧道是不是坏了"**在任何一份日志里都证不出来也证不伪** —— 没有错误被读成了
+没有流量。通道打开是低频且对运维有意义的事件,一次一行 INFO 就是让日志能回答
+真正会被问到的那个问题。
+
+### 代价 / 已知
+
+- 每个进程多一次探测。仅在 config 与 env 都为空时发生,超时 0.4s,进程内 memo 一次,
+  hub 自己走进程内函数调用(**不能**发 HTTP 给自己 —— 那是从要服务它的 event loop
+  里发自请求,等负载够大就是死锁)。
+- hub 不在本机时不做自动发现:forwarder bind 的是 **hub 那台机器**的 127.0.0.1,
+  把那个端口号拿到这边用,会把命令指向本地碰巧开着的任意端口 —— 一个看起来对的错答案。
+- `AdbTransport` 多一个 `server_socket_source` 字段。诊断的本质是**两个答案之差**,
+  而不知道每一边是谁给的,差值就读不懂。
+
+### 代价来源(真实故障,2026-08-10)
+
+台架 adb 隧道被判定为坏,整整一天绕道 UART 完成工作。隧道**从头到尾是好的** ——
+裸 `host:devices-l` 穿过去直接返回了板子。真正错的是某个 shell profile 里遗留的
+`ADB_SERVER_SOCKET=tcp:localhost:5037`(旧方案的残留),而 forwarder 为了避开本机
+自带的 adb server 已经搬到 15037。全程 `alb status` 都在打印
+`server_reachable: True` / `ok: True` —— 因为它**确实**够到了一个 adb server,
+只是不是那一个。
+
+**关联**: ADR-050(拨回家 + 数据面)· ADR-052(channel retry 角色)· ADR-056(fastboot
+作业通道)· 本 ADR 的决定 4 是三者共用的可观测性补丁
+
+---
+
+## ADR-058 · 整包烧录按清单跑:整份先查完再动手,确认的是哪份就跑哪份
+
+**日期**: 2026-10-13 · **状态**: 已落地(测试桩 + 内网仓测试;2026-10-14 台架上用真实清单建过计划,拒绝和 dry-run 都对,真烧未跑)· ADR-056 分期表 P3 的「整目录烧录」· 决定 5 的两个 cap 由 ADR-059 收掉
+
+### 这是什么
+
+`alb flash plan <清单>`:读一份**行式烧录清单**(厂商烧录工具逐行执行的那种
+`<工具名> <动作> <参数...>`,每次编译生成一份),在 hub 上把它变成一份**计划** ——
+每行的动作、执行还是跳过、镜像大小和 md5 / sha256 —— 显示、确认一次、按顺序跑完。
+`--skip <分区>` / `--skip-action <动作>` 显式跳过,比如保留板上调试版 bootloader。
+
+### 没有它会怎样
+
+只有单分区 `alb flash write`:整包要一条条手敲,**手敲迟早漏一个**,而清单是编译生成的,
+照着清单做排除法不会漏。另外两个现实问题:实际清单里的 `super` 镜像有 2,236,037,804 字节,超过 agent 原来写死的
+2 GiB 上限,清单末尾有 `erase`(agent 原来没有这个操作)。
+
+### 决定 1 · 整份先查完,任何一处有问题就一行都不跑
+
+查的东西:未知动作、参数个数、分区名形状、镜像缺失 / 为空 / 跑出 workspace、`--skip` 写的名字
+**一行都没匹配上**、`setvar` 没有显式跳过、agent 白名单里没有要写的分区、agent 版本太旧
+(没报 `fastboot-erase` / `fastboot-large-image` 能力)。全部问题一次列出,带行号。
+
+**为什么**:按行跑到第 17 行才发现第 22 行的分区不在白名单,板子就停在「写了一半」——
+这正是整包烧录要避免的状态。这些原因在第 0 行就能知道,就该在第 0 行拒绝。
+agent 仍然逐行再查一遍(它是权威),hub 这层只是把它**半路才会给的拒绝**提前到开跑前。
+
+**`--skip` 没匹配上为什么算错误而不是忽略**:跳过是用来**保护**某个分区的。
+`--skip abl` 写错成没有下划线后缀,如果静默忽略,结果是把要保护的那个分区刷掉。
+
+### 决定 2 · 确认的是哪份,跑的就是哪份(指纹)
+
+`/plan` 返回计划和指纹(每行的动作、跳过理由、每个镜像的 sha256 合起来算一个 sha256)。
+`/plan/run` **必须**带指纹,hub 重建计划,对不上就 409 拒绝。镜像下发时用的是**建计划时**
+算出的 sha256,agent 收完会核对 —— 确认之后、执行之前文件被换掉,在写入前就被拦下。
+
+**替代方案(否决)**:hub 缓存计划、按 id 执行。要管过期和并发,换来的只是少算一次哈希
+(2 GB 级镜像几秒)。无状态的指纹更简单,也挡得住同样的事。
+
+### 决定 3 · 整份持有同一把烧录锁,一条时间轴
+
+ADR-056 决定 3 的锁是「一次一个作业」。整包若每行单独拿锁,行与行之间锁是空的,网页上
+随手一点或另一个命令行就能在包中间写进一个分区 —— 板子变成没有任何清单描述的状态。
+所以整份计划只拿一次锁。时间轴也只开一条、全程挂 UART:`reboot-bootloader` 那几秒板子打的
+东西恰好落在两行之间,正是整包刷完起不来时要看的证据。
+
+### 决定 4 · setvar 必须显式跳过
+
+AOSP fastboot 命令行没有 `setvar`(命令分派里没有,未知命令走
+`syntax_error("unknown command")`),agent 上执行不了。不默默丢掉,是因为厂商工具拿它做的
+事(例如机型比对)应该由操作者自己决定要不要放弃。
+
+### 决定 5 · agent 侧两处改动
+
+- 镜像大小上限从写死 2 GiB 改成「临时目录剩余空间 − 256 MiB 预留」,不够就在传输前拒绝
+  (`FLASH_AGENT_NO_SPACE`)。fastboot 需要真实文件(它自己按 max-download-size 切 sparse),
+  所以落临时文件这一步省不掉,真正的限制是磁盘。
+- 新增 `erase`,**沿用 flash 的分区白名单**:擦一个分区不比写它需要更多权限,单独一份
+  erase 白名单只是多一份要保持同步的清单。
+
+### reboot-bootloader 之后怎么算「回来了」
+
+每秒问一次 `fastboot devices`:先看到消失再看到出现 = 回来了;一直在列表里但已过 5 秒
+也算回来(重启快过一个轮询间隔时看不到消失)。超时(默认 120 秒,`--reboot-wait` 可改)
+按 `FASTBOOT_NO_DEVICE` 失败,后面的行一行不跑。
+
+### 已知限制
+
+- 只认 5 种动作(flash / erase / setvar / reboot-bootloader / reboot);别的写法整份拒绝。
+- 网页还没有入口(接口已在,`/api/flash/plan` · `/api/flash/plan/run`)。
+- 清单路径是 **hub 那台机器的 workspace 相对路径**,不是命令行所在机器的。
+
+**关联**: ADR-056(作业通道 · 锁 · 时间轴 · 先核对再烧)
+
+---
+
+## ADR-059 · Windows 侧的操作收成一张操作表:加一个操作只登记一行
+
+> 状态:部分被 ADR-071 取代(见该条)。
+
+**日期**: 2026-10-15 · **状态**: 设计待确认 · 改 ADR-058 决定 5 里的两个 cap
+
+### 这是什么
+
+台架 agent(Windows 上的 `alb_agent.py`)里的一张表。每行是一个能在那台 Windows 机器上
+做的操作。一行写明名字、参数的校验规则、怎么执行(写死的 argv 模板,或 agent 里的一个函数)。
+还写明执行前提、会不会改设备、要不要收镜像、要不要独占、超时(字段见决定 1)。
+agent 在 hello 里把这张表报给 hub;hub、命令行、网页、flash plan 都按表走同一条路。
+
+### 没有它会怎样
+
+现在每个操作在两边各写一遍。加 `alb flash oem`(`c7a1a83`)改了 11 个文件:
+agent 1 个(白名单、处理函数、分派、hello 四处),hub 6 个源文件(协议、作业服务、路由、
+命令行、错误码、schema),测试 4 个。hub 也不知道 agent 能做什么,只能看 caps 里的固定
+字符串:ADR-058 为整包烧录又加了 `fastboot-erase` / `fastboot-large-image` 两个。
+每多一种能力,就多一个两边要对上的约定。
+
+最贵的是 Windows 那边:每加一个操作就要换一次 agent,得有人在 Windows 上配合。
+操作表省不掉换 agent 这一步,但能把它攒成一批做;hub 这边加操作则基本不用改代码。
+
+### 关系图
+
+```
+  Windows 台架 agent                      Linux hub
+ +--------------------------+  hello:表  +--------------------------+
+ | 操作表(代码里)          | ---------> | 按 agent 缓存这张表      |
+ |  erase      partition    |            | GET  /api/bench/ops      |
+ |  set-active slot a|b     |  {op,参数} | POST /api/bench/ops/{op} |
+ |  usb-list   (无参数)     | <--------- | alb bench ... / 网页     |
+ | 校验参数 -> 拼 argv      |  进度+结果 | alb flash ... 改走这里   |
+ | -> 起进程(不经 shell)  | ---------> | (不拼 argv,不给路径)    |
+ +--------------------------+            +--------------------------+
+```
+
+### 决定 1 · 表写在 agent 代码里,一行一个操作
+
+| 字段 | 含义 |
+|---|---|
+| `name` | 唯一。已有的沿用原名(flash / erase / reboot / devices / getvar / oem),新的用短横线(set-active / boot / usb-list / log-tail) |
+| `params` | 每个参数一个校验规则,见决定 2 |
+| `run` | argv 模板(列表,占位符只能整格替换),或 agent 内置函数名 |
+| `needs` | 执行前提:`fastboot-device`(先确认 fastboot 能看到设备)或无 |
+| `image` | 先收一个镜像再执行(flash / boot) |
+| `mutates` | 会不会改设备。会:命令行要确认,hub 记时间轴 |
+| `exclusive` | 要不要独占。碰 USB 设备的要;只读 Windows 本机信息的不要 |
+| `record` | hub 记什么:不记 / 只记事件 / 事件加 UART |
+| `timeout_s` | 超时 |
+
+请求格式不变:`{op, <参数>...}`,收镜像的再加 `size` / `sha256`。已有操作的名字和字段名都不改,
+所以新 hub 发给旧 agent 的老操作照样能跑。
+
+**为什么不放进 agent.conf 让 Windows 上的人自己加**:校验规则还是要写在代码里(决定 2),
+conf 只能放 argv 模板。为此要多一套模板语法、多一处要审的东西,省下的只是换一个文件;
+而两种做法都要有人在 Windows 上动手。第三批(下载模式工具,各厂家命令行不同)时再评估。
+
+### 决定 2 · 参数只有四种类型,值由 agent 逐个校验
+
+| 类型 | 规则 | 用在 |
+|---|---|---|
+| `partition` | 形状(`_PARTITION_RE`)加 agent.conf 的 `flash_partitions` 白名单 | flash / erase |
+| `enum` | 必须一字不差地等于表里列的某个选项 | 槽位 · reboot 目标 · 日志来源(oem 命令 2026-11-05 前在这里) |
+| `int` | 整数,有上下限 | 日志行数 |
+| `text` | 正则形状加长度上限 | getvar 变量名 · 日志关键字 · oem 命令(2026-11-05 起) |
+
+**2026-11-05 · oem 命令不再列白名单**(user 定:「我们这个是调试工具,需要给调试人员最大的权限的」「我们只需要保证工具使用的可靠性和稳定性」)。
+原来只放行 `at-lock-vboot` / `at-unlock-vboot`(`c7a1a83`,理由是有的 oem 命令不可逆);
+10-23 定板子侧命令全部放开(`23aa5f6`)时没改到这里,于是 bootloader 本来允许的
+oem 命令(比如让板子进下载模式的那条),也先被 alb 拦下、板子收不到。现在任何 oem 命令照发,
+bootloader 拒了把 `FAILED (remote: '...')` 原话带回;agent 只查形状(`_OEM_RE`):
+非空、不以 `-` 开头(fastboot 会当成自己的选项,`-w` 是清 userdata)、不以空白开头、
+无控制字符、不超过 256 字符。中间可以有空格,整串作为一个 argv 元素交给 fastboot。
+比 2026-11-05 旧的 agent 报的还是 enum,网页对它照旧给下拉框。
+
+表里带着类型和选项报给 hub,命令行能提前报错,网页能画下拉框;agent 照样再查一遍,
+它是权威(同 ADR-058 决定 1)。
+
+安全线跟 ADR-056 决定 5 一样,只是从 6 个处理函数里收到一处:
+
+- argv 只在 agent 拼。用参数列表直接起进程,不经 shell
+- 占位符整格替换,一个值永远只是一个 argv 元素
+- 表里没有的名字一律拒绝(现在由 `alb_agent.py:880` 的分派拒绝未知操作)
+- 日志按来源名字取,hub 不给路径(同 `alb_agent.py:973-975`「hub 从不给路径」)
+
+### 决定 3 · hub 一条通用路径,老命令保留成包装
+
+- `GET /api/bench/ops`:当前 agent 的操作表
+- `POST /api/bench/ops/{op}`:跑一个操作,NDJSON 进度流,格式同 `/api/flash/*`
+- `alb bench ops` 列表;`alb bench run <操作> 参数=值 ... [--image 路径] [--yes]`;
+  常用的给短命令:`alb bench usb`、`alb bench log <来源>`
+- `alb flash write / getvar / oem / reboot / devices / plan` 和网页烧录页照旧可用,内部改走通用路径
+
+hub 只做四件事:按表查参数类型、决定要不要确认、拿不拿锁、记不记时间轴。四样都读表,
+所以加一个只用现有参数类型的操作,hub 不改代码。
+
+### 决定 4 · 旧 agent 没报表,就按 caps 推一份保守的
+
+旧 agent 不报表(台架上现在跑的就是旧的,2026-10-14 实测 caps 为 `adb` / `fastboot`)。hub 按 caps 推:
+有 `fastboot` 就给 flash / reboot / devices / getvar / oem,镜像上限 2 GiB(旧 agent 写死的),
+其余一概没有。推出来的每一行都按会改设备算,要确认、记时间轴:宁可多问一次。
+
+### 决定 5 · 收掉 ADR-058 加的两个 cap
+
+flash plan 改成查表:有没有 `erase` 这一行;`flash` 这一行报的镜像上限是多少
+(新 agent 报 0,意思是只受临时目录剩余空间限制)。这两个 cap 从没部署过,Windows 上
+还是旧 agent,所以现在收掉不影响任何在跑的东西。
+
+### 第一批操作(Windows 换一次 agent)
+
+| 操作 | 做什么 | 改设备 | 为什么要 |
+|---|---|---|---|
+| erase | 已有,收进表 | 是 | — |
+| set-active | `fastboot set_active <a\|b>` | 是 | 切启动槽。有的 bootloader 不支持,设备拒绝时原样转回 |
+| boot | `fastboot boot <镜像>`,只进内存,不写分区 | 是(运行状态) | 试一个 boot 镜像而不动分区 |
+| usb-list | 列 Windows 上的 USB 设备:名称、VID:PID、序列号、驱动状态和问题码 | 否 | 见下 |
+| log-tail | 按来源名读 Windows 侧日志最后 N 行,可按关键字筛 | 否 | 来源先收两个:`agent`(agent 自己的日志)、`setupapi`(Windows 驱动安装日志) |
+
+**usb-list 的由来**(2026-10-14 台架实测):一块板子经串口确认已进 bootloader 级 fastboot,
+但 agent 的 `fastboot devices` 连续 4 次为空。Linux 这边分不出是 USB 线没插在这台机器上、
+还是驱动没装 —— 两种情况下一步完全不同。
+
+usb-list 只回原始信息,**板子在什么模式由 hub 判**(按 VID:PID 和驱动名分成 adb / fastboot /
+高通 9008 等)。分类表放 hub,加一家厂商不用换 Windows 的 agent。跟 getvar 同一个做法:
+agent 只搬话,不解读。
+
+同批顺手修:
+- `FASTBOOT_NO_DEVICE` 的建议写的是 `alb power reboot fastboot`,那条进的是 fastbootd(只能写动态分区)。
+  改成 `alb power reboot bootloader --allow-dangerous --no-wait-boot`
+- agent 会报的 `FLASH_VAR_REJECTED` 不在 `errors.py` 的目录里,补上
+
+### 不做
+
+- **在 Windows 上执行任意命令的通道**:2026-10-13 定的不做,本表就是替代。
+- **hub 推送新 agent、让它自己更新**:能推代码就等于能在那台机器上执行任意代码,跟上一条是同一件事。
+  > 2026-10-16:这一条被 ADR-060 改成「做」,理由见 ADR-060 决定 1。原文保留。
+- `fastboot flashing unlock / lock`:unlock 清用户数据,lock 时镜像不对会起不来。
+- 断电重启(power cycle):台架没有可控电源。
+
+### 留给以后的三个入口(现在不写空壳代码)
+
+1. **本表**:第三批的下载模式烧录(高通 9008 等,按厂家)也是一行行加进来;需要的新参数类型
+   (整包目录、COM 口)到时候再加。
+2. **设备端口通道**:adb 协议的 `tcp:<port>` 服务(AOSP `packages/modules/adb/SERVICES.TXT`)
+   能经现有 adb 隧道直连设备上的端口,第二批做,只改 Linux。设备端 agent、gdbserver 都走这条。
+3. **LLM 后端注册表**:openai-compat 后端已能指定地址;设备端模型以后作为一个后端接进来。
+
+### 代价
+
+- agent 改动不小:6 个处理函数收进一个分派器。现有 agent 测试必须全部照过。
+- hub 信任 agent 报的 `mutates`。agent 是本项目自己的;旧 agent 推出来的表一律按会改设备算。
+- hello 多十几行。
+
+**关联**: ADR-056(作业通道 · 决定 5 argv 只在 agent 拼 · 决定 7 能力协商)· ADR-058(整包烧录 · 决定 5)
+
+---
+
+## ADR-060 · hub 推送新版台架 agent:Windows 上自己换版本,连不上就退回旧版
+
+**日期**: 2026-10-16 · **状态**: 已实现,Linux 上全真流程测试通过;Windows 台架第一次真实更新换版成功,暴露两处问题已修,修后第二次更新通过(见「台架实测」)· 改 ADR-059「不做」第 2 条
+
+### 这是什么
+
+两件事,共用一套机制:
+
+- 新操作 `agent-update`。hub 把自己那份 `clients/windows-agent/` 打成 zip,走烧录同一条作业
+  通道发给台架 agent。agent 先用新代码自检,再交给一个换版进程。换版进程停掉旧 agent、
+  换文件、起新版。新版 60 秒内没连上 hub,就放回旧文件、起旧版。
+- 同一个 agent 只跑一份。每次启动先让这个 agent 的上一份退出,再接手。
+
+### 没有它会怎样
+
+每改一次 agent,都要有人在 Windows 上拷文件、关窗口、重开。2026-10-07 hub 已经是新代码,
+共享目录里的 agent 还停在 08-10 那版,是 user 自己发现的。10-15 的 8 笔提交到今天还在等
+user 手动换 agent 才能上台架测。ADR-059 的操作表能把换 agent 攒成一批,省不掉这一步。
+
+### 关系图
+
+```
+Linux(hub)                             Windows(agent 所在文件夹)
+alb bench agent-update [--config F]
+  | 打包 hub 自己的 clients/windows-agent
+  v
+hub ------ job: agent-update ------> 旧 agent
+                                      | 1 校验 sha256 + 文件名
+                                      | 2 解到 .alb-agent\staged\
+                                      | 3 新代码 --self-check
+                                      |   不过 -> 拒绝,旧版照跑
+    <---------- done: ok -------------|
+                                      | 4 拷一份自己,起 --apply-update
+                                      v
+                                    换版进程(旧代码)
+                                      | 5 写 stop-<pid>,旧 agent 退出(75)
+                                      | 6 现有文件 -> .alb-agent\backup\
+                                      |   staged -> 安装文件夹
+                                      | 7 起新版,等记录里写"连上了"
+                                      |   60 秒没有 -> 放回旧文件,起旧版
+hub <------- hello(build, update) ----'
+  | 8 build 对上 = 成功;update 写 rolled_back = 已回退
+```
+
+### 决定 1 · 改 ADR-059「不做」第 2 条:允许 hub 推送新 agent
+
+ADR-059 不做的理由是「能推代码就等于能在那台机器上执行任意代码」。这个判断不变,
+变的是取舍。2026-10-16 user 定:台架 Windows 是自己的电脑,机器上另有防护,接受这个风险;
+不加签名,也不加单独的更新口令,沿用现有 token。
+
+代价要写明:hub API 绑 0.0.0.0 且没有鉴权(`src/alb/api/server.py:164-175`)。
+能访问 hub 端口的人,就能在台架 Windows 上执行代码。`clients/windows-agent/README.en.md`
+的 Security 段写了这一条。
+
+「在 Windows 上执行任意命令的通道」那一条仍然不做。能力上两者等价,区别在入口:
+这里只能整体换成 hub 仓里的 agent 文件夹,没有「发一条命令」的接口。
+[推断:单条命令的接口会被日常调试顺手拿来用,绕开操作表的参数校验]
+
+### 决定 2 · 包走作业通道,文件名只许平铺
+
+- 收包复用 `_run_image_op`(大小 + sha256 校验)。为此内置函数也能收镜像:收到的文件
+  放在保留键 `image` 里交给它,参数不许叫这个名字。
+- 包里只许平铺文件名:不带路径分隔符、不以点开头,后缀在白名单里。最多 64 个,
+  解开不超过 16 MiB。只差大小写的两个文件算重复(Windows 不分大小写,会互相覆盖)。
+  hub 侧 `src/alb/remote/agent_update.py` 和 agent 侧是两份规则,测试锁住两边一致。
+- 包的来源是 hub 自己 checkout 里的 `clients/windows-agent/`(`ALB_AGENT_BUNDLE_DIR` 可改)。
+  不用 CLI 那边的:agent 照抄了 hub `protocol.py` 的常量,跟正在跑的 hub 配套的那份才对。
+- 文件夹里的 agent.conf 永远不打包(可能是别的机器的真配置)。只有调用方显式给了
+  `--config` 才发,CLI 按字节读,行尾原样保留。
+- 文件全都一样时什么都不做,不重启。
+
+### 决定 3 · 换版交给「旧代码的一份拷贝」,在单独的进程里做
+
+- 为什么要单独进程:旧 agent 不退出,文件换不了,COM 口也空不出来。
+- 为什么用旧代码:换版和回退的代码,应该是已经在这台机器上跑起来过的那份。新包里
+  换版逻辑写坏了,也不至于连回退都做不了。代价:换版逻辑本身的修改,要晚一次更新才生效。
+- 为什么不另写一个 `alb_update.py`:agent 启动时也要用同一套「认进程、停进程」函数。
+  放在一个文件里只有一份,不会出现两份对不上。做法是把 `alb_agent.py` 拷到
+  `.alb-agent/apply-update.py`,用 `--apply-update <plan>` 启动。
+- 换之前先自检:新代码跑 `--self-check`,内容是解析配置、建操作表、import 依赖。
+  这是推一个坏包还不付任何代价的最后时刻。
+
+### 决定 4 · 回退看什么:新版自己写下「连上了」
+
+- 每个 agent 在 `.alb-agent/instance-<key>.json` 里记 pid、创建时间、build、
+  连上 hub 的时间。换版进程等这条记录满足两个条件:build 是新的,而且是这次启动之后连上的。
+- 不看状态页 8731:它可以被配置关掉。
+- 60 秒内没满足,就停掉新版、放回备份、起旧版,并在 `update-result.json` 写 `rolled_back`。
+  旧版下一次 hello 会带上这个结果。只改了 `run-agent.bat` 时新旧 build 号一样,
+  hub 只能靠这个结果分清回来的是新版还是回退后的旧版。
+- 回退只管「连不上」。连上了但某个功能坏了,不回退:那时连接还在,再推一版就行。
+
+### 决定 5 · 同一个 agent 只跑一份,「同一个」按配置文件认
+
+- user 2026-10-16:一台 Windows 以后可能接两块板、跑两个 agent。所以不能按进程名一律杀。
+- 认人用的键 = 配置文件的绝对路径(Windows 下转小写)。没有配置文件时按 agent_id。
+- 远程更新还要求 agent_id 是固定的(agent.conf 里写了或命令行给了)。hub 等的是同一个
+  agent_id 连回来;id 每次随机的话,好版本也会被当成没回来。同理,推过来的 agent.conf
+  不许改 agent_id(新代码自检时报出它会用的 id,对不上就拒绝);只靠命令行参数运行、
+  没有配置文件的 agent 不收 agent.conf。
+- 先请求,后杀。写 `stop-<pid>`,对方每秒看一次,看到就自己退出,退出码 75;
+  `run-agent.bat` 见到 75 直接关窗口,不停在「按任意键」。15 秒还不走才杀。
+  Windows 上连它的 cmd 窗口一起杀:被杀的 agent 会让 bat 停在 pause,而 cmd 下一行
+  要读的正是即将被换掉的 bat 文件。
+- 杀的时候不用 `taskkill /T`。换版进程是旧 agent 启动的,按父子关系它在旧 agent 的进程树里,
+  `/T` 会把它一起杀掉,结果是旧的死了、新的没起来(评审发现,b883a6e 之后修)。
+  现在是先列出进程树,跳过自己和自己起的进程,再逐个 TerminateProcess。
+- 对方正在跑独占作业(比如烧录)时,它写一个 `.busy` 标记,这边就一直等它跑完,不设上限:
+  烧了一半的分区,比多等几分钟贵得多。
+- 认进程不能只看 pid,pid 会被别的程序复用。Windows 上比较进程创建时间(差 2 秒以内算同一个);
+  其他系统看命令行里有没有 `alb_agent.py`。
+
+### 被否掉的做法
+
+| 做法 | 为什么没选 |
+|---|---|
+| agent 覆盖自己的文件再重新执行 | 旧进程不退,COM 口不释放;`run-agent.bat` 被 cmd 边跑边读,运行中覆盖会读错位 |
+| 常驻守护进程循环拉起 agent | 多一个常驻进程,它自己也要能更新;崩溃后自动拉起不是这次的需求 |
+| Windows 服务 / 计划任务托管 | 要管理员权限;现在的用法是双击 bat |
+| 按进程名杀掉所有 `alb_agent.py` | 一台机器跑两个 agent 时会误杀(user 10-16 定) |
+| 给包签名 / 单独的更新口令 | user 10-16 定不要:自己的电脑,机器上另有防护 |
+
+### 边界
+
+- 第一次要手动装一次:在这之前的旧 agent 没有这个操作。
+- Windows 专有的部分只能在台架上验:taskkill、新控制台窗口、经 `run-agent.bat` 重启、
+  从计划任务启动时的 job object。Linux 上测的是同一套流程的 POSIX 分支
+  (`tests/remote/test_agent_update_e2e.py`,真进程)。
+  [推断:计划任务可能把任务放进 job object,所以起进程时先试 CREATE_BREAKAWAY_FROM_JOB,不行再不带;未实测]
+- 新版加了新的 pip 依赖时,自检 import 失败,拒绝更新。失败时是拦住、当场看得见,
+  不会悄悄坏掉;需要在 Windows 上手动 pip install 一次。
+- 换版进程自己中途出错(杀毒软件锁文件、磁盘满,或任何没预料到的异常):只要旧 agent
+  已经停了,就尽量放回旧文件、起旧版,并写 `update.log`。计划文件里的字段在停旧 agent
+  之前全部读一遍,格式不对就在旧 agent 还活着的时候失败。换版进程本身被杀掉
+  (比如注销)时没有人兜底,这是唯一可能要人到现场的情况。
+- hub 现在只给「最近连上的那个 agent」派活(`registry.current_agent`,多 agent 寻址见 DEBT-083)。
+  两个 agent 同时连着时,`alb bench agent-update` 更新的是最近连上的那个。
+
+### 台架实测(2026-10-16,build 62f2af75a5d0 -> 7f98af4a52b5)
+
+文件换成功了,新版连上 hub。但旧 agent 拉起换版进程后就卡住:没回结果、没理停止请求,
+15 秒后被强杀;作业通道跟着断,CLI 报 `FLASH_FAILED`,提示还是烧录那套「重新烧录」。
+
+- 原因:窗口里有选中的文字时,Windows 控制台挂住所有往窗口的写入。agent 的日志
+  在事件循环线程里直接写窗口,一行日志就把整个 agent 停住(adb / 串口转发、作业、停止请求)。
+  对照实验:选中时经 hub 跑 `adb devices` 25 秒无返回;按 Esc 取消选中后同一条命令立刻返回。
+- 修法一(agent):窗口日志改由单独线程写(`_ConsoleLog`),积压上限 5000 行,超出的计数,
+  窗口恢复后补一句「跳过了 N 行」。日志文件照常同步写。没选「关掉快速编辑模式」:
+  右键「标记」照样会挂住窗口,而且从窗口复制日志是日常用法。
+- 修法二(hub):作业通道没等到结果就断了,换版不直接判失败,改为等 agent 重连、按它报的
+  build 和 `update` 记录下结论(更新 id 随结果一起丢了,改按 from_build + to_build 认)。
+  旧 agent 一直不重启才报 `AGENT_UPDATE_NO_RETURN`,文字写明「没回答、仍在旧版」。
+- 仍要注意:这一版之前的 agent 还有窗口卡住的问题。远程更新到修好的版本之前,
+  别在窗口里留着选中的文字;卡住时换版靠 15 秒强杀兜底,正在烧录时会被打断。
+- 修后复测(同日 18:06,换到 build 02c19ab87957):第二次远程更新 8.4 秒完成,没有强杀。
+  窗口里留着选中的文字时,经 hub 连跑 3 次 adb 都是 0.0 秒返回;按 Esc 后积压的 6 行
+  补进窗口。`data.result_lost` 那条路没确认走到过。
+
+**关联**: ADR-056(作业通道)· ADR-059(操作表;本条改其「不做」第 2 条)· DEBT-083(多 agent 寻址)
+
+---
+
+## ADR-061 · hub 经 ssh 拉起台架 agent:`alb bench agent-start`
+
+**日期**: 2026-10-20 · **状态**: 已实现,台架实测 started / already_connected 两条经 hub 走通,NO_TASK / NO_CONNECT / SSH_FAILED 三条经真 ssh 走通(见「台架实测」)· 接 `cf163cd`(台架一次性配置脚本)
+
+### 这是什么
+
+agent 没连着 hub 时,`alb bench agent-start` 让 hub 经 ssh 启动台架 Windows 上的计划任务
+`alb-agent`,再等 agent 连上来。没连上时,把 agent 文件夹里 `logs\agent.log` 的最后
+20 行一起带回来。
+
+### 没有它会怎样
+
+`cf163cd` 之后已经能手敲 `ssh <Host> schtasks /Run /TN alb-agent`,但有三处不够:
+
+- 要记 Host 名和任务名;别的会话(MCP、网页)没有这条路。
+- `schtasks /Run` 回「成功」只说明 Windows 收到了请求。agent 起没起来、连没连上 hub,
+  要另查。2026-10-20 台架:agent 已在跑时 `/Run` 回「正在运行」+「成功」,进程号不变。
+- 连不上时,原因写在 agent 自己的日志里。agent 离线,`alb bench log agent` 用不了,
+  只能人去 Windows 上看。
+
+### 关系图
+
+```
+alb bench agent-start [--wait 60]
+  |  POST /api/bench/agent-start {wait_s}
+  v
+hub:有 agent 连着? ── 是 ─> already_connected,不 ssh
+  | 否
+  | ssh -o BatchMode=yes -- $ALB_BENCH_SSH_HOST powershell -EncodedCommand <脚本>
+  v
+台架 Windows:Get-ScheduledTask alb-agent
+  | State=Running ─> 不再启动(action=none)
+  | 否则 Start-ScheduledTask,3 秒后读回 State
+  |   不是 Running ─> AGENT_START_TASK_FAILED + 日志尾
+  v
+hub:等 hello(最多 wait_s)
+  | 连上 ─> started / reconnected
+  | 没连上 ─> 再 ssh 读 logs\agent.log 尾 ─> AGENT_START_NO_CONNECT
+```
+
+### 决定 1 · 放在 hub 里,不放在 CLI 里
+
+hub 知道 agent 什么时候连上(注册表),不用再轮询自己的 HTTP 接口;网页以后能直接用
+同一个接口。代价:ssh 用的是跑 hub 那个用户的 `~/.ssh/config` 和钥匙。
+
+### 决定 2 · ssh 去哪、跑什么,只从 hub 的环境来
+
+hub API 绑 0.0.0.0 且没有鉴权(ADR-060 的代价)。请求体只能说等多久(5-300 秒),
+主机来自 `ALB_BENCH_SSH_HOST`,任务名来自 `ALB_BENCH_AGENT_TASK`(默认 `alb-agent`),
+远端脚本是代码里写死的。主机名不许以 `-` 开头、不许有空白(否则会被 ssh 当成选项);
+任务名只许字母数字和 ` _.-`(它被放进脚本的单引号里)。ssh 带 `--`,主机放在选项之后。
+
+### 决定 3 · 远端回答靠标记行,不靠退出码和 schtasks 的文字
+
+- 脚本输出 `alb-start: state=…` / `action=…` / `after=…` 这类行,hub 按行解析。
+- 不靠退出码:台架上脚本里 `exit 3`,经 ssh 回来是 1(2026-10-20)。
+- 不靠 `schtasks` 的文字:中文 Windows 回「正在运行」「成功」,随系统语言变。
+  `Get-ScheduledTask` 的 `State` 是枚举名(`Running` / `Ready`),哪种语言都一样。
+- 脚本走 `-EncodedCommand`(UTF-16LE 再 base64):直接写在命令行里,`$_` 在远端会被吃掉。
+  输出用 `[Console]::OutputEncoding = UTF8`,hub 按 UTF-8 解码。
+
+### 决定 4 · 已在跑的任务不再启动;这不是重启
+
+任务注册时设了 `MultipleInstancesPolicy=IgnoreNew`(`clients/windows-agent/setup_remote_start.py:138`),
+在跑时再启动会被 Windows 忽略。脚本看到 `Running` 就不发启动,只等 agent 自己连回来
+(agent 断线后按 1/2/5/10 秒退避重连)。等不到就报 `AGENT_START_NO_CONNECT`,
+文字写明「再启动一次也不会变」。hub 这边目前没有单纯重启 agent 的办法:
+`agent-update` 只在文件变了时重启。
+
+### 决定 5 · 启动后 3 秒读回状态,不等满全程
+
+`Start-ScheduledTask` 成功只说明任务被触发。没人登录时任务不会真跑(任务是
+`InteractiveToken`);`run-agent.bat` 一开头就失败时任务几秒内结束。两种情况都等不到 agent。
+所以启动后 3 秒读回 `State`:不是 `Running` 就当场报 `AGENT_START_TASK_FAILED`,
+带上 `LastTaskResult` 和日志尾,不让人白等 60 秒。
+
+### 被否掉的做法
+
+| 做法 | 为什么没选 |
+|---|---|
+| CLI 自己 ssh | MCP / 网页用不了;CLI 不一定和 hub 在同一台机器上,`~/.ssh/config` 也不一定有这个 Host |
+| 请求体带主机名 | hub API 没鉴权,局域网里谁都能让 hub 用它的钥匙去 ssh 任意主机 |
+| 解析 `schtasks /Run` / `/Query` 的文字 | 随系统语言变 |
+| 任务在跑时先停再启动,当成重启 | 重启要单独想清楚(停掉时正在烧录怎么办),另立一条再做。停的手段已有实测:`Stop-ScheduledTask` 会把 cmd.exe 和 python 一起结束(见「台架实测」) |
+
+### 边界
+
+- 一个 hub 只配一个台架主机。和 ADR-060 一样,判断「有没有 agent 连着」看的是
+  `registry.current_agent`,两个 agent 时只要有一个连着就不启动(DEBT-083)。
+- agent 的 `log_file` 改过位置时,读不到日志,结果里写「no log at …」,不去猜。
+- 第一次连台架主机前,它的主机指纹要已在 hub 用户的 `known_hosts` 里;`BatchMode=yes`
+  遇到新指纹直接失败(报 `AGENT_START_SSH_FAILED` 并带上 ssh 的原话),不会挂在提问上。
+
+### 台架实测(2026-10-20,台架 agent build 02c19ab87957)
+
+| 路径 | 怎么造的 | 结果 |
+|---|---|---|
+| already_connected | 重启 hub 后立刻调;hub 起来要约 12 秒,agent 在这期间已经连上 | 0.3 秒返回,没有发 ssh |
+| started | 经 ssh `Stop-ScheduledTask alb-agent`,3 秒后 cmd.exe 和 python 都没了,任务 `Ready`,hub 上 0 个 agent | 5.4 秒 agent 连上;之后 `alb devices` 见板子、串口命令有回显 |
+| NO_TASK | 直接调 `start_agent()`,任务名给一个不存在的 | 报 NO_TASK,文字指向 setup-remote-start.bat |
+| NO_CONNECT(任务在跑) | 直接调 `start_agent()`,注册表换成永远没有 agent 的假对象,等 5 秒 | 读到 `state_before=Running`,没发启动;带回 `logs\agent.log` 最后 20 行(真实内容) |
+| SSH_FAILED | 主机名给一个解析不了的 | 报 SSH_FAILED,带 ssh 原话 `Could not resolve hostname` |
+
+没验到:reconnected 经 hub 那条(要卡在 hub 刚起、agent 还没连上的几秒里调,这次没卡上;单元测试覆盖)·
+TASK_FAILED(要让台架上没人登录,或把任务禁用)。
+
+**关联**: ADR-059(操作表)· ADR-060(远程更新;API 没鉴权的代价)· DEBT-083(多 agent 寻址)· `cf163cd`
+
+---
+
+## ADR-062 · hub 的 WebSocket 默认不压缩:`ALB_WS_DEFLATE=1` 才打开
+
+**日期**: 2026-10-21 · **状态**: 已实现 · 接 `2c042ca`(发镜像时同时读回信)
+
+### 这是什么
+
+hub 起 uvicorn 时传 `ws_per_message_deflate=False`,所有 WebSocket(agent 控制连接、
+烧录作业、adb / 串口转发、网页)握手时都不再协商 permessage-deflate。
+环境变量 `ALB_WS_DEFLATE=1` 可以打开,其他任何值都是关。
+
+### 没有它会怎样
+
+uvicorn 默认开压缩,hub 发出的每一帧都在它自己的事件循环里先用 zlib 压一遍。
+2026-10-21 台架实测(同一条 hub → 台架路径、同一份真 super.img 2.24 GB、hub 代码 `2c042ca`):
+
+| hub 压缩 | 用时 | 速度 |
+|---|---|---|
+| 开(uvicorn 默认) | 107.9 s | 约 21 MB/s |
+| 关 | 19.0 s | 约 118 MB/s,千兆网跑满 |
+| 对照:hub 本机只压不发(zlib 默认级别,64 KiB 一块) | 102 s | 约 22 MB/s,压完剩 48% |
+
+第三行和第一行几乎一样:瓶颈就是压缩。这 100 多秒里,压缩占着 hub 的事件循环,
+同一个循环里的串口转发、网页也要等它。`2c042ca` 之前,这个速度还会让超过约 40 s 的
+传输被 keepalive 断掉。
+
+### 为什么这么设计
+
+| 做法 | 为什么没选 |
+|---|---|
+| 只在 agent 的作业通道关(`ws_connect(compression=None)`) | 要再推一次 agent;adb 推大文件走的是 adb 转发通道,同样在被压(推测:888 MB OTA 包推了 26 s,约 34 MB/s,没单独测) |
+| 压缩挪到线程里做 | websockets 的压缩在协议层同步执行,挪不出去;就算挪出去,速度还是 22 MB/s 的上限 |
+| 降低压缩级别 | 仍然比不压慢,而且台架和 hub 在同一个局域网,带宽不缺 |
+| 保持默认开 | 见上表 |
+
+保留 `ALB_WS_DEFLATE=1`,是因为 hub 和台架之间如果是慢速网络(VPN、公网),压缩可能反而更快。
+默认值按现在的部署(同一局域网)取。
+
+### 机制
+
+- `src/alb/api/server.py` `main()`:读 `ALB_WS_DEFLATE`,`== "1"` 才传 True。必须显式传
+  False,因为 uvicorn 的默认值是 True(`tests/api/test_meta_route.py` 锁住了这一点)。
+- 握手实测:关时响应里没有 `Sec-WebSocket-Extensions`,开时是 `permessage-deflate`。
+- 只管 `alb-api` 这个入口。用别的方式直接 `uvicorn.run` 起 hub 不受影响。
+
+### 代价
+
+线上字节数翻倍(super 压缩后约 1.07 GB,不压 2.24 GB)。局域网里不是问题。
+
+**关联**: ADR-056(烧录作业通道)· `2c042ca`
+
+---
+
+## ADR-063 · 台架板子表:串口指向哪块板,hub 运行中切换
+
+**日期**: 2026-10-21 · **状态**: 第一期(串口)、第二期(烧录白名单按板子分 + 核对板子身份)都已实现
+
+### 这是什么
+
+hub 读一张板子表(`ALB_BENCH_BOARDS` 指向的 TOML,每块板一个 `[boards.<名字>]`,写串口名和波特率)。
+`alb bench board use <名字>` 让串口转发改问 agent 要这块板的 COM 口和波特率,hub 不重启;
+选择记在工作目录 `bench/board.json`,hub 重启后还是这块板。没有表、或没选过,照旧用 hub.env 的
+`ALB_AGENT_SERIAL_COM` / `_BAUD`。
+
+### 没有它会怎样
+
+同一根串口线常在几块板之间换,板子波特率不同(一块 1500000,一块 115200)。原来 COM 口和波特率
+只在 alb-api 启动时从 hub.env 读一次(`forwarder.py` 进程级单例):换板子 = 改 hub.env + 重启 hub,
+重启时所有正在用台架的人(串口抓取、adb 转发、烧录)一起断。2026-10-21 一天里为此重启了 hub 两次,
+每次都要先跟别的会话约时间。
+
+### 为什么这么设计
+
+ADR-050 本来就定了「COM/baud 是 hub 下发的 per-session 参数」,agent 也照这个做了(每条串口通道按请求里的
+com/baud 开口);只是 hub 侧只实现了 hub.env 一个固定值。所以只改 hub,agent 不用更新。
+
+| 做法 | 为什么没选 |
+|---|---|
+| 每条 `alb serial …` 命令自带 `--baud` | 串口是共享会话(ADR-054,一个 COM 口多个读方):两条命令带不同波特率会互相打架;波特率属于「线接在哪块板上」这个事实,不属于某条命令 |
+| hub 自动认板子(读 adb 型号 / fastboot product) | 板子在 fastboot 或 bootloader 里时 adb 读不到;线换了而板子没开机时也读不到。可以做成切换后的核对,不能当唯一依据 |
+| 继续改 hub.env + 重启 | 见上 |
+| 有人在读也直接切 | 抓取会突然变乱码,而且没人知道为什么;所以默认拒绝,`--force` 才断开在读的人,并报断了几个 |
+
+切换期间占住烧录作业锁:烧录作业的时间线会挂这个串口,作业中途换波特率,证据就断了。有作业在跑时当场拒绝(和
+其他独占操作一样),切换期间新作业也会被拒。
+
+### 什么时候用
+
+把串口线从一块板换到另一块之后、开始抓串口或烧录之前。
+
+### 机制
+
+- `src/alb/remote/bench_board.py`:读表(名字 / 串口名 / 波特率逐项校验,错了报 `BENCH_BOARDS_INVALID`
+  并指出文件和条目)、`serial_target()` 决定用哪组值(选中的板子 > hub.env;选中的板子不在表里或表坏了,
+  回落 hub.env 并在状态里写 `problem`)、`use_board()`
+- `SerialForwarder.retarget()`:在会话锁里换参数;有活会话时拒绝(`SerialBusyError`)或在 `force` 下关掉它。
+  下一次打开串口就按新值问 agent
+- `FlashService.held()`:切换时占住作业锁,有作业时报 `FASTBOOT_BUSY`
+- 之前没绑过串口端口(hub.env 没写 COM)的 hub,切换后如果 agent 连着,立刻绑上 9001
+- 接口 `GET/POST /api/bench/board`;命令 `alb bench board` / `alb bench board use <名字> [--force]`;
+  `/agent/status` 的 `forwarders.serial` 多了 `board` / `board_problem`,`com` / `baud` 是转发实际在用的值
+- 新错误码:`BENCH_BOARDS_NOT_CONFIGURED` · `BENCH_BOARDS_INVALID` · `BENCH_BOARD_UNKNOWN` · `BENCH_SERIAL_BUSY`
+
+### 第二期:烧录白名单按板子分,写之前核对板子身份
+
+**这是什么**:agent.conf 可以给每块板写一份分区名单 `flash_partitions.<板>=…`,和这块板在 fastboot 里
+`getvar product` 的应答 `fastboot_product.<板>=…`。板名就是 hub 板子表里的名字。hub 每个作业请求都带上
+当前选中的板子(`"board"`),agent 用这块板的名单检查;配了 product 的,改设备的作业在动设备之前先问一次板子是谁。
+
+**没有它会怎样**:名单整台 agent 一份,几块板轮流接同一根线时只能取并集(10-21 台架 41 个 = 一块 19 + 另一块 22)。
+只有一块板有的分区名,对另一块板也放行。线换了而忘了 `alb bench board use`,写进去的就是另一块板。
+
+**为什么这么设计**:
+| 做法 | 为什么没选 |
+|---|---|
+| 名单放在 hub(板子表里) | hub API 没鉴权(ADR-060 记的代价),谁能调 API 谁就能改名单;名单只能在 agent 这边,由 agent 判 |
+| agent 只看 hub 说的板名 | 板名只说「用哪份名单」,不说「线上接的是哪块板」;所以再问一次设备(`getvar product`,约 20 ms) |
+| 没带板名就退回总名单 / 并集 | 就是要去掉的那个毛病;按板模式下没带板名、或板子没有名单,直接拒绝 `FLASH_BOARD_NOT_LISTED` |
+| 总名单和按板名单同时允许 | 要么总名单被忽略而且没有任何提示,要么没带板名的请求又用回并集;两个都写时 agent 拒绝启动 |
+| 空的按板名单当「没写」 | 一丢掉,agent 就回到「任何名字都行」;所以空名单也拒绝启动 |
+
+**什么时候用**:一台台架接多块板;往 agent.conf 加新板子时同时加它的名单,接上 USB 后读一次 `getvar product` 填进去。
+
+**机制**:
+- agent:`_load_config` 认 `<键>.<板名>`(只有 `flash_partitions` / `fastboot_product` 两个键,板名规则和 hub 板子表相同);
+  `_partition_refusal` 按板判名单;`_check_board_identity` 在查过设备在不在之后、收镜像之前跑,
+  只管 `mutates` 且 `needs=fastboot-device` 的作业(`getvar` / `devices` 不问);hello 的 `boards` 字段、
+  启动日志、`--self-check` 都报每块板的名单和 product。配置错误在停掉旧实例之前就拒绝,台架不会两头落空
+- hub:`bench_board.partition_list()` 是唯一决定用哪份名单的地方,返回(名单, problem);**problem 非空时名单为空
+  不等于「不限」**。`run_op` 预检查、flash plan 的 `check_agent`、`/api/bench/ops`、`/agent/status` 都读它;
+  `_drive` 给每个请求加 `board`,时间线头里也记
+- 老 agent 不认识 `board` 键,照旧用自己那一份名单(多出来的键忽略)
+- 新错误码:`FLASH_BOARD_NOT_LISTED` · `FLASH_BOARD_MISMATCH`
+- 网页烧录页:按板模式下按 `partitions_problem` 判,不再退回通用列表;状态卡显示选中的板子和「为什么不能写」
+- `alb flash status`:报选中的板子和它的名单;按板模式下没名单可用时报 `[fail]` 并退出 1(原来只打 `[ok] ready`,
+  而每次写都会被拒)
+
+**10-22 真实 hub + agent 验证**(公开仓分支代码起测试 hub,本机 agent 配三块板的名单 + 假 fastboot,
+`alb flash write / plan / bench run erase` 走了没选板 / 自己的分区 / 别的板的分区 / 板子不符 / 读不到 product /
+getvar 不问 / 超时 / 老 agent 共 20 条路径,全按设计)。补了三个只有真跑才看得见的洞:
+- `flash_partitions.<板>=`(值为空)被 `_load_config` 的「空值 = 没写」规则丢掉,agent 起来后回到「任何名字都行」——
+  单元测试用的是 `= , ,`,没覆盖真正的空值。现在按板键的空值是启动错误;板名保留大小写(原来先 lower 再校验,
+  `Board_A` 会悄悄变成 `board_a`)
+- 记录目录按秒命名、`exist_ok=True`:拒绝只要 20 ms,下一次尝试落在同一秒,**第二个作业的记录覆盖第一个**
+  (成功写入的 job.json 被紧接着的 FLASH_BOARD_MISMATCH 覆盖)。改成同秒加 `-2` / `-3` 后缀
+- 台架 Windows 的 ssh 公钥 10-22 被拒(端口通、密钥被拒),台架探测 agent 那条没跑;真板 product 值仍待读
+
+**2026-11-12 被 ADR-070 改了一半**:按板分区名单不再生效(写哪些分区以厂商烧录清单为准);写之前核对板子身份保留,并且改成「任何一块板配了 product,就要求请求带板名、这块板也配了 product」—— 这两条拒绝原来是名单附带做的。
+
+**关联**: ADR-050(COM/baud 按会话下发)· ADR-051(进程级转发)· ADR-054(串口共享会话)· ADR-056(烧录作业锁)
+
+---
+
+## ADR-064 · Web 界面 v3:改用 Material 3,按「板子」组织页面
+
+**日期**: 2026-10-28 · **状态**: 已实现(分支 feat/webui-v3-m3)
+
+### 这是什么
+
+Web 界面整体换成 Google 的设计规范 Material 3(M3):颜色角色、字号层级、圆角、按钮和导航
+都按 M3 来,样式变量直接用 M3 的名字(`--md-sys-color-*`)。信息结构从「LLM 工具 + 13 个检视页签」
+改成「围着板子转」:顶栏一直显示当前板子和 adb / 串口 / fastboot / 台架四条通道的状态;
+导航分 设备 / 烧录 / 台架 / 助手 / 系统 五组;助手是任何页面都能拉出来的侧栏。
+
+### 没有它会怎样
+
+- 维护者的目标是让 Google 收录这个工具。原界面用的是另一家公司的品牌配色(米白底、橙色、
+  正文衬线字体),跟「品牌中立」的承诺和收录目标都冲突。
+- 原首页以 LLM 后端和会话为主;调试时最关心的「板子现在在哪一步、哪条通道还通」首页上没有。
+- 命令行这半年加的时间轴、开机停在 bootloader、root / remount、崩溃日志、整包烧录、台架板子表,
+  网页上都没有入口。
+- 没有深色模式;中文没有专门的字体和排版。
+
+### 为什么这么设计
+
+- **M3 而不是更好看的风格**:比较过 7 套(设计稿 `docs/webui-preview-v3-styles.html` 留了对比):
+  苹果液态玻璃最好看,但它是苹果的招牌,放在想进 Google 的工具上减分;atelier 暖玻璃的强调色
+  是玫红,跟「错误」红太近,调试时会看混;relief 新拟态的面板只靠阴影分界,信息一密层次就散;
+  glass 每块面板都毛玻璃,日志滚动、图表刷新时开销大。M3 是 Google 公开的规范,审的人一眼认得。
+- **字体**:Android 自己用 Roboto 显示西文、Noto Sans CJK 显示中文,这里用同一对(Roboto Flex /
+  Roboto Mono / Noto Sans SC,都是 OFL)。中文是正式语言而不是翻译:取页面用到的字 + GB2312 一级
+  常用字 3755 个做子集(1.1 MB),日志和文件名里的常用中文也用同一种字体;中文去掉字间距、加大行高。
+- **样式只有一份**:`web/src/styles/v3/` 是唯一编辑处,React 直接引用;设计稿用的是脚本复制过去的
+  副本(`web/scripts/sync_v3_assets.mjs --check` 查是否过期)。设计稿和实现用同一份样式,
+  「照搬设计稿的 class」就不会漂。
+- **旧页面不重写**:性能、文件、应用等页面的逻辑都在,只放进新页头和卡片里;`styles/v3/legacy.css`
+  把它们用的旧变量映射到 M3 角色,旧样式里写死的白底和红橙绿换成 M3 变量,深色模式下也能看。
+  替代方案是一次全部重写,代价是十几个页面的回归测试一起重来,收益只是代码风格统一。
+
+### 什么场景会用到
+
+- 打开网页:先看顶栏的四条通道和总览页的板子状态,决定接下来走 adb、串口还是 fastboot。
+- 板子开机变慢或崩溃:时间轴把串口、dmesg、logcat、烧录作业放在同一个时钟上;总览页的「上次开机」
+  直接显示慢在哪一段。
+- 烧整包:先看清单检查出的问题,在表格里勾掉不烧的行,确认的那一份才会执行;关掉页面作业照样跑,
+  回来在「最近作业」里看结果。
+
+### 机制
+
+- 外壳:`layouts/AppShell.tsx`(顶栏 `components/v3/TopBar.tsx`,导航表 `components/v3/nav.ts`,
+  助手 `components/v3/Assistant.tsx`,⌘K 页面搜索)。宽 ≥1200 导航抽屉,600-1199 导航栏,<600 弹出。
+- 旧地址 `/inspect/<页签>`、`/terminal` 跳到新地址(`nav.ts` 的 `INSPECT_REDIRECTS`)。
+- 新接口(网页用,命令行早已有):`/api/timeline/*`、`/api/diag/pstore`、`/api/adb/{root,unroot,remount}`、
+  `/api/serial/break-in`、`/api/flash/jobs`、`/api/assistant/ondevice/probe`。
+- 助手侧栏和全屏对话页共用同一段对话(`AssistantProvider` 在外壳里只挂一份)。
+
+### 代价 / 还没做的
+
+- 后端的 agent 循环没有「改动板子前先问人」这一步,Agent 模式现在就是「允许调用工具」。
+- 板上模型只有探测(经设备端口通道找 llama.cpp / Ollama 服务),还不能直接对话。
+- 字体子集要在界面文字变化后重跑 `web/scripts/build_v3_fonts.py`,不然新出现的生僻字会退回系统字体。
+
+---
+
+## ADR-065 · hub 的 WebSocket 允许多个协程同时等发送缓冲:替换 websockets 旧版的 `_drain_helper`
+
+**日期**: 2026-11-04 · **状态**: 已实现
+
+### 这是什么
+
+hub 启动时(lifespan,在接受第一个连接之前)把 websockets 旧版协议类
+`websockets.legacy.protocol.WebSocketCommonProtocol` 的 `_drain_helper` 换成另一个写法:
+发送缓冲满了要等的时候,所有等的协程共用同一个 future,外面套 `asyncio.shield`。
+只换这一个方法;`resume_writing` / `connection_lost` 不动,它们本来就去唤醒(或报错)那个 future,
+现在一次唤醒所有等的人。代码 `src/alb/api/ws_drain_fix.py`,接线 `src/alb/api/server.py` `_lifespan`。
+
+### 没有它会怎样
+
+2026-11-03 台架推 super.img(2229840572 字节)到 80% 断开,hub 日志 `ERROR: data transfer failed`,
+agent 日志 `ConnectionClosedError(Close(code=1011))`;`--from-line` 续跑就过。
+板子没受影响(fastboot 还没开始写)。
+
+经过:hub 推镜像(`src/alb/remote/flash.py` 64 KiB 一帧)时发送缓冲大多数时候是满的,发镜像的协程在等;
+这时 agent 的 keepalive ping 到了,读协程回 pong,写 pong 也要等缓冲。旧版的写法只允许一个等待者,
+第二个直接撞上 `assert waiter is None or waiter.cancelled()`,读协程挂掉,连接以 1011 关闭。
+要传得够久才撞得上,所以只在大镜像上偶发。
+
+这个方法的注释写着「Copied from asyncio.FlowControlMixin」,抄的是只有一个等待者的老 asyncio;
+Python 3.11 的 asyncio 自己已改成等待者队列(`asyncio/streams.py:132` `_drain_waiters = collections.deque()`)。
+
+| 测法 | 结果 |
+|---|---|
+| 原版,两个协程同时等(单元测试,不靠时序) | 第二个必定 `AssertionError` |
+| 原版,真 uvicorn + 20 ms ping + 小缓冲推 96 MiB(端到端测试的削弱版) | 3/3 断在 1011,日志与台架同样两行 |
+| 替换后,同一个端到端测试 | 5/5 过,约 3.4 s |
+
+### 为什么这么设计
+
+| 做法 | 为什么没选 |
+|---|---|
+| 关掉 keepalive ping | 去掉了第二个写的人,也去掉了 hub 发现「台架 agent 没打招呼就消失」的唯一办法,而且影响所有 WebSocket,不止推镜像 |
+| uvicorn 换 `ws="websockets-sansio"` | 11-03 本地复现:同样的传输开着 ping 也断(报 no close frame),是另一个毛病;关 ping 才过 |
+| 照 asyncio 3.11 改成等待者队列 | 要同时换 `_drain_helper`、`resume_writing`、`connection_lost` 三个方法,uvicorn 还覆盖了 `connection_lost`;共用一个 future 只换一个方法,行为一样 |
+| 不修,撞上就续跑 | 每次都要人看日志、算行号;9008(EDL)以后若走 hub 推 zip 也会撞上 |
+
+**为什么要 shield**:没有它,一个等的协程被取消(比如发送方放弃了)会把共用的 future 一起取消,
+其他等的协程平白收到 `CancelledError`。测试 `test_patched_cancelling_one_waiter_keeps_the_other` 锁住这一点,
+去掉 shield 的削弱版会挂在这条上。
+
+**为什么要核对源码指纹才装**:改的是别人包里的私有方法,只有它还是我们读过的那份代码时才安全。
+装之前对 `_drain_helper`、`resume_writing`、`connection_lost` 三个方法的源码算 sha256,
+只认人工比对过的三个:12.0、13.1 到 15.0.1、16.0(差别只有日志开关和类型注解,等待者的处理一模一样)。
+对不上就不装,启动时打一条 WARNING。这样坏的方向是「退回原来的偶发 1011」,不会是「所有 WebSocket 都坏」。
+
+### 机制
+
+- `install_ws_drain_fix()` 返回 `installed` / `already-installed` / `not-applicable`(没装 websockets)/ `skipped`(指纹对不上或读不到源码)。
+  装上时 hub 日志有一行 `ws drain fix installed (websockets legacy source as in 16.0)`。
+- 重复调用不会重复装(每个 `create_app()` 的 lifespan 都会调一次)。
+- 只对 uvicorn 选旧版实现时有用:uvicorn 0.44 的 `ws="auto"` 只要装了 websockets 就选它
+  (`uvicorn/protocols/websockets/auto.py`)。台架 agent 用的是 websockets 新版客户端(`websockets.asyncio.client`),不经过这段代码。
+- 测试 `tests/api/test_ws_drain_fix.py`:原版必须断言(证明测试造出了真条件)、指纹必须在已核对表里、
+  两个等待者都放行、取消一个不影响另一个、断线时每个等待者都收到错误、hub 启动后已装上、
+  真 uvicorn 端到端(数「有人在等时又来一个」的次数,必须大于 0,否则这条测试没造出条件)。
+  三个削弱版(去掉 shield / 每次新建 future / 端到端不装补丁)各自挂在对应的测试上。
+
+### 代价
+
+- websockets 旧版协议已标废弃(14.0 起),哪天删掉或改写,这里就不装了。
+  `test_installed_websockets_source_is_one_we_checked` 会在升级 websockets 时先挂,
+  提醒去读新源码:等待者的处理没变才把新指纹加进表,变了就重新评估。
+- 端到端测试约 3.4 s,标了 `slow`。
+
+**关联**: ADR-056(烧录作业通道)· ADR-062(WebSocket 默认不压缩)
+
+---
+
+## ADR-066 · 高通 9008(EDL)烧录做进台架 agent:三个操作,包按 `edl_root` 下的相对目录点名
+
+**日期**: 2026-11-04 · **状态**: 已实现(假工具单测 + 9 个削弱版反跑);2026-11-04 真板整包跑通一次(成功路径);2026-11-05 真板跑过 Sahara 失败一次,fh_loader 失败未跑
+
+### 这是什么
+
+台架 Windows agent 的操作表(ADR-059)多三行,group `edl`,needs `edl-device`:
+
+| 操作 | 跑什么 | 参数 |
+|---|---|---|
+| `edl-sahara` | `QSaharaServer -p \\.\COMnn -s 13:<programmer>` | `dir`,`programmer`(不填 = 目录里唯一的 `prog_*firehose*`),`port` |
+| `edl-program` | `fh_loader --port=\\.\COMnn --sendxml=<a.xml,…> --search_path=<包目录> --memoryname=<emmc> --noprompt` | `dir`,`xml`,`memory`(默认 emmc),`port` |
+| `edl-reset` | `fh_loader --port=\\.\COMnn --reset --noprompt` | `port` |
+
+agent.conf 加三个键 `edl_sahara` / `edl_firehose` / `edl_root`,三个都配了且文件 / 目录存在才有这三行。
+hub 不用改:`src/alb/remote/bench_ops.py` 对 group / needs 原样收,`flash.py` 只在 group 是 fastboot 时要求 fastboot。
+另加 5 个错误码进 `src/alb/infra/errors.py`:`EDL_NO_DEVICE` / `EDL_PORT_AMBIGUOUS` / `EDL_PACKAGE_REJECTED` /
+`EDL_SAHARA_FAILED` / `EDL_FIREHOSE_FAILED`。
+
+### 没有它会怎样
+
+板子 XBL 报错后会自己进 9008,UEFI panic 时要人短接测试点进 9008;进去以后 adb、fastboot、串口控制台都没有。
+2026-11-03 台架上一次换分区表,9008 是人 ssh 到台架机手敲两条命令完成的(原始输出在那个产品项目自己的归档里,
+不进本仓),alb 自己做不了。user 11-03 定要做,不设白名单(原话见本机项目记忆 `project_edl_9008`)。
+
+### 为什么这么设计
+
+| 做法 | 为什么没选 |
+|---|---|
+| hub 发 Windows 绝对路径 | 违反 ADR-056 决定 5「hub 不发文件路径」:收绝对路径的 agent 能读这台机器上任何文件 |
+| 包名白名单(像 `flash_partitions`) | user 定不设白名单;根目录就是边界,根下哪个包都能用 |
+| hub 推 zip、agent 解压 | 工厂包 1~3 GB,当时推大文件会偶发 1011(ADR-065 已修);user 11-04 定先做「镜像先放台架」 |
+| argv 模板行(像 fastboot) | `-s 13:<文件>`、`--port=\\.\COMnn` 要把值拼进一个更大的 argv 元素,模板规则故意禁止;口号又要运行时找。所以写成 builtin,值都先过形状检查,拼的位置固定 |
+| Sahara 和写闪存合成一个操作 | 板子已加载 programmer 时再跑 Sahara 会失败(2026-11-05 真板实测:1.8 秒失败、退出码 1,programmer 不受影响);分开才能「Sahara 成功一次,写好几轮」 |
+| 工作目录用 agent 临时目录、清单给绝对路径或靠 `--search_path` 找 | 这台机器上的 fh_loader 没这样跑过。11-03 手工跑通的唯一方式是工作目录 = 包目录、文件按名字给,照抄它。代价是 `port_trace.txt` 写进包目录(手工那次也是)。reset 不读文件,放临时目录,跑完删掉 |
+
+**为什么判成功要「退出码 0 + 成功标志」两个都要**:11-03 的实测只证明了成功时退出码是 0,
+失败时退出码没测过。只看退出码,一个退出 0 但没干完活的情况会被当成功;成功标志是实测输出里的原文
+(Sahara 的 `File transferred successfully` + `Sahara protocol completed`,fh_loader 的 `{All Finished Successfully}`)。
+fh_loader 整包时会打 4 条 zero.bin 的 WARNING 和 `NOTE: There were WARNINGS!!`,11-03 实测是正常的,
+结果里只报 `warnings: true`,不算失败。
+
+**为什么 `port=` 只能在 9008 口里挑**:台架上调试串口(COM27)和安卓起来后的虚拟串口也是 COM 口,
+往调试串口发 firehose 协议会把串口控制台搞乱。所以口号只从 05c6:9008 设备的名字里取,调用方给的口不在里面就拒。
+
+### 机制
+
+- `dir` 形状:最多 8 段,每段以字母或数字开头(所以不会是 `.` / `..`),段间 `/` 或 `\`。
+  拼到 `edl_root` 后 `resolve()`(链接和 junction 都跟进去),不在根目录里面就拒(`EDL_PACKAGE_REJECTED`)。
+  路径里有逗号也拒:`--sendxml` 用逗号分隔。
+- `xml` 是逗号分隔的文件名(只能是 `*.xml`,不带目录),每个都要是包目录里的普通文件;programmer 同理。
+- 找口:复用 usb-list 的 PowerShell 查询(`_usb_list_windows`),挑 vid 05c6 pid 9008,
+  从 Name 末尾的 `(COMnn)` 取口。有这个设备但名字里没有 COM 口,报「驱动没装好」,不报「没有板子」。
+  依据:11-03 那次 `alb bench usb` 显示 `QDLoader 9008 (COM53)`(记在那个产品项目的归档说明里)。
+- 跑工具:stdout 和 stderr 合在一起,每行转成 progress 发回 hub;先按 UTF-8 解,失败按 GBK 解;
+  超时(sahara 60 s / program 1500 s / reset 60 s)杀掉子进程。program 的 1500 s 小于 hub 的 30 分钟作业上限,
+  所以先到的是 agent 自己的超时,报得出是哪个工具卡住。
+- done 帧:成功带工具输出最后 80 行 + `data`(口、目录、文件、耗时);失败带工具的退出码和最后 80 行
+  (这次给 `_JobRejected` 加了 `rc` / `stdout`,`_job_fail` 原来失败时 stdout 恒为空)。
+- 没配 EDL 的 agent 收到 `edl-*`:`BENCH_OP_UNKNOWN`,文字写明要配哪三个键;配了一半的,启动日志打 WARNING 说缺哪个。
+- 测试 `tests/remote/test_agent_edl.py`(49 条):假工具打印 11-03 的真实输出(`tests/remote/edl_outputs/`,
+  路径和芯片序列号换成通用值),并像真工具一样按工作目录找文件,所以走的是 agent 真的子进程路径。
+  9 个削弱版各自至少挂一条:根目录检查放空、只看退出码、不按 VID/PID 认口、Sahara 换工作目录、
+  失败丢输出(两处)、超时不杀、只按 UTF-8 解码、点名的口不核对。
+
+### 代价
+
+- 板子身份不核对:9008 里没有 fastboot,`fastboot_product` 那一步用不上。线上接的是哪块板,
+  只靠「这台机器上只有一个 9008 口」。fh_loader 能读到芯片序列号(`Chip serial num`),以后可以拿它核对。
+- `port_trace.txt` 留在包目录里,每次覆盖。
+- 只支持 Windows 台架:口号从 Windows 的设备名里取。
+- 真板只跑过成功路径。2026-11-04 一块板从安卓 `reboot edl` 进 9008(13 秒后出现 05c6:9008 口,不用短接),
+  依次跑 edl-sahara(1.7 秒,programmer 自动选中)、edl-program(develop 清单 + patch0,77.7 秒,
+  1105 行输出,`warnings: true` 都是 zero 文件那类)、edl-reset(1.7 秒),三步退出码都是 0,
+  alb 都判成功,和工具实际结果一致;reset 的临时目录跑完已删(台架上核过)。
+- 真板失败路径只跑过 Sahara 一种。2026-11-05 同一块板进 9008(14 秒),edl-sahara 成功后紧接着再跑一次:
+  1.8 秒失败,QSaharaServer 退出码 1,没等到 60 秒超时;输出三行 ERROR,第一行是
+  `sahara_rx_data:287 Command packet length 1702240364 too large to fit`。alb 报 `EDL_SAHARA_FAILED`,
+  CLI 退出码 1,和工具实际结果一致。1702240364 = `0x6576206C`,按小端拆字节是 `l ve`,正是 `<?xml version`
+  的第 5~8 个字节 —— 推断:programmer 已在跑、发出 XML,QSaharaServer 把它当成 Sahara 包头读了(拆字节是算出来的,
+  线上的字节没抓)。之后 edl-reset 照样成功(退出码 0),开机 55 秒,槽位和启动校验状态都没变。
+  仍没碰到的:fh_loader(edl-program / edl-reset)失败时的退出码和输出;工具输出里的非 ASCII 字符
+  (这两次工具输出里一个都没有,所以「先 UTF-8、失败按 GBK」那条在真板上还没走到)。
+
+**关联**: ADR-056(作业通道 · 决定 5 不发路径)· ADR-059(操作表)· ADR-065(推大文件 1011)
+
+---
+
+## ADR-067 · 网页助手:工具结果交给模型前截短,页面照样看全文
+
+**状态**: 已实现 · 2026-11-05
+
+**背景**: 网页助手用的本地模型跑在纯 CPU 的机器上,读输入约 80 token/s。
+2026-11-05 经 hub 实测 5 个问题:工具结果 1KB 以内的一轮 8–13 秒;
+`alb_describe_errors` 不带过滤返回 22.5KB,模型读这段花 64.6 秒,整轮 89.8 秒;
+`alb_log_search` 返回 15.4KB,读 78.4 秒,整轮 127.9 秒。
+慢不在调工具,在模型读工具结果。
+
+**决定**: 工具结果的 JSON 超过 4000 字符就截短再交给模型(约 1000 token,读 12 秒左右),
+保留前 2/3 和后 1/3,中间放一句说明:截了多少、全文在页面上、要看被截的部分就带更窄的参数再调一次。
+
+| 谁拿到什么 | 内容 | 为什么 |
+|---|---|---|
+| 模型 | 截短的那份 | 速度 |
+| 页面(`tool_call_end` 事件) | 全文 | 人要看全文 |
+| 会话记录 | 截短的那份 | 同一会话的下一轮会把历史再发一遍,存全文等于下一轮再读一次 |
+
+- 留头留尾:头上是 `ok` / `error` 和前几条;尾上是最新的日志行,问日志时多半问的是最近的
+- `ALB_AGENT_TOOL_RESULT_MAX_CHARS` 改上限,`0` 不截;写错(不是 ≥0 的整数)记一条警告、用默认值,
+  不会因为手误把截短关掉
+- 对所有后端都生效(`AgentLoop` 里做)。云端模型读得快,需要全文就把它设成 0
+
+**没选的**:
+- 让每个工具自己限长:36 个工具各改一遍,新工具还会漏;而且工具也给命令行和 MCP 用,那边不该被截
+- 只给 `alb_describe_errors` 加按类别过滤:只解决一个工具,日志类工具照样慢
+
+**代价**: 模型看不到被截的中间部分,可能漏掉信息;靠说明里那句让它带更窄的参数再调。
+小模型不一定照做,页面上全文还在,人能自己看。
+
+**实测与补救(2026-11-05 16:03,同一脚本同 5 题各 1 次)**:串口错误码那题 89.8 → 17.3 秒,
+logcat 崩溃那题 127.9 → 61.6 秒(其中 30 秒是模型自己选的抓 30 秒日志),结果短的 3 题不变。
+但串口那题只答了 6 个串口错误码里的 3 个(都在保留的那部分里,没编),也没说有遗漏。
+补两处:截短说明末尾加一句「照着这部分回答就要告诉对方结果被截过、可能不全」;
+`alb_describe_errors` 加 `search` 参数,按错误码名或类别里的词筛,模型可以只要串口那几条,又短又全。
+
+**补救之后再测一次(16:10,同一脚本同 5 题各 1 次)**:两处补救在 ling3-tiny 上都没看到效果。
+串口那题模型仍不带 `search` 拉全表,答出 3 个串口错误码加一个台架串口占用的码(没编造),
+仍没说结果被截过,回答 897 token,整轮 42.3 秒;logcat 那题模型照「带更窄的参数再调」又搜了一次,
+第二次结果一样长,整轮 91.8 秒。结果短的 3 题 7–12 秒,不变。
+每题只跑 1 次,波动大(同一题 61.6 / 91.8 秒),上面的数只说明这一批样本。
+结论:截短确实省掉了读长结果的时间,但这个小模型拿到截短的结果会答不全、不吭声;
+`search` 参数对命令行和 MCP 的调用方照样有用,留着。要让人知道答案可能不全,
+不能只靠模型自觉 —— 下一步可以由 hub 在工具卡上标出「模型只看到了其中 N 字符」。
+
+**工具卡上标出来(2026-11-06)**:不再指望模型自己说,由 hub 在事件里带上、页面直接写。
+
+```
+cut_tool_result() ──> 截短的文本 ──> 模型 / 会话记录(里面有那句英文说明)
+       └──────────> {"kept": N, "total": M}
+                         └─> tool_call_end 事件的 cut 字段 ──> 实时工具卡:
+                             「模型只看到这份输出的 N / M 字符(开头和结尾),
+                              回答可能漏掉中间的内容;下面「参数和输出」里是全文。」
+会话记录里的截短说明 ──> 页面 cutInStored() 认出来 ──> 历史工具卡:
+                             同一句,结尾换成「会话记录里也只存了这部分。」
+```
+
+- 没截的结果事件里没有 `cut` 字段,卡上什么都不加
+- 历史会话里只有截短的那份,页面靠认说明里的 `…[alb cut N of M characters here` 这几个词,
+  两边写法各有一条测试钉住(`tests/agent/test_loop.py` 与 `web/src/features/v3/chat/toolText.test.ts`),
+  改说明措辞时两处一起改
+- 命令行聊天(`alb chat`)在工具结果下面多打一行黄字,内容同上
+
+---
+
+## ADR-068 · 台架 agent 透传厂商烧录工具:台架上登记过的工具,参数原样转发
+
+> 状态:部分被 ADR-071 取代(见该条)。
+
+**日期**: 2026-11-10 · **状态**: 已实现(公开 `03ce371`),2026-11-11 真台架对照过(见末尾) · 重新评估 ADR-059 决定 1 末尾「第三批(下载模式工具,各厂家命令行不同)时再评估」
+
+**user 2026-11-10 定的四条**:第一版只做命令行;默认工作目录是包目录;刷机包先放在台架上,hub 不推;
+第一个非高通厂商等 user 给工具和手工跑通的命令,真台架先拿 fastboot.exe 和 9008 两个工具登记成透传工具对照。
+
+### 这是什么
+
+台架 agent 的操作表(ADR-059)多一行 `tool-run`。台架电脑的主人在 `agent.conf` 里登记厂商烧录工具;
+调用方给出工具名、刷机包目录和**厂商工具自己的参数**,agent 检查后原样交给工具执行。
+输出边跑边回传,跑完把工具自己写的日志文件也收回来。厂商工具怎么烧还怎么烧,alb 只负责转发和记录。
+
+```
+alb flash tool <工具名> --pkg <包目录> -- <厂商工具自己的参数>
+        │ 只发:工具名 + 包的相对目录 + 参数列表(不发路径)
+        v
+台架 agent
+  1. 工具名必须在 agent.conf 里登记过,否则拒绝
+  2. 包目录必须在这个工具登记的根目录里面
+  3. 参数逐个检查:不许出现盘符路径、网络路径、..;
+     {pkg} 换成包目录,{com} 换成登记的 USB 设备的口
+  4. 不经过 cmd.exe,参数按列表交给工具;stdin 关闭
+  5. 和 fastboot、9008 共用一把锁,一次只跑一个烧录
+        v
+厂商工具(登记的 exe) ──输出逐行──> hub 时间轴(和串口对齐)
+        └── 跑完:新写出的日志文件收回 hub
+```
+
+### 没有它会怎样
+
+现在 alb 能烧的只有 fastboot 和高通 9008。别的芯片厂商的下载模式工具,每家都要写专用操作:
+ADR-066 接 9008 加了 3 个操作、5 个错误码、49 条测试,还要换一次台架 agent。各家参数含义不同、
+随工具版本变化,照这个速度跟不上。在那之前,这些板子要远程烧录,只能有人登录台架电脑手敲命令,
+就像 ADR-066 之前 9008 那样。
+
+### 为什么这么设计
+
+| 做法 | 为什么没选 |
+|---|---|
+| A. 每家写专用操作(ADR-066 的做法) | 判断最准,但每家都要开发、发版、换 agent。保留给用得多的工具,不作为接新厂商的唯一途径 |
+| B. 任意程序、任意参数都透传 | hub 的 HTTP 接口没有登录(hub 启动日志:`bound 0.0.0.0 with no auth`)。局域网里任何人、任何接到 hub 的 AI,都能在台架电脑上运行任意程序、删任意文件,违背 2026-10-23 user 定的「权限只用来防误删 Windows 上的文件」 |
+| C1. 在 agent.conf 里写每个工具的 argv 模板 | ADR-059 决定 1 否掉的就是它:各家参数写不全,还多一套模板语法要审。透传不需要模板 |
+| **C. 登记过的工具 + 参数透传(选这个)** | 能跑哪些程序由台架主人在本机决定;参数不用理解,只按统一规则管文件路径;判成功的特征写在配置里,不写代码 |
+
+**和 ADR-059「不做:在 Windows 上执行任意命令的通道」的关系**:C 不是那条通道。hub 和 AI 只能从台架主人
+登记的程序里挑,文件只能引用刷机包目录里的。台架主人现在就在 `agent.conf` 里指定 fastboot 和 9008 工具的
+路径,信任关系没变。
+
+**这层保护防的是误操作,不是防恶意**:AI 拼错路径、人手误,不能碰到台架电脑上包目录以外的文件。
+hub 不加登录是 2026-10-16 user 定的(自用台架,电脑另有防护),本设计不改这一点。
+
+### 决定 1 · 登记写在台架本机的 agent.conf
+
+沿用现有 `<键>.<名字>` 写法(同 `flash_partitions.<板>`);名字规则同板子名 `[a-z0-9][a-z0-9_-]{0,31}`。
+
+| 键 | 必填 | 含义 |
+|---|---|---|
+| `tool_exe.<名>` | 是 | 工具 exe 的绝对路径。文件不存在:启动日志打 WARNING,不上报这个工具 |
+| `tool_root.<名>` | 是 | 刷机包根目录;`pkg` 只能是它下面的相对目录 |
+| `tool_cwd.<名>` | 否 | `package`(默认):在包目录里跑,和人手工 `cd` 进去跑一样;`job`:每次一个临时目录,跑完删 |
+| `tool_timeout.<名>` | 否 | 秒,默认 1500,最大 1700:要小于 hub 的作业上限 30 分钟(`src/alb/remote/flash.py` 的 `JOB_TIMEOUT_S`),这样先到的是 agent 自己的超时,报得出是工具卡住 |
+| `tool_ok.<名>` | 否 | 正则。登记了就必须在输出里出现才算成功 |
+| `tool_fail.<名>` | 否 | 正则。出现就算失败,退出码是 0 也算 |
+| `tool_note.<名>` | 否 | 正则。匹配的行收进结果的 `highlights`,比如每个分区一行,用来汇总「写了哪些分区、各自结果」 |
+| `tool_usb.<名>` | 否 | `VID:PID`,可写多个。跑之前先查 USB 上有没有这个设备;也用来解析 `{com}` |
+| `tool_usage.<名>` | 否 | 一段说明:参数怎么写、板子怎么进下载模式。随 hello 上报,人和 AI 调用前都看得到 |
+
+**默认工作目录为什么是包目录**:ADR-066 的教训是 fh_loader 只有「工作目录 = 包目录、文件按名字给」这一种
+手工跑通过;厂商工具普遍按工作目录找文件。代价是工具写的日志留在包目录里(同 9008 的 `port_trace.txt`)。
+
+### 决定 2 · 参数原样转发,只管文件路径
+
+请求:`{op: "tool-run", tool, pkg?, args: [字符串...]}`。
+
+1. `tool` 必须是已登记的名字,否则 `BENCH_TOOL_UNKNOWN`,报错里列出已登记的工具和要配的键。
+2. `pkg` 形状同 9008 的 `dir`(最多 8 段,每段字母或数字开头,段间 `/` 或 `\`);拼到 `tool_root` 后
+   `resolve()`(链接和 junction 都跟进去),不在根目录里面就拒(`BENCH_TOOL_PACKAGE_REJECTED`)。
+   不给 `pkg` 时工作目录用临时目录,参数里出现 `{pkg}` 就拒。
+3. `args` 最多 64 个,每个不超过 1024 字符,不许有控制字符(换行、NUL 等)。
+4. **路径规则在替换占位符之前查**:参数里出现下面任何一种就拒(`BENCH_TOOL_ARG_REJECTED`,报出是第几个参数、哪一条):
+   - `..` 作为路径的一段
+   - 盘符路径:`X:\`、`X:/`(大小写都算)
+   - 网络路径和长路径前缀:`\\server\…`、`\\?\…`;只有 `\\.\COM<数字>` 放行(串口设备名)
+   - 以 `\` 开头的路径(当前盘的根目录)
+
+   查完再换占位符:`{pkg}` 换成包目录的绝对路径,`{com}` 换成 `tool_usb` 那个设备的口(如 `COM53`),
+   `{{` / `}}` 表示字面的花括号。
+5. 占位符可以嵌在一个参数中间(`--search_path={pkg}`、`\\.\{com}`)。ADR-059 规定值只能整格替换,是为了
+   防止一个值偷偷多塞进一个参数;透传时整个参数列表本来就由调用方写,这条防的东西不存在,要防的是文件路径,由第 4 条管。
+6. 不经过 shell,参数列表直接交给 `CreateProcess`;stdin 接空设备,等按键的工具会读到结束而不是卡住。
+
+### 决定 3 · 判成功分三层,结果写明是谁判的
+
+agent 这一层,按顺序:
+
+| 情况 | 结果 | `judged_by` |
+|---|---|---|
+| 输出里匹配到 `tool_fail` | 失败 | `fail_pattern` |
+| 退出码不是 0 | 失败 | `exit_code` |
+| 登记了 `tool_ok`,但输出里没有 | 失败:「退出码 0,但没看到成功标志」 | `ok_pattern_missing` |
+| 登记了 `tool_ok`,输出里有 | 成功 | `exit_code+ok_pattern` |
+| 没登记 `tool_ok` | 成功,带一句提醒:只看了退出码,有的工具失败也返回 0,请读日志或到板上核对 | `exit_code_only` |
+
+另外两层不归 agent:
+- **AI 读日志**:完整输出在 hub 的时间轴里,工具写的文件也收回来了(决定 4),命令行打出路径。
+  厂商换了版本、日志格式变了,AI 照样能读。
+- **烧完到板上核对**:用现有命令 `alb power wait-boot`、`alb shell getprop …`、串口抓启动日志。
+  这一层不依赖厂商日志写得好不好。建议写进 `tool_usage`,本 ADR 不新增命令。
+
+### 决定 4 · 日志:输出全量进时间轴,工具写的文件收回来
+
+- stdout 和 stderr 合在一起,每行作为 progress 发回 hub;先按 UTF-8 解,失败按 GBK 解(同 ADR-066)。
+  这一行操作 `record` = 事件加 UART,hub 照 ADR-056 决定 4 把这些行和串口写进同一个 `timeline.jsonl`,
+  烧录的每一步能和板子串口当时的打印对上。
+- done 帧:工具输出最后 80 行,加 `data`(工具、包、退出码、耗时、`judged_by`、`highlights`)。
+- **工具写的文件**:开跑前记下工作目录里每个文件的大小和修改时间,跑完把新出现或变过的文件收回 hub,
+  放进这次作业的时间轴目录下的 `files/`。每个最多 4 MiB,最多 20 个,合计不超过 6 MiB:
+  作业通道单帧上限 8 MiB(`alb_agent.py` 的 `_JOB_MAX_FRAME`)。超出的只报名字和大小,不传。
+  目的:有的工具屏幕上只打进度,详细日志写成文件(fh_loader 的 `port_trace.txt` 就是这样)。
+
+### 决定 5 · 命令行;网页和 MCP 第一版不做
+
+- `alb flash tools`:列出已登记的工具、`tool_usage`、`tool_usb` 的设备此刻在不在
+- `alb flash tool <名> [--pkg <目录>] [--yes] -- <参数...>`:`--` 后面原样转发
+- 通用路径 `alb bench run tool-run …` 照样能用(`args` 给 JSON 列表)
+- 按会改设备算(`mutates`):命令行要确认,`--yes` 跳过;独占(`exclusive`),和 fastboot、9008 同一把锁
+- hub 只需要多认一种参数类型 `argv`(字符串列表)。ADR-059 决定 2 现在是四种类型,这是第五种
+- 网页烧录页和 MCP 工具等真板验过再做:MCP 现在本来也没有烧录工具
+
+### 决定 6 · 错误码
+
+| 码 | 什么时候 |
+|---|---|
+| `BENCH_TOOL_UNKNOWN` | 工具没登记;列出已登记的和要配的键 |
+| `BENCH_TOOL_PACKAGE_REJECTED` | `pkg` 形状不对、不存在、跑出根目录 |
+| `BENCH_TOOL_ARG_REJECTED` | 参数违反决定 2 第 3、4 条;写明第几个、哪一条 |
+| `BENCH_TOOL_NO_DEVICE` | 登记了 `tool_usb` 但 USB 上没有;带上 usb-list 看到的设备,好判断是没进下载模式还是驱动没装 |
+| `BENCH_TOOL_NOT_STARTED` | exe 起不来:文件没了、缺 DLL、要管理员权限 |
+| `BENCH_TOOL_FAILED` | 按决定 3 判为失败;带退出码、`judged_by`、最后 80 行 |
+| `BENCH_TOOL_TIMEOUT` | 超过 `tool_timeout`;连子进程一起结束(厂商工具常再起子进程,只杀父进程会留下占着 USB 的进程) |
+
+### 不做
+
+- 只有图形界面的工具:没法自动驱动
+- 按键或短接进下载模式:要人到现场。能用命令进的(比如经 adb 发对应的 reboot 命令)现在就能做
+- 装 USB 驱动:每家在台架上手动装一次
+- 防烧错包:alb 不知道包里是什么,fastboot 那套「这块板能烧哪些分区、型号对不对」用不上,由使用者负责
+- hub 推刷机包:第一版同 9008,包先放在台架上;要推再单独设计
+
+### 代价
+
+- 判成功的准确度取决于登记时写的特征;没写 `tool_ok` 就只看退出码,结果里会标出来。
+- 路径规则是防误操作的检查,不是保证:工具把以 `/` 开头的参数当成路径、工具读的配置文件里另写了路径、
+  工具往自己固定的目录写东西(比如用户目录下的日志),这些都管不到。`/` 开头放行,是因为很多 Windows 工具用 `/x` 当选项。
+- hub 没有登录,局域网里能连到 hub 的人可以用已登记的工具烧板子,和现在的 fastboot 一样。
+- 要换一次台架 agent(`alb bench agent-update`,ADR-060)。
+
+### 怎么验
+
+- 单测用一个假工具(Python 脚本):按参数打印指定输出、写日志文件、给定退出码、睡过超时、起子进程、
+  打 GBK 字符、按工作目录读文件。覆盖登记解析、路径规则每一条、占位符、两种工作目录、`judged_by` 五种情况、
+  文件回收的三个上限、超时连子进程一起结束。
+- 削弱版反跑(同 ADR-066):路径规则放空、不看 `tool_fail`、不看 `tool_ok`、超时只杀父进程、不收文件、
+  只按 UTF-8 解码,每个削弱版至少要让一条测试失败。
+- 真台架,不用等新厂商工具就能先验:把台架上已有的 `fastboot.exe` 登记成工具,`alb flash tool fb -- getvar product`
+  和现有的 `alb flash getvar product` 对照;把 9008 的两个工具也登记成透传工具,在 9008 板子上跑一遍,
+  和 `edl-*` 操作的结果对照。成功、失败都要跑。之后再接第一个非高通的厂商工具。
+
+### 实现时补定的(2026-11-10)
+
+| 项 | 定成 | 为什么 |
+|---|---|---|
+| 列工具 | 多一个操作 `tool-list`(不改设备、不占锁),不放进 hello | 「USB 设备此刻在不在」要现查,hello 是连上时的快照 |
+| 选口 | `tool-run` 多一个可选参数 `port`;`tool_usb` 的设备有两个 COM 口又没给 `port`,拒绝(`BENCH_TOOL_ARG_REJECTED`) | 同 9008 的 `port=` |
+| 占位符 | `{pkg}` `{com}` 以外的单个 `{` 或 `}` 拒绝,字面花括号写 `{{` `}}` | 拼错的 `{pakg}` 原样交给工具,出错位置离原因太远 |
+| `\r` 刷新行 | 每次都对照三种正则,转发给 hub 每秒最多一行 | 进度百分比一秒能刷几十次,全转发时间轴会被刷屏 |
+| 等工具退出 | 轮询退出码,不只等 `proc.wait()` | Python 3.11 的 `proc.wait()` 要等输出管道全关;工具起的子进程占着输出时会一直等到超时(测试抓到) |
+| 工具退出后输出还开着 | 等 5 秒,还开着就按超时那样连子进程一起结束,输出里写一句 | 留下来的子进程多半还占着 USB |
+| 收文件 | 每块 512 KiB 一个 `file` 控制帧(base64),在 done 之前发;hub 按顺序接到 `files/` | 一帧 4 MiB 在慢网络上要传好几秒,这期间心跳发不出去;旧 hub 不认 `file` 事件会跳过,不出错 |
+| 起不来 | 退出码是 0xC0000135 等「缺 DLL / 位数不对」的 NTSTATUS 时报 `BENCH_TOOL_NOT_STARTED` | Windows 上缺 DLL 不会在 CreateProcess 报错,而是进程起来就退出 |
+| 配置错 | 缺 `tool_exe`/`tool_root`、相对路径、正则写错、超时超范围、`tool_usb` 格式错:拒绝启动;exe 或根目录此刻不存在:启动日志警告、不提供这个工具 | 前者怎么都不对;后者可能只是盘没挂上 |
+
+### 真台架对照(2026-11-11)
+
+台架 Windows,板子 A 一块(高通),agent 登记了 fastboot.exe(`fb`)、QSaharaServer.exe(`sahara`)、
+fh_loader.exe(`fh`)。只读命令加 9008 握手,没写分区。原始输出在当时会话的临时目录,记录在内网 hub 的 `workspace/flash/tool-run-*`。
+
+| 验的是 | 内建 | 透传 |
+|---|---|---|
+| fastboot 里 `getvar product` / `current-slot` | 有值,[ok] | 输出逐字一致,`exit_code_only` |
+| `getvar` 一个板子没有的变量 | **[ok]**(fastboot 退出码 0) | 原登记的 `tool_fail=^FAILED` 没匹配上(那一行以 `getvar:<名>` 开头);改成 `FAILED \(remote\|^fastboot: error:` 后判 `fail_pattern` |
+| 没有 fastboot 设备时 `devices` | `FASTBOOT_NO_DEVICE` | 空输出、退出码 0 → [ok]:透传不替工具解释输出 |
+| 没设备时 `fb -- nosuchcommand` | — | fastboot 先等设备,120 s 后 `BENCH_TOOL_TIMEOUT`,`timeout` |
+| 6 种不合规参数 / 包目录 / 工具名 | — | 都在工具运行前拒,写明第几个参数 |
+| sahara 加载 programmer | — | 1.75 s,`exit_code+ok_pattern` |
+| programmer 已加载再跑 sahara | `EDL_SAHARA_FAILED` | `BENCH_TOOL_FAILED`,`fail_pattern` |
+| fh_loader `--reset` | — | 1.75 s,`exit_code+ok_pattern`;`port_trace.txt` 12554 字节收回 `files/`;板子 48 s 回系统 |
+
+由此补的两处:
+- 内建 `alb flash getvar` 读到 fastboot 的 FAILED 行报 `FLASH_GETVAR_FAILED`(整包清单的 getvar 检查本来就这么判,单独的 getvar 没有)。值照旧不解释。
+- 透传记录里的 `board` 是台架当前选中的板子,不一定是工具实际碰到的那块(那次选中的是另一块板)。透传不知道工具碰哪块板,写进文档,不改。
+
+没验到:超时后 Windows 上整棵进程树真被结束(没查台架进程表)、临时工作目录删没删、只按退出码判失败(碰到的失败都先被失败标志判掉)、非 ASCII 输出、缺 DLL 起不来。
+
+**关联**: ADR-056(作业通道 · 决定 4 时间轴 · 决定 5 不发路径)· ADR-059(操作表)· ADR-060(换 agent)· ADR-066(9008)
+
+---
+
+## ADR-069 · 多板多口:一张板子表,USB 和串口按「板子 + 口名」找;烧录在插板子的电脑上跑登记的工具
+
+> 状态:部分被 ADR-071 取代(见该条)。
+
+**日期**: 2026-11-12 · **状态**: 第 2 版(第 1 版经 fable 5.2 架构评审,意见和处理见末尾「评审记录」),2026-11-12 user 批准(见末尾「user 的决定」);A0 已实现 · 会改:ADR-051(串口转发器全局一个)、ADR-056 决定 3(一次只跑一个烧录作业)、ADR-063(板子表一块板一个口;「当前板」的含义;第二期「agent 只看 hub 说的板名」那一行)· 多 agent 并存(DEBT-083 / DEBT-084)排在最后一期,触发条件见「分期」
+
+**user 2026-11-12 定的方向**:
+- 先把工具本身做完善,网页助手的模型质量先放一放。
+- 不只安卓:PC 服务器、树莓派、装 Ubuntu 的板子、网上各种嵌入式开发板也要能调。这些板子常见的接法是网口 ssh、USB 转串口、只有一根 USB 线。
+- 一台电脑同时接两台机器,每台各自有 USB 和串口,要能同时调;一台机器也可能有好几个串口。
+- **优先做 USB 的烧录和调试、UART,先搞定这两样**;网口 ssh 放后面。
+- USB 调试一般走 telnet:板子的 USB 口在主机上多出来一个网卡,主机 telnet 进去。
+- fastboot 是 Google 的,非安卓的板子一般不用。USB 烧录各平台有自己的工具,可能是 Linux 版也可能是 Windows 版,不能限定别人怎么用。
+- 台架可以同时插两块板做实测。
+
+### 一、需求
+
+「一期」是这份 ADR 要设计并实现的;「二期」只定方向。
+
+| # | 需求 | 期 | 怎么算做到 |
+|---|---|---|---|
+| R1 | 一台电脑上的多个串口能同时打开、同时抓、同时敲命令。包括 USB 转串口、板载 ttyS、USB gadget 串口(主机这边是 ttyACM)、台架 Windows 的 COM 口 | 一期 | 两块板的两个口同时 `capture` 60 s,两份日志各是各的,不串、不丢 |
+| R2 | 一块板可以登记多个串口,每个口有名字、波特率和线路设置(DTR / RTS、校验位、流控) | 一期 | 同一块板的两个口同时开,命令按口名选中;打开串口不会把板子复位 |
+| R3 | 同一个口可以多人同时看(网页 + 几个 AI 会话),物理上只打开一次 | 一期 | 已有(ADR-054),推广到 N 个口后仍成立 |
+| R4 | 名字稳定:重插、重启主机后,同一个口名、同一块板还指向同一个物理位置 | 一期 | 本机口拔插两次、换插入顺序、重启主机,指向不变 |
+| R5 | USB 烧录必须烧到指定的那块板,不管用的是 fastboot、9008 还是登记的厂商工具。多块板同时在下载模式时,没指定、或工具没法指定设备,就拒绝,不默认第一块 | 一期 | 两块板同时进下载模式,指定 B 只有 B 被写;不指定时报错并列出两块;不能指定设备的工具在两台同型号时被拒 |
+| R6 | 板子插在哪台电脑上,就用那台电脑上登记的烧录工具:Linux 上用 Linux 版,Windows 上用 Windows 版。只把板子插在自己 Linux 上的用户,装好 alb 就能用 | 一期 | 一台只装了 alb 的 Linux 上,登记一个 Linux 版烧录工具烧一次,输出、日志文件、时间轴齐全 |
+| R7 | USB 调试:安卓走 adb(已有);Linux 板上跑 adbd 的同样走 adb;USB gadget 串口按 R1 处理;USB 虚拟网卡上 **telnet**(主要)或 ssh(板子有 sshd 时) | 一期 | 每种各在真板上连通一次;telnet 登录、跑命令拿退出码、断开重连 |
+| R8 | 只有一块板时用法不变;多块板且没指定时不猜,报错并列出候选 | 一期 | 单板现有命令全部照旧;双板不带板名的命令报错 |
+| R9 | 老配置照旧能用:hub.env 里的 COM 口、`ALB_SERIAL_DEVICE`、本机 9001 端口、现有板子表的 `serial_com` / `serial_baud` | 一期 | 不改配置升级,现有测试和台架命令照旧通过 |
+| R10 | 不同的板可以同时烧录 | 一期 | 两块板各烧一个分区,时间上重叠,各自结果正确 |
+| R11 | 本机和台架同时接板子(多个 agent 同时在线) | 一期最后 | 见「分期」B2 的触发条件 |
+| R12 | 纯 Linux 板的系统信息、日志、文件按 Linux 的方式做(/proc、dmesg、journalctl);安卓专属功能在 Linux 板上明确报「不是安卓」;网页隐藏这些页 | 二期 | — |
+| R13 | 插在台架上的 USB 网卡板 ssh;网口 ssh 设备登记进板子表 | 二期 | — |
+
+不在本 ADR:断电重启(没有可控电源)、设备端模型、块设备式烧录(见「不做」)。
+
+### 二、现状(2026-11-12 核对)
+
+```
+  Linux 电脑(hub)                     Windows 台架(agent)
+  adb 转发  :5037 ──── 一条连接 ────  adb server ── 板 A 的 USB
+  串口转发  :9001 ──────────────────  COM3 ──────── 板 A 的串口
+  (全局只有 1 个,换板靠 board use)     COM4 ──────── 板 B 的串口(闲着)
+
+  本机直连:环境变量指定 1 个串口;ssh 只认配置里第 1 台
+```
+
+| 需求 | 现在 | 出处 |
+|---|---|---|
+| R1 多口同时 | hub 只有一个串口转发器;本机直连只认一个环境变量 | `src/alb/remote/forwarder.py:586-615`(`_SERIAL_FORWARDER` 单例)· `src/alb/transport/factory.py:106-117` |
+| R1 台架侧 | 不是瓶颈:COM 口和波特率由 hub 每次开通道时传,每个通道各开一个串口 | `clients/windows-agent/alb_agent.py:598-630`(只看了代码,没实测同时开两个) |
+| R2 线路设置 | 开串口只给了口和波特率,DTR / RTS 用 pyserial 默认值;有的开发板把这两根线接到复位脚 | `alb_agent.py:622` |
+| R2 一板多口 | 板子表一块板只有 `serial_com` / `serial_baud` / `note` 三个键,多一个键就报 `BENCH_BOARDS_INVALID` | `src/alb/remote/bench_board.py:110-114` |
+| R5 fastboot | 命令都不带 `-s`;不带 `-s` 时 fastboot 打开枚举到的第一台匹配设备,不报错;烧前只查「有设备」不查几台;核对板子身份的 `getvar product` 也不带 `-s` | agent 操作表 `alb_agent.py:2710-2760` · `_device_present` `alb_agent.py:3296-3328` · `_check_board_identity` `alb_agent.py:3367-3396` · 安卓 14 源码 `system/core/fastboot/fastboot.cpp:428-439` |
+| R5 透传工具 | 只有参数里用了 `{com}` 才检查多台;没登记 `tool_usb` 的工具完全不查 USB | `alb_agent.py:2258-2306`(2261-2267 没有 `tool_usb` 直接返回) |
+| R5 对照 | 9008 那条路已经在多台时拒绝(`EDL_PORT_AMBIGUOUS`) | `src/alb/infra/errors.py` |
+| R5 锁 | 两把:hub 进程里一把(第二个作业回 `FASTBOOT_BUSY`),agent 里一把 | `src/alb/remote/flash.py:252`、`683-696` · `alb_agent.py:749` |
+| R6 本机烧录 | 烧录只经台架 agent;agent 不在 pip 安装包里;透传工具的登记和参数检查按 Windows 写(「exe 的绝对路径」、拦盘符路径);agent 的 USB 列表在非 Windows 上已经走 sysfs | `pyproject.toml:96`(只打包 `src/alb`)· ADR-068 决定 1、2 · `alb_agent.py:1301`、`1392-1432` |
+| R7 | adb 按序列号选,多台在 adb 一层已经支持;串口和 ssh 不跟 `--device` 走,MCP 串口工具的 `device` 参数对串口无效;没有 telnet | `factory.py:62-70`(ssh 取第一台)· `factory.py:89-121`(串口分支不看 `device_serial`)· `src/alb/mcp/tools/logging.py:85-170` |
+| 当前板 | hub 全局一个「当前板」,烧录的分区名单和板子身份核对都从它取 | `current_board()`:`flash.py:285`、`399`、`793`、`995` · `forwarder.py:728` |
+| 多 agent | hub 按「重连次数最多」挑 agent:`epoch` 是每个 agent 各自的重连计数,单 agent 时无差别,两个 agent 时会挑错 | `src/alb/remote/registry.py:213-218`、`235-241` |
+| R12 | 系统信息、诊断大量用 getprop / dumpsys | `src/alb/capabilities/info.py` 27 行 · `diagnose.py` 12 行 |
+
+网页 v3 已经按「板子」组织页面,顶栏显示当前板子的 adb / 串口 / fastboot / 台架四条通道(ADR-064)。缺的是后端没有一张「板子有哪些通道」的表,网页现在只能拿 adb 序列号当板子。
+
+### 三、总体结构
+
+```
+  alb 命令行 / MCP / 网页
+          │  都按「板子名 + 口名」找
+          v
+  ┌───────────────────── hub(Linux) ──────────────────────┐
+  │ 板子表 boards.toml:每块板 = 在哪台电脑 + 它的各条通道 │
+  │ 串口:每个物理口一个会话,多读者共享,本机端口 9001 起   │
+  │ 烧录:每台电脑一份烧录服务,每块板一把锁                │
+  └─────────┬──────────────────────────────┬──────────────┘
+            │ agent 连接                   │ agent 连接
+            v                              v
+  ┌──────────────────────────┐   ┌──────────────────────────┐
+  │ 台架 Windows 的 agent    │   │ 本机 Linux 的 agent      │
+  │ COM3 COM4 adb fastboot   │   │ ttyUSB0 ttyACM0 fastboot │
+  └──────────────────────────┘   └──────────────────────────┘
+     板 A               板 C        板 B               板 D
+```
+
+### 决定 1 · 「板子」是寻址单位;板子表登记一块板的全部通道
+
+**这是什么**:板子表(ADR-063 的 `boards.toml`)从「板子 → 一个 COM 口」扩成「板子 → 在哪台电脑 + USB 物理位置 + adb 序列号 + 若干串口 + telnet」。命令行、MCP、网页都用板子名找东西。
+
+```toml
+[boards.board-a]
+host = "bench"                  # 哪台电脑的 agent(agent.conf 的 name)
+usb_location = "PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(2)#USB(3)"   # 决定 5
+adb_serial = "0123456789AB"     # 可不填
+serial_com = "COM3"             # 旧写法照旧有效,当成 uart.console
+serial_baud = 115200
+
+[boards.board-b]
+host = "local"
+usb_location = "pci-0000:00:14.0-usb-0:1"
+[boards.board-b.uart.console]
+port = "/dev/serial/by-path/pci-0000:00:14.0-usb-0:3:1.0-port0"
+baud = 115200
+dtr = false                     # 不拉 DTR / RTS:这块板接到了复位脚
+rts = false
+[boards.board-b.uart.gadget]    # 板子 USB gadget 出来的串口
+port = "/dev/serial/by-path/pci-0000:00:14.0-usb-0:1:1.2"
+baud = 115200
+[boards.board-b.telnet]         # 板子 USB gadget 网卡上的 telnetd
+host = "<板子在 USB 网卡上的地址>"
+user = "root"
+```
+
+**没有它会怎样**:一台机器有好几条通道,现在每条通道各自全局选一个(串口看环境变量,ssh 取第一台,adb 看序列号)。说不出「板 B 的 mcu 那个口」,也没法保证「烧录的是 B、看的串口也是 B」。
+
+**为什么这么设计**:
+- 另一种做法是每个命令直接带物理参数(`--serial-port /dev/ttyUSB1 --baud 921600`)。没选:用户每次要记路径和波特率;ttyUSB 编号重插会变;网页和 AI 也得各记一份。
+- 板子表放在 hub 上一处登记(ADR-063 选 hub 的理由不变:换板不用重启 agent)。agent.conf 里按板的键(`flash_partitions.<板>`、`fastboot_product.<板>`)还在,所以实际是两处:agent 连上时把两边的板名互相核对,对不上在 `/agent/status` 报出来。
+- 从一期 A 起表里就有 `host`,hub 内部按 host 建索引(现在只有一项)。多 agent 并存(B2)是加项,不改结构。
+
+### 决定 2 · USB 操作在插板子的电脑上由 agent 执行;本机 agent 和「多个 agent 同时在线」是两件事
+
+**这是什么**:碰 USB(烧录、USB 列表)的事,一律由插板子那台电脑上的 agent 做,hub 不在自己进程里调 fastboot 或厂商工具。板子只插在跑 alb 那台 Linux 上的用户,在本机起一个 agent,hub 照样只连一个 agent。
+
+**没有它会怎样**:hub 要在进程里再写一份工具调用、参数检查、超时、日志回收、成败判定。台架上踩过的坑(`fastboot getvar` 失败时退出码仍是 0)要在第二份代码里再踩一遍;厂商工具卡死还会拖住 hub。
+
+**为什么这么设计**:
+- 非安卓板的烧录工具有 Linux 版也有 Windows 版,不限定:工具在哪台电脑上,就得在哪台电脑上执行。agent 已经有操作表(ADR-059)、透传(ADR-068)、USB 列表,USB 列表在非 Windows 上已经走 sysfs。
+- **本机 agent 不等于多 agent**:只把板子插在本机的用户,本机 agent 就是唯一的 agent;我们自己的台架也是一个 agent 接两块板。只有「台架 + 本机同时接板子」才要多个 agent 同时在线,放到最后一期(B2)。这样做也符合 L-062(`lessons.md:2992`):多实例寻址等真有第二台主机时再做。
+- 另一种做法是把 agent 的操作表做成库,hub 在本机直接调用。没选:省掉的只是本机回环上的一条连接,却要拆开单文件部署的 agent,并让 hub 多一条不经 agent 的 USB 路径。
+
+**要先解决的**:
+- 发布:agent 现在在 `clients/windows-agent/`,pip 安装包只含 `src/alb`(`pyproject.toml:96`)。user 2026-11-12 定:进 pip 安装包,做成 `alb agent run` 命令;CLAUDE.md §6「这个目录是唯一来源」在 B1' 一起改写。
+- 本机 adb 不经 agent 转一圈:`resolve_endpoint` 按板子的 host 选 adb server,本机板子直接用本机 adb server。
+- 不起 hub 的直连(`ALB_SERIAL_DEVICE`)保留。
+- agent 已有 `name`(`agent.conf.example:21`,hello 里上报,`registry.py:112`)。表里的 `host` 对的是它;B2 起两个 agent 同名就拒绝后来的那个。
+
+### 决定 3 · 串口:每个物理口一个会话,每个会话一个固定的本机端口
+
+**这是什么**:hub 为板子表里的每个串口开一个会话(第一次有人用时才真正打开),多读者共享(ADR-054 原样)。每个会话在 127.0.0.1 上占一个端口。原来的默认口留在 9001;其余口第一次出现时分一个端口,**写进工作目录**(同 `bench/board.json`),以后只增不挪;表里也可以写死端口。客户端每次连接前按「板子名 + 口名」问 hub 要端口,不缓存。
+
+**没有它会怎样**:串口是独占的。各命令自己去开 `/dev/ttyUSB0`,第二个会话就打不开;经台架的口现在只有一个转发器,第二个口没有路。
+
+**为什么这么设计**:
+- 另一种做法是只开一个端口,连上后先发一行「我要哪个口」。没选:`SerialTransport` 要改协议;用户没法拿 picocom、socat 这类通用工具直接连某个口来排查。
+- 端口**不按板子表顺序分配**:那样表里插一块板,后面的端口整体后移,写死端口的脚本、长驻进程缓存的端口不会报错,而是连上另一块板的串口,把命令敲给别的板。这是往「放过」方向坏。
+- 线路设置跟着口走:`dtr`、`rts`、校验位、流控写在口上,agent 开口时照设。pyserial 默认打开就拉 DTR / RTS,有的开发板因此每开一次口就复位一次。
+- 同一根线在几块板之间换插(ADR-063 的场景):`alb bench board use` 改成「这个物理口现在归哪块板」,按口记,不再是 hub 全局一个「当前板」(见决定 9)。
+
+**什么时候用**:`alb serial capture --board board-b --uart gadget`;网页串口控制台多一个口的下拉框;时间轴把多个口放进同一个时钟(ADR-056 决定 4 已经这样处理了一个口)。
+
+### 决定 4 · USB 烧录:在插板子的电脑上跑登记的工具,工具不限;选对板子,多台不猜,锁按板子
+
+**这是什么**:USB 烧录一律是「在插板子的那台电脑上,跑那台电脑上登记过的工具」。安卓板用 fastboot、9008(内建,已有);其他板用各平台自己的工具,可能是 Linux 版也可能是 Windows 版,由那台电脑的主人在 `agent.conf` 里登记(ADR-068 的透传工具,推广到 Linux 主机)。alb 不限定用哪个工具、怎么烧,只保证烧的是指定的那块板。
+
+**没有它会怎样**:两块板同时进 fastboot,`alb flash` 写到 fastboot 先找到的那块,不报错;透传工具只在参数里用了 `{com}` 时才查多台,没登记 `tool_usb` 的工具根本不查。都是往「放过」方向坏:写错了板,当场看不出来。
+
+**怎么保证选对**(五条路都要堵):
+
+| 路 | 做法 |
+|---|---|
+| 内建 fastboot | 命令一律带 `-s`;板子身份核对的 `getvar product` 也带 `-s`。Linux 上按物理位置选(`usb:<sysfs 名>`,`fastboot.cpp:242-252`、`usb_linux.cpp:177`),sysfs 名由 agent 在作业开始时按 `usb_location` 现查;Windows 上 fastboot 把设备路径置空(`usb_windows.cpp:324`),只能按序列号选,两块板序列号相同就拒绝并说明 |
+| 数台数 | 用 USB 列表数(fastboot 按接口类 ff/42/03,下载模式按工具登记的 VID:PID),不用 `fastboot devices`:Windows 上另一块板正被另一个 fastboot 进程占着时,`fastboot devices` 可能列不出它 [推断,做 R10 前台架实测] |
+| 透传工具 | 登记时声明它用哪个占位符指定设备(`tool_select.<名>`,取值 `{com}`、`{usb_serial}`、`{usb_location}`、`{usb_bus}`、`{usb_dev}` 之一),**调用方照旧把它写在参数里的正确位置**,agent 只负责把占位符换成这块板的值,并检查参数里确实出现了它。各工具指定设备的位置和写法差别很大(子命令前后、两个参数、总线号加设备号),自动插一段模板会插错位置,这和 ADR-068 否掉 argv 模板是同一个理由 |
+| 不能指定设备的工具 | 这台电脑上登记了两块以上的板时直接拒绝;只有一块时照跑 |
+| 认不出板子 | 板子没填 `usb_location`、进下载模式后又没有序列号(9008 就这样)时,认不出就拒绝;只有这台电脑上一共只登记了一块板时放行 |
+
+- 整包烧录(ADR-058)中间有 reboot 步骤(`flash_plan.py:55-57`),每次重启设备重新枚举。所以「每一行执行前按板子重新找设备」,不沿用开头找到的那一个;找到的设备标识写进确认内容和 `job.json`。
+- 不指定时拒绝,而不是默认第一块:和 9008 的 `EDL_PORT_AMBIGUOUS` 同一个做法。
+
+**锁**:现在是两把(hub 一把 `flash.py:252`,agent 一把 `alb_agent.py:749`),两边都改成同一套规则:每块板一把「板子锁」,每台电脑一把「整机锁」。能指定设备的作业拿板子锁;不能指定设备的工具、agent 换版(`alb_agent.py:4427-4432` 现在等作业结束)、切换串口归属拿整机锁。整机锁和板子锁互斥:整机锁要等所有板子锁放掉,拿着整机锁时板子锁一把也拿不到。
+
+**整机锁期间**:hub 拒绝同一台电脑上其他板的「进 bootloader / 进下载模式」命令(例如 `alb power reboot bootloader` 走 adb,现在不拿烧录锁),免得另一块同型号板在不能指定设备的工具跑着时进了下载模式、被它碰到。人手按键进下载模式拦不住,写进代价。
+
+**机制**:板子的设备信息作为作业请求的字段发过去,hub 只发字段不发命令行(ADR-056 决定 5 不变)。agent 用自己的 USB 列表核对这台设备确实在,再填进参数。参数路径检查补 Linux 规则:现在拦盘符路径、网络路径和 `..`(ADR-068 决定 2),Linux 上以 `/` 开头的绝对路径和 `~` 也拦。
+
+### 决定 5 · 认板子按稳定的物理位置,不只按 USB 序列号
+
+**这是什么**:板子表登记 `usb_location`:板子插在主机哪个物理口上,用**不随重启变化**的写法。Linux 上是 PCI 地址加端口链(同 `/dev/serial/by-path` 的写法,例如 `pci-0000:00:14.0-usb-0:2.3`),不用 `2-2.3` 这种 sysfs 名;Windows 上用设备的位置路径(`DEVPKEY_Device_LocationPaths`,例如 `PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(2)#USB(3)`)。agent 的 USB 列表要新取这一项;现在的查询没取(`_USB_PS_QUERY`,`alb_agent.py:1287` 起)。
+
+**没有它会怎样**:同一块板在系统、fastboot、厂商下载模式之间切换时会重新枚举:VID:PID 会变,序列号可能变,9008 这类下载模式常常没有序列号。按序列号认,板子一进下载模式就「不见了」;两块同型号板序列号又可能一样。
+
+**为什么这么设计**:
+- 物理位置在模式切换时一般不变,能把 adb 设备、fastboot 设备、下载模式设备、gadget 串口、gadget 网卡都对回同一块板。
+- 不用 sysfs 名:开头的总线号按主机控制器注册顺序分配,重启、换内核、插拔扩展坞后可能变 [评审推断,未实测]。
+- **同一个插口,高速(USB 2.0)和超高速(USB 3.x)设备挂在不同的根集线器下,位置写法不同**。bootloader 的 fastboot 和下载模式常常只跑高速,系统起来后跑超高速,切模式后位置就变了 [评审推断,台架实测]。所以一块板可以登记一对位置,或由 agent 读 sysfs 端口的 `peer` 链接把高速 / 超高速两个位置配成一对。
+- 换插口要改表;`usb_location` 可不填,不填时退回按序列号认,认不出按决定 4 的规则拒绝。
+
+**验收**:同一块板在系统、fastboot、下载模式三种状态下各读一次 USB 列表,三次都认得出是它。
+
+### 决定 6 · USB 调试的三条路;USB 网卡上主要走 telnet
+
+| 板子 USB 上出来的东西 | 主机这边看到的 | 走哪条路 |
+|---|---|---|
+| adbd(安卓;部分 Linux 开发板也带) | adb 设备 | adb,已有;按 `adb_serial` 或 `usb_location` 找 |
+| gadget 串口(CDC-ACM) | `/dev/ttyACM*` | 当成板子的一个串口(决定 3) |
+| gadget 网卡(RNDIS / ECM / NCM) | 一张新网卡 | **telnet**(主要,很多嵌入式板只有 busybox telnetd);板子有 sshd 时也可以 ssh |
+
+**telnet 怎么接**:串口连接里已经有「字节来源」这一层(`_SerialLink`,`src/alb/transport/serial.py:96`,本地串口和 raw TCP 各一种),加第三种 telnet 来源,不新写一个连接类。命令结束和退出码用串口已有的标记行做法(`serial.py:339` `_run_with_marker`),不用网页终端的 `exit_marks.py`:后者只认 mksh 和 bash,busybox ash 下拿不到退出码。
+
+telnet 来源要处理的:
+- 选项协商:对方发来的选项请求一律回拒;`0xFF` 序列可能被 TCP 切成两段,解析要带状态;收到 `\r\0` 去掉 NUL,发 `\r` 时补 NUL。
+- 回显:拒绝回显后有的 telnetd 照样回显,判断命令结束只靠标记行。
+- 登录:有的板子是 `telnetd -l /bin/sh`,没有 `login:` 提示,直接是 shell。
+- 没有启动日志、没有 u-boot 状态:`supports_boot_log` 关掉,看启动过程还得用串口。
+
+**和串口不同的地方**:
+- 重试:telnetd 每个连接起一个会话,不独占,和 adb 是一类;连接被重置就当场报错,不继承串口给 ser2net 用的 4 次重试(`serial.py:200-241`;L-034、ADR-052 的判断方法)。
+- 不需要决定 3 的共享会话;本机直连时 hub 管不到连接数,一期不做连接数限制。
+- telnet 不能传文件:push / pull 走板子上另有的通道(adb、ssh),都没有时报「这块板没有文件通道」。
+- **连错主机**:板子没插好或 USB 网卡没起来时,发往板子地址的连接会走默认路由发到局域网别的机器上,还把 root 密码明文送出去。所以连接前核对:到这个地址的出口网卡,必须就是按 `usb_location` 找到的那张 USB 网卡,不是就拒绝。单板也要做。
+- 多块同型号板默认 IP 相同:一期不支持,文档写明「同型号一次只插一块」。按网卡绑定(`SO_BINDTODEVICE`)非 root 用户要 Linux 5.7 起 [评审推断],hub 这台是 5.4;IPv6 link-local 要板子的 telnetd 支持还要先发现对端地址。二期再做。
+- 板子插在台架上时:主机这一侧的网卡在 Windows 上,hub 连不到。让台架 agent 的 TCP 通道(现在只放行本机 adb,`alb_agent.py:83`)多放行 `agent.conf` 里登记的「板子地址:23」,hub 经 agent 转过去。
+
+### 决定 7 · 没指定板子时的规则
+
+1. 板子表只有一块板 → 用它(现有单板用法不变)。
+2. 多块板 → 拒绝,错误里列出板子名和各自通道的当前状态;不按「最近用过」「第一个」去猜。
+3. 网页顶栏选的板子随每次请求带上(网页助手已经这样带了,见 `prompt_builder.py` 的 `_DEVICE_NOTES`)。
+
+### 决定 8 · 寻址参数怎么接进现有代码
+
+现有入口都按 adb 序列号寻址:`build_transport(device_serial=…)` 61 处、MCP 工具的 `device` 参数、网页路由里的序列号、产物目录 `workspace/devices/<序列号>/`。
+
+- `device` 参数先当板子名查表,查不到再当 adb 序列号(老用法不变)。解析放在 `transport/factory`,一处做,61 个调用点不改签名。
+- 串口类入口多一个 `uart`(口名),不填用板子的 `console` 口。
+- 产物目录按板子名;只有 adb 序列号、表里没有这块板时照旧按序列号。`is_safe_device` 的规则同时管板子名(板子名规则已有:`[a-z0-9][a-z0-9_-]{0,31}`)。
+
+### 决定 9 · 和 ADR-063 的关系:「当前板」改成按口记,烧录的板名来自请求
+
+ADR-063 里 hub 有全局一个「当前板」,烧录的分区名单和板子身份核对都从它取(`current_board()` 5 处,见现状表;分区名单已由 ADR-070 去掉,剩身份核对)。多板以后这个全局状态不成立:
+
+- 烧录请求自己带板名,5 处一律用请求里的板名,不再读全局。
+- `alb bench board use <板>` 保留,含义改成「某个物理口现在归哪块板」(同一根线换插的场景),按口记。
+- ADR-063 第二期否掉过「agent 只看 hub 说的板名」(板名只说用哪份名单,不说线上是哪块板,所以再问一次设备 `getvar product`)。本 ADR 让 hub 的表决定 `-s` 选哪台,agent 只核对设备在不在;两块同型号板 product 相同,`getvar product` 分不开它们。所以 `getvar product` 核对保留(带 `-s`,防「表写错了板型」),「是哪一块」靠物理位置和序列号。这一行算改了 ADR-063 第二期,在 ADR-063 末尾加一行指过来。
+
+### 决定 10 · 老配置怎么接上
+
+- 现有板子表的 `serial_com` / `serial_baud` 当成 `uart.console` 读;新旧键同时出现时报错,不猜哪个算数。
+- hub.env 的 `ALB_AGENT_SERIAL_COM` / `ALB_AGENT_SERIAL_BAUD`,没有板子表时当成一块叫 `default` 的板,一个口,端口 9001。
+- `ALB_SERIAL_DEVICE` / `ALB_SERIAL_TCP` 照旧有效;同时给了 `--board` 时以 `--board` 为准。
+- 只有一个 agent 连着时,它就是默认 agent;CLI、MCP 不带板子名的老命令行为不变。
+
+### 决定 11 · 错误码
+
+优先沿用已有的码(`src/alb/infra/errors.py`):板子不在表里用 `BENCH_BOARD_UNKNOWN`(`errors.py:736`);同一个物理口登记给了两块板、要换归属时有人正在读,用 `BENCH_SERIAL_BUSY`(`errors.py:742`,现在就是「有人在读串口,板子没切」)。
+
+要新加的,名字照已有的「多台分不开」写法(`EDL_PORT_AMBIGUOUS`、`PORT_DEVICE_AMBIGUOUS`):
+
+| 码 | 什么时候 |
+|---|---|
+| `FLASH_DEVICE_AMBIGUOUS` | fastboot 多于一台,这次没选中某一台 |
+| `BENCH_TOOL_DEVICE_AMBIGUOUS` | 透传工具的下载模式设备多于一台,参数里没有它声明的占位符;或工具不能指定设备而这台电脑登记了两块以上的板 |
+| `BOARD_REQUIRED` | 多块板,命令没指定板子 |
+| `UART_UNKNOWN` | 板子有,口名没有 |
+| `TELNET_WRONG_INTERFACE` | 到板子地址的出口网卡不是这块板的 USB 网卡 |
+
+实现时再对一遍 `errors.py`,有同义的就用旧的。
+
+### 分期
+
+| 期 | 内容 | 实测 |
+|---|---|---|
+| A0(先发,小) | 烧录前按 USB 列表数台数:fastboot 设备或工具登记的下载模式设备多于一台,而这次没明确选中某一台 → 拒绝。单 agent,经 `alb bench agent-update` 推到台架。**已实现**:agent 侧,所有要连 fastboot 设备的作业(getvar、oem、flash、erase、reboot 等,`devices` 除外)取 `fastboot devices` 行数和 USB 列表里 ff/42/03 接口数(一块板只算一次)两者较大的,多于 1 回 `FLASH_DEVICE_AMBIGUOUS`;USB 列表读不出时只按 `fastboot devices` 数并记日志。登记了 `tool_usb` 的透传工具,同 VID:PID 的设备多于一台(复合设备的子接口不算)、又没用 `{com}` + `port=` 选中 → `BENCH_TOOL_DEVICE_AMBIGUOUS`(原来「两个 COM 口、没给 `port=`」报 `BENCH_TOOL_ARG_REJECTED`,也改用这个码)。hub 侧:两个码进错误码目录和 `docs/errors.md`;hub 不再查一遍,fastboot 在 agent 上跑,查在那边最近。没覆盖:没登记 `tool_usb` 的工具(B1 按「这台电脑登记了几块板」拒);数完台数到 fastboot 真正执行之间(USB 查询本身约 0.3 s)第二块板才进 fastboot(B1 带 `-s` 后解决) | 单元测试造两台(sysfs 假目录 + Windows 列表两种形状),旧代码跑新测试 13 条失败;台架 USB 查询 3 次 0.29-0.31 s(2026-11-12,不含 PowerShell 启动)。台架两块板一插上就有它保护。**一期 A 实测要在台架插两块板,这一步必须在那之前上线** |
+| A | 板子表一板多口 + 每口一个会话 + 端口记下来只增不挪 + 线路设置 + 按板子名和口名寻址(决定 8)+ 旧表兼容 | 台架两块板,两个 COM 口同时 capture、网页开两个控制台;本机先用 socat 造一对虚拟串口做自动测试 |
+| B1 | 烧录按板子选设备(决定 4 五条路)+ 两把锁改成板子锁 / 整机锁 + 物理位置(决定 5)+ 整包每行重新找设备 + 当前板语义(决定 9)。单 agent | 台架两块板同时进 fastboot,指定一块烧、另一块 getvar 核对没被写;不能指定设备的工具被拒;同一块板三种状态认得出 |
+| B1' | agent 在 Linux 上跑通并进安装包;路径检查补 Linux 规则;`alb doctor` 查串口和 USB 权限(dialout、udev 规则) | 一台只装了 alb 的 Linux 上,本机 agent 接一个进程内测试 hub,登记一个 Linux 版工具烧一次 |
+| C | telnet(本机直连 + 经台架 agent)、Linux 板 adbd、gadget 串口 | 要一块 USB 出网卡、跑 telnetd 的 Linux 开发板;没有板子前,用本机起的 busybox telnetd 做自动测试 |
+| B2 | 多 agent 同时在线(本机 + 台架,或第二台台架)。先修 `registry.py` 按重连次数挑 agent 的问题 | 触发条件:要在跑 hub 的这台 Linux 上烧一块板(只有 Linux 版工具),同时台架还接着板子;或第二台台架电脑上线 |
+| 二期 | R12、R13 | — |
+
+### 不做
+
+- 自动发现「哪个口接的是哪块板」(例如往每个口发回车看提示符):口和板的对应由人登记;自动猜错了会把命令发到别的板上。可以做成「建议」,不自动写进表。
+- 块设备式烧录(U-Boot 的 `ums`、SD 卡读卡器、`dd` 写盘):路径规则拦绝对路径,表达不了;而写错盘是最重的事故。一期不做。
+- 板子表的网页编辑:一期只读展示,改表还是编辑文件。
+
+### 代价
+
+- 改动面大:板子表、串口会话、端口记录、两把锁、烧录请求、`current_board()` 5 处、`build_transport` 的解析、网页顶栏。单板单口的老路径要保留测试。
+- ADR-051「一个转发器单例」、ADR-056「一次一个作业」、ADR-063「全局当前板」三条原有决定被改,对应的测试要改写,不是加。
+- 本机 agent 是多一个要起、要更新的进程;发布方式(决定 2)定之前,pip 用户拿不到它。
+- 人手按键让另一块板进下载模式,整机锁拦不住。
+- 同型号多块 USB 网卡板同时插,一期不支持。
+
+### 怎么验
+
+- 每一期按上表在真板上验,结果补在本 ADR 末尾,附原始输出位置。
+- 反向:两块板同时进 fastboot、不带板子名 → 必须拒绝,而且两块板都没被写(各自 getvar 一个烧录会改变的值核对);端口记录:表里插一块板后,原有口的端口号不变;telnet:拔掉 USB 网卡后连接被拒,不会发到别处。
+- 老用法:只有一块板、只有 hub.env 配置、旧格式板子表时,全量测试 + 台架现有命令照旧通过。
+
+### 评审记录(2026-11-12,fable 5.2 架构评审第 1 版)
+
+评审结论:方向对,改完 6 条「必须改」再实现,不用推倒重来。评审给的 16 处出处里,我抽查了 9 处,都属实(L-062 原文、板子表拒收多余键、`current_board()` 5 处、`exit_marks.py` 只给网页终端用、agent 已有 `name`、`registry` 按重连次数挑、ADR-063 第二期那一行、安装包范围、各处行号)。
+
+| 意见 | 处理 |
+|---|---|
+| M1 物理口:sysfs 名重启会变;同一插口高速 / 超高速位置不同 | 采纳,改决定 5:用 PCI 路径写法、允许配对、三种状态验收。两条都是评审推断,B1 台架实测 |
+| M2 烧错板还剩 4 条路 + 整包中途重启 | 采纳,决定 4 改成「五条路」表 + 整包每行重新找设备 + 整机锁期间拦进下载模式的命令 |
+| M3 多 agent 不该捆进一期 B;先发一个「多台就拒」 | 采纳,分期改成 A0 → A → B1 → B1' → C → B2,B2 写明触发条件 |
+| M4 端口按表顺序分配,往放过方向坏 | 采纳,改决定 3:记下来只增不挪、可写死、每次连接前问 |
+| M5 和 ADR-063 三处冲突 | 采纳,新增决定 9;决定 10 写旧表兼容 |
+| M6 telnet:出处错、重试策略、连错主机 | 采纳,改决定 6 |
+| S1 寻址参数缺一条决定 | 采纳,新增决定 8 |
+| S2 锁有两把 | 采纳,写进决定 4 |
+| S3 `tool_select` 自动插模板会插错位置 | 采纳,改成「声明占位符、调用方写位置、agent 检查出现」 |
+| S4 本机 agent 怎么发布 | 采纳,写进决定 2「要先解决的」,放 B1' |
+| S5 agent 名字 / 默认端口归属 | 采纳名字部分(决定 2);默认端口归属随 B2 定 |
+| S6 错误码同义不同名 | 采纳,改决定 11 |
+| 可选:DTR / RTS 线路设置 | 采纳,加进 R2 和决定 3 |
+| 可选:块设备式烧录 | 采纳,写进「不做」 |
+| 可选:串口 / USB 权限 | 采纳,放 B1' 的 `alb doctor` |
+| 可选:telnet 连接数先不限 | 采纳 |
+
+第 1 版自己写错、评审指出的:agent 的 `name` 早就有了;「每个 agent 一把锁」实际是 hub 和 agent 各一把;烧前「只查有设备」在 `_device_present`(`alb_agent.py:3296`),不是 `devices` 操作的判定函数;telnet 复用的退出码做法引错了文件;registry 的「最近连上」说法不准。上面已改。
+
+### user 的决定(2026-11-12)
+
+user 原话:「按你的顺序来,A0 先做,发布用 alb agent run」。即:
+
+1. 分期顺序:A0 先发(它是 A 实测的前提),然后 A、B1、B1'、C,B2 等触发条件。
+2. 本机 agent 的发布方式:放进 pip 安装包做成 `alb agent run`,B1' 时改写 CLAUDE.md §6 的「唯一来源」说法。
+
+**关联**: ADR-051(转发器单例)· ADR-052(重试角色)· ADR-053(通道密钥)· ADR-054(串口共享)· ADR-056(作业通道、时间轴)· ADR-058(整包清单)· ADR-059(操作表)· ADR-063(板子表)· ADR-064(网页按板子组织)· ADR-068(厂商工具透传)· L-034 · L-062 · DEBT-083 / DEBT-084
+
+---
+
+## ADR-070 · 去掉按板分区名单:写哪些分区以厂商烧录清单为准,只烧几个分区用 `--only`
+
+**日期**: 2026-11-12 · **状态**: 已实现(公开仓,待部署)· 改 ADR-063 第二期(按板分区名单)· 评审:fable 5.2(架构),结论和本 ADR 一致,并指出下面「必须一起补」那条
+
+**起因**:一块板的 debug 整包(厂商原样的烧录表,26 行,24 个分区)试运行被拒 21 个分区:台架 agent.conf 里这块板的名单只有 3 个。整包要能烧,名单就得抄成这块板差不多全部的分区;换一版 SDK 改了分区,还得跟着改、再推一次 agent。
+
+**user 2026-11-12 原话**:「要有个分区清单会好点吧？因为这样编译出来本身就有那些要烧录的分区清单的呀……这样烧录至少和 sdk 官方的分区清单和烧录是一致的……我们工具只是一个透传允许别人按照厂商自己的烧录规则来做，这样我们的工具会通用好用一点」「按这个方案做吧」。
+
+### 这是什么
+
+两件事分开管:
+- **写哪些分区、每个分区用哪个文件、按什么顺序**:以编译产物里厂商自己的烧录清单为准。整包 `alb flash plan <清单>`;只烧几个分区 `alb flash plan <清单> --only boot,vbmeta`。清单外的镜像(本地刚编的 boot.img)用 `alb flash write <分区> <镜像>`。
+- **烧对板子**:分区名形状检查、写前核对板子身份(`fastboot_product.<板>`)、台架上多块板同时在 fastboot 就拒(ADR-069 A0)。
+
+agent.conf 里的 `flash_partitions` / `flash_partitions.<板>` 不再生效:还能读(否则旧配置起不来),启动日志提示可删,hello 里不再上报。
+
+### 没有它会怎样
+
+- 名单是厂商清单的手抄副本,对不上就整包烧不了;为了能烧,名单越抄越全,抄全了它能拦的也就没有了。
+- 名单只核对分区名,不核对「哪个文件配哪个分区」:boot 的镜像写进 recovery,名单拦不住(两个名字都得在名单里,整包才烧得了)。按清单挑行,文件是清单配好的。
+- 名单和 user 10-23 定的「板子上的命令全放开,权限只防删 Windows 主机上的文件」冲突;2026-10-23 放开时漏了这一项(oem 名单 11-05 已按同一理由去掉)。
+- 名单本来也拦不全:登记成透传工具的 fastboot 不查名单(ADR-068)。
+
+### 为什么这么设计(替代方案)
+
+| 方案 | 为什么没选 |
+|---|---|
+| 保留名单,把整包的分区都加进去 | 每块板、每版 SDK 手抄一份;加全以后名单拦不住什么 |
+| 名单管单条烧录,整包时清单里的分区一次放行 | 清单是调用的人自己给的,hub 接口没鉴权,写一份一行的清单就绕开了;两套规矩更复杂 |
+| 什么都不要,只留 `write` | 只烧几个分区时要人自己配对分区和文件,写错的机会最多 |
+
+`--only` 定义成 `--skip` 的反面:没点名的 flash / erase 行跳过;没有分区的行(getvar 检查、oem、reboot、等待)照清单跑,不要的用 `--skip-action` 去掉。点了清单里没有的名字报错,和 `--skip` 同时给也报错(谁优先说不清,不猜)。确认用的指纹本来就包含每行的跳过理由,不用改。
+
+### 必须一起补的一条(fable 5.2 指出)
+
+原来「请求没带板名就拒」「这块板没名单就拒」都是名单顺带做的(旧 `alb_agent.py` `_partition_refusal`);板子身份核对遇到没带板名会直接放过。名单一去掉,忘了 `alb bench board use` 就会不核对地写到线上那块板。
+
+现在:agent.conf 里**只要有一块板**配了 `fastboot_product`,改设备的请求没带板名、或这块板没配 product → `FLASH_BOARD_NOT_LISTED`,什么都不写;hub 的 `partition_list` 同样判,整包在第 0 行之前就拒。一块都没配的台架照旧(不核对、不要求选板)。
+
+### 什么时候用
+
+- 烧整包、只烧整包里几个分区:`alb flash plan` + `--only` / `--skip`。
+- 烧清单外的单个镜像:`alb flash write`。
+- 非 fastboot 格式(高通 rawprogram xml、瑞芯微 parameter.txt、全志整片 .img、MCU 工具):由厂商工具自己读包,`alb flash tool --pkg`,挑分区用厂商工具自己的参数。alb 只解析行式 fastboot 清单,因为要逐行执行、逐行记录、跳过、续跑;其余格式不加解析器,等真有需要再一家一家加。
+
+### 代价
+
+- 分区名对、镜像内容错(包本身打错了),拦不住 —— 名单也拦不住。
+- `alb flash write` 手敲了另一个真实存在的分区,拦不住;写 `mbr` / `toc0` / `bootloader` 这类写坏了 u-boot 起不来,只能走 BootROM 的下载模式救。这是调试工具给调试人员最大权限的代价(user 10-23、11-05)。
+- 一台电脑接几块板时,每块都要登记 `fastboot_product`,不然那块板写不了。部署时要补齐。
+
+**关联**: ADR-063(第二期被改)· ADR-068(厂商工具透传)· ADR-069(A0 多板就拒、决定 4)
+
+---
+
+## ADR-071 · DeviceHands 框架设计取代的旧决定
+
+**状态**:已定 · 2026-11-16。
+
+**决策**:以 [`devicehands-design.md`](./devicehands-design.md) v1.0 为准(该文开头写明:项目所有者 2026-11-16 已确认,按它实施)。下表里的旧条目,整条或部分不再成立。按 L-015,旧条目正文不改,只在标题下加一行状态,指回本条。
+
+生效时间跟着新设计的实施阶段走(新设计第 9 节)。某项改动落地之前,现有代码仍按旧条目运行;读代码时以代码为准,读设计时以本条为准。
+
+「整条」指这条决定本身不再成立;「部分」指其中列出的那几点不再成立,其余照旧。
+
+| 旧条目 | 程度 | 不再成立的部分 | 新设计的依据 | 仍然成立的部分 |
+|---|---|---|---|---|
+| ADR-001 | 部分 | 「替代考虑」里否掉的 Rust | 5.6:台架服务用 Rust 写 | 主程序仍用 Python(5.6) |
+| ADR-003 | 部分 | Interface / Capability / Transport 三层结构 | 5.1:接入面 / 工具 / 设备模型 / 台架连接 / 台架服务五层 | 接入层不写业务逻辑;5.4 更进一步,接入面由登记表生成 |
+| ADR-004(含末尾附的简版) | 部分 | 一个 `Transport` 抽象类、每种连接实现全部方法;`HybridTransport` 按命令选通道 | 5.2:工具只依赖设备能力,每种口声明自己提供哪些能力,框架负责匹配;「没有选的做法」一段明确不选「一个大的传输基类」 | 能力层不直接调 adb、ssh、串口命令;3.1 保留现有传输抽象和工厂作为迁移起点,5.3 的迁移第一步是让现有传输实现能力接口 |
+| ADR-005 | 部分 | 范围只有安卓的四种连接;USB 网卡(D)只留接口 | 需求 R1、R2;5.2 和第 8 节把 USB 网卡列为第一阶段的口 | 先做串口和 USB 的取舍方向一致(R2) |
+| ADR-006 | 部分 | 拦截板子上命令的黑名单(第 1 条理由列的 `rm -rf /`、`reboot bootloader`、`fastboot erase`、`setprop persist.*`) | 5.4:默认规则沿用 2026-10-23 的决定,板子上的操作不拦截、不先问,只限制会动到台架电脑本身的操作 | 有统一的权限检查切点;5.9 把它定成可替换的接口,团队版可换成更严的规则 |
+| ADR-010 | 部分 | 以相对路径 `workspace/` 为根、按 adb 序列号分目录的写法(`workspace/devices/<serial>/...`) | 5.11:数据目录在配置里指定,默认在用户数据目录下,不跟当前目录变;5.10:文件名不含 Windows 不允许的字符(该节指出现在工作区目录名允许冒号);5.2:按「台架/板子/口」寻址 | 产物统一放在规定的目录下,不随意落盘 |
+| ADR-017 | 部分 | 部署方式里的 `pip install alb`、端口 8765;`docs/app/` 由 `ui_static.py` 从仓库目录挂载 | 5.11:网页端口 8775;网页文件和台架更新包打进安装包,用 `importlib.resources` 读取,不再找仓库目录 | 前端技术栈、离线和本地优先的约束 |
+| ADR-031 | 整条 | 推送到敏感路径要人确认,以及这个确认放在接口层还是权限引擎 | 5.4:板子上的操作默认不拦截、不先问;是否要确认由权限检查按工具声明的 `risk` 决定,检查本身是 5.9 的接口 | — |
+| ADR-033 | 部分 | 能力标在传输抽象类的类属性上(或暂用 `hasattr` 检测) | 5.2:每种口声明自己提供哪些能力;「没有选的做法」一段把「7 处探测方法是否存在」列为要消除的问题 | 不靠 `hasattr` 探测能力这个目标 |
+| ADR-050 | 部分 | 背景和决定 5 把台架限定为 Windows 上的托盘服务;决定 1、5 的鉴权靠 agent 静态配置里装一次的 token | 需求 R6;5.6:台架服务三个系统各编一个可执行文件;第 7 节:B 电脑填 A 的地址和配对码,配对码一次有效,换来的凭证只存在两台电脑各自的配置里 | 台架主动拨回、信令和数据分开、每个通道一条连接(3.1 保留「远程台架接在传输之下」) |
+| ADR-051 | 部分 | 决定 4 转发器是进程级单例;决定 5 固定端口 5037 和串口端口 | 5.8:配置、台架连接、登记表挂在运行时对象上,不再有模块级全局状态,一个进程能连多台台架;5.11:adb 和串口隧道端口运行时分配 | hub 进程持有台架连接,其他进程经本机端口使用 |
+| ADR-057 | 部分 | 决定 1 里让主程序直接连本机 adb server 的路径(第 4 层「adb 自己的默认」,以及第 1、2 层指向本机 adb server 的情况) | 5.3:主程序不直接操作硬件,所有硬件访问经台架服务;「没有选的做法」一段不保留本机直连实现 | 端点由代码解析、不靠 shell 携带;「零设备」自诊断 |
+| ADR-059 | 部分 | 决定 2 里 `text` 类参数的校验规则是 Python 写法的正则,随操作表报给对端(`clients/windows-agent/alb_agent.py:1035` 把 `pattern` 放进上报内容) | 5.5:校验规则改成各语言通用的写法,并在样例帧里覆盖 | 操作表本身、四类参数、agent 逐个校验 |
+| ADR-068 | 部分 | 决定 1 登记写在 `agent.conf` 的键值里;决定 2 参数原样转发、只查文件路径;决定 5 只做命令行 | 5.7:台架侧用 TOML 清单登记工具,声明允许哪些参数、怎么校验、输出怎么解析;需求 R10 和 5.4:同一个功能在命令行、MCP、网页三处都有 | 台架上只执行登记过的工具,不注入代码(5.7) |
+| ADR-069 | 部分 | 决定 2 的「本机 adb 不经 agent」「不起 hub 的直连(`ALB_SERIAL_DEVICE`)保留」;决定 3 的默认串口端口固定 9001 | 5.3:所有硬件访问经台架服务,单机时台架服务在本机自动启动;5.11:串口隧道端口运行时分配 | 「板子」是寻址单位、一板多口、串口每个物理口一个会话、端口不按表的顺序分配 |
+
+**板子上的命令不拦截**:这条决定(2026-10-23,提交 `23aa5f6`)没有 ADR 编号,记在 [`permissions.md`](./permissions.md) 开头。上表 ADR-006、ADR-031 的冲突点都来自它,新设计 5.4 沿用它。这里只指向那份文档,不另给编号。
+
+**只改名、内容不变的条目不逐条标注**:新设计 5.11 把包名、命令、环境变量前缀(`ALB_` 改 `DHANDS_`)、MCP 工具前缀、协议里的 HTTP 头等改了名。旧条目里出现旧名字、而决定本身不变的(例如 ADR-002 的 `uv run alb`、ADR-034 的 `alb-api` 和 `ALB_API_HOST`、ADR-055 的 `x-alb-csecret`、ADR-062 的 `ALB_WS_DEFLATE`),不加状态行,读的时候按 5.11 的对照表换成新名字。
+
+**不在本表里的**:ADR-056 决定 5、ADR-058 决定 1 和 5、ADR-059 决定 2 里的分区名单,已经被 ADR-070 去掉,取代它们的是 ADR-070,不是新设计,所以不列在这里。
+
+**为什么**:
+1. L-015 要求推翻旧决定时新立一条,旧条目不改。不这么做,评审时会看到旧条目和新设计互相矛盾,却查不到哪个是现行的。
+2. 新设计是一份文档、一次确认,取代关系集中在一条里列,读者从任何一条旧条目的状态行都能跳到同一处。
+
+**替代考虑**:
+- **直接改旧条目正文**:最省事;但当时为什么那么定的上下文就没了,也违反 L-015。
+- **每条被取代的旧条目各立一条新 ADR**:15 条新编号说的是同一个来源,读者要来回跳。
+
+**代价**:
+- 读旧条目时要多看一眼标题下的状态行和本条。
+- 新设计以后再改,要新立一条说明,不改本条的表。
 
 ---
 
