@@ -113,12 +113,19 @@ async def test_pty_concurrent_write_and_read() -> None:
     # PTY input buffer is bounded by the kernel — a producer that
     # only writes blocks once the buffer fills. The shell.write() chunk
     # loop should keep the session unstuck as long as a reader drains.
+    #
+    # The 4096 bytes go as 64 lines of 64: a terminal in canonical mode keeps
+    # at most MAX_CANON bytes of one line (1024 on macOS, where a single
+    # 4096-byte line came back as 1024), and that limit is not what this
+    # test is about. Every x then comes back twice, as the echo and as
+    # cat's output.
     shell = await open_pty_subprocess("cat")
     target_xs = 4096
+    line = b"x" * 64 + b"\n"
     seen_buf = bytearray()
 
     async def reader() -> None:
-        while seen_buf.count(b"x") < target_xs:
+        while seen_buf.count(b"x") < 2 * target_xs:
             try:
                 chunk = await asyncio.wait_for(shell.read(), timeout=2.0)
             except asyncio.TimeoutError:
@@ -128,11 +135,11 @@ async def test_pty_concurrent_write_and_read() -> None:
             seen_buf.extend(chunk)
 
     async def writer() -> None:
-        await shell.write(b"x" * target_xs + b"\n")
+        await shell.write(line * (target_xs // 64))
 
     try:
         await asyncio.gather(writer(), reader())
-        assert seen_buf.count(b"x") >= target_xs
+        assert seen_buf.count(b"x") == 2 * target_xs
     finally:
         await shell.close()
 
