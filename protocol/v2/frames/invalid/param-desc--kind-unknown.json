@@ -1,0 +1,6 @@
+{
+  "name": "x",
+  "kind": "float",
+  "required": true,
+  "default": null
+}

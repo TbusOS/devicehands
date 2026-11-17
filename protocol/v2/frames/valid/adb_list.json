@@ -1,0 +1,8 @@
+{
+  "verb": "adb_list",
+  "re": 1,
+  "devices": [
+    "EXAMPLE0001"
+  ],
+  "conflicts": []
+}

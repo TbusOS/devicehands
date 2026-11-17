@@ -1,6 +1,7 @@
 # 协议 v2 设计
 
-> 状态:设计稿(2026-11-16)。schema、样例帧和实现都还没有,按本文去做。
+> 状态:2026-11-16 定稿。2026-11-17 按本文做出了 schema、样例帧、`patterns.json`、
+> `framing.md`、`sequences.md`(第 5 节第 1 步);实现见第 5 节。
 > 依据:`docs/devicehands-design.md` 第 5.5 节;v1 现状见 [`../v1/`](../v1/),
 > 文中的 G1…G21 是 [`../v1/known-gaps.md`](../v1/known-gaps.md) 的条目编号。
 

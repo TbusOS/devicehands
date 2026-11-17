@@ -1,0 +1,6 @@
+{
+  "name": "x",
+  "kind": "enum",
+  "required": true,
+  "default": null
+}

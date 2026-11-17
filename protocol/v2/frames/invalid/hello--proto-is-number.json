@@ -1,0 +1,13 @@
+{
+  "verb": "hello",
+  "proto": 2,
+  "bench_id": "bench-2",
+  "name": "",
+  "impl": {
+    "lang": "rust",
+    "build": ""
+  },
+  "os": "linux",
+  "ops": [],
+  "boards": {}
+}

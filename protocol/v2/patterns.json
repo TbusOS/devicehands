@@ -1,0 +1,430 @@
+{
+  "description": "Value rules (ParamDesc.pattern) in the portable regex subset of framing.md section 7. Every implementation must: accept every pattern in `allowed`; refuse every pattern in `refused` when it reads an op table; and give the `match` answer for every case, where matching is always against the whole input. Inputs are JSON strings; \\u escapes are Unicode code points.",
+  "allowed": [
+    "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+    "[A-Za-z0-9][A-Za-z0-9._:-]{0,63}",
+    "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+    "[^\\x00-\\x1f\\x7f]*",
+    "COM[1-9][0-9]{0,2}",
+    "[A-Za-z0-9][A-Za-z0-9._ -]{0,63}(?:[\\\\/][A-Za-z0-9][A-Za-z0-9._ -]{0,63}){0,7}",
+    "[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.xml(?:,[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.xml){0,15}",
+    "[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.(?:elf|mbn|melf)",
+    "a|b",
+    "(ab)+",
+    "[-a]",
+    "[a-]",
+    "\\d{4}",
+    "\\w+\\s?\\w*",
+    "[\\]\\[\\\\\\-\\^]+",
+    "\\.\\*\\+\\?\\(\\)\\{\\}\\|\\^\\$",
+    "x{2,}",
+    "x{0,3}",
+    "abc",
+    "\\w+",
+    "\\s",
+    "[-a]+",
+    "[a-]+"
+  ],
+  "refused": [
+    {
+      "pattern": "^abc$",
+      "why": "anchors are not written: every pattern is a whole-string match"
+    },
+    {
+      "pattern": "abc\\Z",
+      "why": "\\Z is Python only"
+    },
+    {
+      "pattern": "\\Aabc",
+      "why": "\\A is Python and Rust only"
+    },
+    {
+      "pattern": "abc\\z",
+      "why": "\\z is Rust only"
+    },
+    {
+      "pattern": "a.c",
+      "why": ". matches different characters in each language"
+    },
+    {
+      "pattern": "(?=a)a",
+      "why": "lookahead"
+    },
+    {
+      "pattern": "(?<=a)b",
+      "why": "lookbehind"
+    },
+    {
+      "pattern": "(a)\\1",
+      "why": "backreference"
+    },
+    {
+      "pattern": "(?P<n>a)",
+      "why": "named group"
+    },
+    {
+      "pattern": "(?i)abc",
+      "why": "inline flag"
+    },
+    {
+      "pattern": "a*?",
+      "why": "lazy quantifier"
+    },
+    {
+      "pattern": "a++",
+      "why": "possessive quantifier"
+    },
+    {
+      "pattern": "a{,3}",
+      "why": "{,m} is a quantifier in Python and literal text in ECMA-262"
+    },
+    {
+      "pattern": "a{x}",
+      "why": "a literal { must be escaped"
+    },
+    {
+      "pattern": "[]a]",
+      "why": "] first in a class: literal in Python, empty class in ECMA-262"
+    },
+    {
+      "pattern": "[a[b]",
+      "why": "[ inside a class opens a nested class in Rust"
+    },
+    {
+      "pattern": "[a--b]",
+      "why": "-- inside a class is set difference in Rust"
+    },
+    {
+      "pattern": "[a&&b]",
+      "why": "&& inside a class is set intersection in Rust"
+    },
+    {
+      "pattern": "\\bword\\b",
+      "why": "word boundary"
+    },
+    {
+      "pattern": "\\n",
+      "why": "\\n: write \\x0a"
+    },
+    {
+      "pattern": "\\u00e9",
+      "why": "\\u escapes differ between languages"
+    },
+    {
+      "pattern": "\u00e9",
+      "why": "non-ASCII literal: write a class or \\xHH"
+    },
+    {
+      "pattern": "[a-\\d]",
+      "why": "a range cannot end in a \\d-style class"
+    },
+    {
+      "pattern": "a{3,1}",
+      "why": "m < n"
+    },
+    {
+      "pattern": "(abc",
+      "why": "unclosed group"
+    },
+    {
+      "pattern": "[abc",
+      "why": "unclosed class"
+    },
+    {
+      "pattern": "",
+      "why": "empty pattern"
+    }
+  ],
+  "cases": [
+    {
+      "pattern": "abc",
+      "input": "abc",
+      "match": true
+    },
+    {
+      "pattern": "abc",
+      "input": "xabc",
+      "match": false
+    },
+    {
+      "pattern": "abc",
+      "input": "abcx",
+      "match": false
+    },
+    {
+      "pattern": "abc",
+      "input": "abc\n",
+      "match": false
+    },
+    {
+      "pattern": "a|b",
+      "input": "a",
+      "match": true
+    },
+    {
+      "pattern": "a|b",
+      "input": "ab",
+      "match": false
+    },
+    {
+      "pattern": "(ab)+",
+      "input": "abab",
+      "match": true
+    },
+    {
+      "pattern": "(ab)+",
+      "input": "aba",
+      "match": false
+    },
+    {
+      "pattern": "\\d{4}",
+      "input": "2026",
+      "match": true
+    },
+    {
+      "pattern": "\\d{4}",
+      "input": "\u0662\u0660\u0662\u0666",
+      "match": false
+    },
+    {
+      "pattern": "\\w+",
+      "input": "boot_a",
+      "match": true
+    },
+    {
+      "pattern": "\\w+",
+      "input": "\u00e9t\u00e9",
+      "match": false
+    },
+    {
+      "pattern": "\\s",
+      "input": " ",
+      "match": true
+    },
+    {
+      "pattern": "\\s",
+      "input": "\t",
+      "match": true
+    },
+    {
+      "pattern": "\\s",
+      "input": "\u00a0",
+      "match": false
+    },
+    {
+      "pattern": "\\s",
+      "input": "\u2028",
+      "match": false
+    },
+    {
+      "pattern": "[-a]+",
+      "input": "-a-",
+      "match": true
+    },
+    {
+      "pattern": "[a-]+",
+      "input": "a-a",
+      "match": true
+    },
+    {
+      "pattern": "[\\]\\[\\\\\\-\\^]+",
+      "input": "][\\-^",
+      "match": true
+    },
+    {
+      "pattern": "\\.\\*\\+\\?\\(\\)\\{\\}\\|\\^\\$",
+      "input": ".*+?(){}|^$",
+      "match": true
+    },
+    {
+      "pattern": "x{2,}",
+      "input": "x",
+      "match": false
+    },
+    {
+      "pattern": "x{2,}",
+      "input": "xxxx",
+      "match": true
+    },
+    {
+      "pattern": "x{0,3}",
+      "input": "",
+      "match": true
+    },
+    {
+      "pattern": "x{0,3}",
+      "input": "xxxx",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "boot_a",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "_vendor.img-1",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "-w",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "boot a",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "../boot",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "a:b",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}",
+      "input": "boot_a\n",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._:-]{0,63}",
+      "input": "partition-size:cfg",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._:-]{0,63}",
+      "input": "has-slot:boot",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._:-]{0,63}",
+      "input": ":x",
+      "match": false
+    },
+    {
+      "pattern": "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+      "input": "device-info",
+      "match": true
+    },
+    {
+      "pattern": "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+      "input": "off-mode-charge 0",
+      "match": true
+    },
+    {
+      "pattern": "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+      "input": "-w",
+      "match": false
+    },
+    {
+      "pattern": "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+      "input": " lead",
+      "match": false
+    },
+    {
+      "pattern": "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+      "input": "a\nb",
+      "match": false
+    },
+    {
+      "pattern": "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+      "input": "a\u007fb",
+      "match": false
+    },
+    {
+      "pattern": "[^\\s\\x00-\\x1f\\x7f-][^\\x00-\\x1f\\x7f]{0,255}",
+      "input": "\u00e9t\u00e9",
+      "match": true
+    },
+    {
+      "pattern": "[^\\x00-\\x1f\\x7f]*",
+      "input": "",
+      "match": true
+    },
+    {
+      "pattern": "[^\\x00-\\x1f\\x7f]*",
+      "input": "ERROR \u5199\u5165",
+      "match": true
+    },
+    {
+      "pattern": "[^\\x00-\\x1f\\x7f]*",
+      "input": "a\tb",
+      "match": false
+    },
+    {
+      "pattern": "COM[1-9][0-9]{0,2}",
+      "input": "COM3",
+      "match": true
+    },
+    {
+      "pattern": "COM[1-9][0-9]{0,2}",
+      "input": "COM0",
+      "match": false
+    },
+    {
+      "pattern": "COM[1-9][0-9]{0,2}",
+      "input": "COM1000",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._ -]{0,63}(?:[\\\\/][A-Za-z0-9][A-Za-z0-9._ -]{0,63}){0,7}",
+      "input": "pkg/v1 2",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._ -]{0,63}(?:[\\\\/][A-Za-z0-9][A-Za-z0-9._ -]{0,63}){0,7}",
+      "input": "pkg\\v1",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._ -]{0,63}(?:[\\\\/][A-Za-z0-9][A-Za-z0-9._ -]{0,63}){0,7}",
+      "input": "../pkg",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._ -]{0,63}(?:[\\\\/][A-Za-z0-9][A-Za-z0-9._ -]{0,63}){0,7}",
+      "input": "/abs",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.xml(?:,[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.xml){0,15}",
+      "input": "rawprogram0.xml,patch0.xml",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.xml(?:,[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.xml){0,15}",
+      "input": "rawprogram0.xml,",
+      "match": false
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.(?:elf|mbn|melf)",
+      "input": "prog_firehose_ddr.elf",
+      "match": true
+    },
+    {
+      "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.(?:elf|mbn|melf)",
+      "input": "prog.exe",
+      "match": false
+    }
+  ]
+}

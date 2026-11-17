@@ -1,0 +1,7 @@
+{
+  "op": "flash",
+  "partition": "boot_a",
+  "size": 67108864,
+  "sha256": "abababababababababababababababababababababababababababababababab",
+  "board": "board-a"
+}

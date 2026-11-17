@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/hello_ok.json",
+  "title": "hello_ok",
+  "description": "Handshake accepted, hub -> bench. proto is the version both sides use for the rest of the session: the largest version in the intersection of the two ranges. The bench refuses (no reconnect) a proto outside its own range.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "verb",
+    "proto"
+  ],
+  "properties": {
+    "verb": {
+      "const": "hello_ok"
+    },
+    "proto": {
+      "$ref": "common.json#/$defs/proto"
+    }
+  }
+}

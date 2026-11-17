@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/list_com.json",
+  "title": "list_com",
+  "description": "Ask the bench to report its serial ports; answered with com_list carrying re = id.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "verb",
+    "id"
+  ],
+  "properties": {
+    "verb": {
+      "const": "list_com"
+    },
+    "id": {
+      "$ref": "common.json#/$defs/msgId"
+    }
+  }
+}

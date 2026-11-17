@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/restart_adb.json",
+  "title": "restart_adb",
+  "description": "Ask the bench to restart its local adb server, then answer with adb_list carrying re = id.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "verb",
+    "id",
+    "kill_conflicts"
+  ],
+  "properties": {
+    "verb": {
+      "const": "restart_adb"
+    },
+    "id": {
+      "$ref": "common.json#/$defs/msgId"
+    },
+    "kill_conflicts": {
+      "description": "Also terminate processes the bench itself judges to be foreign adb builds. The hub never names a process.",
+      "type": "boolean"
+    }
+  }
+}

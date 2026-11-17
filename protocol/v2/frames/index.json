@@ -1,0 +1,599 @@
+{
+  "description": "Which schema each sample frame is checked against and whether it must pass. schema is a file in ../schema, optionally with a JSON pointer fragment. Driven by tests/protocol/test_v2_description.py.",
+  "frames": [
+    {
+      "file": "valid/hello.json",
+      "schema": "hello.json",
+      "valid": true,
+      "note": "full hello: fastboot rows, board identity, last update"
+    },
+    {
+      "file": "valid/hello-minimal.json",
+      "schema": "hello.json",
+      "valid": true,
+      "note": "empty op table, no boards, no update, unreadable build"
+    },
+    {
+      "file": "valid/hello-extra-field.json",
+      "schema": "hello.json",
+      "valid": true,
+      "note": "an unknown field is ignored, not refused"
+    },
+    {
+      "file": "valid/hello_ok.json",
+      "schema": "hello_ok.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/error-version.json",
+      "schema": "error.json",
+      "valid": true,
+      "note": "handshake refused; the hub closes with 1002 afterwards"
+    },
+    {
+      "file": "valid/error-unknown-verb.json",
+      "schema": "error.json",
+      "valid": true,
+      "note": "re is the id of the frame that was not understood"
+    },
+    {
+      "file": "valid/error-bad-frame.json",
+      "schema": "error.json",
+      "valid": true,
+      "note": "no re: the frame had no readable id"
+    },
+    {
+      "file": "valid/heartbeat.json",
+      "schema": "heartbeat.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/list_adb.json",
+      "schema": "list_adb.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/adb_list.json",
+      "schema": "adb_list.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/adb_list-with-conflicts.json",
+      "schema": "adb_list.json",
+      "valid": true,
+      "note": "conflicts are filled only when devices is empty"
+    },
+    {
+      "file": "valid/list_com.json",
+      "schema": "list_com.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/com_list.json",
+      "schema": "com_list.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/restart_adb.json",
+      "schema": "restart_adb.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/open_channel-tcp.json",
+      "schema": "open_channel.json",
+      "valid": true,
+      "note": "adb channel"
+    },
+    {
+      "file": "valid/open_channel-serial.json",
+      "schema": "open_channel.json",
+      "valid": true,
+      "note": "serial channel"
+    },
+    {
+      "file": "valid/open_channel-serial-loop.json",
+      "schema": "open_channel.json",
+      "valid": true,
+      "note": "loopback port: echoes what it is sent"
+    },
+    {
+      "file": "valid/open_channel-job.json",
+      "schema": "open_channel.json",
+      "valid": true,
+      "note": "job channel with the op it will run"
+    },
+    {
+      "file": "valid/channel_error.json",
+      "schema": "channel_error.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/op-desc-flash.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": true,
+      "note": "image op, partition param with its rule"
+    },
+    {
+      "file": "valid/op-desc-log-tail.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": true,
+      "note": "enum + int + text params"
+    },
+    {
+      "file": "valid/param-desc-argv.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-request-devices.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "no params"
+    },
+    {
+      "file": "valid/job-request-getvar.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-request-flash.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "image op: size + sha256 up front, board chosen on the hub"
+    },
+    {
+      "file": "valid/job-request-log-tail.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "int parameter"
+    },
+    {
+      "file": "valid/job-request-tool-run.json",
+      "schema": "job-request.json",
+      "valid": true,
+      "note": "argv parameter"
+    },
+    {
+      "file": "valid/job-accepted.json",
+      "schema": "job-accepted.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-progress-transfer.json",
+      "schema": "job-progress.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-progress-flash.json",
+      "schema": "job-progress.json",
+      "valid": true,
+      "note": "tool output line, indeterminate"
+    },
+    {
+      "file": "valid/job-progress-new-phase.json",
+      "schema": "job-progress.json",
+      "valid": true,
+      "note": "phase is an open set; a receiver shows an unknown one as plain progress"
+    },
+    {
+      "file": "valid/job-file.json",
+      "schema": "job-file.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-file-empty.json",
+      "schema": "job-file.json",
+      "valid": true,
+      "note": "an empty file is one frame with empty b64"
+    },
+    {
+      "file": "valid/job-done-ok.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-done-fail.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": ""
+    },
+    {
+      "file": "valid/job-done-rejected.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": "a request the bench will not act on"
+    },
+    {
+      "file": "valid/job-done-with-data.json",
+      "schema": "job-done.json",
+      "valid": true,
+      "note": "data shape is per op"
+    },
+    {
+      "file": "invalid/hello--missing-bench_id.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/hello--blank-bench_id.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "bench_id must contain a non-blank character"
+    },
+    {
+      "file": "invalid/hello--missing-proto.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "a v1 hello has no proto"
+    },
+    {
+      "file": "invalid/hello--proto-is-number.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "proto is a range, not a number"
+    },
+    {
+      "file": "invalid/hello--proto-missing-max.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "both ends of the range are required"
+    },
+    {
+      "file": "invalid/hello--impl-lang-unknown.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/hello--os-unknown.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "os uses the three fixed names"
+    },
+    {
+      "file": "invalid/hello--missing-ops.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "the op table is required; capabilities follow from it"
+    },
+    {
+      "file": "invalid/hello--update-null.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "no update = field absent, not null"
+    },
+    {
+      "file": "invalid/hello--op-group-unknown.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "unknown enum value inside the op table"
+    },
+    {
+      "file": "invalid/hello--partition-without-pattern.json",
+      "schema": "hello.json",
+      "valid": false,
+      "note": "the partition rule rides the wire"
+    },
+    {
+      "file": "invalid/hello_ok--missing-proto.json",
+      "schema": "hello_ok.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/hello_ok--proto-string.json",
+      "schema": "hello_ok.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/error--version-without-supported.json",
+      "schema": "error.json",
+      "valid": false,
+      "note": "a version refusal says which versions the sender speaks"
+    },
+    {
+      "file": "invalid/error--code-empty.json",
+      "schema": "error.json",
+      "valid": false,
+      "note": "an error always has a code"
+    },
+    {
+      "file": "invalid/error--missing-message.json",
+      "schema": "error.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/heartbeat--wrong-verb.json",
+      "schema": "heartbeat.json",
+      "valid": false,
+      "note": "verb value"
+    },
+    {
+      "file": "invalid/list_adb--missing-id.json",
+      "schema": "list_adb.json",
+      "valid": false,
+      "note": "requests carry an id"
+    },
+    {
+      "file": "invalid/list_adb--id-string.json",
+      "schema": "list_adb.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/adb_list--missing-re.json",
+      "schema": "adb_list.json",
+      "valid": false,
+      "note": "replies carry re"
+    },
+    {
+      "file": "invalid/adb_list--devices-not-strings.json",
+      "schema": "adb_list.json",
+      "valid": false,
+      "note": "wrong item type"
+    },
+    {
+      "file": "invalid/list_com--id-negative.json",
+      "schema": "list_com.json",
+      "valid": false,
+      "note": "out of range"
+    },
+    {
+      "file": "invalid/com_list--port-missing.json",
+      "schema": "com_list.json",
+      "valid": false,
+      "note": "missing field in item"
+    },
+    {
+      "file": "invalid/com_list--old-shape.json",
+      "schema": "com_list.json",
+      "valid": false,
+      "note": "item shape"
+    },
+    {
+      "file": "invalid/restart_adb--kill_conflicts-string.json",
+      "schema": "restart_adb.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/open_channel--missing-cid.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "the bench answers BAD_FRAME"
+    },
+    {
+      "file": "invalid/open_channel--channel_type-unknown.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/open_channel--tcp-target-not-allowlisted.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "only the adb server can be a tcp target"
+    },
+    {
+      "file": "invalid/open_channel--serial-baud-string.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "wrong type in params"
+    },
+    {
+      "file": "invalid/open_channel--serial-missing-baud.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "baud is required"
+    },
+    {
+      "file": "invalid/open_channel--job-missing-op.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "the job's op is required"
+    },
+    {
+      "file": "invalid/open_channel--missing-csecret.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/open_channel--cid-uppercase.json",
+      "schema": "open_channel.json",
+      "valid": false,
+      "note": "cid is lowercase hex"
+    },
+    {
+      "file": "invalid/channel_error--missing-code.json",
+      "schema": "channel_error.json",
+      "valid": false,
+      "note": "channel_error carries a code"
+    },
+    {
+      "file": "invalid/channel_error--code-lowercase.json",
+      "schema": "channel_error.json",
+      "valid": false,
+      "note": "codes are upper snake case"
+    },
+    {
+      "file": "invalid/control--unknown-verb.json",
+      "schema": "control.json",
+      "valid": false,
+      "note": "answered with error UNKNOWN_VERB"
+    },
+    {
+      "file": "invalid/control--not-an-object.json",
+      "schema": "control.json",
+      "valid": false,
+      "note": "answered with error BAD_FRAME"
+    },
+    {
+      "file": "invalid/control--v1-hello.json",
+      "schema": "control.json",
+      "valid": false,
+      "note": "a v1 hello is not a v2 hello"
+    },
+    {
+      "file": "invalid/control--removed-verb.json",
+      "schema": "control.json",
+      "valid": false,
+      "note": "channel_opened / close_channel / channel_closed are gone"
+    },
+    {
+      "file": "invalid/op-desc--missing-timeout_s.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/op-desc--record-unknown.json",
+      "schema": "op-table.json#/$defs/OpDesc",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/param-desc--kind-unknown.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "unknown enum value"
+    },
+    {
+      "file": "invalid/param-desc--enum-without-choices.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "kind-specific field missing"
+    },
+    {
+      "file": "invalid/param-desc--int-without-max.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "kind-specific field missing"
+    },
+    {
+      "file": "invalid/param-desc--name-image.json",
+      "schema": "op-table.json#/$defs/ParamDesc",
+      "valid": false,
+      "note": "reserved name"
+    },
+    {
+      "file": "invalid/job-request--missing-op.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/job-request--size-without-sha256.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "size and sha256 travel together"
+    },
+    {
+      "file": "invalid/job-request--sha256-uppercase.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "sha256 is lowercase hex"
+    },
+    {
+      "file": "invalid/job-request--size-zero.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "size >= 1"
+    },
+    {
+      "file": "invalid/job-request--param-is-object.json",
+      "schema": "job-request.json",
+      "valid": false,
+      "note": "wrong parameter value type"
+    },
+    {
+      "file": "invalid/job-accepted--detail-number.json",
+      "schema": "job-accepted.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/job-progress--phase-uppercase.json",
+      "schema": "job-progress.json",
+      "valid": false,
+      "note": "phase names are lowercase"
+    },
+    {
+      "file": "invalid/job-progress--done-negative.json",
+      "schema": "job-progress.json",
+      "valid": false,
+      "note": "out of range"
+    },
+    {
+      "file": "invalid/job-file--missing-end.json",
+      "schema": "job-file.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/job-file--b64-invalid.json",
+      "schema": "job-file.json",
+      "valid": false,
+      "note": "not base64"
+    },
+    {
+      "file": "invalid/job-done--ok-string.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "wrong type"
+    },
+    {
+      "file": "invalid/job-done--missing-code.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "missing required field"
+    },
+    {
+      "file": "invalid/job-done--ok-with-code.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "a successful done carries no code"
+    },
+    {
+      "file": "invalid/job-done--fail-empty-code.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "a failed done always names its code"
+    },
+    {
+      "file": "invalid/job-done--code-lowercase.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "codes are upper snake case"
+    },
+    {
+      "file": "invalid/job-done--error-too-long.json",
+      "schema": "job-done.json",
+      "valid": false,
+      "note": "error is cut to 4096 characters by the sender"
+    },
+    {
+      "file": "invalid/job-event--ev-unknown.json",
+      "schema": "job-event.json",
+      "valid": false,
+      "note": "the set of events is closed"
+    }
+  ]
+}

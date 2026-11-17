@@ -1,0 +1,5 @@
+{
+  "verb": "error",
+  "code": "PROTO_VERSION_UNSUPPORTED",
+  "message": "x"
+}

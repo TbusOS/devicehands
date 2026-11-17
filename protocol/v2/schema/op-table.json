@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/op-table.json",
+  "title": "Op table descriptors",
+  "description": "OpDesc and ParamDesc: the bench op table as it rides in hello.ops. Every field is required, so no side needs a default for a missing one.",
+  "$defs": {
+    "OpDesc": {
+      "type": "object",
+      "required": [
+        "name",
+        "group",
+        "summary",
+        "params",
+        "needs",
+        "image",
+        "max_image_bytes",
+        "mutates",
+        "exclusive",
+        "record",
+        "timeout_s"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "common.json#/$defs/opName"
+        },
+        "group": {
+          "description": "Which family the op belongs to. fastboot rows need the bench's fastboot executable.",
+          "enum": [
+            "fastboot",
+            "host",
+            "edl",
+            "tool"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "params": {
+          "description": "In argv order. Names are unique within one op.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParamDesc"
+          }
+        },
+        "needs": {
+          "description": "Precondition the bench checks before running: a board in fastboot, a board in EDL (9008), or nothing.",
+          "enum": [
+            "",
+            "fastboot-device",
+            "edl-device"
+          ]
+        },
+        "image": {
+          "description": "The op receives an image stream (data frames) after the request.",
+          "type": "boolean"
+        },
+        "max_image_bytes": {
+          "description": "Largest image the bench accepts for this op; 0 = bounded only by the bench host's free temp space.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "mutates": {
+          "description": "The op changes the device; the hub asks for confirmation and records it.",
+          "type": "boolean"
+        },
+        "exclusive": {
+          "description": "The op needs the bench's single job lock.",
+          "type": "boolean"
+        },
+        "record": {
+          "description": "Hub-side recording tier.",
+          "enum": [
+            "none",
+            "events",
+            "uart"
+          ]
+        },
+        "timeout_s": {
+          "description": "How long the bench lets the op's tool run before killing it.",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "ParamDesc": {
+      "type": "object",
+      "required": [
+        "name",
+        "kind",
+        "required",
+        "default"
+      ],
+      "properties": {
+        "name": {
+          "allOf": [
+            {
+              "$ref": "common.json#/$defs/opName"
+            },
+            {
+              "not": {
+                "const": "image"
+              }
+            }
+          ],
+          "description": "Parameter name; also the key of its value in the job request. 'image' is reserved."
+        },
+        "kind": {
+          "description": "partition: a partition name, pattern + max_len (the shape rule rides the wire). enum: one of choices. int: a JSON integer in min..max. text: pattern + max_len. argv: list of strings.",
+          "enum": [
+            "partition",
+            "enum",
+            "int",
+            "text",
+            "argv"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {
+          "description": "Value used when an optional parameter is missing, null or empty. For an optional enum it may be a value outside choices (e.g. reboot target \"\")."
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "min": {
+          "type": "integer"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "pattern": {
+          "description": "partition / text: the value must match the whole pattern.",
+          "$ref": "common.json#/$defs/rulePattern"
+        },
+        "max_len": {
+          "description": "partition / text: max length of the value; argv: max length of each element. Counted in Unicode code points.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_items": {
+          "description": "argv: max number of elements.",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "choices"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "int"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "min",
+              "max"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pattern",
+              "max_len"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "partition"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pattern",
+              "max_len"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "argv"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "max_items",
+              "max_len"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

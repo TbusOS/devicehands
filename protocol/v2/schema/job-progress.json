@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/job-progress.json",
+  "title": "job event: progress",
+  "description": "Progress of a running job. done/total count bytes for phase transfer; tool output lines carry done = total = 0. total = 0 means indeterminate.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "ev",
+    "phase",
+    "done",
+    "total",
+    "text"
+  ],
+  "properties": {
+    "ev": {
+      "const": "progress"
+    },
+    "phase": {
+      "description": "Open set, chosen by the op: transfer, flash, edl, tool are in use. A receiver shows an unknown phase as plain progress.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+    },
+    "done": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "text": {
+      "type": "string"
+    }
+  }
+}

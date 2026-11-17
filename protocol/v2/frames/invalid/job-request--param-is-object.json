@@ -1,0 +1,6 @@
+{
+  "op": "log-tail",
+  "source": {
+    "name": "agent"
+  }
+}

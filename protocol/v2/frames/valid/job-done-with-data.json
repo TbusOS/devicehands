@@ -1,0 +1,18 @@
+{
+  "ev": "done",
+  "ok": true,
+  "rc": 0,
+  "stdout": "",
+  "stderr": "",
+  "error": "",
+  "code": "",
+  "data": {
+    "devices": [
+      {
+        "vid": "0000",
+        "pid": "0000",
+        "name": "example device"
+      }
+    ]
+  }
+}

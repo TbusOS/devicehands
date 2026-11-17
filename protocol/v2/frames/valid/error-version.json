@@ -1,0 +1,9 @@
+{
+  "verb": "error",
+  "code": "PROTO_VERSION_UNSUPPORTED",
+  "message": "this hub speaks protocol 2..2; the bench speaks 3..3 - upgrade the hub",
+  "supported": {
+    "min": 2,
+    "max": 2
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/error.json",
+  "title": "error",
+  "description": "Either side, on the signaling connection: the frame named by re (or the last frame, when re is absent) was not acted on. The session continues, except during the handshake (the hub closes with 1002 after an error answering hello). Never sent in answer to an error frame.",
+  "x-direction": "both",
+  "type": "object",
+  "required": [
+    "verb",
+    "code",
+    "message"
+  ],
+  "properties": {
+    "verb": {
+      "const": "error"
+    },
+    "code": {
+      "description": "PROTO_VERSION_UNSUPPORTED, UNKNOWN_VERB, BAD_FRAME, or a later code (adding one does not change the version).",
+      "$ref": "common.json#/$defs/errorCode"
+    },
+    "message": {
+      "description": "Human-readable reason.",
+      "type": "string",
+      "maxLength": 4096
+    },
+    "re": {
+      "description": "The id of the frame this error answers, when that frame had a readable id.",
+      "$ref": "common.json#/$defs/msgId"
+    },
+    "supported": {
+      "description": "With PROTO_VERSION_UNSUPPORTED: the versions the sender of the error speaks.",
+      "$ref": "common.json#/$defs/protoRange"
+    }
+  },
+  "if": {
+    "required": [
+      "code"
+    ],
+    "properties": {
+      "code": {
+        "const": "PROTO_VERSION_UNSUPPORTED"
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "supported"
+    ]
+  }
+}

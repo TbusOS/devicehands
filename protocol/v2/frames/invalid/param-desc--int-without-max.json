@@ -1,0 +1,7 @@
+{
+  "name": "x",
+  "kind": "int",
+  "required": true,
+  "default": null,
+  "min": 0
+}

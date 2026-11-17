@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/job-accepted.json",
+  "title": "job event: accepted",
+  "description": "The bench understood the request and is starting. For image ops it is sent before the image is received.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "ev",
+    "detail"
+  ],
+  "properties": {
+    "ev": {
+      "const": "accepted"
+    },
+    "detail": {
+      "description": "Free text: the op name, the argv tail, or 'receiving <n> bytes'.",
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "verb": "hello",
+  "proto": {
+    "min": 2,
+    "max": 2
+  },
+  "bench_id": "bench-2",
+  "name": "",
+  "impl": {
+    "lang": "rust",
+    "build": ""
+  },
+  "os": "linux",
+  "ops": [
+    {
+      "name": "flash",
+      "group": "fastboot",
+      "summary": "fastboot flash <partition> <image>",
+      "params": [
+        {
+          "name": "partition",
+          "kind": "partition",
+          "required": true,
+          "default": null,
+          "max_len": 64
+        }
+      ],
+      "needs": "fastboot-device",
+      "image": true,
+      "max_image_bytes": 0,
+      "mutates": true,
+      "exclusive": true,
+      "record": "uart",
+      "timeout_s": 900.0
+    }
+  ],
+  "boards": {}
+}

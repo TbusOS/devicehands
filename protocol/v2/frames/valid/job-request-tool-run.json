@@ -1,0 +1,8 @@
+{
+  "op": "tool-run",
+  "tool": "example-tool",
+  "args": [
+    "-p",
+    "{com}"
+  ]
+}

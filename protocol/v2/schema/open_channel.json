@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/open_channel.json",
+  "title": "open_channel",
+  "description": "Ask the bench to open one data channel and dial it back to /bench/channel?cid=<cid>. The hub registers the cid before sending this frame. Success has no frame of its own: the dial-back is the success. Failure is channel_error. Retries are decided by channel_type (sequences.md section 6); there is no role field.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "verb",
+    "cid",
+    "csecret",
+    "channel_type",
+    "params"
+  ],
+  "properties": {
+    "verb": {
+      "const": "open_channel"
+    },
+    "cid": {
+      "$ref": "common.json#/$defs/cid"
+    },
+    "csecret": {
+      "$ref": "common.json#/$defs/csecret"
+    },
+    "channel_type": {
+      "enum": [
+        "tcp",
+        "serial",
+        "job"
+      ]
+    },
+    "params": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "channel_type"
+        ],
+        "properties": {
+          "channel_type": {
+            "const": "tcp"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "target"
+            ],
+            "properties": {
+              "target": {
+                "description": "Names the bench host's adb server. The only accepted value; the bench maps it to its configured adb port and answers channel_error for anything else.",
+                "const": "127.0.0.1:5037"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "channel_type"
+        ],
+        "properties": {
+          "channel_type": {
+            "const": "serial"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "com",
+              "baud"
+            ],
+            "properties": {
+              "com": {
+                "description": "Serial port name on the bench host. The pyserial loopback URL loop:// is also accepted (a port that echoes what it is sent); no other URL is.",
+                "type": "string",
+                "minLength": 1
+              },
+              "baud": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "channel_type"
+        ],
+        "properties": {
+          "channel_type": {
+            "const": "job"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "op"
+            ],
+            "properties": {
+              "op": {
+                "description": "The op the job request will name. Lets the bench refuse a busy or unavailable job before dialling back, and decide whether the job takes the lock.",
+                "$ref": "common.json#/$defs/opName"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

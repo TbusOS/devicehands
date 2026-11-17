@@ -1,0 +1,9 @@
+{
+  "ev": "done",
+  "ok": false,
+  "rc": -1,
+  "stdout": "",
+  "stderr": "",
+  "error": "flash has no parameter partiton",
+  "code": "BENCH_PARAM_REJECTED"
+}
