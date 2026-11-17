@@ -247,7 +247,7 @@ describe("Chat page", () => {
   it("a stored result the model read cut says so: the session kept only that part (2026-11-06)", async () => {
     const stored =
       '{"ok": true, "data": {"lines": ["line 00000' +
-      " …[alb cut 18512 of 22512 characters here to keep the model fast; the person sees the whole result on the page.]… " +
+      " …[DeviceHands cut 18512 of 22512 characters here to keep the model fast; the person sees the whole result on the page.]… " +
       'line 00803"]}}';
     mockFetch({
       detail: (id) =>

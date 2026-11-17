@@ -5,10 +5,10 @@ import { argsSummary, cutInStored, fileKind, firstOutputLine, logText, parseResu
 
 describe("tool text", () => {
   it("cutInStored reads the hub's note in a stored cut result (2026-11-06)", () => {
-    // as src/alb/agent/loop.py writes it (_TOOL_RESULT_CUT_NOTE)
+    // as src/devicehands/agent/loop.py writes it (_TOOL_RESULT_CUT_NOTE)
     const stored =
       '{"ok": true, "data": {"lines": ["line 00000' +
-      " …[alb cut 18512 of 22512 characters here to keep the model fast; the person sees the whole result on the page.]… " +
+      " …[DeviceHands cut 18512 of 22512 characters here to keep the model fast; the person sees the whole result on the page.]… " +
       'line 00803"]}}';
     expect(cutInStored(stored)).toEqual({ kept: 4000, total: 22512 });
     expect(cutInStored('{"ok": true, "data": "whole"}')).toBeNull();

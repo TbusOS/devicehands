@@ -22,7 +22,8 @@ def test_api_version_shape(client) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["version"] == API_VERSION
-    assert "alb_version" in body
+    assert "dhands_version" in body
+    assert "alb_version" not in body
     assert isinstance(body["rest"], list)
     assert isinstance(body["ws"], list)
     assert body["reference"].endswith(".md")

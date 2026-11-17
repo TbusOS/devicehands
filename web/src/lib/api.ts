@@ -56,7 +56,7 @@ export interface WsEndpoint {
 
 export interface ApiVersion {
   version: string;
-  alb_version: string;
+  dhands_version: string;
   rest: ApiEndpoint[];
   ws: WsEndpoint[];
   reference?: string;
