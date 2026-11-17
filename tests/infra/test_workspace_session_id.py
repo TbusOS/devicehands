@@ -49,8 +49,11 @@ def test_session_path_rejects_traversal_and_unsafe_ids(
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     with pytest.raises(InvalidSessionId):
         session_path(bad_id)
-    # No directory created at the rejected target either
-    assert not (tmp_path / "sessions" / bad_id).exists()
+    # Rejected before anything was created: not even sessions/ exists.
+    # Checking `sessions / bad_id` instead would test the path join, not the
+    # rejection: on Windows `sessions\..` folds back to the workspace and an
+    # absolute "C:\Windows" replaces the whole path — both exist there anyway.
+    assert not (tmp_path / "sessions").exists()
 
 
 @pytest.mark.parametrize(
@@ -103,8 +106,9 @@ def test_workspace_path_rejects_traversal_in_device(
     monkeypatch.setenv("DHANDS_WORKSPACE", str(tmp_path))
     with pytest.raises(InvalidDeviceSerial):
         workspace_path("logs", "x.txt", device=bad_device)
-    # No directory created at the rejected target
-    assert not (tmp_path / "devices" / bad_device / "logs").exists()
+    # Rejected before anything was created: not even devices/ exists (same
+    # reason as the session test above — a joined path can fold on Windows).
+    assert not (tmp_path / "devices").exists()
 
 
 @pytest.mark.parametrize(
