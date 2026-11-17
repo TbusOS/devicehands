@@ -80,7 +80,12 @@ jobs:
         # running after 120 s gets every thread's stack printed, so a hang
         # names its test instead of ending as a silent job timeout. It does
         # not stop the test; the job timeout above still does that.
-        run: uv run pytest -q --no-cov --continue-on-collection-errors -o faulthandler_timeout=120
+        #
+        # -rs: list every skipped test with its reason. A test that went from
+        # passing to skipped leaves the failure count unchanged but no longer
+        # checks anything; without the list, Windows' 223 skips could only be
+        # reasoned about, not read.
+        run: uv run pytest -q -rs --no-cov --continue-on-collection-errors -o faulthandler_timeout=120
 
   # P1 acceptance (design 5.11): installed the normal way, on all three
   # systems, the hub serves the web UI. Builds the sdist, the wheel from that
