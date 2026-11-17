@@ -2,7 +2,7 @@
 title: 安装 / 卸载指南
 type: user-guide
 created: 2026-04-15
-updated: 2026-11-10
+updated: 2026-11-17
 owner: sky
 tags: [install, uninstall, uv, python, isolation]
 ---
@@ -98,7 +98,7 @@ cd devicehands
 | 2 | 找机器上现成的 Python 3.11，没有才让 uv 下载；下载失败打印原因和解决办法 | `~/.local/share/uv/python/cpython-3.11.*/` |
 | 3 | `uv sync` 建 venv + 装所有依赖；失败时打印原因和代理 / 镜像 / 超时的办法 | `<repo>/.venv/` |
 | 4 | 跑 smoke test（`pytest tests/test_smoke.py`） | 临时 |
-| 5 | 查 pip 装不了的外部工具（`dhands setup deps --install`）：缺 adb / fastboot 就下载；要 sudo 的列出命令。见下面「外部工具」 | `~/.local/share/alb/`，链接在 `~/.local/bin/` |
+| 5 | 查 pip 装不了的外部工具（`dhands setup deps --install`）：缺 adb / fastboot 就下载；要 sudo 的列出命令。见下面「外部工具」 | 数据目录下的 `tools/`（Linux `~/.local/share/devicehands/tools/`，macOS `~/Library/Application Support/devicehands/tools/`），链接在 `~/.local/bin/` |
 | 6 | 打印下一步提示；有必需的工具没装上，退出码 1 | — |
 
 ### 选项
@@ -140,9 +140,18 @@ DeviceHands 和它的测试还要用到一些不是 Python 包的程序。pip / 
 用别的方式装了 DeviceHands 的人，自己跑一次 `dhands setup deps`（加 `--install` 装，加 `--dev` 连测试工具一起查）。
 `dhands doctor` 的 binaries 那一层查的是同一份清单（`src/devicehands/infra/host_deps.py`）。
 
+下载的工具放在数据目录下的 `tools/`（`src/devicehands/infra/dirs.py` 的 `tools_dir`，目录由 platformdirs 按系统给出），
+链接放 `~/.local/bin`（`host_deps.py` 的 `bin_dir`）：
+
+| 系统 | `tools/` 在哪 |
+|---|---|
+| Linux | `~/.local/share/devicehands/tools`（设了 `XDG_DATA_HOME` 时是 `$XDG_DATA_HOME/devicehands/tools`） |
+| macOS | `~/Library/Application Support/devicehands/tools` |
+| Windows | `%LOCALAPPDATA%\devicehands\tools`。Platform-Tools 的自动下载只认 Linux 和 macOS（`host_deps.py` 的 `PLATFORM_TOOLS_URLS`），Windows 上 adb 要自己装 |
+
 | 名字 | 档 | 干什么用 | 自动装吗 | 自己装 |
 |---|---|---|---|---|
-| `adb` | 必需 | 经 adb 连板子，DeviceHands 的主要通道 | 是：下载 Android SDK Platform-Tools 到 `~/.local/share/alb/platform-tools`，链接进 `~/.local/bin`。下载前问一次（要同意 Google 的许可），`--yes` 不问 | 见下面「adb 下载失败」 |
+| `adb` | 必需 | 经 adb 连板子，DeviceHands 的主要通道 | 是：下载 Android SDK Platform-Tools 到 `tools/platform-tools`（`tools/` 在哪见上表），链接进 `~/.local/bin`。下载前问一次（要同意 Google 的许可），`--yes` 不问 | 见下面「adb 下载失败」 |
 | `fastboot` | 可选 | 本机直连板子时烧录（台架烧录在 Windows 那头做） | 是，和 adb 一起装 | 同 adb |
 | `ssh` | 可选 | ssh 通道（板子上跑 sshd），含 ssh 和 scp | 否，要 sudo | `sudo apt install openssh-client` |
 | `rsync` | 可选 | `dhands fs rsync` | 否，要 sudo | `sudo apt install rsync` |
@@ -236,14 +245,41 @@ codex mcp add devicehands -- "$PWD/.venv/bin/dhands-mcp" # Codex CLI
 
 要知道的：
 
-- **要用 `-e`（可编辑安装）**。网页界面文件和台架 agent 的更新包是按仓库目录找的；
-  不加 `-e` 时 DeviceHands 被复制进 `.venv` 的 site-packages，找不到仓库，网页打不开（2026-11-10 实测：
-  不加 `-e` 跑全量测试，网页界面 3 条、agent 更新包 2 条失败；加 `-e` 后这两个测试文件 33 条全过）。
+- `-e`（可编辑安装）让你改了仓库里的代码立即生效，不用重装。不加 `-e` 也能用：网页界面文件和台架 agent 的文件
+  随包安装（包里的 `devicehands/_resources/web`、`devicehands/_resources/bench`，见 `pyproject.toml` 的
+  `[tool.hatch.build.targets.wheel.sources]` 和 `src/devicehands/infra/resources.py`）。
+  不加 `-e` 时代码在 `.venv` 的 site-packages 里运行，不算「从源码检出运行」，仓库根目录的 `.env.local` 不读，
+  要放到用户配置目录（见下一节）。
 - 依赖是 pip 当时解析出的版本，不是 `uv.lock` 里的。2026-11-10 用这种方式（Python 3.11、pip 24.0、`-e`）装出来跑全量测试：2806 过、1 跳过。
   以后遇到依赖版本引起的问题，改用 `./scripts/install.sh`。
 - 2026-11-10 在 Linux 上实测过这条路：`pip install -e .` 装上，`alb version` 输出 v0.0.1，`alb-mcp` 能回应 MCP 握手。
 - 跑测试要另装测试依赖：`.venv/bin/pip install pytest pytest-asyncio pytest-mock pytest-cov`，再 `.venv/bin/python -m pytest -q`。
 - `./scripts/uninstall.sh` 照样能删掉 `.venv/`。
+
+### 用 wheel 安装（不留源码目录）
+
+在一台有源码的机器上打出 wheel，拿到要用的机器上用 pip 装。装好的包里带着网页界面和台架 agent 的文件，
+运行时不需要源码目录。下面的步骤和 CI 的 `wheel-install` 任务做的一样（`.github/workflows/ci.yml`：
+`uv build` 出 wheel，新建 Python 3.11 的 venv，`pip install` 这个 wheel，启动 `dhands-hub`，取 `/app/` 网页）。
+
+```bash
+# 有源码的机器上
+cd devicehands
+uv build --out-dir dist                  # 出 dist/devicehands-<版本>-py3-none-any.whl 和源码包
+
+# 要用的机器上（Python 3.11 以上）
+python3.11 -m venv ~/dhands-venv
+~/dhands-venv/bin/pip install devicehands-*.whl
+~/dhands-venv/bin/dhands-hub             # 浏览器打开 http://127.0.0.1:8775/app/
+```
+
+要知道的：
+
+- Windows 上 venv 里的程序在 `Scripts\` 下（`Scripts\pip.exe`、`Scripts\dhands-hub.exe`），不是 `bin/`。
+- `.env.local` 放用户配置目录：Linux `~/.config/devicehands/.env.local`，
+  macOS `~/Library/Application Support/devicehands/.env.local`，Windows `%LOCALAPPDATA%\devicehands\.env.local`。
+  装好的包不读当前目录的 `.env.local`（[configuration.md 1.2](./configuration.md#12-优先级)）。
+- 外部工具（adb 等）照样用 `dhands setup deps --install` 查和装，见上面「外部工具」。
 
 ---
 
@@ -286,8 +322,9 @@ codex mcp add devicehands -- "$PWD/.venv/bin/dhands-mcp" # Codex CLI
 
 ```bash
 ./scripts/uninstall.sh --remove-host-tools
-# 删 dhands setup deps --install 放进家目录的东西：~/.local/share/alb/（Platform-Tools、mksh）
-# 和 ~/.local/bin 里指向它的链接。web/node_modules 和 Playwright 的浏览器
+# 删 dhands setup deps --install 放进家目录的东西：数据目录下的 tools/（Platform-Tools、mksh；
+# Linux ~/.local/share/devicehands/tools，macOS ~/Library/Application Support/devicehands/tools）
+# 和 ~/.local/bin 里指向它的链接。同在数据目录下的 workspace/ 不删。web/node_modules 和 Playwright 的浏览器
 # （~/.cache/ms-playwright，别的项目也可能在用）不动
 ```
 
