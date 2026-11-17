@@ -191,8 +191,8 @@ export ADB_SERVER_SOCKET=tcp:localhost:5037
 项目已支持 `uv tool install --editable`，装完 `dhands` / `dhands-mcp` / `dhands-hub` 全局可用：
 
 ```bash
-# 假设 DeviceHands 项目 clone 到 ~/android-llm-bridge
-uv tool install --editable ~/android-llm-bridge
+# 假设按 README 的步骤 clone 到了 ~/devicehands(git clone .../devicehands)
+uv tool install --editable ~/devicehands
 
 # 验证
 which dhands          # 应输出 ~/.local/bin/dhands
@@ -202,7 +202,7 @@ which dhands-mcp dhands-hub
 
 `--editable` 的好处：你修改 DeviceHands 源码后，全局命令立即反映新改动，不用重装。
 
-> 如果没有 uv，也可以 `pip install --user -e ~/android-llm-bridge`，同效果。
+> 如果没有 uv，也可以 `pip install --user -e ~/devicehands`，同效果。
 
 ### 4.5 配 `~/.config/devicehands/config.toml`（UART 端口持久化）
 
@@ -386,7 +386,7 @@ netsh interface ipv4 show excludedportrange protocol=tcp  :: 查 Windows 保留�
 
 ### 问题 7：`dhands: command not found`
 
-没全局安装。见 §4.4，或者 `cd ~/android-llm-bridge && uv run dhands ...`。
+没全局安装。见 §4.4，或者 `cd ~/devicehands && uv run dhands ...`。
 
 ### 问题 8：`dhands shell` 报 `device not found`
 

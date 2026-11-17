@@ -342,8 +342,8 @@
   <div class="term rv">
     <div class="term__bar"><i></i><i></i><i></i><span>bash</span><button class="copy" type="button" data-copy="term-code"><span class="zh">复制</span><span class="en">Copy</span></button></div>
 <pre id="term-code"><code><span class="c"># 1 · <span class="zh">装好(不需要 root)</span><span class="en">install (no root needed)</span></span>
-git clone https://github.com/TbusOS/android-llm-bridge
-cd android-llm-bridge &amp;&amp; ./scripts/install.sh
+git clone https://github.com/TbusOS/devicehands
+cd devicehands &amp;&amp; ./scripts/install.sh
 
 <span class="c"># 2 · <span class="zh">看看它够得到什么</span><span class="en">see what it can reach</span></span>
 uv run dhands status
@@ -352,7 +352,7 @@ uv run dhands devices
 <span class="c"># 3 · <span class="zh">把手交给你的 AI</span><span class="en">hand it to your AI</span></span>
 claude mcp add devicehands -- uv run --project "$PWD" dhands-mcp</code></pre>
   </div>
-  <p class="note note--c rv"><span class="zh">代码目前在 <code>android-llm-bridge</code> 仓库,正在改名为 DeviceHands;命令行工具叫 <code>dhands</code>。然后对你的 AI 说一句:「帮我看看这块板子为什么起不来。」</span><span class="en">The code lives in the <code>android-llm-bridge</code> repository for now and is being renamed to DeviceHands; the command-line tool is called <code>dhands</code>. Then tell your AI: "find out why this board will not boot."</span></p>
+  <p class="note note--c rv"><span class="zh">代码在 <code>TbusOS/devicehands</code> 仓库(由 <code>android-llm-bridge</code> 改名而来,提交历史一并带过来了);命令行工具叫 <code>dhands</code>。然后对你的 AI 说一句:「帮我看看这块板子为什么起不来。」</span><span class="en">The code lives in the <code>TbusOS/devicehands</code> repository (renamed from <code>android-llm-bridge</code>, with its full history); the command-line tool is called <code>dhands</code>. Then tell your AI: "find out why this board will not boot."</span></p>
   <div class="hero__cta hero__cta--c rv">
     <a class="btn btn--gold" href="https://github.com/TbusOS/devicehands"><span class="zh">去 GitHub</span><span class="en">Go to GitHub</span></a>
     <a class="btn" href="https://doc.tbusos.com/android-llm-bridge/"><span class="zh">读文档</span><span class="en">Read the docs</span></a>
