@@ -75,13 +75,13 @@ adb version
 
 如果网慢，scp/rz 上传也行。
 
-**用 alb 装**（不需要 root，装到用户目录）：
+**用 dhands 装**（不需要 root，装到用户目录）：
 ```bash
-alb setup deps                 # 列出缺哪些外部工具，各自怎么装
-alb setup deps --install       # 自动下载 Android Platform-Tools
+dhands setup deps              # 列出缺哪些外部工具，各自怎么装
+dhands setup deps --install    # 自动下载 Android Platform-Tools
 ```
 
-找不到 `adb` 时，可以用环境变量 `ALB_ADB_PATH` 指向 adb 可执行文件。
+找不到 `adb` 时，可以用环境变量 `DHANDS_ADB_PATH` 指向 adb 可执行文件。
 
 ### 第 3 步 · Xshell 配反向隧道
 
@@ -120,24 +120,24 @@ adb devices
 # 应该看到 Windows 上连的板子
 ```
 
-### 第 5 步 · alb 接管
+### 第 5 步 · DeviceHands 接管
 
 ```bash
-alb setup adb
-alb devices
-alb shell "getprop ro.build.version.sdk"
+dhands setup adb
+dhands devices
+dhands shell "getprop ro.build.version.sdk"
 ```
 
-`alb setup adb` 没有参数，只检查、不改配置。它做这几件事（`src/alb/cli/setup_cli.py` `setup_adb`）：
+`dhands setup adb` 没有参数，只检查、不改配置。它做这几件事（`src/devicehands/cli/setup_cli.py` `setup_adb`）：
 
 - 找 `adb` 可执行文件
 - 读 `ADB_SERVER_SOCKET`；是 `tcp:` 开头就检查那个端口在不在监听（隧道有没有建好）
-- 打印 alb 实际用的 adb server 地址和来源（`from config` / `from env` / `from hub` / `from default`）
+- 打印 dhands 实际用的 adb server 地址和来源（`from config` / `from env` / `from hub` / `from default`）
 - 列出能看到的设备
 
-> 只有 Xshell 这种 alb 之外建的隧道才需要手动设 `ADB_SERVER_SOCKET`。
-> 如果板子走的是 alb hub + Windows agent（[`../dial-home-runbook.md`](../dial-home-runbook.md)），
-> **不要设**：alb 会从运行中的 hub 读端口，手动设的值反而会盖过它，过期后的表现只是「0 个设备」。
+> 只有 Xshell 这种 DeviceHands 之外建的隧道才需要手动设 `ADB_SERVER_SOCKET`。
+> 如果板子走的是 DeviceHands hub + Windows agent（[`../dial-home-runbook.md`](../dial-home-runbook.md)），
+> **不要设**：dhands 会从运行中的 hub 读端口，手动设的值反而会盖过它，过期后的表现只是「0 个设备」。
 
 ---
 
@@ -146,56 +146,56 @@ alb shell "getprop ro.build.version.sdk"
 ### 设备信息
 
 ```bash
-alb devices                                    # 列所有连接的设备
-alb shell "getprop ro.build.version.sdk"       # SDK 版本
-alb shell "getprop ro.product.model"           # 型号
-alb diag devinfo                               # 汇总信息（品牌 / 型号 / 版本 / 内核 / 电池 / 存储）
-alb info all                                   # 更全的结构化信息（CPU / 内存 / 存储 / 显示 …）
+dhands devices                                 # 列所有连接的设备
+dhands shell "getprop ro.build.version.sdk"    # SDK 版本
+dhands shell "getprop ro.product.model"        # 型号
+dhands diag devinfo                            # 汇总信息（品牌 / 型号 / 版本 / 内核 / 电池 / 存储）
+dhands info all                                # 更全的结构化信息（CPU / 内存 / 存储 / 显示 …）
 ```
 
 ### 日志
 
 ```bash
-alb logcat -d 60                      # 60秒 logcat
-alb logcat -f "*:E"                   # 只 Error
-alb logcat -f "ActivityManager:I *:S" # 只 AM:I
-alb logcat --clear                    # 清 buffer 后采集
-alb dmesg -d 30                       # kernel log
+dhands logcat -d 60                   # 60秒 logcat
+dhands logcat -f "*:E"                # 只 Error
+dhands logcat -f "ActivityManager:I *:S" # 只 AM:I
+dhands logcat --clear                 # 清 buffer 后采集
+dhands dmesg -d 30                    # kernel log
 ```
 
 ### 文件传输
 
 ```bash
-alb fs push <local> <remote>     # Linux → 板子
-alb fs pull <remote> <local>     # 板子 → Linux（不给 local 时放进 workspace）
-alb fs pull /sdcard/Download/ ~/board-files/
+dhands fs push <local> <remote>  # Linux → 板子
+dhands fs pull <remote> <local>  # 板子 → Linux（不给 local 时放进 workspace）
+dhands fs pull /sdcard/Download/ ~/board-files/
 ```
 
 ### app
 
 ```bash
-alb app install xxx.apk
-alb app uninstall com.example.app
-alb app list --filter com.example
-alb app start com.example/.MainActivity
-alb app stop com.example
+dhands app install xxx.apk
+dhands app uninstall com.example.app
+dhands app list --filter com.example
+dhands app start com.example/.MainActivity
+dhands app stop com.example
 ```
 
 ### 重启 / 状态
 
 ```bash
-alb power reboot                 # 正常重启（默认等到开机完成）
-alb power reboot recovery        # 进 recovery
-alb power reboot bootloader      # 进 bootloader
-alb power battery                # 电池状态
+dhands power reboot              # 正常重启（默认等到开机完成）
+dhands power reboot recovery     # 进 recovery
+dhands power reboot bootloader   # 进 bootloader
+dhands power battery             # 电池状态
 ```
 
 ### 诊断
 
 ```bash
-alb diag bugreport               # 完整诊断 zip
-alb diag anr pull                # 拉 ANR 文件
-alb diag tombstone pull          # 拉 native crash
+dhands diag bugreport            # 完整诊断 zip
+dhands diag anr pull             # 拉 ANR 文件
+dhands diag tombstone pull       # 拉 native crash
 ```
 
 ---
@@ -207,7 +207,7 @@ alb diag tombstone pull          # 拉 native crash
 1. Windows 上能看到吗？不能 → 查 USB 线 / PATH / 授权
 2. Xshell 反向隧道生效？`ss -tlnp | grep 5037` 有 LISTEN 吗
 3. `ADB_SERVER_SOCKET` 设了吗？`echo $ADB_SERVER_SOCKET`
-4. `alb setup adb` 打印的 `adb endpoint` 是不是隧道那个端口
+4. `dhands setup adb` 打印的 `adb endpoint` 是不是隧道那个端口
 
 ### 2 · 隧道断了后卡住
 ```bash

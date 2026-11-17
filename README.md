@@ -1,7 +1,7 @@
 # DeviceHands(原 android-llm-bridge)
 
 > **本项目正在改名为 DeviceHands。** `android-llm-bridge` 仓库的代码和全部提交历史已并入本仓库,以后在这里开发。
-> 命令行工具目前仍叫 `alb`,下文出现的 `android-llm-bridge` / `alb` 暂时照旧有效。
+> 命令行工具已改名为 `dhands`(全名 `devicehands`,同一个入口);旧命令 `alb` 留在旧仓库,不受影响。
 > 新主页:<https://doc.tbusos.com/devicehands/> · 首页 3D 故事怎么维护见 [`tools/README.md`](tools/README.md)。
 
 > **让 LLM Agent 直接在线调试安卓设备** —— 一套可扩展的统一调试桥，抽象 adb / ssh / UART 串口多种传输，通过 MCP / CLI / Web API 三层接入大模型。
@@ -22,7 +22,7 @@
   <a href="https://doc.tbusos.com/android-llm-bridge/#topology">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="docs/assets/site/readme/topology-zh-dark.png">
-      <img src="docs/assets/site/readme/topology-zh-light.png" width="900" alt="整体拓扑：编译机上跑 AI 编程助手和 alb hub；台架电脑上的 agent 主动连回 hub，经 USB、串口连板子；模型可以是云端 API、本地模型或板上模型">
+      <img src="docs/assets/site/readme/topology-zh-light.png" width="900" alt="整体拓扑：编译机上跑 AI 编程助手和 DeviceHands hub；台架电脑上的 agent 主动连回 hub，经 USB、串口连板子；模型可以是云端 API、本地模型或板上模型">
     </picture>
   </a>
   <br>
@@ -33,7 +33,7 @@
 
 ## 这是什么
 
-**android-llm-bridge**（简称 **alb**）是一个**面向大模型**的安卓设备在线调试桥。核心定位：
+**DeviceHands**（命令行简称 **dhands**）是一个**面向大模型**的安卓设备在线调试桥。核心定位：
 
 > 让 AI Agent 像使用普通函数一样，安全、结构化地操作真实安卓设备 —— 不论设备怎么连接（USB adb / 无线 adb / 板子跑 sshd / 还是只有 UART 串口）。
 
@@ -47,8 +47,8 @@
 - 多种连接方式（USB/WiFi/串口）各有各的命令，LLM 要记一堆
 - 跑分、ANR、性能采集这些高级能力每次都要 LLM 自己拼命令
 
-**alb 解决这些问题**：
-- 统一命令（`alb shell` / `alb logcat` / `alb fs pull` 等），自动选最合适的传输通道
+**DeviceHands 解决这些问题**：
+- 统一命令（`dhands shell` / `dhands logcat` / `dhands fs pull` 等），自动选最合适的传输通道
 - 所有输出 `--json` 可选，返回 `{ok, data, error, artifacts}` 结构化
 - 长日志走 workspace 分层存储 + 换页机制，LLM 按需读取
 - MCP server 原生支持，Claude Code / Cursor 一行配置即可用
@@ -61,7 +61,7 @@
 |-----|------|
 | **多传输抽象** | adb USB / adb WiFi / 板子 sshd / UART 串口 —— 上层命令一致，底层自动路由 |
 | **LLM-first API** | 结构化返回、错误码、自描述 CLI、`SKILL.md` 自动生成 |
-| **三层接入** | CLI (`alb`) · MCP server (`alb-mcp`) · Web API (FastAPI)，共享同一套业务层 |
+| **三层接入** | CLI (`dhands`) · MCP server (`dhands-mcp`) · Web API (FastAPI)，共享同一套业务层 |
 | **权限与安全** | 板子上的命令不拦截；Windows 主机只执行 agent 操作表里登记过的操作 |
 | **产物规范化** | logcat / ANR / bugreport / 性能数据 全部入 `workspace/devices/<serial>/...` |
 | **长日志友好** | 分层存储（热/温/冷）+ 搜索 + 归档，LLM 不怕 context 爆 |
@@ -92,7 +92,7 @@
 | 大量设备 CI / 自动化 | B + C | 无线省线、多设备并发 |
 | 板子起不来 / 内核 panic / u-boot 调试 | **G** | 只有串口能看到底层日志 |
 | 客户现场远程调试 | **远程 agent（dial-home）** | 设备侧主动拨出 wss，hub 公网/反代可达即可 |
-| 板子在 Windows 上，Linux 服务器调 | **远程 agent（dial-home）** | Windows 双击 `run-agent.bat` 拨出，免隧道、免入站端口 |
+| 板子在 Windows 上，Linux 服务器调 | **远程 agent（dial-home）** | Windows 双击 `run-bench.bat` 拨出，免隧道、免入站端口 |
 
 详见 [`docs/methods/00-comparison.md`](./docs/methods/00-comparison.md)。
 
@@ -101,17 +101,17 @@
 板子物理插在 Windows（或任何别的机器）上时，不需要 SSH 隧道、设备侧不用开
 任何入站端口——agent **主动拨出**连 hub：
 
-1. **hub（跑 alb 的 Linux）**：`cd deploy/hub && cp hub.env.example hub.env`
+1. **hub（跑 DeviceHands 的 Linux）**：`cd deploy/hub && cp hub.env.example hub.env`
    （填共享 token；要串口再填 COM + 波特率）→ `./run-hub.sh`
-2. **设备侧（Windows）**：把 `clients/windows-agent/` 拷过去，
-   `agent.conf.example` 复制为 `agent.conf` 填 hub 地址 + token →
-   **双击 `run-agent.bat`**（每次启动自检环境，缺依赖自动装）
+2. **设备侧（Windows）**：把 `bench-py/` 拷过去，
+   `bench.conf.example` 复制为 `bench.conf` 填 hub 地址 + token →
+   **双击 `run-bench.bat`**（每次启动自检环境，缺依赖自动装）
 
 之后 adb / UART 串口 / Web 控制台 / MCP 全部从 hub 侧驱动，跟板子直接插在
 hub 上一样。从 hub 到板子每一跳的连接说明和排障：[docs/dial-home-runbook.md](./docs/dial-home-runbook.md)；
-设备侧操作手册（中文）：[clients/windows-agent/README.md](./clients/windows-agent/README.md)。
+设备侧操作手册（中文）：[bench-py/README.md](./bench-py/README.md)。
 
-两台机器**不用在同一网段**：只要台架电脑能连到 hub 的地址和端口。跨公网用 VPN 或带 TLS 的反向代理，不要把 8765 端口直接暴露到公网（网页和 HTTP 接口没有登录）。做法和反向代理示例见
+两台机器**不用在同一网段**：只要台架电脑能连到 hub 的地址和端口。跨公网用 VPN 或带 TLS 的反向代理，不要把 8775 端口直接暴露到公网（网页和 HTTP 接口没有登录）。做法和反向代理示例见
 [跨网络部署](./docs/dial-home-runbook.md#5-across-networks)。
 
 ---
@@ -152,7 +152,7 @@ hub 上一样。从 hub 到板子每一跳的连接说明和排障：[docs/dial-
 
 ## 快速开始
 
-> **当前状态(2026-11-09)**:四种传输(adb USB / adb 网络 / sshd / 串口)、16 个能力模块、28 个 `alb` 命令组、36 个 MCP 工具、Web 界面 v3,以及远程调试台架(板子插在另一台 Windows 上，经 adb / 串口 / fastboot / 高通 9008 调试)都能用。详见 [`docs/project-plan.md`](./docs/project-plan.md)。
+> **当前状态(2026-11-09)**:四种传输(adb USB / adb 网络 / sshd / 串口)、16 个能力模块、28 个 `dhands` 命令组、36 个 MCP 工具、Web 界面 v3,以及远程调试台架(板子插在另一台 Windows 上，经 adb / 串口 / fastboot / 高通 9008 调试)都能用。详见 [`docs/project-plan.md`](./docs/project-plan.md)。
 
 ### 一键部署（推荐，完全用户态）
 
@@ -161,12 +161,12 @@ hub 上一样。从 hub 到板子每一跳的连接说明和排障：[docs/dial-
 uv 是 Python 的安装工具（一个现成的程序，不用编译），install.sh 用它免 root 拿到 Python 3.11、按 `uv.lock` 装依赖。没装 uv 时脚本自动装：官方安装脚本不通就改用 pip 从 PyPI 下载；都失败会打印原因和解决命令（代理、镜像、离线手动装）。机器上已经有 Python 3.11 也可以不用 uv。uv 的作用、不用 uv 怎么装、各种失败怎么办，见 [`docs/install.md`](./docs/install.md)「先说 uv」和「故障排查」。
 
 ```bash
-git clone https://github.com/<your>/android-llm-bridge
-cd android-llm-bridge
+git clone https://github.com/<your>/devicehands
+cd devicehands
 ./scripts/install.sh              # 要跑测试再加 --dev
 ```
 
-install.sh 最后一步是 `alb setup deps --install`，查 pip 装不了的外部工具：
+install.sh 最后一步是 `dhands setup deps --install`，查 pip 装不了的外部工具：
 缺 adb / fastboot 就下载 Android Platform-Tools 装进家目录（下载前问一次，`--yes` 不问）；
 ssh、rsync、picocom、socat 要 sudo，Ollama 常装在别的机器上，这几样只列出安装命令。
 加 `--dev` 再装跑测试要的 `web/` npm 包和 Playwright 的 Chromium。
@@ -176,9 +176,9 @@ ssh、rsync、picocom、socat 要 sudo，Ollama 常装在别的机器上，这�
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 
-uv run alb describe          # 列出所有 transport 和 capability
-uv run alb status            # 环境健康检查
-uv run alb devices           # 列连接的设备
+uv run dhands describe       # 列出所有 transport 和 capability
+uv run dhands status         # 环境健康检查
+uv run dhands devices        # 列连接的设备
 ```
 
 一键卸载：
@@ -192,39 +192,39 @@ uv run alb devices           # 列连接的设备
 ### 手动部署（如果已有 uv + Python 3.11）
 
 ```bash
-cd android-llm-bridge
+cd devicehands
 uv sync                    # 装依赖
-uv run alb setup deps --install   # 查 / 装 adb 等外部工具（加 --dev 连测试工具）
-uv run alb --help          # 看看能做什么
+uv run dhands setup deps --install # 查 / 装 adb 等外部工具（加 --dev 连测试工具）
+uv run dhands --help       # 看看能做什么
 uv run pytest -q           # 跑测试（60+ 用例）
 ```
 
-不用 uv（已有 Python 3.11+）：`python3.11 -m venv .venv && .venv/bin/pip install -e .`，之后命令写成 `.venv/bin/alb …`，
-MCP 登记 `.venv/bin/alb-mcp` 的绝对路径。详见 [`docs/install.md`](./docs/install.md)「不用 uv 安装」。
+不用 uv（已有 Python 3.11+）：`python3.11 -m venv .venv && .venv/bin/pip install -e .`，之后命令写成 `.venv/bin/dhands …`，
+MCP 登记 `.venv/bin/dhands-mcp` 的绝对路径。详见 [`docs/install.md`](./docs/install.md)「不用 uv 安装」。
 
 ### 配一种传输方案
 
 ```bash
 # 方案 A — adb USB（本地；或含 Xshell 反向隧道）
 export ADB_SERVER_SOCKET=tcp:localhost:5037   # 仅远程 Xshell 场景需要
-uv run alb setup adb                           # 引导式体检 + 验证
-uv run alb devices
-uv run alb shell "getprop ro.build.version.sdk"
-uv run alb logcat --duration 30 --filter "*:E"
-uv run alb diag bugreport
+uv run dhands setup adb                        # 引导式体检 + 验证
+uv run dhands devices
+uv run dhands shell "getprop ro.build.version.sdk"
+uv run dhands logcat --duration 30 --filter "*:E"
+uv run dhands diag bugreport
 
 # 方案 B — adb WiFi（先经方案 A 授权一次）
-uv run alb setup wifi 192.168.1.42            # 自动跑 tcpip + connect
+uv run dhands setup wifi 192.168.1.42         # 自动跑 tcpip + connect
 
 # 方案 C — 板子内 sshd
-uv run alb setup ssh 192.168.1.42 --key ~/.ssh/alb-device
-ALB_SSH_HOST=192.168.1.42 uv run alb --transport ssh shell 'uname -a'
-uv run alb fs rsync ~/out/system/ /system-dev/   # 方案 C 独占
+uv run dhands setup ssh 192.168.1.42 --key ~/.ssh/dhands-device
+DHANDS_SSH_HOST=192.168.1.42 uv run dhands --transport ssh shell 'uname -a'
+uv run dhands fs rsync ~/out/system/ /system-dev/ # 方案 C 独占
 
 # 方案 G — UART 串口（TCP via ser2net + Xshell）
-uv run alb setup serial --tcp-host localhost --tcp-port 9001
-uv run alb serial capture --duration 30       # 抓启动 / panic / u-boot 日志
-uv run alb serial shell "dmesg | tail"
+uv run dhands setup serial --tcp-host localhost --tcp-port 9001
+uv run dhands serial capture --duration 30    # 抓启动 / panic / u-boot 日志
+uv run dhands serial shell "dmesg | tail"
 ```
 
 配置方式详见 [`docs/methods/`](./docs/methods/)。全部环境变量和配置文件见 [`docs/configuration.md`](./docs/configuration.md)。
@@ -234,8 +234,8 @@ uv run alb serial shell "dmesg | tail"
 在仓库目录里登记一次即可：
 
 ```bash
-claude mcp add alb -- uv run --project "$PWD" alb-mcp   # Claude Code
-codex mcp add alb -- uv run --project "$PWD" alb-mcp    # Codex CLI,写进 ~/.codex/config.toml
+claude mcp add devicehands -- uv run --project "$PWD" dhands-mcp # Claude Code
+codex mcp add devicehands -- uv run --project "$PWD" dhands-mcp # Codex CLI,写进 ~/.codex/config.toml
 ```
 
 Cursor 等用 JSON 配置的客户端见 [`llm/mcp-config-examples/`](./llm/mcp-config-examples/)。
@@ -253,15 +253,15 @@ Cursor 等用 JSON 配置的客户端见 [`llm/mcp-config-examples/`](./llm/mcp-
 | 第一次安装 | [docs/install.md](./docs/install.md);装不上看它的「故障排查」,uv 是什么看「先说 uv」 |
 | 板子用 USB 插在本机,走 adb | 本页「配一种传输方案」→ [docs/configuration.md](./docs/configuration.md)「三、USB / adb」;adb 经 ssh 隧道看 [docs/methods/01-ssh-tunnel-adb.md](./docs/methods/01-ssh-tunnel-adb.md) |
 | 板子接串口(UART) | [docs/methods/07-uart-serial.md](./docs/methods/07-uart-serial.md) → [docs/configuration.md](./docs/configuration.md)「二、串口 UART」 |
-| 板子插在另一台 Windows 电脑上(远程台架) | [docs/dial-home-runbook.md](./docs/dial-home-runbook.md)(Linux 这边)→ [clients/windows-agent/README.md](./clients/windows-agent/README.md)(Windows 那边) |
-| 远程烧录(fastboot / 高通 9008 / 其它厂商工具) | 命令用法:[docs/flash.md](./docs/flash.md);台架上怎么配:[clients/windows-agent/README.md](./clients/windows-agent/README.md)「操作表」「高通 9008」「其它厂商的下载工具」三节、[FASTBOOT-SETUP.md](./clients/windows-agent/FASTBOOT-SETUP.md) |
+| 板子插在另一台 Windows 电脑上(远程台架) | [docs/dial-home-runbook.md](./docs/dial-home-runbook.md)(Linux 这边)→ [bench-py/README.md](./bench-py/README.md)(Windows 那边) |
+| 远程烧录(fastboot / 高通 9008 / 其它厂商工具) | 命令用法:[docs/flash.md](./docs/flash.md);台架上怎么配:[bench-py/README.md](./bench-py/README.md)「操作表」「高通 9008」「其它厂商的下载工具」三节、[FASTBOOT-SETUP.md](./bench-py/FASTBOOT-SETUP.md) |
 | 接 Claude Code / Codex / Cursor | [docs/llm-integration.md](./docs/llm-integration.md) |
 | 用网页或 HTTP 接口 | [docs/web-api.md](./docs/web-api.md) |
 | 查某个环境变量、配置项 | [docs/configuration.md](./docs/configuration.md)(全部环境变量和配置文件的键,含「设了无效的项」) |
 | 看到一个错误码 | [docs/errors.md](./docs/errors.md),或命令返回里的 `suggestion` |
 
-**AI 从哪看**:接上 MCP 后先调 `alb_status`、`alb_describe`;出错时读返回里的 `suggestion`,或调
-`alb_describe_errors`;给 AI 的使用规则在 [llm/CLAUDE.md](./llm/CLAUDE.md) 和 [llm/AGENTS.md](./llm/AGENTS.md),
+**AI 从哪看**:接上 MCP 后先调 `dhands_status`、`dhands_describe`;出错时读返回里的 `suggestion`,或调
+`dhands_describe_errors`;给 AI 的使用规则在 [llm/CLAUDE.md](./llm/CLAUDE.md) 和 [llm/AGENTS.md](./llm/AGENTS.md),
 配置项在 [docs/configuration.md](./docs/configuration.md)「十一、AI 怎么查配置」。
 
 ### 全部文档
@@ -278,7 +278,7 @@ Cursor 等用 JSON 配置的客户端见 [`llm/mcp-config-examples/`](./llm/mcp-
 | **Agent 层设计** | [docs/agent.md](./docs/agent.md) | 宿主端 agent / backend 选型 |
 | **设备端模型选型** | [docs/on-device-model-selection.md](./docs/on-device-model-selection.md) | 全球商用场景选型(许可 + SoC 硬件) |
 | **远程设备调试** | [docs/dial-home-runbook.md](./docs/dial-home-runbook.md) | 板子在另一台电脑上：端到端搭建 + 排障 |
-| **Windows 设备端 agent** | [clients/windows-agent/README.md](./clients/windows-agent/README.md) | 板子所在 Windows 的操作者（中文） |
+| **Windows 设备端 agent** | [bench-py/README.md](./bench-py/README.md) | 板子所在 Windows 的操作者（中文） |
 | **权限系统** | [docs/permissions.md](./docs/permissions.md) | 安全 / 部署人员 |
 | **错误码** | [docs/errors.md](./docs/errors.md) | LLM / 排错时查表 |
 | **Tool 写法** | [docs/tool-writing-guide.md](./docs/tool-writing-guide.md) | 贡献者 |
@@ -295,8 +295,8 @@ Cursor 等用 JSON 配置的客户端见 [`llm/mcp-config-examples/`](./llm/mcp-
 |-------|---------|-----|
 | **M0** | 仓库骨架 + 完整技术方案文档 + 架构图 + 里程碑规划 | ✅ 完成 |
 | **M1** | 四种传输（A/B/C/G）+ 六能力（shell/logging/filesync/diagnose/power/app）+ 权限系统 + CLI + MCP 骨架 | ✅ 完成 |
-| **M2** | Web API ✅ + 长任务框架（流式 logcat ✅ / 大文件传输 ✅）+ 模型后端与 `alb chat` ✅ + 性能采集 ✅ + 子 Agent 并行 📋 + 跑分（benchmark）📋 | 🚧 部分完成 |
-| **M3** | Web UI v3（Material 3：板子总览 / 控制台 / 日志 / 时间轴 / 烧录 / 台架 / 助手 / 性能曲线）✅ + LLM-assisted 日志分析（助手调用 alb 工具）✅ + 方案 D/E/F 📋 | 🚧 部分完成 |
+| **M2** | Web API ✅ + 长任务框架（流式 logcat ✅ / 大文件传输 ✅）+ 模型后端与 `dhands chat` ✅ + 性能采集 ✅ + 子 Agent 并行 📋 + 跑分（benchmark）📋 | 🚧 部分完成 |
+| **M3** | Web UI v3（Material 3：板子总览 / 控制台 / 日志 / 时间轴 / 烧录 / 台架 / 助手 / 性能曲线）✅ + LLM-assisted 日志分析（助手调用 DeviceHands 工具）✅ + 方案 D/E/F 📋 | 🚧 部分完成 |
 | **远程台架** | 板子插在 Windows 上，Linux 侧经 hub 用 adb / 串口 / fastboot / 高通 9008 调试;台架 agent 远程换版、远程拉起(原计划没有这一项) | ✅ |
 
 详见 [`docs/project-plan.md`](./docs/project-plan.md)。

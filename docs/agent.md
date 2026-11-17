@@ -10,9 +10,9 @@ status: skeleton (M1) / impl M2-M3
 
 # Agent 层设计
 
-> `src/alb/agent/` —— LLM 编排层。解耦"用哪个模型驱动工具"，让 `alb` 既能被 Claude Code 驱动，也能在**服务器无显卡 / 无外网**环境下靠本地小模型独立工作。
+> `src/devicehands/agent/` —— LLM 编排层。解耦"用哪个模型驱动工具"，让 `dhands` 既能被 Claude Code 驱动，也能在**服务器无显卡 / 无外网**环境下靠本地小模型独立工作。
 
-> **状态**：M1 预留骨架（ABC + NotImplementedError），具体 backend 和 UI 分 M2 / M3 实现。本文是**设计文档 + 实施路线**，骨架代码在 `src/alb/agent/`。
+> **状态**：M1 预留骨架（ABC + NotImplementedError），具体 backend 和 UI 分 M2 / M3 实现。本文是**设计文档 + 实施路线**，骨架代码在 `src/devicehands/agent/`。
 
 ---
 
@@ -20,22 +20,22 @@ status: skeleton (M1) / impl M2-M3
 
 ### 三种驱动方式并存，互不冲突
 
-我们的 `alb` 工具最终要被"某个 LLM"驱动去操作设备。LLM 在哪里跑，决定了驱动方式：
+我们的 `dhands` 工具最终要被"某个 LLM"驱动去操作设备。LLM 在哪里跑，决定了驱动方式：
 
-| # | 场景 | 驱动方 | LLM 在哪里 | alb 这边要做什么 |
+| # | 场景 | 驱动方 | LLM 在哪里 | DeviceHands 这边要做什么 |
 |---|------|--------|------------|-------------------|
 | 1 | 开发者日常 | **Claude Code + MCP** | Anthropic 云端，Claude Code 进程 | 暴露 MCP server（M1 已就绪） |
-| 2 | 开发者日常 / 脚本化 | **Claude Code + Bash** | Anthropic 云端，Claude Code 进程 | 提供 `alb <cmd>` + `SKILL.md`（M1 已就绪） |
-| 3 | **无 Claude Code 环境** | **`alb chat` / Web `/chat`** | **本地小模型（纯 CPU）** 或远程 API | 本文档要设计的 agent 层 |
+| 2 | 开发者日常 / 脚本化 | **Claude Code + Bash** | Anthropic 云端，Claude Code 进程 | 提供 `dhands <cmd>` + `SKILL.md`（M1 已就绪） |
+| 3 | **无 Claude Code 环境** | **`dhands chat` / Web `/chat`** | **本地小模型（纯 CPU）** 或远程 API | 本文档要设计的 agent 层 |
 
-前两种是"外部 LLM 驱动 alb"，第三种是"alb 内嵌 LLM 编排"。**三者共享同一套 capability / transport / 权限系统**，只是入口不同。
+前两种是"外部 LLM 驱动 DeviceHands"，第三种是"DeviceHands 内嵌 LLM 编排"。**三者共享同一套 capability / transport / 权限系统**，只是入口不同。
 
 ### 为什么一定要做第三种？
 
 常见场景：
 - **客户现场 / 实验室服务器没显卡**：机器只能跑 CPU，装不了大模型
 - **合规 / 内网隔离**：设备日志不允许经过外网 API
-- **没有 Claude Code**：用户只想在 shell 里 `alb chat` 一句话搞定抓日志 / 升级
+- **没有 Claude Code**：用户只想在 shell 里 `dhands chat` 一句话搞定抓日志 / 升级
 - **CI 自动化**：流水线里嵌一个小 agent 跑"装 apk → 看启动 → 抓日志"固定流程
 
 这些场景下，需要一个**完全本地、纯 CPU 可跑**的编排层。
@@ -47,8 +47,8 @@ status: skeleton (M1) / impl M2-M3
 ```
 用户："帮我抓 30 秒 logcat，过滤 E 级别以上"
     ↓ 小模型只需输出
-{tool: "alb_logcat", args: {duration: 30, filter: "*:E"}}
-    ↓ alb 执行、落盘
+{tool: "dhands_logcat", args: {duration: 30, filter: "*:E"}}
+    ↓ dhands 执行、落盘
 返回：{artifact: "workspace/.../logcat.txt", lines: 2341, errors: 12}
     ↓ 小模型组织人话
 "已抓 30 秒日志，12 条 error，文件保存在 workspace/..."
@@ -69,7 +69,7 @@ L4    Drivers
 L5    Infra
 ```
 
-- **L1.5 是 L1 的"增强版"**：`alb chat` 是 CLI 的子命令，`/chat` 是 Web API 的路由
+- **L1.5 是 L1 的"增强版"**：`dhands chat` 是 CLI 的子命令，`/chat` 是 Web API 的路由
 - **L1.5 调 L2 能力**：通过 `tool_executor` 回调复用 MCP tool 注册表
 - **L1.5 不直接碰 L3/L4**：保持"编排 / 执行"解耦
 
@@ -81,7 +81,7 @@ L5    Infra
                      Claude Code                                Claude Code
                        (MCP)                                      (Bash)
                           ↓                                         ↓
-                    alb-mcp stdio                          alb <subcommand>
+                    dhands-mcp stdio                       dhands <subcommand>
                           ↓                                         ↓
 ┌─────────────────────────┴─────────────────────────────────────────┴──────┐
 │  L2 Capabilities (shell / logging / filesync / diagnose / power / app)   │
@@ -99,18 +99,18 @@ L5    Infra
               (本地 CPU)    (vLLM/etc)    (嵌入式)    (API 备选)
                           │
                     ┌─────┴──────┐
-                alb chat      Web /chat
+                dhands chat   Web /chat
                   (CLI REPL)   (WebSocket / SSE)
                           │
-                          └── 第三种场景：alb 内嵌 LLM 编排
+                          └── 第三种场景：DeviceHands 内嵌 LLM 编排
 ```
 
 ---
 
-## 三、模块结构（`src/alb/agent/`）
+## 三、模块结构（`src/devicehands/agent/`）
 
 ```
-src/alb/agent/
+src/devicehands/agent/
 ├── __init__.py        # 导出 LLMBackend / AgentLoop / ChatSession / Message / ToolCall / ToolSpec
 ├── backend.py         # LLMBackend ABC + Message / ToolCall / ToolSpec / ChatResponse / BackendError
 ├── loop.py            # AgentLoop (tool-calling 循环) + DEFAULT_SYSTEM_PROMPT
@@ -250,27 +250,27 @@ workspace/sessions/20260416-a3f8c2d1/
 ### 备选：llama.cpp 嵌入式
 
 适合场景：不能装 Ollama 守护进程的极简环境（Docker container / embedded device）。
-`llama-cpp-python` 直接在 `alb` 进程里加载 GGUF。
+`llama-cpp-python` 直接在 `dhands` 进程里加载 GGUF。
 
 ### 高阶：Anthropic Claude API
 
-适合场景：用户愿意用 Claude 驱动 `alb chat` 而不想装 Claude Code。此时对模型能力要求高的"分析"类请求也能接住。
+适合场景：用户愿意用 Claude 驱动 `dhands chat` 而不想装 Claude Code。此时对模型能力要求高的"分析"类请求也能接住。
 
 ---
 
 ## 五、接入层：CLI Chat + Web Chat
 
-### 5.1 `alb chat` 终端 REPL（M2）
+### 5.1 `dhands chat` 终端 REPL（M2）
 
 ```
-$ alb chat --backend ollama --model qwen2.5:3b
-alb chat (ollama/qwen2.5:3b) · session=20260416-a3f8c2d1
+$ dhands chat --backend ollama --model qwen2.5:3b
+dhands chat (ollama/qwen2.5:3b) · session=20260416-a3f8c2d1
 > 帮我抓 30 秒 logcat，只要 error
-→ calling alb_logcat(duration=30, filter="*:E")
+→ calling dhands_logcat(duration=30, filter="*:E")
   ...
 ← 已抓到 12 条 error，日志保存在 workspace/devices/.../logcat-....txt
 > 把这 apk 装到设备上：./build/app.apk
-→ calling alb_app_install(apk="./build/app.apk")
+→ calling dhands_app_install(apk="./build/app.apk")
   ...
 ← 安装成功，package=com.example.app
 > /quit
@@ -279,7 +279,7 @@ alb chat (ollama/qwen2.5:3b) · session=20260416-a3f8c2d1
 特性：
 - `/quit`, `/clear`, `/session <id>` 内置命令
 - ANSI 高亮 tool call 区块
-- 和现有 CLI（`alb shell` 等）同一个 `alb` 入口，只是 subcommand
+- 和现有 CLI（`dhands shell` 等）同一个 `dhands` 入口，只是 subcommand
 
 ### 5.2 Web `/chat` 端点（M2 非流式 / M3 流式）
 
@@ -296,11 +296,11 @@ alb chat (ollama/qwen2.5:3b) · session=20260416-a3f8c2d1
 
 ### 6.1 和 MCP server 的关系
 
-**不重复造工具注册表**。`alb chat` 里的 `tool_executor` 是对 MCP server 内部 tool registry 的薄封装：
+**不重复造工具注册表**。`dhands chat` 里的 `tool_executor` 是对 MCP server 内部 tool registry 的薄封装：
 
 ```python
 # 伪码
-from alb.mcp.server import get_registered_tools, dispatch_tool
+from devicehands.mcp.server import get_registered_tools, dispatch_tool
 
 async def mcp_tool_executor(name: str, args: dict) -> dict:
     return await dispatch_tool(name, args)
@@ -312,7 +312,7 @@ loop = AgentLoop(
 )
 ```
 
-MCP server 改了工具，`alb chat` 自动跟着变，不漂移。
+MCP server 改了工具，`dhands chat` 自动跟着变，不漂移。
 
 ### 6.2 和权限系统的关系
 
@@ -330,7 +330,7 @@ MCP server 改了工具，`alb chat` 自动跟着变，不漂移。
 
 ### M1 · 架构预留（本提交，已完成）
 
-- [x] `src/alb/agent/` 骨架：`__init__.py` / `backend.py` / `loop.py` / `session.py`
+- [x] `src/devicehands/agent/` 骨架：`__init__.py` / `backend.py` / `loop.py` / `session.py`
 - [x] `LLMBackend` ABC + `Message` / `ToolCall` / `ToolSpec` / `ChatResponse` / `BackendError`
 - [x] `AgentLoop` 骨架（NotImplementedError，接口签名冻结）
 - [x] `ChatSession` 骨架（`create` / `load` / `append` / `messages` 可用，落盘空）
@@ -344,7 +344,7 @@ MCP server 改了工具，`alb chat` 自动跟着变，不漂移。
 - [ ] `OpenAICompatBackend` —— 兼容 vLLM / LM Studio / llamafile 的 /v1/chat/completions
 - [x] `AgentLoop.run()` 完整实现（循环 / tool dispatch / session flush）
 - [x] `ChatSession` 落盘 JSONL + `load()` 解析
-- [ ] `alb chat` CLI subcommand（`src/alb/cli/chat_cli.py`）
+- [ ] `dhands chat` CLI subcommand（`src/devicehands/cli/chat_cli.py`）
 - [ ] FastAPI `POST /chat` 路由（非流式）
 - [x] 单元测试：mock backend + mock executor 跑完整循环（Ollama HTTP mock + FakeBackend 三轮 tool_call）
 - [ ] 文档：`docs/methods/08-local-llm.md` 使用指南（装 ollama / 选模型 / 限制）
@@ -380,13 +380,13 @@ MCP server 改了工具，`alb chat` 自动跟着变，不漂移。
 A: 我们需求是"shallow tool routing"，不是"build an agent framework"。依赖它们会把整棵依赖树拖进来，和我们"轻量单进程"的定位违背。50 行 AgentLoop 够用。
 
 **Q: 为什么让 agent loop 调 MCP tool 而不是直接调 capabilities?**
-A: 一层间接。好处：工具 schema / description / 参数校验的正确源在 MCP 注册表，改一次三层（MCP / Claude Code / alb chat）同步。
+A: 一层间接。好处：工具 schema / description / 参数校验的正确源在 MCP 注册表，改一次三层（MCP / Claude Code / dhands chat）同步。
 
 **Q: 小模型会乱调 reboot 怎么办？**
 A: 权限系统（ADR-006）在 capability / transport 层强制，和调用方无关。`rm -rf /` / `reboot bootloader` 仍然被拦截，小模型失败后看到 `suggestion` 会自己重试。
 
 **Q: CPU 推理这么慢，实用吗？**
-A: 目标场景是"替代我手动敲 5 条 alb 命令"，不是"替代 Claude Code 做复杂分析"。8-15 tokens/s × 200 tokens 响应 ≈ 15-25 秒，对"抓个日志"够用。
+A: 目标场景是"替代我手动敲 5 条 dhands 命令"，不是"替代 Claude Code 做复杂分析"。8-15 tokens/s × 200 tokens 响应 ≈ 15-25 秒，对"抓个日志"够用。
 
 **Q: 为什么不让 agent 自己分析日志？**
 A: 3B 模型分析长日志准度太低，会误导用户。定位明确：**我们只做路由，分析交给人 / Claude / GPT**。日志文件路径返回给用户即可。
@@ -395,7 +395,7 @@ A: 3B 模型分析长日志准度太低，会误导用户。定位明确：**我
 
 ## 十、下一步
 
-- 看本层骨架代码 → `src/alb/agent/`
+- 看本层骨架代码 → `src/devicehands/agent/`
 - 看决策原因 → [`design-decisions.md`](./design-decisions.md) ADR-016
 - 看 LLM 接入通盘 → [`llm-integration.md`](./llm-integration.md)
 - 看实施排期 → [`project-plan.md`](./project-plan.md) M2 / M3

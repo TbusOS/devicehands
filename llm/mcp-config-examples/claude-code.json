@@ -1,28 +1,28 @@
 {
-  "_comment": "Claude Code MCP configuration for android-llm-bridge, in the project-scope format (.mcp.json at a project root). Easiest is to let Claude Code write it: claude mcp add alb -- uv run --project /path/to/android-llm-bridge alb-mcp (add -s project for .mcp.json, -s user for every directory). Replace /path/to/android-llm-bridge with your actual clone path.",
+  "_comment": "Claude Code MCP configuration for DeviceHands, in the project-scope format (.mcp.json at a project root). Easiest is to let Claude Code write it: claude mcp add devicehands -- uv run --project /path/to/devicehands dhands-mcp (add -s project for .mcp.json, -s user for every directory). Replace /path/to/devicehands with your actual clone path.",
 
   "mcpServers": {
-    "alb": {
+    "devicehands": {
       "command": "uv",
       "args": [
         "run",
         "--project",
-        "/path/to/android-llm-bridge",
-        "alb-mcp"
+        "/path/to/devicehands",
+        "dhands-mcp"
       ],
       "env": {
-        "ALB_WORKSPACE": "~/alb-workspace",
-        "ALB_PROFILE": "default",
-        "ALB_LOG_LEVEL": "info"
+        "DHANDS_WORKSPACE": "~/dhands-workspace",
+        "DHANDS_PROFILE": "default",
+        "DHANDS_LOG_LEVEL": "info"
       }
     }
   },
 
   "_notes": {
-    "ALB_WORKSPACE": "Where collected logs/bugreports/anr land. Default ~/.alb-workspace if unset.",
-    "ALB_PROFILE": "Which profile in <workspace>/profiles/*.toml to activate.",
-    "ALB_LOG_LEVEL": "debug | info | warning | error. For troubleshooting set to debug.",
-    "first_run": "On first invocation, run: alb setup adb (or ssh / serial / wifi) interactively once. After that the MCP server can be started by Claude Code.",
-    "multiple_instances": "If you want multiple configs (e.g. lab and dev), register them with different names: 'alb-lab', 'alb-dev', each pointing to its own ALB_PROFILE."
+    "DHANDS_WORKSPACE": "Where collected logs/bugreports/anr land. Default <data dir>/workspace if unset (see docs/configuration.md).",
+    "DHANDS_PROFILE": "Which profile in <workspace>/profiles/*.toml to activate.",
+    "DHANDS_LOG_LEVEL": "debug | info | warning | error. For troubleshooting set to debug.",
+    "first_run": "On first invocation, run: dhands setup adb (or ssh / serial / wifi) interactively once. After that the MCP server can be started by Claude Code.",
+    "multiple_instances": "If you want multiple configs (e.g. lab and dev), register them with different names: 'dhands-lab', 'dhands-dev', each pointing to its own DHANDS_PROFILE."
   }
 }

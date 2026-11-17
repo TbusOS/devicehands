@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>alb · 总览 Overview · v3</title>
+<title>DeviceHands · 总览 Overview · v3</title>
 <!-- Web UI v3 design baseline (Material 3): device overview. Sample data only.
      Styles, fonts and icons are generated copies of web/src (sync_v3_assets.mjs). -->
 <link rel="stylesheet" href="assets/v3/alb.css">
@@ -197,8 +197,8 @@
       <ul class="list">
         <li class="list__item"><span class="list__lead mono">09:40</span><span class="list__title" data-en="Flashed boot_a ← boot.img (96 MiB)">烧写 boot_a ← boot.img(96 MiB)</span><span class="list__trail"><span class="pill pill--ok">ok</span></span><span class="list__meta" data-en="web · checked product board_x first · 3.1 s">网页 · 先核对了 product board_x · 3.1 秒</span></li>
         <li class="list__item"><span class="list__lead mono">09:36</span><span class="list__title" data-en="Serial capture, 30 s, 412 lines">串口抓取 30 秒,412 行</span><span class="list__trail"><span class="pill pill--ok">ok</span></span><span class="list__meta mono">uart-2026-10-28T09-36.log</span></li>
-        <li class="list__item"><span class="list__lead mono">09:31</span><span class="list__title mono">setprop persist.vendor.sensors.debug 1</span><span class="list__trail"><span class="pill pill--ok">exit 0</span></span><span class="list__meta" data-en="CLI · alb shell">命令行 · alb shell</span></li>
-        <li class="list__item"><span class="list__lead mono">09:12</span><span class="list__title" data-en="AI session read the latest tombstone">AI 会话读取了最近一个 tombstone</span><span class="list__trail"><span class="pill pill--ok">ok</span></span><span class="list__meta">MCP · alb_tombstone_pull</span></li>
+        <li class="list__item"><span class="list__lead mono">09:31</span><span class="list__title mono">setprop persist.vendor.sensors.debug 1</span><span class="list__trail"><span class="pill pill--ok">exit 0</span></span><span class="list__meta" data-en="CLI · dhands shell">命令行 · dhands shell</span></li>
+        <li class="list__item"><span class="list__lead mono">09:12</span><span class="list__title" data-en="AI session read the latest tombstone">AI 会话读取了最近一个 tombstone</span><span class="list__trail"><span class="pill pill--ok">ok</span></span><span class="list__meta">MCP · dhands_tombstone_pull</span></li>
       </ul>
     </article>
 
@@ -232,9 +232,9 @@
       <div class="live__head"><span class="dot dot--live"></span><b data-en="turn 2">第 2 轮</b><span data-en="1 min 12 s">1 分 12 秒</span><span class="mono">abcdef12</span></div>
       <p class="live__prompt" data-en="Why did the sensor service crash after the last boot?">上一次开机后传感器服务为什么崩了?</p>
       <ul class="live__tools" aria-label="tool calls">
-        <li class="live__tool live__tool--done"><i data-ic="check-circle" class="ic--sm"></i><code>alb_tombstone_pull</code><span class="num">1.4 s</span></li>
-        <li class="live__tool live__tool--done"><i data-ic="check-circle" class="ic--sm"></i><code>alb_log_search</code><span class="num">0.9 s</span></li>
-        <li class="live__tool live__tool--running"><span class="spinner" style="width:14px;height:14px;border-width:2px"></span><code>alb_dmesg</code><span class="num" data-en="running 3 s">进行中 3 s</span></li>
+        <li class="live__tool live__tool--done"><i data-ic="check-circle" class="ic--sm"></i><code>dhands_tombstone_pull</code><span class="num">1.4 s</span></li>
+        <li class="live__tool live__tool--done"><i data-ic="check-circle" class="ic--sm"></i><code>dhands_log_search</code><span class="num">0.9 s</span></li>
+        <li class="live__tool live__tool--running"><span class="spinner" style="width:14px;height:14px;border-width:2px"></span><code>dhands_dmesg</code><span class="num" data-en="running 3 s">进行中 3 s</span></li>
       </ul>
       <div class="live__tps"><div class="metric__value">18<small data-en="tok/s now">tok/s · 当前</small></div><svg class="spark" id="sp-tps" role="img" aria-label="tokens per second, last 60 s"></svg><span class="live__meta mono">qwen2.5:7b<br>1240 tok</span></div>
     </article>
@@ -258,7 +258,7 @@
     <article class="card span-12">
       <div class="card__head">
         <h2 data-en="Service at a glance">服务概况</h2>
-        <span class="card__sub" data-en="the whole alb service, not just this board">整个 alb 服务,不只这块板子</span>
+        <span class="card__sub" data-en="the whole DeviceHands service, not just this board">整个 DeviceHands 服务,不只这块板子</span>
         <div class="src-note"><code>GET /devices</code><code>GET /sessions</code><code>GET /tools</code><code>GET /metrics/summary</code></div>
       </div>
       <div class="metrics metrics--4">

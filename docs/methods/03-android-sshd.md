@@ -87,8 +87,8 @@ ssh-keygen -t ed25519 -f ~/.ssh/alb-device -C "alb-android-bridge"
 ```bash
 # 通过 adb（方案 A）推 authorized_keys
 alb push ~/.ssh/alb-device.pub /data/local/tmp/auth
-alb shell "mkdir -p /data/local/ssh && cp /data/local/tmp/auth /data/local/ssh/authorized_keys"
-alb shell "chmod 600 /data/local/ssh/authorized_keys"
+dhands shell "mkdir -p /data/local/ssh && cp /data/local/tmp/auth /data/local/ssh/authorized_keys"
+dhands shell "chmod 600 /data/local/ssh/authorized_keys"
 
 # dropbear 启动命令改为：
 # dropbear -F -R -p 2222 -r /data/local/ssh/dropbear_rsa_host_key -A /data/local/ssh/authorized_keys
@@ -97,8 +97,8 @@ alb shell "chmod 600 /data/local/ssh/authorized_keys"
 ### 第 3 步 · 板子联网 + 启动 sshd
 
 ```bash
-alb shell "start dropbear"   # 如果 init 没 auto-start
-alb shell "ip addr show wlan0"  # 拿 IP
+dhands shell "start dropbear" # 如果 init 没 auto-start
+dhands shell "ip addr show wlan0" # 拿 IP
 ```
 
 ### 第 4 步 · 在 Linux 端配 ssh config
@@ -121,14 +121,14 @@ ssh android-dev "uname -a"
 # 应该返回板子 kernel 版本
 ```
 
-### 第 5 步 · alb 接管
+### 第 5 步 · DeviceHands 接管
 
 ```bash
 alb setup ssh --host android-dev              # 引用 ssh config 别名
 # 或:
 alb setup ssh --host 192.168.1.42 --port 2222 --user root --key ~/.ssh/alb-device
 
-alb shell "ls /data"
+dhands shell "ls /data"
 alb rsync-sync ~/my-sdk-output/ /data/dev/
 ```
 
@@ -222,9 +222,9 @@ ssh android-dev "export PATH=/vendor/bin:/system/bin:/system/xbin:\$PATH && your
 ### 2 · sshd 启动后不 listen
 
 ```bash
-alb shell "ps | grep dropbear"
-alb shell "netstat -tlnp | grep 2222"
-alb dmesg | grep dropbear
+dhands shell "ps | grep dropbear"
+dhands shell "netstat -tlnp | grep 2222"
+dhands dmesg | grep dropbear
 ```
 
 常见原因：
@@ -279,7 +279,7 @@ dropbear -F -R -p 2222 \
 ## 九、alb 相关命令
 
 ```bash
-alb setup ssh                     # 引导：选 dropbear/Termux、生 key、推配置
+dhands setup ssh                  # 引导：选 dropbear/Termux、生 key、推配置
 alb ssh-health                    # 连通性 + 延迟检查
 alb rsync-sync <local> <remote>   # 增量同步
 alb ssh-forward -L 9090:host:80   # 端口转发
@@ -296,7 +296,7 @@ alb ssh-tmux start/attach/list    # tmux session 管理
 ```bash
 # 开发阶段 ssh 快速迭代
 alb rsync-sync out/system /system-dev/
-alb shell "am restart ..."          # 走 ssh
+dhands shell "am restart ..."       # 走 ssh
 
 # 出问题回方案 A
 alb reboot recovery                 # 必须走 adb

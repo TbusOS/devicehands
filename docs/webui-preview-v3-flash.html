@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>alb · 烧录 Flash · v3</title>
+<title>DeviceHands · 烧录 Flash · v3</title>
 <!-- Web UI v3 design baseline (Material 3): fastboot flashing. Sample data only. -->
 <link rel="stylesheet" href="assets/v3/alb.css">
 <script src="assets/v3/icons.js"></script>
@@ -73,7 +73,7 @@
         <article class="card plan">
           <div class="card__head"><h2 data-en="2 · Plan">2 · 计划</h2><div class="src-note"><code>POST /api/flash/plan</code></div></div>
           <div class="plan-sum"><span class="pill">31 <span data-en="rows">行</span></span><span class="pill pill--info">28 <span data-en="to run">执行</span></span><span class="pill">3 <span data-en="skipped">跳过</span></span><span class="pill">2.36 GB</span><span class="pill mono" title="fingerprint"># 0361bb78</span></div>
-          <div class="banner banner--error" id="s-check-problem"><i data-ic="error"></i><p data-en="1 problem, so no row will run: userdata (line 27) is not on board-a's flash list. Untick that row, or add it to flash_partitions.board-a in the bench agent.conf.">1 个问题,一行都不会执行:userdata(第 27 行)不在 board-a 的烧录名单里。在下面勾掉这一行,或在台架 agent.conf 的 flash_partitions.board-a 里加上。</p><div class="banner__actions"><button class="btn btn--text btn--sm" data-en="Untick it">勾掉这一行</button></div></div>
+          <div class="banner banner--error" id="s-check-problem"><i data-ic="error"></i><p data-en="1 problem, so no row will run: userdata (line 27) is not on board-a's flash list. Untick that row, or add it to flash_partitions.board-a in the bench bench.conf.">1 个问题,一行都不会执行:userdata(第 27 行)不在 board-a 的烧录名单里。在下面勾掉这一行,或在台架 bench.conf 的 flash_partitions.board-a 里加上。</p><div class="banner__actions"><button class="btn btn--text btn--sm" data-en="Untick it">勾掉这一行</button></div></div>
           <div class="well table-wrap">
             <table class="table table--dense">
               <thead><tr><th><span class="visually-hidden">run</span></th><th class="num" data-en="Line">行</th><th data-en="Action">动作</th><th data-en="Partition / check">分区 / 检查</th><th data-en="Image">镜像</th><th class="num" data-en="Size">大小</th><th>sha256</th><th data-en="List">名单</th></tr></thead>

@@ -1,4 +1,4 @@
-# Contributing to android-llm-bridge
+# Contributing to DeviceHands
 
 Thanks for considering a contribution. A few ground rules before you open a PR.
 

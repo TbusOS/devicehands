@@ -1,16 +1,16 @@
-# CLAUDE.md · Using android-llm-bridge (alb)
+# CLAUDE.md · Using DeviceHands (dhands)
 
-> 给 Claude Code / Claude API agent 的工具说明。在你的项目 `CLAUDE.md` 里 `@include` 这个文件，Claude 就能直接用 alb 调试安卓设备。
+> 给 Claude Code / Claude API agent 的工具说明。在你的项目 `CLAUDE.md` 里 `@include` 这个文件，Claude 就能直接用 DeviceHands 调试安卓设备。
 
 ---
 
 ## 工具定位
 
-`android-llm-bridge` (CLI: `alb`) 是**你**（AI Agent）调试安卓设备的标准工具。通过 MCP / CLI 都可以用，MCP 优先。
+DeviceHands (CLI: `dhands`) 是**你**（AI Agent）调试安卓设备的标准工具。通过 MCP / CLI 都可以用，MCP 优先。
 
 ---
 
-## 什么时候用 alb
+## 什么时候用 DeviceHands
 
 - 用户要调设备（"帮我看看板子"、"抓个 logcat"、"装个 apk"、"板子起不来了"）
 - 要看 Android 日志 / ANR / tombstone / crash
@@ -30,7 +30,7 @@
 run_bash("adb shell 'rm -rf /sdcard/tmp'")
 
 # 对
-await alb_shell("rm -rf /sdcard/tmp")
+await dhands_shell("rm -rf /sdcard/tmp")
 # 会被权限系统挡住并给你 suggestion
 ```
 
@@ -38,35 +38,35 @@ await alb_shell("rm -rf /sdcard/tmp")
 
 ```
 # 错
-logcat = await alb_shell("logcat -d")    # 几 MB 输出
+logcat = await dhands_shell("logcat -d") # 几 MB 输出
 # 把 logcat 内容全贴给用户
 
 # 对
-r = await alb_logcat(duration=30, filter="*:E")
+r = await dhands_logcat(duration=30, filter="*:E")
 # 返回 summary + artifact path
-# 需要细节时用 alb_log_search 按需读
+# 需要细节时用 dhands_log_search 按需读
 ```
 
-### ❌ 不要用 `alb_shell` 做 alb 已经封装的事
+### ❌ 不要用 `dhands_shell` 做 DeviceHands 已经封装的事
 
 | 不要做 | 用这个代替 |
 |-------|----------|
-| `alb_shell("logcat -d")` | `alb_logcat` |
-| `alb_shell("dmesg")` | `alb_dmesg` |
-| `alb_shell("pm install x.apk")` | `alb_app_install` |
-| `alb_shell("reboot")` | `alb_reboot`（有权限流程） |
-| `alb_shell("getprop")` | `alb_devinfo` |
-| `alb_shell("dumpsys battery")` | `alb_battery` |
-| `adb pull /data/anr/...` | `alb_anr_pull` |
+| `dhands_shell("logcat -d")` | `dhands_logcat` |
+| `dhands_shell("dmesg")` | `dhands_dmesg` |
+| `dhands_shell("pm install x.apk")` | `dhands_app_install` |
+| `dhands_shell("reboot")` | `dhands_reboot`（有权限流程） |
+| `dhands_shell("getprop")` | `dhands_devinfo` |
+| `dhands_shell("dumpsys battery")` | `dhands_battery` |
+| `adb pull /data/anr/...` | `dhands_anr_pull` |
 
 ### ❌ 不要假设设备在线
 
 ```
 # 错：直接调命令
-r = await alb_shell("getprop")  # 可能报 DEVICE_OFFLINE
+r = await dhands_shell("getprop") # 可能报 DEVICE_OFFLINE
 
 # 对：先查状态
-st = await alb_status()
+st = await dhands_status()
 if not st["data"]["devices"]:
     return "没有连接的设备"
 ```
@@ -84,11 +84,11 @@ if not st["data"]["devices"]:
 
 ```
 # 错
-r = await alb_logcat(duration=3600)   # 一小时阻塞
+r = await dhands_logcat(duration=3600) # 一小时阻塞
 
 # 对
-# 分段抓: alb_logcat(duration=60) 调几次,每次看完摘要再决定要不要继续
-# (后台持续监控的工具还没有;要一直抓就请人在终端跑 `alb logcat`)
+# 分段抓: dhands_logcat(duration=60) 调几次,每次看完摘要再决定要不要继续
+# (后台持续监控的工具还没有;要一直抓就请人在终端跑 `dhands logcat`)
 ```
 
 ### ❌ 不要硬编码路径
@@ -98,7 +98,7 @@ r = await alb_logcat(duration=3600)   # 一小时阻塞
 "adb pull /data/anr/anr_2026-04-15.txt"
 
 # 对
-await alb_anr_pull()
+await dhands_anr_pull()
 # 返回 artifacts 列表
 ```
 
@@ -106,11 +106,11 @@ await alb_anr_pull()
 
 ## 推荐的工作姿势
 
-### 1. 新会话先 `alb_status` + `alb_describe`
+### 1. 新会话先 `dhands_status` + `dhands_describe`
 
 ```
-alb_status   → 当前 device / transport / 活跃任务
-alb_describe → 所有可用 tool 的 schema（第一次用时有价值）
+dhands_status → 当前 device / transport / 活跃任务
+dhands_describe → 所有可用 tool 的 schema（第一次用时有价值）
 ```
 
 ### 2. 出错先读 `error.suggestion`
@@ -120,21 +120,21 @@ alb_describe → 所有可用 tool 的 schema（第一次用时有价值）
   "ok": false,
   "error": {
     "code": "TRANSPORT_NOT_CONFIGURED",
-    "suggestion": "Run: alb setup adb"
+    "suggestion": "Run: dhands setup adb"
   }
 }
 ```
 
-→ 告诉用户 `alb setup adb`，不要自己猜。
+→ 告诉用户 `dhands setup adb`，不要自己猜。
 
 ### 3. 长日志走 workspace
 
 ```
-result = await alb_logcat(duration=60)
+result = await dhands_logcat(duration=60)
 # result.artifacts[0] = "/workspace/.../xxx.txt"
 # 读局部:
-await alb_log_search(pattern="FATAL", path=result.artifacts[0])
-await alb_log_tail(path=result.artifacts[0], lines=50)
+await dhands_log_search(pattern="FATAL", path=result.artifacts[0])
+await dhands_log_tail(path=result.artifacts[0], lines=50)
 ```
 
 ### 4. 产物路径可预测
@@ -152,43 +152,43 @@ workspace/devices/<serial>/{logs,anr,bugreports,...}/
 ### 调查 app crash
 
 ```
-1. alb_status                                    # 确认设备
-2. alb_app_start com.example                     # 启动
+1. dhands_status                                 # 确认设备
+2. dhands_app_start com.example                  # 启动
 3. [crash happens]
-4. alb_anr_pull                                  # 如果是 ANR
-   or alb_tombstone_pull                         # 如果是 native crash
-5. alb_log_search pattern="FATAL" path=<artifact>  # 定位
+4. dhands_anr_pull                               # 如果是 ANR
+   or dhands_tombstone_pull                      # 如果是 native crash
+5. dhands_log_search pattern="FATAL" path=<artifact> # 定位
 6. 给用户结论 + 产物路径
 ```
 
 ### 验证 patch 效果
 
 ```
-1. alb_push patch.apk /data/local/tmp/
-2. alb_app_install patch.apk --replace
-3. alb_app_start com.example
-4. alb_logcat duration=60 filter="MyApp:*"
-5. alb_log_search pattern="expected behavior"  → 判断通过
+1. dhands_push patch.apk /data/local/tmp/
+2. dhands_app_install patch.apk --replace
+3. dhands_app_start com.example
+4. dhands_logcat duration=60 filter="MyApp:*"
+5. dhands_log_search pattern="expected behavior" → 判断通过
 ```
 
 ### 板子起不来
 
 ```
-1. 发现 alb_devices 没设备 / alb_shell 一直 offline
+1. 发现 dhands_devices 没设备 / dhands_shell 一直 offline
 2. 切串口：
-   没有切换传输的 MCP 工具:alb_uart_* 本来就走串口;要别的工具也走串口,
-   请人设 ALB_TRANSPORT=serial 后重启 alb-mcp
-   alb_uart_capture duration=30
-3. alb_log_search pattern="panic|oops|fail|error" path=<artifact>
+   没有切换传输的 MCP 工具:dhands_uart_* 本来就走串口;要别的工具也走串口,
+   请人设 DHANDS_TRANSPORT=serial 后重启 dhands-mcp
+   dhands_uart_capture duration=30
+3. dhands_log_search pattern="panic|oops|fail|error" path=<artifact>
 4. 给用户看：起到哪个阶段挂的
 ```
 
 ### 大目录推板子（方案 C ssh）
 
 ```
-# 不要用 alb_push 推整个目录（全量）
-# 用 alb_rsync 增量:
-alb_rsync local_dir="~/aosp/out/..." remote_dir="/system-dev/"
+# 不要用 dhands_push 推整个目录（全量）
+# 用 dhands_rsync 增量:
+dhands_rsync local_dir="~/aosp/out/..." remote_dir="/system-dev/"
 ```
 
 ---
@@ -199,16 +199,16 @@ alb_rsync local_dir="~/aosp/out/..." remote_dir="/system-dev/"
 
 | 错误码 | 你应该 |
 |------|-------|
-| `TRANSPORT_NOT_CONFIGURED` | 告诉用户跑 `alb setup <method>` |
-| `DEVICE_NOT_FOUND` | `alb_devices` 让用户看列表 |
+| `TRANSPORT_NOT_CONFIGURED` | 告诉用户跑 `dhands setup <method>` |
+| `DEVICE_NOT_FOUND` | `dhands_devices` 让用户看列表 |
 | `DEVICE_UNAUTHORIZED` | 告诉用户到设备屏幕点"允许 USB 调试" |
-| `DEVICE_OFFLINE` | 建议断开重连 / `alb_wait_boot` |
+| `DEVICE_OFFLINE` | 建议断开重连 / `dhands_wait_boot` |
 | `PERMISSION_DENIED` | 读 suggestion（板子侧命令现在不会返回它） |
 | `TIMEOUT_BOOT` | 怀疑 kernel panic，建议切 UART 方案 |
 | `TRANSPORT_NOT_SUPPORTED` | 告诉用户切到支持的 transport |
 | `WORKSPACE_FULL` | 建议 `alb workspace clean` |
 
-完整表见 `docs/errors.md`，也可以调 `alb_describe_errors`。
+完整表见 `docs/errors.md`，也可以调 `dhands_describe_errors`。
 
 ---
 
@@ -238,8 +238,8 @@ alb_rsync local_dir="~/aosp/out/..." remote_dir="/system-dev/"
 ## 和其他工具的配合
 
 - 写 Android 代码 → 用 Claude Code 原生 read/write/edit
-- 跑命令 → 用 `Bash` tool（**不要用 Bash 调 adb 直接**，用 alb）
-- 调试设备 → **alb 专属**
+- 跑命令 → 用 `Bash` tool（**不要用 Bash 调 adb 直接**，用 DeviceHands）
+- 调试设备 → **DeviceHands 专属**
 
 ---
 

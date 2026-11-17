@@ -27,13 +27,13 @@ tags: [contributing, dev-setup, pr-checklist]
 git clone https://github.com/<your>/android-llm-bridge
 cd android-llm-bridge
 uv sync --dev                # 装开发依赖
-uv run alb --help            # 验证
+uv run dhands --help         # 验证
 ```
 
 ### 推荐工具
 
 - **IDE**：VS Code + Python extension / PyCharm
-- **类型检查**：`uv run mypy src/alb`
+- **类型检查**：`uv run mypy src/devicehands`
 - **Lint / format**：`uv run ruff check` + `uv run ruff format`
 - **测试**：`uv run pytest`
 
@@ -61,8 +61,8 @@ uv run pre-commit install
 | 函数 | 小写下划线 | `collect_logcat` |
 | 常量 | 大写下划线 | `DEFAULT_TIMEOUT` |
 | 类型别名 | PascalCase | `DeviceSerial` |
-| MCP tool | 小写下划线，`alb_` 前缀 | `alb_logcat` |
-| CLI 命令 | 小写连字符 | `alb logcat`, `alb log-search` |
+| MCP tool | 小写下划线，`dhands_` 前缀 | `dhands_logcat` |
+| CLI 命令 | 小写连字符 | `dhands logcat`, `alb log-search` |
 
 ### 类型注解
 - **强制**：public 函数必须有完整 type hints
@@ -86,8 +86,8 @@ uv run pre-commit install
 ### 扩展一：加一个新 **Transport**
 
 ```
-1. src/alb/transport/<name>.py    → 继承 Transport ABC
-2. src/alb/infra/registry.py      → 追加 TransportSpec
+1. src/devicehands/transport/<name>.py → 继承 Transport ABC
+2. src/devicehands/infra/registry.py → 追加 TransportSpec
 3. scripts/setup-method-<name>.sh → 引导配置
 4. docs/methods/XX-<name>.md      → 方案文档
 5. tests/transport/test_<name>.py → 单测
@@ -96,8 +96,8 @@ uv run pre-commit install
 
 模板：
 ```python
-# src/alb/transport/newproto.py
-from alb.transport.base import Transport, ShellResult
+# src/devicehands/transport/newproto.py
+from devicehands.transport.base import Transport, ShellResult
 
 class NewProtoTransport(Transport):
     name = "newproto"
@@ -125,14 +125,14 @@ class NewProtoTransport(Transport):
 ### 扩展二：加一个新 **Capability**
 
 ```
-1. src/alb/capabilities/<name>.py   → 业务函数
-2. src/alb/cli/<name>_cli.py        → typer subapp
-3. src/alb/mcp/tools/<name>.py      → @mcp.tool() 装饰
-4. src/alb/api/routers/<name>.py    → FastAPI router
-5. src/alb/infra/registry.py        → CapabilitySpec
+1. src/devicehands/capabilities/<name>.py → 业务函数
+2. src/devicehands/cli/<name>_cli.py → typer subapp
+3. src/devicehands/mcp/tools/<name>.py → @mcp.tool() 装饰
+4. src/devicehands/api/routers/<name>.py → FastAPI router
+5. src/devicehands/infra/registry.py → CapabilitySpec
 6. docs/capabilities/<name>.md      → 能力文档
 7. tests/capabilities/test_<name>.py
-8. 加了新错误码：登记进 `src/alb/infra/errors.py`，再运行 `uv run python scripts/gen_errors_doc.py` 重新生成 errors.md
+8. 加了新错误码：登记进 `src/devicehands/infra/errors.py`，再运行 `uv run python scripts/gen_errors_doc.py` 重新生成 errors.md
 9. PR
 ```
 
@@ -141,7 +141,7 @@ class NewProtoTransport(Transport):
 ### 扩展三：加一个新 **LLM 接入**（如 Slack Bot）
 
 ```
-1. src/alb/bots/slack.py    → 复用 capabilities/ 业务层
+1. src/devicehands/bots/slack.py → 复用 capabilities/ 业务层
 2. docs/integrations/slack.md
 3. llm/mcp-config-examples/ 下加配置示例（如适用）
 4. PR
@@ -172,7 +172,7 @@ class NewProtoTransport(Transport):
 # tests/capabilities/test_shell.py
 import pytest
 from unittest.mock import AsyncMock
-from alb.capabilities.shell import execute
+from devicehands.capabilities.shell import execute
 
 @pytest.fixture
 def mock_transport():
@@ -215,9 +215,9 @@ async def test_execute_permission_denied(mock_transport):
 
 - [ ] `uv run ruff check` 零错误
 - [ ] `uv run ruff format --check` 无改动
-- [ ] `uv run mypy src/alb`（关键模块）无错
+- [ ] `uv run mypy src/devicehands`（关键模块）无错
 - [ ] 单元测试全过：`uv run pytest`
-- [ ] 覆盖率无下降：`uv run pytest --cov=alb`
+- [ ] 覆盖率无下降：`uv run pytest --cov=devicehands`
 
 ### 文档
 
@@ -340,7 +340,7 @@ Co-authored-by: Alice <alice@example.com>
 ## 期望
 ## 实际
 ## 环境
-- alb 版本:
+- DeviceHands 版本:
 - Python:
 - OS:
 - 设备型号 / Android 版本:

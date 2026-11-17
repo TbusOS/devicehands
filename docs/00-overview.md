@@ -28,7 +28,7 @@ tags: [overview, architecture, positioning]
 **不是什么**（避免误解）：
 
 - ❌ 不是 adb / scrcpy / 串口工具的替代品 —— 底层仍然调用它们
-- ❌ 不是 Android 自动化测试框架（Appium / uiautomator）—— 那是 UI 层，alb 在传输层
+- ❌ 不是 Android 自动化测试框架（Appium / uiautomator）—— 那是 UI 层，DeviceHands 在传输层
 - ❌ 不是厂商 SDK 绑定工具 —— 刻意保持通用
 
 ---
@@ -42,7 +42,7 @@ tags: [overview, architecture, positioning]
 LLM 对话：
 ```
 你：帮我把刚编译的 kernel Image 推到板子，然后 reboot 后抓 dmesg 里的错误
-LLM：[调 alb.filesync.push() → alb.power.reboot() → alb.logging.dmesg(filter="error")]
+LLM：[调 dhands.filesync.push() → dhands.power.reboot() → dhands.logging.dmesg(filter="error")]
      → 发现 3 条 error，已保存到 workspace/devices/abc/logs/2026-04-15T10-30.dmesg
      → 前两条是 wifi 驱动（无关），第三条是你刚改的 xxx.c 第 42 行 null pointer
 ```
@@ -53,7 +53,7 @@ LLM：[调 alb.filesync.push() → alb.power.reboot() → alb.logging.dmesg(filt
 
 ```
 你：帮我盯着这个设备，只要它出现 ANR 就立刻抓下来分析
-LLM：[alb.diagnose.watch_anr(device=xxx)]
+LLM：[dhands.diagnose.watch_anr(device=xxx)]
      → 15 分钟后检测到 ANR
      → 自动 pull /data/anr/*.txt 到 workspace
      → 提取堆栈关键帧：com.example.app.MainActivity.onCreate 阻塞 5s
@@ -66,7 +66,7 @@ LLM：[alb.diagnose.watch_anr(device=xxx)]
 
 ```
 你：板子不开机，只有串口线。接上 UART 看看是哪个阶段挂了
-LLM：[alb.setup.serial() → alb.logging.uart_capture(duration=30)]
+LLM：[dhands.setup.serial() → dhands.logging.uart_capture(duration=30)]
      → 捕获 0-30s 串口输出到 workspace
      → 看到：u-boot 加载 kernel 后，DTS 报错 "no compatible node for ..."
      → 问题指向：你的 dtsi 改动漏了某节点
@@ -78,8 +78,8 @@ LLM：[alb.setup.serial() → alb.logging.uart_capture(duration=30)]
 
 ```
 你：对 profile=lab 下所有设备并行：装这个 apk，启动 test-harness，收集 result.json
-LLM：[alb.profile.each("lab") {
-      alb.app.install(apk) → alb.shell("am start test-harness") → alb.filesync.pull(...)
+LLM：[dhands.profile.each("lab") {
+      dhands.app.install(apk) → dhands.shell("am start test-harness") → dhands.filesync.pull(...)
      }]
      → 10 台并行、2 分钟完成、汇总表格
 ```
@@ -88,7 +88,7 @@ LLM：[alb.profile.each("lab") {
 
 > "板子插在实验室那台 Windows 上" / "客户机器死机了，他那边只有一台 Windows。"
 
-用**远程设备 agent（dial-home）**：设备侧双击 `run-agent.bat`，agent 主动
+用**远程设备 agent（dial-home）**：设备侧双击 `run-bench.bat`，agent 主动
 拨出连 hub（`ws://` 内网直连或 `wss://` 走公网/反代），hub 把 adb 和串口
 重新暴露在本地——LLM / CLI / Web 全部照常，设备侧不开任何入站端口。
 完整步骤：[dial-home-runbook.md](./dial-home-runbook.md)。
@@ -132,20 +132,20 @@ LLM：[alb.profile.each("lab") {
 
 | 能力 | CLI 入口 | MCP tool | 依赖传输 | 说明 |
 |-----|---------|---------|---------|------|
-| `shell` | `alb shell <cmd>` | `alb_shell` | A / B / C / G | 执行任意命令，结构化返回 |
-| `logging` | `alb logcat` / `alb dmesg` / `alb uart-capture` | `alb_logcat` / `alb_dmesg` / `alb_uart_capture` | A / B / C → logcat·dmesg · G → uart | 日志收集，自动入 workspace |
-| `filesync` | `alb push` / `alb pull` | `alb_push` / `alb_pull` | A / B / C | 文件传输，自动选最快通道（adb/rsync/scp） |
-| `diagnose` | `alb bugreport` / `alb anr pull` / `alb tombstone` | `alb_bugreport` 等 | A / B / C | 一键拉诊断信息 |
-| `power` | `alb reboot` / `alb sleep-wake` / `alb battery` | `alb_reboot` 等 | A / B / C / G | 重启 / 休眠唤醒 / 电池状态 |
-| `app` | `alb app install/uninstall/start/stop` | `alb_app_*` | A / B / C | apk 管理 |
+| `shell` | `dhands shell <cmd>` | `dhands_shell` | A / B / C / G | 执行任意命令，结构化返回 |
+| `logging` | `dhands logcat` / `dhands dmesg` / `alb uart-capture` | `dhands_logcat` / `dhands_dmesg` / `dhands_uart_capture` | A / B / C → logcat·dmesg · G → uart | 日志收集，自动入 workspace |
+| `filesync` | `alb push` / `alb pull` | `dhands_push` / `dhands_pull` | A / B / C | 文件传输，自动选最快通道（adb/rsync/scp） |
+| `diagnose` | `alb bugreport` / `alb anr pull` / `alb tombstone` | `dhands_bugreport` 等 | A / B / C | 一键拉诊断信息 |
+| `power` | `alb reboot` / `alb sleep-wake` / `alb battery` | `dhands_reboot` 等 | A / B / C / G | 重启 / 休眠唤醒 / 电池状态 |
+| `app` | `dhands app install/uninstall/start/stop` | `dhands_app_*` | A / B / C | apk 管理 |
 
 **辅助命令**（不算业务能力，但日常用）：
 
 | 命令 | 用途 |
 |-----|------|
-| `alb doctor` | 一键 6 层环境健康检查（env / binaries / config / adb / serial / ssh），退出码 0/1 可 CI 消费 |
-| `alb session list` / `show <id>` / `replay <id>` | 查看 / 回放过去 ChatSession 的 messages.jsonl |
-| `alb setup adb` / `setup serial [--save]` / `setup wifi` / `setup ssh` | 引导式设置；`serial --save` 把验证过的参数写到 config.toml |
+| `dhands doctor` | 一键 6 层环境健康检查（env / binaries / config / adb / serial / ssh），退出码 0/1 可 CI 消费 |
+| `dhands session list` / `show <id>` / `replay <id>` | 查看 / 回放过去 ChatSession 的 messages.jsonl |
+| `dhands setup adb` / `setup serial [--save]` / `setup wifi` / `setup ssh` | 引导式设置；`serial --save` 把验证过的参数写到 config.toml |
 
 **M2+ 规划能力**：
 - `perf` —— CPU / MEM / FPS / 温度 / 电流 持续采集
@@ -165,10 +165,10 @@ CLI                MCP Server             Web API
   │                     │                      │
   └──────────┬──────────┴──────────┬───────────┘
              ▼                     ▼
-            src/alb/capabilities/*.py        ← 业务层（唯一实现）
+            src/devicehands/capabilities/*.py ← 业务层（唯一实现）
              │
              ▼
-            src/alb/transport/*.py           ← 传输抽象
+            src/devicehands/transport/*.py   ← 传输抽象
 ```
 
 **关键原则**：业务函数定义一次，三层壳各自装饰。
@@ -189,7 +189,7 @@ CLI                MCP Server             Web API
 | 2 | **错误可恢复** | error 带 code + suggestion；有 `docs/errors.md` 错误码表 |
 | 3 | **危险操作默认拦截** | 权限系统（黑名单 + 多层策略）内置 |
 | 4 | **产物路径可预测** | `workspace/devices/<serial>/{logs,anr,perf,...}` 固定结构 |
-| 5 | **自描述 + 可发现** | `alb describe` 输出全部能力 schema；`SKILL.md` 自动生成 |
+| 5 | **自描述 + 可发现** | `dhands describe` 输出全部能力 schema；`SKILL.md` 自动生成 |
 | 6 | **长任务不阻塞** | 流式 API + workspace 产物路径 + 后台任务 + 取消 |
 | 7 | **反面规则先列** | `llm/CLAUDE.md` 明确列"不应做什么"（比抽象的"请小心"更有效） |
 
@@ -204,7 +204,7 @@ CLI                MCP Server             Web API
 | **M0** 设计阶段 | 仓库骨架 + 完整技术方案 + 架构图 | ✅ |
 | **M1** 第一版可用 | 4 传输 + 6 能力 + 权限 + CLI + MCP 骨架 + 单元测试 | ✅ |
 | **M2** Web + 长任务 | Web API / 流式日志 / 大文件 / 模型后端 / perf ✅;子 Agent 并行 / benchmark 📋 | 🚧 |
-| **M3** Web UI + 智能 | Web 界面 v3 / 实时图表 / 助手调用 alb 工具 ✅;方案 D/E/F 📋 | 🚧 |
+| **M3** Web UI + 智能 | Web 界面 v3 / 实时图表 / 助手调用 DeviceHands 工具 ✅;方案 D/E/F 📋 | 🚧 |
 | **远程台架**(原计划没有) | 板子插在 Windows 上，经 hub 用 adb / 串口 / fastboot / 高通 9008 调试 | ✅ |
 
 详见 [`project-plan.md`](./project-plan.md)。

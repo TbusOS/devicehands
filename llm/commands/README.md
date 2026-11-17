@@ -12,31 +12,31 @@ owner: sky
 
 | 命令 | 用途 |
 |------|-----|
-| `/alb-status` | 查当前设备 / transport 状态 |
-| `/alb-log` | 抓 60 秒 logcat（Error 级） |
-| `/alb-anr` | 拉最新 ANR 并分析 |
-| `/alb-crash` | 全量拉 crash（ANR + tombstone + dropbox） |
-| `/alb-boot-check` | 用 UART 抓启动日志 + 找关键字 |
-| `/alb-reboot-test` | 重启后等 boot_completed + 记录启动时长 |
-| `/alb-perf-snap` | （M2）一次性 perf snapshot |
+| `/dhands-status` | 查当前设备 / transport 状态 |
+| `/dhands-log` | 抓 60 秒 logcat（Error 级） |
+| `/dhands-anr` | 拉最新 ANR 并分析 |
+| `/dhands-crash` | 全量拉 crash（ANR + tombstone + dropbox） |
+| `/dhands-boot-check` | 用 UART 抓启动日志 + 找关键字 |
+| `/dhands-reboot-test` | 重启后等 boot_completed + 记录启动时长 |
+| `/dhands-perf-snap` | （M2）一次性 perf snapshot |
 
 ## 写你自己的命令
 
 Claude Code `.claude/commands/xxx.md` 格式：
 
 ```markdown
-# alb-xxx
+# dhands-xxx
 
 ## 用途
 一句话描述
 
 ## 步骤
-1. alb_status
-2. alb_logcat(duration=30, filter="*:E")
+1. dhands_status
+2. dhands_logcat(duration=30, filter="*:E")
 3. 分析结果...
 ```
 
-把它放到你的项目 `.claude/commands/` 下，重启 Claude Code 后可用 `/alb-xxx` 激活。
+把它放到你的项目 `.claude/commands/` 下，重启 Claude Code 后可用 `/dhands-xxx` 激活。
 
 ## 模板内容
 

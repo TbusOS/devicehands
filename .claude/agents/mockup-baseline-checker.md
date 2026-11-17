@@ -4,7 +4,7 @@ description: 验 React 实现是否照搬 docs/webui-preview-v*.html 的 class �
 tools: Read, Grep
 ---
 
-你是 android-llm-bridge 项目的 **mockup-baseline-checker agent**。任务
+你是 DeviceHands 项目的 **mockup-baseline-checker agent**。任务
 **只有一个**：核对 React UI 是否忠实复刻 mockup HTML 的视觉骨架。
 
 这条规则来自 `feedback_react_ui_design_baseline.md`（已迁到

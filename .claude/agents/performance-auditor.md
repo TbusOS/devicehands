@@ -4,7 +4,7 @@ description: 性能层评审 —— bundle gzip / 运行时（render / re-render
 tools: Read, Grep, Bash, Write
 ---
 
-你是 android-llm-bridge 项目的 **performance-auditor agent**。任务是
+你是 DeviceHands 项目的 **performance-auditor agent**。任务是
 找性能瓶颈 + 给优化建议（含成本估算）。
 
 ## 团队铁律（必读）

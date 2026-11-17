@@ -4,7 +4,7 @@ description: UI 体验层评审 —— 交互延迟 / 动画 / 布局稳定 (CLS
 tools: Read, Grep, Bash, Write
 ---
 
-你是 android-llm-bridge 项目的 **ui-fluency-auditor agent**。任务是
+你是 DeviceHands 项目的 **ui-fluency-auditor agent**。任务是
 找用户感知到的"不流畅 / 不完整"问题，**不**做视觉风格审（那是
 visual-audit-runner）也**不**做基线对照（那是 mockup-baseline-checker）。
 

@@ -11,7 +11,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="android-llm-bridge">
 <meta property="og:title" content="android-llm-bridge — let your AI agent flash the board and read the UART">
-<meta property="og:description" content="Claude Code, Codex and Cursor already edit and build. alb hands them the last metre: adb, the serial console, fastboot, Qualcomm EDL and vendor flash tools, on a board that stays on the bench. Open source, Apache 2.0.">
+<meta property="og:description" content="Claude Code, Codex and Cursor already edit and build. DeviceHands hands them the last metre: adb, the serial console, fastboot, Qualcomm EDL and vendor flash tools, on a board that stays on the bench. Open source, Apache 2.0.">
 <meta property="og:url" content="https://doc.tbusos.com/android-llm-bridge/">
 <meta property="og:image" content="https://doc.tbusos.com/android-llm-bridge/assets/site/og.png">
 <meta property="og:image:width" content="1200">
@@ -108,8 +108,8 @@
       <span class="lang-zh">让 AI 自己<em>烧板子</em>、<br>自己<em>看串口</em>。</span>
     </h1>
     <p class="lead">
-      <span class="lang-en">Claude Code, Codex and Cursor already edit and build. Then they stop and wait for you to carry the image to the bench and paste the log back. alb hands them that last metre: adb, the serial console, fastboot, Qualcomm EDL and your vendor's flash tool, on a board that stays plugged into the bench PC.</span>
-      <span class="lang-zh">Claude Code、Codex、Cursor 已经会改代码、会编译，然后就停下来，等你把镜像拷到台架、再把日志贴回去。alb 把这最后一米也交给它们：adb、串口、fastboot、高通 9008、厂商的烧录工具都能用，板子照旧插在台架电脑上。</span>
+      <span class="lang-en">Claude Code, Codex and Cursor already edit and build. Then they stop and wait for you to carry the image to the bench and paste the log back. DeviceHands hands them that last metre: adb, the serial console, fastboot, Qualcomm EDL and your vendor's flash tool, on a board that stays plugged into the bench PC.</span>
+      <span class="lang-zh">Claude Code、Codex、Cursor 已经会改代码、会编译，然后就停下来，等你把镜像拷到台架、再把日志贴回去。DeviceHands 把这最后一米也交给它们：adb、串口、fastboot、高通 9008、厂商的烧录工具都能用，板子照旧插在台架电脑上。</span>
     </p>
     <div class="hero__cta">
       <a class="btn btn--filled" href="#start">
@@ -150,7 +150,7 @@
             <div class="node">
               <div class="node__icon"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="16" height="6.5" rx="1.6"/><path d="M7.5 7.2h.01M7.5 16.8h.01M11 7.2h5M11 16.8h5"/></svg></div>
               <b><span class="lang-en">Build server</span><span class="lang-zh">编译机</span></b>
-              <span class="sub"><span class="lang-en">AI agent · alb hub</span><span class="lang-zh">AI 助手 · alb hub</span></span>
+              <span class="sub"><span class="lang-en">AI agent · DeviceHands hub</span><span class="lang-zh">AI 助手 · DeviceHands hub</span></span>
             </div>
             <div class="link"><div class="wire wire--wss"><b>WSS</b></div></div>
             <div class="node node--bench">
@@ -206,30 +206,30 @@
             <div class="scn" data-scn="1" role="tabpanel" aria-labelledby="st1">
               <i class="cue" data-at="0" data-set="board=ok;wire=;tag=;now=idle;name=a"></i>
               <p class="ln ln--you" data-at="200"><span class="lang-en">The panel stays dark after my DTS change. Flash the new boot image to board-a and find out why.</span><span class="lang-zh">改完 DTS 屏不亮了。把新的 boot 镜像烧到 board-a，查一下原因。</span></p>
-              <p class="ln ln--cmd" data-at="1300">alb power reboot bootloader</p>
+              <p class="ln ln--cmd" data-at="1300">dhands power reboot bootloader</p>
               <i class="cue" data-at="1300" data-set="wire=wss usb;tag=adb;now=adb"></i>
               <i class="cue" data-at="2100" data-set="board=fastboot;wire=;tag=fastboot;now=fb"></i>
-              <p class="ln ln--cmd" data-at="2400">alb flash write boot_a images/board-a/boot.img -y</p>
+              <p class="ln ln--cmd" data-at="2400">dhands flash write boot_a images/board-a/boot.img -y</p>
               <i class="cue" data-at="2500" data-set="wire=wss usb;now=img"></i>
               <p class="ln" data-at="3300">  transfer: 41943040/41943040 bytes (100%)</p>
               <p class="ln ln--ok" data-at="4000">[ok] 7.9s</p>
               <p class="ln" data-at="4100">  record: …/flash/…/timeline.jsonl (job + UART, one timeline)</p>
               <i class="cue" data-at="4100" data-set="wire=;now=fb"></i>
-              <p class="ln ln--cmd" data-at="4900">alb timeline capture -d 45 --no-logcat --no-dmesg &amp;</p>
+              <p class="ln ln--cmd" data-at="4900">dhands timeline capture -d 45 --no-logcat --no-dmesg &amp;</p>
               <p class="ln" data-at="5300">capturing uart for 45s …</p>
-              <p class="ln ln--cmd" data-at="5600">alb flash reboot</p>
+              <p class="ln ln--cmd" data-at="5600">dhands flash reboot</p>
               <i class="cue" data-at="5700" data-set="board=boot;wire=uart wss-up;tag=uart adb;now=log"></i>
               <p class="ln" data-at="8100">…/timeline/capture-…
   uart       1873 lines</p>
               <i class="cue" data-at="8100" data-set="board=dark;wire=;tag="></i>
-              <p class="ln ln--cmd" data-at="8900">alb timeline show …/capture-… --grep panel-demo</p>
+              <p class="ln ln--cmd" data-at="8900">dhands timeline show …/capture-… --grep panel-demo</p>
               <p class="ln ln--hit" data-at="9500">   +3.412s uart   | [    1.205377] panel-demo 1-0038: failed to get reset gpio: -2
    +3.413s uart   | [    1.205941] panel-demo: probe of 1-0038 failed with error -2</p>
               <p class="ln ln--say" data-at="10700"><span class="lang-en"><b>Found it.</b> The driver asks for <code>reset-gpios</code>; your DTS says <code>reset-gpio</code>, so probe returns -2. I've fixed the DTS and I'm rebuilding.</span><span class="lang-zh"><b>找到了。</b>驱动要的属性是 <code>reset-gpios</code>，你的 DTS 里写成了 <code>reset-gpio</code>，所以 probe 返回 -2。DTS 已经改好，正在重新编译。</span></p>
               <p class="ln ln--round" data-at="12000"><span class="lang-en">↻ round 2: build → reboot bootloader → flash write → flash reboot</span><span class="lang-zh">↻ 第 2 轮：编译 → reboot bootloader → flash write → flash reboot</span></p>
               <i class="cue" data-at="12000" data-set="board=fastboot;wire=wss usb;tag=fastboot;now=img"></i>
               <i class="cue" data-at="13000" data-set="board=boot;wire=uart wss-up;tag=uart adb;now=log"></i>
-              <p class="ln ln--cmd" data-at="13900">alb shell "dmesg | grep panel-demo"</p>
+              <p class="ln ln--cmd" data-at="13900">dhands shell "dmesg | grep panel-demo"</p>
               <p class="ln ln--ok" data-at="14500">[    1.204901] panel-demo 1-0038: panel enabled</p>
               <i class="cue" data-at="14500" data-set="board=ok;wire=;tag=;now=idle"></i>
               <p class="ln ln--say" data-at="15300"><span class="lang-en"><b>Round 2: probe passes.</b> Two rounds, and you never touched the bench PC.</span><span class="lang-zh"><b>第 2 轮 probe 通过了。</b>两轮下来，你没有碰过台架电脑。</span></p>
@@ -238,11 +238,11 @@
             <div class="scn" data-scn="2" role="tabpanel" aria-labelledby="st2" hidden>
               <i class="cue" data-at="0" data-set="board=fastboot;wire=;tag=;now=idle;name=a"></i>
               <p class="ln ln--you" data-at="200"><span class="lang-en">board-a is boot-looping and gone from adb. I've held the key so it now sits in fastboot. Reflash the whole v12 package, but leave userdata alone.</span><span class="lang-zh">board-a 反复重启，adb 里看不到了。我已经按住按键让它停在 fastboot。把 v12 整包重烧一遍，userdata 不要动。</span></p>
-              <p class="ln ln--cmd" data-at="1300">alb flash status</p>
+              <p class="ln ln--cmd" data-at="1300">dhands flash status</p>
               <i class="cue" data-at="1300" data-set="wire=wss;tag=fastboot;now=fb"></i>
               <p class="ln ln--ok" data-at="1900">[ok] ready</p>
               <p class="ln" data-at="2000">        board board-a · partitions boot_a, dtbo_a, vendor_boot_a, vbmeta_a, super, misc</p>
-              <p class="ln ln--cmd" data-at="2800">alb flash plan images/board-a/v12/flash.txt --skip userdata --dry-run</p>
+              <p class="ln ln--cmd" data-at="2800">dhands flash plan images/board-a/v12/flash.txt --skip userdata --dry-run</p>
               <p class="ln" data-at="3500">plan: images/board-a/v12/flash.txt · 9 rows · run 8 · skip 1
   line  row                             decision
      1  getvar product                  run
@@ -252,7 +252,7 @@
               <p class="ln" data-at="4100">     …
   fingerprint: 5d0e9a41…</p>
               <p class="ln ln--ok" data-at="4500">[dry-run] plan is valid; nothing was run</p>
-              <p class="ln ln--cmd" data-at="5300">alb flash plan images/board-a/v12/flash.txt --skip userdata -y</p>
+              <p class="ln ln--cmd" data-at="5300">dhands flash plan images/board-a/v12/flash.txt --skip userdata -y</p>
               <i class="cue" data-at="5400" data-set="wire=wss usb;now=img"></i>
               <p class="ln" data-at="5900">[1/8] line 1: getvar product</p>
               <p class="ln" data-at="6400">[2/8] line 2: flash boot_a boot.img</p>
@@ -262,7 +262,7 @@
               <p class="ln" data-at="8300">  skipped line 7: flash userdata userdata.img (--skip userdata)
   record: …/flash/…/timeline.jsonl (job + UART, one timeline)</p>
               <i class="cue" data-at="8300" data-set="board=boot;wire=uart wss-up;tag=uart;now=log"></i>
-              <p class="ln ln--cmd" data-at="9800">alb power wait-boot</p>
+              <p class="ln ln--cmd" data-at="9800">dhands power wait-boot</p>
               <i class="cue" data-at="9800" data-set="wire=wss usb-up;tag=adb;now=adb"></i>
               <i class="cue" data-at="10800" data-set="board=ok;wire=;tag=;now=idle"></i>
               <p class="ln ln--say" data-at="11000"><span class="lang-en"><b>The board is up and userdata was not touched.</b> Every row of this flash, with the UART at the same moment, is in the record above.</span><span class="lang-zh"><b>板子起来了，userdata 没有动。</b>这次烧录每一行的输出，连同同一时刻的串口，都在上面那份记录里。</span></p>
@@ -271,7 +271,7 @@
             <div class="scn" data-scn="3" role="tabpanel" aria-labelledby="st3" hidden>
               <i class="cue" data-at="0" data-set="board=dl;wire=;tag=;now=idle;name=b"></i>
               <p class="ln ln--you" data-at="200"><span class="lang-en">board-b doesn't do fastboot — only the vendor's download tool, and that only runs on Windows. It's in download mode now. Flash v12.</span><span class="lang-zh">board-b 不走 fastboot，只能用厂商的下载工具，而且只有 Windows 版。板子已经进了下载模式，把 v12 烧进去。</span></p>
-              <p class="ln ln--cmd" data-at="1300">alb flash tools</p>
+              <p class="ln ln--cmd" data-at="1300">dhands flash tools</p>
               <i class="cue" data-at="1300" data-set="wire=wss;tag=vendor;now=tool"></i>
               <p class="ln" data-at="2000">vt  D:\tools\vt\vt_flash.exe
     packages under D:\flash\packages · runs in the package directory · time limit 1500s
@@ -279,7 +279,7 @@
               <p class="ln ln--ok" data-at="2400">    USB 1a2b:3c4d: attached — COM7</p>
               <p class="ln" data-at="2500">    usage:
       hold the DL key while powering on; arguments: -p &lt;port&gt; -f &lt;image&gt;</p>
-              <p class="ln ln--cmd" data-at="3500">alb flash tool vt --pkg board-b/v12 -y -- -p {com} -f update.img</p>
+              <p class="ln ln--cmd" data-at="3500">dhands flash tool vt --pkg board-b/v12 -y -- -p {com} -f update.img</p>
               <i class="cue" data-at="3600" data-set="wire=wss usb;now=tool"></i>
               <p class="ln" data-at="4300">  …</p>
               <p class="ln ln--ok" data-at="6000">[ok] 96.4s</p>
@@ -299,7 +299,7 @@
           <div class="pane__bar"><i class="live" aria-hidden="true"></i>
             <span class="scn" data-scn="1">UART · board-a · 115200</span>
             <span class="scn" data-scn="2" hidden>UART · board-a · 115200</span>
-            <span class="scn" data-scn="3" hidden><span class="lang-en">bench PC · agent.conf</span><span class="lang-zh">台架电脑 · agent.conf</span></span>
+            <span class="scn" data-scn="3" hidden><span class="lang-en">bench PC · bench.conf</span><span class="lang-zh">台架电脑 · bench.conf</span></span>
           </div>
           <div class="pane__body">
             <div class="scn" data-scn="1">
@@ -333,7 +333,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
           </div>
         </div>
       </div>
-      <p class="stage__cap"><span class="lang-en">An illustrative replay. The commands and output formats are alb's; the boards, the driver and the log lines are made up, and output is shortened.</span><span class="lang-zh">示意回放。命令和输出格式是 alb 的；板子、驱动和日志内容是编的，输出有删节。</span></p>
+      <p class="stage__cap"><span class="lang-en">An illustrative replay. The commands and output formats are DeviceHands'; the boards, the driver and the log lines are made up, and output is shortened.</span><span class="lang-zh">示意回放。命令和输出格式是 DeviceHands 的；板子、驱动和日志内容是编的，输出有删节。</span></p>
     </div>
 
     <dl class="stats">
@@ -373,14 +373,14 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
       </div>
       <div class="lane lane--alb">
         <div class="lane__title">
-          <h3><span class="lang-en">With alb</span><span class="lang-zh">用 alb</span></h3>
+          <h3><span class="lang-en">With DeviceHands</span><span class="lang-zh">用 DeviceHands</span></h3>
           <span><span class="lang-en">the agent goes round by itself; you read the conclusion</span><span class="lang-zh">AI 自己走完一轮，你看结论</span></span>
         </div>
         <ol class="lane__flow">
           <li><span class="hop"><span class="lang-en">AI edits, builds</span><span class="lang-zh">AI 改代码、编译</span></span></li>
-          <li><span class="hop hop--alb">alb flash</span></li>
+          <li><span class="hop hop--alb">dhands flash</span></li>
           <li><span class="hop"><span class="lang-en">board</span><span class="lang-zh">板子</span></span></li>
-          <li><span class="hop hop--alb">alb timeline · alb serial</span></li>
+          <li><span class="hop hop--alb">dhands timeline · dhands serial</span></li>
           <li><span class="hop"><span class="lang-en">AI searches the log, patches</span><span class="lang-zh">AI 搜日志、打补丁</span></span></li>
         </ol>
       </div>
@@ -390,32 +390,32 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
       <div class="cmp__row cmp__head">
         <div><span class="lang-en">In one round</span><span class="lang-zh">一轮里的事</span></div>
         <div><span class="lang-en">By hand</span><span class="lang-zh">手工</span></div>
-        <div><span class="lang-en">With alb</span><span class="lang-zh">用 alb</span></div>
+        <div><span class="lang-en">With DeviceHands</span><span class="lang-zh">用 DeviceHands</span></div>
       </div>
       <div class="cmp__row">
         <div><span class="lang-en">Get the image to the board</span><span class="lang-zh">把镜像送到板子旁边</span></div>
         <div><span class="who"><span class="lang-en">By hand:</span><span class="lang-zh">手工：</span></span><span class="lang-en">A network share, scp or a USB stick, then find the file on the bench PC.</span><span class="lang-zh">共享盘、scp 或 U 盘，再到台架电脑上找到那个文件。</span></div>
-        <div><span class="who">alb:</span><span class="lang-en"><code>alb flash write</code> sends it down the agent's own connection. The hub and the bench agent each check its sha256.</span><span class="lang-zh"><code>alb flash write</code> 顺着 agent 自己连过来的那条连接传下去，hub 和台架 agent 各核一次 sha256。</span></div>
+        <div><span class="who">dhands:</span><span class="lang-en"><code>dhands flash write</code> sends it down the agent's own connection. The hub and the bench agent each check its sha256.</span><span class="lang-zh"><code>dhands flash write</code> 顺着 agent 自己连过来的那条连接传下去，hub 和台架 agent 各核一次 sha256。</span></div>
       </div>
       <div class="cmp__row">
         <div><span class="lang-en">Flash</span><span class="lang-zh">烧录</span></div>
         <div><span class="who"><span class="lang-en">By hand:</span><span class="lang-zh">手工：</span></span><span class="lang-en">Walk or remote-desktop to the bench PC and drive fastboot or the vendor tool there.</span><span class="lang-zh">走过去或远程桌面登到台架电脑，在那边敲 fastboot 或点厂商工具。</span></div>
-        <div><span class="who">alb:</span><span class="lang-en"><code>alb flash write</code> for one partition, <code>alb flash plan</code> for a whole package, <code>alb flash tool</code> for a vendor tool.</span><span class="lang-zh">烧一个分区用 <code>alb flash write</code>，整包用 <code>alb flash plan</code>，厂商工具用 <code>alb flash tool</code>。</span></div>
+        <div><span class="who">dhands:</span><span class="lang-en"><code>dhands flash write</code> for one partition, <code>dhands flash plan</code> for a whole package, <code>dhands flash tool</code> for a vendor tool.</span><span class="lang-zh">烧一个分区用 <code>dhands flash write</code>，整包用 <code>dhands flash plan</code>，厂商工具用 <code>dhands flash tool</code>。</span></div>
       </div>
       <div class="cmp__row">
         <div><span class="lang-en">See the boot</span><span class="lang-zh">看启动过程</span></div>
         <div><span class="who"><span class="lang-en">By hand:</span><span class="lang-zh">手工：</span></span><span class="lang-en">Keep a serial terminal open and hope the scrollback is long enough.</span><span class="lang-zh">开着串口终端等，指望回滚缓冲够长。</span></div>
-        <div><span class="who">alb:</span><span class="lang-en"><code>alb timeline capture</code> records UART, logcat and dmesg on one clock, into files on the build server.</span><span class="lang-zh"><code>alb timeline capture</code> 把串口、logcat、dmesg 按同一个时钟录下来，存成编译机上的文件。</span></div>
+        <div><span class="who">dhands:</span><span class="lang-en"><code>dhands timeline capture</code> records UART, logcat and dmesg on one clock, into files on the build server.</span><span class="lang-zh"><code>dhands timeline capture</code> 把串口、logcat、dmesg 按同一个时钟录下来，存成编译机上的文件。</span></div>
       </div>
       <div class="cmp__row">
         <div><span class="lang-en">Give the log to the AI</span><span class="lang-zh">把日志交给 AI</span></div>
         <div><span class="who"><span class="lang-en">By hand:</span><span class="lang-zh">手工：</span></span><span class="lang-en">Select, copy, paste into the chat. The context window fills with boot noise.</span><span class="lang-zh">选中、复制、贴进对话，上下文被启动打印占满。</span></div>
-        <div><span class="who">alb:</span><span class="lang-en">The agent runs <code>alb log search</code> or <code>alb timeline show --grep</code> and reads only the lines that match.</span><span class="lang-zh">AI 自己跑 <code>alb log search</code> 或 <code>alb timeline show --grep</code>，只读命中的那几行。</span></div>
+        <div><span class="who">dhands:</span><span class="lang-en">The agent runs <code>dhands log search</code> or <code>dhands timeline show --grep</code> and reads only the lines that match.</span><span class="lang-zh">AI 自己跑 <code>dhands log search</code> 或 <code>dhands timeline show --grep</code>，只读命中的那几行。</span></div>
       </div>
       <div class="cmp__row">
         <div><span class="lang-en">Remember what was flashed</span><span class="lang-zh">记住这次烧了什么</span></div>
         <div><span class="who"><span class="lang-en">By hand:</span><span class="lang-zh">手工：</span></span><span class="lang-en">A note somewhere, if anyone wrote one.</span><span class="lang-zh">有人记了才有，记在哪也说不准。</span></div>
-        <div><span class="who">alb:</span><span class="lang-en">Every job that changes the board leaves a record directory: the job's output and the UART, on one timeline.</span><span class="lang-zh">每个会改板子的作业都留一个记录目录：作业输出和串口，排在同一条时间轴上。</span></div>
+        <div><span class="who">dhands:</span><span class="lang-en">Every job that changes the board leaves a record directory: the job's output and the UART, on one timeline.</span><span class="lang-zh">每个会改板子的作业都留一个记录目录：作业输出和串口，排在同一条时间轴上。</span></div>
       </div>
     </div>
   </div>
@@ -427,7 +427,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">How it is wired</span><span class="lang-zh">东西都放在哪</span></span>
       <h2><span class="lang-en">The brain sits with your code. Agents sit with your boards.</span><span class="lang-zh">大脑跟代码放在一起，agent 跟着板子走。</span></h2>
-      <p class="lead"><span class="lang-en">The AI coding agent and the alb hub run on the build server, next to the source tree and the CPUs. A small bench agent on each PC with boards dials out to the hub, so nobody opens a port on the bench. Follow one debugging loop below, or switch to what ships today.</span><span class="lang-zh">AI 编程助手和 alb hub 跑在编译机上，挨着源码树和 CPU。每台插着板子的电脑上跑一个小小的台架 agent，由它主动连回 hub，台架这边不用开任何端口。下面可以一步步走一遍调试流程，也可以切到「现在已实现」只看已经做好的部分。</span></p>
+      <p class="lead"><span class="lang-en">The AI coding agent and the DeviceHands hub run on the build server, next to the source tree and the CPUs. A small bench agent on each PC with boards dials out to the hub, so nobody opens a port on the bench. Follow one debugging loop below, or switch to what ships today.</span><span class="lang-zh">AI 编程助手和 DeviceHands hub 跑在编译机上，挨着源码树和 CPU。每台插着板子的电脑上跑一个小小的台架 agent，由它主动连回 hub，台架这边不用开任何端口。下面可以一步步走一遍调试流程，也可以切到「现在已实现」只看已经做好的部分。</span></p>
     </div>
 
     <div class="topo-bar">
@@ -445,8 +445,8 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
     <figure class="topo" id="topo" data-mode="all">
       <!-- ===== wide layout (desktop) ===== -->
       <svg class="topo__svg--wide" viewBox="0 0 1200 712" role="img" aria-labelledby="topoT topoD">
-        <title id="topoT">alb topology: build server, bench PCs, boards and models</title>
-        <desc id="topoD">Your laptop reaches the build server over ssh and HTTP. On the build server an AI coding agent edits and builds code and drives the alb hub over MCP or the CLI. Bench PCs run a bench agent that dials out to the hub over WebSocket and reaches boards over USB and UART: adb, fastboot, Qualcomm EDL, registered vendor flash tools and the serial console. A planned flash station, a planned field model at the bench, planned on-device models and planned Linux server targets are drawn dashed.</desc>
+        <title id="topoT">DeviceHands topology: build server, bench PCs, boards and models</title>
+        <desc id="topoD">Your laptop reaches the build server over ssh and HTTP. On the build server an AI coding agent edits and builds code and drives the DeviceHands hub over MCP or the CLI. Bench PCs run a bench agent that dials out to the hub over WebSocket and reaches boards over USB and UART: adb, fastboot, Qualcomm EDL, registered vendor flash tools and the serial console. A planned flash station, a planned field model at the bench, planned on-device models and planned Linux server targets are drawn dashed.</desc>
 
         <!-- models shelf -->
         <rect class="zone zone--models" x="214" y="20" width="962" height="96" rx="24"/>
@@ -529,7 +529,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
 
         <g data-s="1 3 4 5">
           <rect class="box--hub" x="238" y="380" width="312" height="140" rx="20"/>
-          <text class="t-hub" x="258" y="412">alb hub</text>
+          <text class="t-hub" x="258" y="412">dhands hub</text>
           <text class="t-on-hub" x="258" y="440">MCP server · CLI · HTTP / WebSocket API</text>
           <text class="t-on-hub lang-en" x="258" y="462">Web UI · permissions · error codes</text>
           <text class="t-on-hub lang-zh" x="258" y="462">网页界面 · 权限 · 错误码</text>
@@ -650,7 +650,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
 
       <!-- ===== tall layout (phones, tablets) ===== -->
       <svg class="topo__svg--tall" viewBox="0 0 360 1180" role="img" aria-labelledby="topoT2">
-        <title id="topoT2">alb topology, stacked: models, your laptop, build server, bench PCs and targets</title>
+        <title id="topoT2">DeviceHands topology, stacked: models, your laptop, build server, bench PCs and targets</title>
         <rect class="zone zone--models" x="8" y="8" width="344" height="176" rx="20"/>
         <text class="t-zone lang-en" x="24" y="36">Models</text>
         <text class="t-zone lang-zh" x="24" y="36">模型</text>
@@ -701,7 +701,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
         <text class="t-edge" x="190" y="469">MCP · CLI</text>
         <g data-s="1 3 4 5">
           <rect class="box--hub" x="24" y="486" width="312" height="108" rx="18"/>
-          <text class="t-hub" x="40" y="516">alb hub</text>
+          <text class="t-hub" x="40" y="516">dhands hub</text>
           <text class="t-on-hub" x="40" y="540">MCP · CLI · HTTP / WebSocket API</text>
           <text class="t-on-hub lang-en" x="40" y="560">Web UI · permissions · error codes</text>
           <text class="t-on-hub lang-zh" x="40" y="560">网页界面 · 权限 · 错误码</text>
@@ -815,16 +815,16 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
           <p><span class="lang-en">Claude Code, Codex or Cursor works in the source tree on the build server, thinking with a cloud model and building with the server's CPUs. No tree is copied to a laptop.</span><span class="lang-zh">Claude Code、Codex 或 Cursor 直接在编译机的源码树里工作：用云端模型思考，用编译机的 CPU 编译，源码不用拷到个人电脑上。</span></p>
         </div>
         <div data-panel="3" hidden>
-          <h3><span class="lang-en">3 · alb flashes the board on the bench</span><span class="lang-zh">3 · alb 把镜像烧到台架上的板子</span> <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span></h3>
-          <p><span class="lang-en"><code>alb flash</code> hands the image to the hub; the hub sends it down the bench agent's own outbound connection; the agent runs fastboot, Qualcomm EDL or a registered vendor tool next to the board. A dedicated flash station is planned.</span><span class="lang-zh"><code>alb flash</code> 把镜像交给 hub，hub 顺着台架 agent 自己连过来的那条连接发下去，agent 在板子旁边跑 fastboot、高通 9008 或登记过的厂商工具。专门的烧录机还在规划中。</span></p>
+          <h3><span class="lang-en">3 · DeviceHands flashes the board on the bench</span><span class="lang-zh">3 · DeviceHands 把镜像烧到台架上的板子</span> <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span></h3>
+          <p><span class="lang-en"><code>dhands flash</code> hands the image to the hub; the hub sends it down the bench agent's own outbound connection; the agent runs fastboot, Qualcomm EDL or a registered vendor tool next to the board. A dedicated flash station is planned.</span><span class="lang-zh"><code>dhands flash</code> 把镜像交给 hub，hub 顺着台架 agent 自己连过来的那条连接发下去，agent 在板子旁边跑 fastboot、高通 9008 或登记过的厂商工具。专门的烧录机还在规划中。</span></p>
         </div>
         <div data-panel="4" hidden>
           <h3><span class="lang-en">4 · The bench streams logs back</span><span class="lang-zh">4 · 台架把日志传回来</span> <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span></h3>
-          <p><span class="lang-en">The bench agent forwards serial bytes and adb as they are. <code>alb timeline</code> lines up logcat, dmesg and UART on one clock, stored in the workspace.</span><span class="lang-zh">台架 agent 把串口字节和 adb 原样转回来。<code>alb timeline</code> 把 logcat、dmesg、串口按同一个时钟排好，存进工作区。</span></p>
+          <p><span class="lang-en">The bench agent forwards serial bytes and adb as they are. <code>dhands timeline</code> lines up logcat, dmesg and UART on one clock, stored in the workspace.</span><span class="lang-zh">台架 agent 把串口字节和 adb 原样转回来。<code>dhands timeline</code> 把 logcat、dmesg、串口按同一个时钟排好，存进工作区。</span></p>
         </div>
         <div data-panel="5" hidden>
           <h3><span class="lang-en">5 · Find the lines that matter</span><span class="lang-zh">5 · 找出关键的那几行</span> <span class="pill pill--partial"><span class="lang-en">partly shipped</span><span class="lang-zh">部分实现</span></span></h3>
-          <p><span class="lang-en">Today the main agent searches the workspace itself with <code>alb_log_search</code>. Planned: a small local model at the bench reads the whole stream and hands back a few lines of findings, so the big model never pays for raw logs.</span><span class="lang-zh">现在由主力助手用 <code>alb_log_search</code> 自己搜工作区。规划中：台架旁边的本地小模型读完整份日志，只交回几行结论，大模型不用为原始日志付 token。</span></p>
+          <p><span class="lang-en">Today the main agent searches the workspace itself with <code>dhands_log_search</code>. Planned: a small local model at the bench reads the whole stream and hands back a few lines of findings, so the big model never pays for raw logs.</span><span class="lang-zh">现在由主力助手用 <code>dhands_log_search</code> 自己搜工作区。规划中：台架旁边的本地小模型读完整份日志，只交回几行结论，大模型不用为原始日志付 token。</span></p>
         </div>
         <div data-panel="6" hidden>
           <h3><span class="lang-en">6 · Patch and go round again</span><span class="lang-zh">6 · 打补丁，再来一轮</span> <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span></h3>
@@ -846,7 +846,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">Ways in</span><span class="lang-zh">怎么进板子</span></span>
       <h2><span class="lang-en">However dead the board is, there is still a way in.</span><span class="lang-zh">板子死到哪一步，都还有一条路能进去。</span></h2>
-      <p class="lead"><span class="lang-en">adb is the everyday path, and the first one to disappear. Below it sit the serial console, fastboot and the download modes. alb drives every one of them through the same bench agent, so the agent on the build server can keep working after adb is gone.</span><span class="lang-zh">日常用 adb，它也是最先没的那个。往下还有串口、fastboot 和各家的下载模式。这些 alb 都经同一个台架 agent 来操作，所以 adb 没了以后，编译机上的 AI 助手还能接着干。</span></p>
+      <p class="lead"><span class="lang-en">adb is the everyday path, and the first one to disappear. Below it sit the serial console, fastboot and the download modes. DeviceHands drives every one of them through the same bench agent, so the agent on the build server can keep working after adb is gone.</span><span class="lang-zh">日常用 adb，它也是最先没的那个。往下还有串口、fastboot 和各家的下载模式。这些 DeviceHands 都经同一个台架 agent 来操作，所以 adb 没了以后，编译机上的 AI 助手还能接着干。</span></p>
     </div>
     <ol class="ladder">
       <li class="rung rung--1">
@@ -855,7 +855,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
           <p class="d"><span class="lang-en">Everyday work: apps, logs, crashes, files.</span><span class="lang-zh">日常调试：应用、日志、崩溃、文件。</span></p>
         </div>
         <div class="ways"><span class="way">adb</span><span class="way">ssh</span><span class="way">UART</span></div>
-        <div class="rung__cmds"><code>alb shell</code><code>alb logcat</code><code>alb diag bugreport</code><code>alb ui screenshot</code><code>alb fs pull</code><code>alb port open</code></div>
+        <div class="rung__cmds"><code>dhands shell</code><code>dhands logcat</code><code>dhands diag bugreport</code><code>dhands ui screenshot</code><code>dhands fs pull</code><code>dhands port open</code></div>
       </li>
       <li class="rung rung--2">
         <div>
@@ -863,7 +863,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
           <p class="d"><span class="lang-en">Stuck on the boot animation, or adbd is off.</span><span class="lang-zh">卡在开机画面，或者 adbd 没开。</span></p>
         </div>
         <div class="ways"><span class="way way--off">adb</span><span class="way">UART</span></div>
-        <div class="rung__cmds"><code>alb serial shell</code><code>alb serial capture</code><code>alb timeline capture</code><code>alb power reboot</code></div>
+        <div class="rung__cmds"><code>dhands serial shell</code><code>dhands serial capture</code><code>dhands timeline capture</code><code>dhands power reboot</code></div>
       </li>
       <li class="rung rung--3">
         <div>
@@ -871,7 +871,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
           <p class="d"><span class="lang-en">Only the serial console sees it happen.</span><span class="lang-zh">只有串口看得到崩溃现场。</span></p>
         </div>
         <div class="ways"><span class="way way--off">adb</span><span class="way">UART</span></div>
-        <div class="rung__cmds"><code>alb_uart_watch_panic</code><code>alb serial capture</code><code>alb timeline show --grep</code><code>alb diag pstore</code></div>
+        <div class="rung__cmds"><code>dhands_uart_watch_panic</code><code>dhands serial capture</code><code>dhands timeline show --grep</code><code>dhands diag pstore</code></div>
       </li>
       <li class="rung rung--4">
         <div>
@@ -879,7 +879,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
           <p class="d"><span class="lang-en">Stop in U-Boot, or reflash from fastboot.</span><span class="lang-zh">停在 U-Boot，或者从 fastboot 重烧。</span></p>
         </div>
         <div class="ways"><span class="way way--off">adb</span><span class="way">UART</span><span class="way">fastboot</span></div>
-        <div class="rung__cmds"><code>alb serial break-in</code><code>alb flash getvar</code><code>alb flash write</code><code>alb flash plan --skip userdata</code></div>
+        <div class="rung__cmds"><code>dhands serial break-in</code><code>dhands flash getvar</code><code>dhands flash write</code><code>dhands flash plan --skip userdata</code></div>
       </li>
       <li class="rung rung--5">
         <div>
@@ -887,10 +887,10 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
           <p class="d"><span class="lang-en">What is left is the SoC's own download mode.</span><span class="lang-zh">剩下的只有芯片自带的下载模式。</span></p>
         </div>
         <div class="ways"><span class="way way--off">adb</span><span class="way way--off">fastboot</span><span class="way"><span class="lang-en">Qualcomm EDL 9008</span><span class="lang-zh">高通 9008</span></span><span class="way"><span class="lang-en">vendor tool</span><span class="lang-zh">厂商工具</span></span></div>
-        <div class="rung__cmds"><code>alb bench usb</code><code>alb bench run edl-sahara</code><code>alb bench run edl-program</code><code>alb flash tool</code></div>
+        <div class="rung__cmds"><code>dhands bench usb</code><code>dhands bench run edl-sahara</code><code>dhands bench run edl-program</code><code>dhands flash tool</code></div>
       </li>
     </ol>
-    <p class="ladder__note"><span class="lang-en">One thing alb does not do yet: it has no hand on the power button. Getting a board into fastboot or a download mode when software cannot do it still means a key press, a jumper or a power cycle by a person at the bench.</span><span class="lang-zh">有一件事 alb 现在做不了：它够不着电源和按键。软件进不了 fastboot 或下载模式的时候，还得有人在台架前按键、短接或断电重启。</span></p>
+    <p class="ladder__note"><span class="lang-en">One thing DeviceHands does not do yet: it has no hand on the power button. Getting a board into fastboot or a download mode when software cannot do it still means a key press, a jumper or a power cycle by a person at the bench.</span><span class="lang-zh">有一件事 DeviceHands 现在做不了：它够不着电源和按键。软件进不了 fastboot 或下载模式的时候，还得有人在台架前按键、短接或断电重启。</span></p>
   </div>
 </section>
 
@@ -905,7 +905,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
     <div class="grid grid--3 guard">
       <article class="card">
         <h3><span class="lang-en">What if it flashes the wrong board?</span><span class="lang-zh">烧错板子怎么办？</span></h3>
-        <p><span class="lang-en">Give each board its <code>fastboot_product</code> and alb asks the board <code>getvar product</code> before every write; a different answer, no board chosen, or a board with no product writes nothing. With more than one board in fastboot it refuses and lists them. It never picks the first one.</span><span class="lang-zh">给每块板配上 <code>fastboot_product</code>，每次写之前 alb 先问板子 <code>getvar product</code>：答得不对、没选板子、选的板子没配，都什么都不写。同时有不止一块板在 fastboot 时直接拒绝并列出来，不会默认挑第一块。</span></p>
+        <p><span class="lang-en">Give each board its <code>fastboot_product</code> and DeviceHands asks the board <code>getvar product</code> before every write; a different answer, no board chosen, or a board with no product writes nothing. With more than one board in fastboot it refuses and lists them. It never picks the first one.</span><span class="lang-zh">给每块板配上 <code>fastboot_product</code>，每次写之前 DeviceHands 先问板子 <code>getvar product</code>：答得不对、没选板子、选的板子没配，都什么都不写。同时有不止一块板在 fastboot 时直接拒绝并列出来，不会默认挑第一块。</span></p>
         <div class="codes"><code>FLASH_BOARD_MISMATCH</code><code>FLASH_BOARD_NOT_LISTED</code><code>FLASH_DEVICE_AMBIGUOUS</code></div>
       </article>
       <article class="card">
@@ -920,7 +920,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
       </article>
       <article class="card">
         <h3><span class="lang-en">A package that stops halfway?</span><span class="lang-zh">整包烧到一半停了？</span></h3>
-        <p><span class="lang-en"><code>alb flash plan</code> checks the whole manifest first: one bad row and no row runs. <code>--dry-run</code> prints the plan; a batch-file pause such as <code>ping -n 5 127.0.0.1</code> is read as a wait. A failing row stops the run and reports where; <code>--from-line</code> picks up from there.</span><span class="lang-zh"><code>alb flash plan</code> 先把整份清单查一遍，有一行不对就一行都不跑。<code>--dry-run</code> 只打印计划；批处理里的 <code>ping -n 5 127.0.0.1</code> 这类停顿读成等待。中途某一行失败就停下并报出是第几行，之后用 <code>--from-line</code> 接着跑。</span></p>
+        <p><span class="lang-en"><code>dhands flash plan</code> checks the whole manifest first: one bad row and no row runs. <code>--dry-run</code> prints the plan; a batch-file pause such as <code>ping -n 5 127.0.0.1</code> is read as a wait. A failing row stops the run and reports where; <code>--from-line</code> picks up from there.</span><span class="lang-zh"><code>dhands flash plan</code> 先把整份清单查一遍，有一行不对就一行都不跑。<code>--dry-run</code> 只打印计划；批处理里的 <code>ping -n 5 127.0.0.1</code> 这类停顿读成等待。中途某一行失败就停下并报出是第几行，之后用 <code>--from-line</code> 接着跑。</span></p>
         <div class="codes"><code>--dry-run</code><code>--skip</code><code>--from-line</code></div>
       </article>
       <article class="card">
@@ -931,7 +931,7 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
       <article class="card">
         <h3><span class="lang-en">And when the board doesn't come back?</span><span class="lang-zh">烧完板子没起来，查什么？</span></h3>
         <p><span class="lang-en">Each job leaves a record directory on the hub. <code>timeline.jsonl</code> holds every line the job printed and every UART line, on one clock, so you can see what the console said around the last write. After a reboot to the system it keeps the UART for another 90 s: the first boot is on the record.</span><span class="lang-zh">每个作业在 hub 上留一个记录目录。<code>timeline.jsonl</code> 里是作业的每条输出和串口的每一行，用同一个时钟，最后一次写入前后串口在打什么一看就知道。重启回系统后再接着录 90 秒串口，第一次开机也在记录里。</span></p>
-        <div class="codes"><code>alb timeline show &lt;record&gt;</code></div>
+        <div class="codes"><code>dhands timeline show &lt;record&gt;</code></div>
       </article>
     </div>
     <p class="guard__note"><span class="lang-en"><b>What these checks are for.</b> They stop mistakes: a mistyped partition, the wrong cable, a stale image. They are not a security boundary. Commands on the board itself run as typed, and the hub's web UI and HTTP API have no login, so keep the hub on a network you trust. <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/flash.md">Read the flashing guide →</a></span><span class="lang-zh"><b>这些检查防的是什么。</b>防的是误操作：分区名敲错、线插错板子、镜像是旧的。它们不是安全边界。板子上的命令照原样执行；hub 的网页和 HTTP 接口没有登录，hub 要放在你信得过的网络里。<a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/flash.md">看烧录文档 →</a></span></p>
@@ -944,11 +944,11 @@ tool_usage.vt=hold the DL key while powering on; arguments: -p &lt;port&gt; -f &
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">Vendor flash tools</span><span class="lang-zh">厂商烧录工具</span></span>
       <h2><span class="lang-en">Your SoC vendor's tool: register it on the bench, run it from Linux.</span><span class="lang-zh">芯片厂商的烧录工具：在台架上登记一次，就能从 Linux 这边调。</span></h2>
-      <p class="lead"><span class="lang-en">Not every board speaks fastboot, and most vendor download tools only ship for Windows. alb does not try to understand them. The owner of the bench PC names the tool in <code>agent.conf</code>; from then on its own arguments pass straight through, and its output lands on the same timeline as the UART.</span><span class="lang-zh">不是每块板都走 fastboot，厂商的下载工具又大多只有 Windows 版。alb 不去理解这些工具：台架电脑的主人在 <code>agent.conf</code> 里登记工具，之后工具自己的参数原样转发，输出和串口排在同一条时间轴上。</span></p>
+      <p class="lead"><span class="lang-en">Not every board speaks fastboot, and most vendor download tools only ship for Windows. DeviceHands does not try to understand them. The owner of the bench PC names the tool in <code>bench.conf</code>; from then on its own arguments pass straight through, and its output lands on the same timeline as the UART.</span><span class="lang-zh">不是每块板都走 fastboot，厂商的下载工具又大多只有 Windows 版。DeviceHands 不去理解这些工具：台架电脑的主人在 <code>bench.conf</code> 里登记工具，之后工具自己的参数原样转发，输出和串口排在同一条时间轴上。</span></p>
     </div>
     <div class="vend">
       <div class="cpanel">
-        <div class="cpanel__bar"><span><span class="lang-en">bench PC · agent.conf</span><span class="lang-zh">台架电脑 · agent.conf</span></span><span><span class="lang-en">two lines are required</span><span class="lang-zh">必填的只有两行</span></span></div>
+        <div class="cpanel__bar"><span><span class="lang-en">bench PC · bench.conf</span><span class="lang-zh">台架电脑 · bench.conf</span></span><span><span class="lang-en">two lines are required</span><span class="lang-zh">必填的只有两行</span></span></div>
 <pre class="code"><span class="g">tool_exe.vt=D:\tools\vt\vt_flash.exe</span>
 <span class="g">tool_root.vt=D:\flash\packages</span>
 <span class="c"># optional: how to tell success from failure</span>
@@ -961,8 +961,8 @@ tool_usb.vt=1a2b:3c4d</pre>
       <div class="cpanel">
         <div class="cpanel__bar"><span><span class="lang-en">build server · the tool's own arguments after <b>--</b></span><span class="lang-zh">编译机 · <b>--</b> 后面是工具自己的参数</span></span></div>
 <pre class="code"><span class="c"># what is registered, and is the board attached</span>
-<span class="p">$</span> alb flash tools
-<span class="p">$</span> alb flash tool vt --pkg board-b/v12 -- -p {com} -f update.img
+<span class="p">$</span> dhands flash tools
+<span class="p">$</span> dhands flash tool vt --pkg board-b/v12 -- -p {com} -f update.img
 <span class="g">[ok] 96.4s</span>
   judged by: exit_code+ok_pattern
   files the tool wrote — kept in …/flash/…/files:
@@ -993,8 +993,8 @@ tool_usb.vt=1a2b:3c4d</pre>
   <div class="wrap">
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">Built for models</span><span class="lang-zh">给模型用的</span></span>
-      <h2><span class="lang-en">Command lines were built for people. alb is built for models.</span><span class="lang-zh">命令行是给人用的，alb 是给模型用的。</span></h2>
-      <p class="lead"><span class="lang-en">An agent typing raw adb gets free text and one English error line, and has to guess what to do next. alb answers the same question with a structure it can act on.</span><span class="lang-zh">让 AI 直接敲 adb，拿回来的是自由文本和一行英文报错，下一步只能猜。同一件事，alb 返回的是它能照着做的结构。</span></p>
+      <h2><span class="lang-en">Command lines were built for people. DeviceHands is built for models.</span><span class="lang-zh">命令行是给人用的，DeviceHands 是给模型用的。</span></h2>
+      <p class="lead"><span class="lang-en">An agent typing raw adb gets free text and one English error line, and has to guess what to do next. DeviceHands answers the same question with a structure it can act on.</span><span class="lang-zh">让 AI 直接敲 adb，拿回来的是自由文本和一行英文报错，下一步只能猜。同一件事，DeviceHands 返回的是它能照着做的结构。</span></p>
     </div>
     <div class="duo">
       <div class="cpanel">
@@ -1005,15 +1005,15 @@ tool_usb.vt=1a2b:3c4d</pre>
 # In fastboot? The agent has to guess.</span></pre>
       </div>
       <div class="cpanel">
-        <div class="cpanel__bar"><span>alb --json</span></div>
-<pre class="code"><span class="p">$</span> alb --json shell "getprop ro.build.type"
+        <div class="cpanel__bar"><span>dhands --json</span></div>
+<pre class="code"><span class="p">$</span> dhands --json shell "getprop ro.build.type"
 {
   "ok": false,
   "data": null,
   "error": {
     "code": "<span class="w">DEVICE_NOT_FOUND</span>",
     "message": "Specified device serial not found",
-    "suggestion": "<span class="g">Run: alb devices</span>",
+    "suggestion": "<span class="g">Run: dhands devices</span>",
     "category": "device"
   },
   "artifacts": []
@@ -1024,7 +1024,7 @@ tool_usb.vt=1a2b:3c4d</pre>
       <article class="card">
         <div class="card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4H6a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-2"/></svg></div>
         <h3><span class="lang-en">One shape for every answer</span><span class="lang-zh">所有返回一个结构</span></h3>
-        <p><span class="lang-en">Every tool returns <code>{ok, data, error, artifacts}</code>. An error carries a code and a suggestion; <code>alb_describe_errors</code> lists them all.</span><span class="lang-zh">每个工具都返回 <code>{ok, data, error, artifacts}</code>。出错时带错误码和处理建议，<code>alb_describe_errors</code> 能列出全部错误码。</span></p>
+        <p><span class="lang-en">Every tool returns <code>{ok, data, error, artifacts}</code>. An error carries a code and a suggestion; <code>dhands_describe_errors</code> lists them all.</span><span class="lang-zh">每个工具都返回 <code>{ok, data, error, artifacts}</code>。出错时带错误码和处理建议，<code>dhands_describe_errors</code> 能列出全部错误码。</span></p>
       </article>
       <article class="card">
         <div class="card__icon card__icon--uart" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 10h11M4 14h16M4 18h8"/></svg></div>
@@ -1034,7 +1034,7 @@ tool_usb.vt=1a2b:3c4d</pre>
       <article class="card">
         <div class="card__icon card__icon--kernel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v15M12 3l-2.5 3h5zM12 14l-4-3V8M12 12l4-3V7"/><circle cx="12" cy="19.5" r="1.8"/></svg></div>
         <h3><span class="lang-en">One command, any link</span><span class="lang-zh">一条命令，哪种连接都行</span></h3>
-        <p><span class="lang-en"><code>alb shell</code> works over adb, ssh or the serial console, and <code>alb power reboot</code> falls back to the serial console when adb sees no device.</span><span class="lang-zh"><code>alb shell</code> 走 adb、ssh 或串口都能用；adb 里找不到设备时，<code>alb power reboot</code> 会自动改走串口。</span></p>
+        <p><span class="lang-en"><code>dhands shell</code> works over adb, ssh or the serial console, and <code>dhands power reboot</code> falls back to the serial console when adb sees no device.</span><span class="lang-zh"><code>dhands shell</code> 走 adb、ssh 或串口都能用；adb 里找不到设备时，<code>dhands power reboot</code> 会自动改走串口。</span></p>
       </article>
     </div>
   </div>
@@ -1049,10 +1049,10 @@ tool_usb.vt=1a2b:3c4d</pre>
         <div class="section__head" style="margin-bottom:24px">
           <h2><span class="lang-en">Works with the agent you already use.</span><span class="lang-zh">接进你已经在用的 AI 工具。</span></h2>
         </div>
-        <p><span class="lang-en">alb is an MCP server, so any agent that speaks MCP can drive a board. The same business layer sits behind MCP, the CLI and the HTTP API — a fix lands in all three at once.</span><span class="lang-zh">alb 是一个 MCP server，任何支持 MCP 的 Agent 都能用它调板子。MCP、命令行、HTTP 接口背后是同一套业务代码，修一处三边同时生效。</span></p>
-        <p><span class="lang-en">Your agent can also just run <code>alb</code> in a shell: every command takes <code>--json</code>, and <code>alb describe</code> prints the whole schema for a model to read. Flashing, the merged timeline and the bench operations are CLI commands today, not MCP tools yet: the agent runs them in its shell with <code>--yes</code>.</span><span class="lang-zh">Agent 也可以直接在 shell 里跑 <code>alb</code>：每个命令都支持 <code>--json</code>，<code>alb describe</code> 会把完整的工具说明打印出来给模型读。烧录、合并时间轴和台架操作现在是命令行命令，还没有做成 MCP 工具，Agent 在自己的 shell 里带 <code>--yes</code> 跑。</span></p>
+        <p><span class="lang-en">DeviceHands is an MCP server, so any agent that speaks MCP can drive a board. The same business layer sits behind MCP, the CLI and the HTTP API — a fix lands in all three at once.</span><span class="lang-zh">DeviceHands 是一个 MCP server，任何支持 MCP 的 Agent 都能用它调板子。MCP、命令行、HTTP 接口背后是同一套业务代码，修一处三边同时生效。</span></p>
+        <p><span class="lang-en">Your agent can also just run <code>dhands</code> in a shell: every command takes <code>--json</code>, and <code>dhands describe</code> prints the whole schema for a model to read. Flashing, the merged timeline and the bench operations are CLI commands today, not MCP tools yet: the agent runs them in its shell with <code>--yes</code>.</span><span class="lang-zh">Agent 也可以直接在 shell 里跑 <code>dhands</code>：每个命令都支持 <code>--json</code>，<code>dhands describe</code> 会把完整的工具说明打印出来给模型读。烧录、合并时间轴和台架操作现在是命令行命令，还没有做成 MCP 工具，Agent 在自己的 shell 里带 <code>--yes</code> 跑。</span></p>
         <div class="tools" aria-label="Some of the MCP tools">
-          <code>alb_devices</code><code>alb_shell</code><code>alb_logcat</code><code>alb_dmesg</code><code>alb_uart_capture</code><code>alb_uart_watch_panic</code><code>alb_log_search</code><code>alb_tombstone_pull</code><code>alb_anr_pull</code><code>alb_ui_screenshot</code><code>alb_metrics_snapshot</code><code>alb_wait_boot</code>
+          <code>dhands_devices</code><code>dhands_shell</code><code>dhands_logcat</code><code>dhands_dmesg</code><code>dhands_uart_capture</code><code>dhands_uart_watch_panic</code><code>dhands_log_search</code><code>dhands_tombstone_pull</code><code>dhands_anr_pull</code><code>dhands_ui_screenshot</code><code>dhands_metrics_snapshot</code><code>dhands_wait_boot</code>
         </div>
       </div>
       <div class="integ__panel">
@@ -1065,14 +1065,14 @@ tool_usb.vt=1a2b:3c4d</pre>
         </div>
         <div class="tabpanel" role="tabpanel" id="p-cc" aria-labelledby="t-cc">
 <pre class="code"><span class="c"># in your android-llm-bridge checkout</span>
-<span class="p">$</span> claude mcp add alb -- uv run --project "$PWD" alb-mcp
+<span class="p">$</span> claude mcp add devicehands -- uv run --project "$PWD" dhands-mcp
 <span class="p">$</span> claude
 <span class="a">›</span> list the boards and pull the last tombstone from the first one</pre>
-          <p><span class="lang-en">Registers alb as a stdio MCP server for Claude Code.</span><span class="lang-zh">把 alb 登记成 Claude Code 的 stdio MCP server。</span></p>
+          <p><span class="lang-en">Registers DeviceHands as a stdio MCP server for Claude Code.</span><span class="lang-zh">把 DeviceHands 登记成 Claude Code 的 stdio MCP server。</span></p>
         </div>
         <div class="tabpanel" role="tabpanel" id="p-cx" aria-labelledby="t-cx" hidden>
 <pre class="code"><span class="c"># in your android-llm-bridge checkout</span>
-<span class="p">$</span> codex mcp add alb -- uv run --project "$PWD" alb-mcp
+<span class="p">$</span> codex mcp add devicehands -- uv run --project "$PWD" dhands-mcp
 <span class="p">$</span> codex
 <span class="a">›</span> capture 60 s of UART and tell me where the boot stops</pre>
           <p><span class="lang-en">Writes the server into <code>~/.codex/config.toml</code>.</span><span class="lang-zh">会写进 <code>~/.codex/config.toml</code>。</span></p>
@@ -1081,26 +1081,26 @@ tool_usb.vt=1a2b:3c4d</pre>
 <pre class="code"><span class="c">// .cursor/mcp.json</span>
 {
   "mcpServers": {
-    "alb": {
+    "devicehands": {
       "command": "uv",
-      "args": ["run", "--project", "<span class="a">/path/to/android-llm-bridge</span>", "alb-mcp"]
+      "args": ["run", "--project", "<span class="a">/path/to/devicehands</span>", "dhands-mcp"]
     }
   }
 }</pre>
-          <p><span class="lang-en">Any other MCP client uses the same command: <code>uv run --project … alb-mcp</code> over stdio.</span><span class="lang-zh">其他 MCP 客户端用同一条命令：<code>uv run --project … alb-mcp</code>，走 stdio。</span></p>
+          <p><span class="lang-en">Any other MCP client uses the same command: <code>uv run --project … dhands-mcp</code> over stdio.</span><span class="lang-zh">其他 MCP 客户端用同一条命令：<code>uv run --project … dhands-mcp</code>，走 stdio。</span></p>
         </div>
         <div class="tabpanel" role="tabpanel" id="p-sh" aria-labelledby="t-sh" hidden>
-<pre class="code"><span class="p">$</span> uv run alb --json shell "getprop ro.build.version.release"
+<pre class="code"><span class="p">$</span> uv run dhands --json shell "getprop ro.build.version.release"
 {"ok": true, "data": {"stdout": "14\n", "stderr": "",
  "exit_code": 0, "duration_ms": 87}, "error": null, ...}
-<span class="p">$</span> uv run alb serial break-in             <span class="c"># stop in U-Boot</span>
-<span class="p">$</span> uv run alb timeline show DIR --src uart,dmesg</pre>
-          <p><span class="lang-en">Output shortened. <code>alb describe</code> prints every command and error code.</span><span class="lang-zh">输出有删节。<code>alb describe</code> 会列出所有命令和错误码。</span></p>
+<span class="p">$</span> uv run dhands serial break-in          <span class="c"># stop in U-Boot</span>
+<span class="p">$</span> uv run dhands timeline show DIR --src uart,dmesg</pre>
+          <p><span class="lang-en">Output shortened. <code>dhands describe</code> prints every command and error code.</span><span class="lang-zh">输出有删节。<code>dhands describe</code> 会列出所有命令和错误码。</span></p>
         </div>
         <div class="tabpanel" role="tabpanel" id="p-api" aria-labelledby="t-api" hidden>
-<pre class="code"><span class="p">$</span> uv run alb-api                     <span class="c"># FastAPI on :8765, Web UI at /app</span>
-<span class="p">$</span> curl -s localhost:8765/health
-<span class="p">$</span> curl -s -X POST "localhost:8765/api/timeline/capture?device=SERIAL"</pre>
+<pre class="code"><span class="p">$</span> uv run dhands-hub                  <span class="c"># FastAPI on :8775, Web UI at /app</span>
+<span class="p">$</span> curl -s localhost:8775/health
+<span class="p">$</span> curl -s -X POST "localhost:8775/api/timeline/capture?device=SERIAL"</pre>
           <p><span class="lang-en">REST plus WebSocket streams for logcat, UART and chat. See <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/web-api.md">web-api.md</a>.</span><span class="lang-zh">REST 接口，外加 logcat、串口、对话的 WebSocket 流。见 <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/web-api.md">web-api.md</a>。</span></p>
         </div>
       </div>
@@ -1112,7 +1112,7 @@ tool_usb.vt=1a2b:3c4d</pre>
 <section class="section" id="models">
   <div class="wrap">
     <div class="section__head">
-      <span class="eyebrow"><span class="lang-en">More of what alb is for</span><span class="lang-zh">alb 还想做到的</span></span>
+      <span class="eyebrow"><span class="lang-en">More of what DeviceHands is for</span><span class="lang-zh">DeviceHands 还想做到的</span></span>
       <h2><span class="lang-en">Models that share the work. Sites far apart. A toolbox on the way.</span><span class="lang-zh">模型分工、两地调试，还有一箱分析工具在路上。</span></h2>
       <p class="lead"><span class="lang-en">Four pages, each with its own moving picture. Every one says plainly what works today and what is still a plan.</span><span class="lang-zh">四个页面，各有一张会动的图。每一页都写明哪些现在能用，哪些还只是规划。</span></p>
     </div>
@@ -1175,7 +1175,7 @@ tool_usb.vt=1a2b:3c4d</pre>
           <li><span class="lang-en">screenshots and UI trees</span><span class="lang-zh">截图和控件树</span></li>
           <li><span class="lang-en">CPU, memory, temperature curves</span><span class="lang-zh">CPU、内存、温度曲线</span></li>
           <li><span class="lang-en">root, remount, pstore after a crash</span><span class="lang-zh">root、remount、崩溃后读 pstore</span></li>
-          <li><span class="lang-en">gdbserver or any device port via <code>alb port</code></span><span class="lang-zh">经 <code>alb port</code> 连 gdbserver 或板上任意端口</span></li>
+          <li><span class="lang-en">gdbserver or any device port via <code>dhands port</code></span><span class="lang-zh">经 <code>dhands port</code> 连 gdbserver 或板上任意端口</span></li>
         </ul>
       </article>
       <article class="card card--uart">
@@ -1259,8 +1259,8 @@ tool_usb.vt=1a2b:3c4d</pre>
         <img class="lang-zh" src="assets/v3/shots/bench-zh.jpg" width="1440" height="900" loading="lazy" alt="台架页：台架电脑上的 USB 设备和 agent 状态">
       </div>
       <div class="tabpanel" role="tabpanel" id="wp7" aria-labelledby="w7" hidden>
-        <img class="lang-en" src="assets/v3/shots/chat-en.jpg" width="1440" height="900" loading="lazy" alt="Assistant panel calling alb tools while answering">
-        <img class="lang-zh" src="assets/v3/shots/chat-zh.jpg" width="1440" height="900" loading="lazy" alt="助手面板：回答时调用 alb 工具">
+        <img class="lang-en" src="assets/v3/shots/chat-en.jpg" width="1440" height="900" loading="lazy" alt="Assistant panel calling DeviceHands tools while answering">
+        <img class="lang-zh" src="assets/v3/shots/chat-zh.jpg" width="1440" height="900" loading="lazy" alt="助手面板：回答时调用 DeviceHands 工具">
       </div>
       <p style="margin-top:16px"><a href="webui-preview.html"><span class="lang-en">Open the full Web UI gallery and the interactive mock-ups →</span><span class="lang-zh">打开完整的网页界面图集和可交互设计稿 →</span></a></p>
     </div>
@@ -1291,13 +1291,13 @@ cd android-llm-bridge
       <article class="step">
         <div class="step__head"><span class="num">2</span><div>
           <h3><span class="lang-en">Find your board</span><span class="lang-zh">找到板子</span></h3>
-          <p><span class="lang-en"><code>doctor</code> checks every outside tool alb needs; <code>devices</code> lists what it can reach.</span><span class="lang-zh"><code>doctor</code> 检查 alb 用到的外部工具，<code>devices</code> 列出能连上的板子。</span></p>
+          <p><span class="lang-en"><code>doctor</code> checks every outside tool DeviceHands needs; <code>devices</code> lists what it can reach.</span><span class="lang-zh"><code>doctor</code> 检查 DeviceHands 用到的外部工具，<code>devices</code> 列出能连上的板子。</span></p>
         </div></div>
 <div class="cpanel">
-        <div class="cpanel__bar"><span><span class="lang-en">in the checkout</span><span class="lang-zh">在仓库目录里</span></span><button class="copy" type="button" data-copy="uv run alb doctor\nuv run alb devices\nuv run alb shell &quot;uname -a&quot;"><span class="copy__a"><span class="lang-en">Copy</span><span class="lang-zh">复制</span></span><span class="copy__b"><span class="lang-en">Copied</span><span class="lang-zh">已复制</span></span></button></div>
-<pre class="code">uv run alb doctor
-uv run alb devices
-uv run alb shell "uname -a"</pre>
+        <div class="cpanel__bar"><span><span class="lang-en">in the checkout</span><span class="lang-zh">在仓库目录里</span></span><button class="copy" type="button" data-copy="uv run dhands doctor\nuv run dhands devices\nuv run dhands shell &quot;uname -a&quot;"><span class="copy__a"><span class="lang-en">Copy</span><span class="lang-zh">复制</span></span><span class="copy__b"><span class="lang-en">Copied</span><span class="lang-zh">已复制</span></span></button></div>
+<pre class="code">uv run dhands doctor
+uv run dhands devices
+uv run dhands shell "uname -a"</pre>
       </div>
       </article>
       <article class="step">
@@ -1306,9 +1306,9 @@ uv run alb shell "uname -a"</pre>
           <p><span class="lang-en">Register the MCP server once and your agent sees all 36 tools.</span><span class="lang-zh">登记一次 MCP server，Agent 就能看到全部 36 个工具。</span></p>
         </div></div>
 <div class="cpanel">
-        <div class="cpanel__bar"><span><span class="lang-en">Claude Code · or Codex below</span><span class="lang-zh">Claude Code · Codex 见下一行</span></span><button class="copy" type="button" data-copy="claude mcp add alb -- uv run --project &quot;$PWD&quot; alb-mcp"><span class="copy__a"><span class="lang-en">Copy</span><span class="lang-zh">复制</span></span><span class="copy__b"><span class="lang-en">Copied</span><span class="lang-zh">已复制</span></span></button></div>
-<pre class="code">claude mcp add alb -- uv run --project "$PWD" alb-mcp
-<span class="c"># or: codex mcp add alb -- uv run --project "$PWD" alb-mcp</span></pre>
+        <div class="cpanel__bar"><span><span class="lang-en">Claude Code · or Codex below</span><span class="lang-zh">Claude Code · Codex 见下一行</span></span><button class="copy" type="button" data-copy="claude mcp add devicehands -- uv run --project &quot;$PWD&quot; dhands-mcp"><span class="copy__a"><span class="lang-en">Copy</span><span class="lang-zh">复制</span></span><span class="copy__b"><span class="lang-en">Copied</span><span class="lang-zh">已复制</span></span></button></div>
+<pre class="code">claude mcp add devicehands -- uv run --project "$PWD" dhands-mcp
+<span class="c"># or: codex mcp add devicehands -- uv run --project "$PWD" dhands-mcp</span></pre>
       </div>
       </article>
     </div>
@@ -1316,14 +1316,14 @@ uv run alb shell "uname -a"</pre>
       <div>
         <h3><span class="lang-en">Board plugged into another PC?</span><span class="lang-zh">板子插在另一台电脑上？</span></h3>
         <p class="muted" style="margin-top:10px"><span class="lang-en">Run the hub on your Linux server and the bench agent on the Windows PC next to the board. The agent dials out, so the bench needs no inbound port and no tunnel.</span><span class="lang-zh">在 Linux 服务器上起 hub，在插着板子的 Windows 电脑上起台架 agent。agent 主动连出去，台架不用开入站端口，也不用打隧道。</span></p>
-        <p class="muted" style="margin-top:10px"><span class="lang-en"><b>Different networks work too.</b> The two machines need not share a subnet — the bench only has to reach the hub's address and port. Across the internet, use a VPN or a TLS reverse proxy; never publish port 8765 as it is, because the web UI and HTTP API have no login.</span><span class="lang-zh"><b>不在同一网络也可以。</b>两台机器不用在同一网段，只要台架电脑能连到 hub 的地址和端口。跨公网时用 VPN 或带 TLS 的反向代理；不要把 8765 端口直接暴露到公网，网页和 HTTP 接口没有登录。</span></p>
+        <p class="muted" style="margin-top:10px"><span class="lang-en"><b>Different networks work too.</b> The two machines need not share a subnet — the bench only has to reach the hub's address and port. Across the internet, use a VPN or a TLS reverse proxy; never publish port 8775 as it is, because the web UI and HTTP API have no login.</span><span class="lang-zh"><b>不在同一网络也可以。</b>两台机器不用在同一网段，只要台架电脑能连到 hub 的地址和端口。跨公网时用 VPN 或带 TLS 的反向代理；不要把 8775 端口直接暴露到公网，网页和 HTTP 接口没有登录。</span></p>
         <p style="margin-top:14px; display:flex; flex-wrap:wrap; gap:8px 20px"><a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/dial-home-runbook.md"><span class="lang-en">Remote bench runbook →</span><span class="lang-zh">远程台架操作手册 →</span></a><a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/dial-home-runbook.md#5-across-networks"><span class="lang-en">Across networks →</span><span class="lang-zh">跨网络部署 →</span></a></p>
       </div>
 <pre class="code"><span class="c"># Linux (hub)</span>
 cd deploy/hub &amp;&amp; cp hub.env.example hub.env
 ./run-hub.sh
-<span class="c"># Windows (bench PC), copy clients/windows-agent/ over</span>
-run-agent.bat</pre>
+<span class="c"># Windows (bench PC), copy bench-py/ over</span>
+run-bench.bat</pre>
     </div>
   </div>
 </section>
@@ -1377,32 +1377,32 @@ run-agent.bat</pre>
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">Contribute</span><span class="lang-zh">参与</span></span>
       <h2><span class="lang-en">Bring your board, your tool, your model.</span><span class="lang-zh">带上你的板子、你的工具、你的模型。</span></h2>
-      <p class="lead"><span class="lang-en">alb is Apache 2.0 and brand-neutral. Each extension point is one well-defined place in the code.</span><span class="lang-zh">alb 使用 Apache 2.0 协议，不带任何厂商品牌。每种扩展都对应代码里一个明确的位置。</span></p>
+      <p class="lead"><span class="lang-en">DeviceHands is Apache 2.0 and brand-neutral. Each extension point is one well-defined place in the code.</span><span class="lang-zh">DeviceHands 使用 Apache 2.0 协议，不带任何厂商品牌。每种扩展都对应代码里一个明确的位置。</span></p>
     </div>
     <div class="grid grid--4 ext">
       <article class="card">
         <div class="card__icon card__icon--uart" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v15M12 3l-2.5 3h5zM12 14l-4-3V8M12 12l4-3V7"/><circle cx="12" cy="19.5" r="1.8"/></svg></div>
         <h3><span class="lang-en">A new link</span><span class="lang-zh">新的连接方式</span></h3>
         <p><span class="lang-en">A debug probe, a vendor console, a network serial server. Implement the transport interface.</span><span class="lang-zh">调试探针、厂商控制台、网络串口服务器 —— 实现传输层接口即可。</span></p>
-        <p><code>src/alb/transport/base.py</code></p>
+        <p><code>src/devicehands/transport/base.py</code></p>
       </article>
       <article class="card">
         <div class="card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg></div>
         <h3><span class="lang-en">A new capability</span><span class="lang-zh">新的能力</span></h3>
         <p><span class="lang-en">One module, then expose it as an MCP tool and a CLI command from the same function.</span><span class="lang-zh">写一个模块，再从同一个函数导出成 MCP 工具和命令行命令。</span></p>
-        <p><code>src/alb/capabilities/</code></p>
+        <p><code>src/devicehands/capabilities/</code></p>
       </article>
       <article class="card">
         <div class="card__icon card__icon--job" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></svg></div>
         <h3><span class="lang-en">A bench operation</span><span class="lang-zh">台架上的新操作</span></h3>
         <p><span class="lang-en">Anything that must run on the bench PC is one row in the agent's operation table, and the hub can push the new agent remotely.</span><span class="lang-zh">必须在台架电脑上跑的操作，在 agent 操作表里加一行；新版 agent 可以由 hub 远程推上去。</span></p>
-        <p><code>clients/windows-agent/</code></p>
+        <p><code>bench-py/</code></p>
       </article>
       <article class="card">
         <div class="card__icon card__icon--kernel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
         <h3><span class="lang-en">A download mode</span><span class="lang-zh">新的下载模式</span></h3>
-        <p><span class="lang-en">Start with no code: register the tool in <code>agent.conf</code>. When it deserves stricter checks, give it dedicated operations, the way Qualcomm EDL has them.</span><span class="lang-zh">先不用写代码：在 <code>agent.conf</code> 里登记工具就能用。想要更严的检查，再照高通 9008 的做法给它写专用操作。</span></p>
-        <p><code>src/alb/remote/</code></p>
+        <p><span class="lang-en">Start with no code: register the tool in <code>bench.conf</code>. When it deserves stricter checks, give it dedicated operations, the way Qualcomm EDL has them.</span><span class="lang-zh">先不用写代码：在 <code>bench.conf</code> 里登记工具就能用。想要更严的检查，再照高通 9008 的做法给它写专用操作。</span></p>
+        <p><code>src/devicehands/remote/</code></p>
       </article>
     </div>
 
@@ -1410,7 +1410,7 @@ run-agent.bat</pre>
       <span class="shape shape--cookie" aria-hidden="true"></span>
       <span class="shape shape--clover" aria-hidden="true"></span>
       <h2><span class="lang-en">Building SoCs, boards or servers? Make them AI-debuggable.</span><span class="lang-zh">做芯片、板卡或服务器？让 AI 能调你的硬件。</span></h2>
-      <p><span class="lang-en">Add your console, flash tool or board quirks to alb once, and every MCP-capable agent — Claude Code, Codex, Cursor, in-house ones — can flash, watch and debug your hardware. Issues, design discussions and pull requests are all welcome.</span><span class="lang-zh">把你的串口控制台、烧录工具或板子的特殊之处接进 alb 一次，所有支持 MCP 的 Agent —— Claude Code、Codex、Cursor、企业自研的 —— 都能烧录、观察、调试你的硬件。欢迎提 issue、讨论设计、发 PR。</span></p>
+      <p><span class="lang-en">Add your console, flash tool or board quirks to DeviceHands once, and every MCP-capable agent — Claude Code, Codex, Cursor, in-house ones — can flash, watch and debug your hardware. Issues, design discussions and pull requests are all welcome.</span><span class="lang-zh">把你的串口控制台、烧录工具或板子的特殊之处接进 DeviceHands 一次，所有支持 MCP 的 Agent —— Claude Code、Codex、Cursor、企业自研的 —— 都能烧录、观察、调试你的硬件。欢迎提 issue、讨论设计、发 PR。</span></p>
       <div class="vendor__cta">
         <a class="btn btn--light" href="https://github.com/TbusOS/android-llm-bridge">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>

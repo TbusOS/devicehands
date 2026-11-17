@@ -6,7 +6,7 @@
 <title>On-device agent — android-llm-bridge</title>
 <meta name="alb-title-en" content="On-device agent — android-llm-bridge">
 <meta name="alb-title-zh" content="设备端 Agent —— android-llm-bridge">
-<meta name="description" content="Design note, no code yet: pairing the alb host with a small agent on the Android device. Host brain + device reflex, linked by a WebSocket channel; Gemini Nano / AICore / LiteRT / Gemma 4 on the device.">
+<meta name="description" content="Design note, no code yet: pairing the DeviceHands host with a small agent on the Android device. Host brain + device reflex, linked by a WebSocket channel; Gemini Nano / AICore / LiteRT / Gemma 4 on the device.">
 <link rel="canonical" href="https://doc.tbusos.com/android-llm-bridge/on-device-agent.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="android-llm-bridge">
@@ -221,9 +221,9 @@
       </ol>
     </nav>
     <span class="eyebrow"><span class="lang-en">Vision · M4+</span><span class="lang-zh">愿景 · M4+</span></span>
-    <h1><span class="lang-en">Pairing alb with an on-device agent.</span><span class="lang-zh">alb 与设备端 Agent 的协作方案。</span></h1>
+    <h1><span class="lang-en">Pairing DeviceHands with an on-device agent.</span><span class="lang-zh">DeviceHands 与设备端 Agent 的协作方案。</span></h1>
     <p class="hero-meta"><span class="lang-en">Design note · 2026-04-21 · open for comments</span><span class="lang-zh">设计笔记 · 2026-04-21 · 欢迎讨论</span></p>
-    <p class="lead"><span class="lang-en">This page is a design note, not a shipped feature. It describes how we want alb to evolve past the host-side agent loop — by putting a small agent on the device itself, and keeping both sides talking.</span><span class="lang-zh">这是一份设计笔记，不是已上线的功能。它描述了我们希望 alb 如何从「只在宿主侧跑 agent loop」演进到「宿主 + 设备两端 agent 协作」的路径。</span></p>
+    <p class="lead"><span class="lang-en">This page is a design note, not a shipped feature. It describes how we want DeviceHands to evolve past the host-side agent loop — by putting a small agent on the device itself, and keeping both sides talking.</span><span class="lang-zh">这是一份设计笔记，不是已上线的功能。它描述了我们希望 DeviceHands 如何从「只在宿主侧跑 agent loop」演进到「宿主 + 设备两端 agent 协作」的路径。</span></p>
 
     <div class="status" role="note" aria-label="Status">
       <div class="status__pills">
@@ -238,7 +238,7 @@
         </li>
         <li>
           <span class="status__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3"/></svg></span>
-          <span><b><span class="lang-en">Device port channel</span><span class="lang-zh">设备端口通道</span></b><span class="muted"><code>alb port</code></span></span>
+          <span><b><span class="lang-en">Device port channel</span><span class="lang-zh">设备端口通道</span></b><span class="muted"><code>dhands port</code></span></span>
         </li>
         <li>
           <span class="status__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zM3 13l9 5 9-5"/></svg></span>
@@ -255,7 +255,7 @@
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">The problem</span><span class="lang-zh">问题</span></span>
       <h2><span class="lang-en">Why host-only is not enough.</span><span class="lang-zh">为什么只靠宿主不够。</span></h2>
-      <p class="lead"><span class="lang-en">Today alb runs on Linux hosts — one machine, or a build server plus bench PCs that dial in to it. An LLM reasons on the host, pushes tool calls through adb / ssh / UART, and observes the device from the outside. This works, and the agent loop already streams, but it hits four real walls.</span><span class="lang-zh">现在 alb 跑在 Linux 宿主上 —— 可以是一台机器，也可以是编译机加上主动连回来的台架电脑。LLM 在宿主推理，通过 adb / ssh / UART 发工具调用，从外部观察设备。这套能用，对话循环也已经是流式的，但它撞了四堵墙。</span></p>
+      <p class="lead"><span class="lang-en">Today DeviceHands runs on Linux hosts — one machine, or a build server plus bench PCs that dial in to it. An LLM reasons on the host, pushes tool calls through adb / ssh / UART, and observes the device from the outside. This works, and the agent loop already streams, but it hits four real walls.</span><span class="lang-zh">现在 DeviceHands 跑在 Linux 宿主上 —— 可以是一台机器，也可以是编译机加上主动连回来的台架电脑。LLM 在宿主推理，通过 adb / ssh / UART 发工具调用，从外部观察设备。这套能用，对话循环也已经是流式的，但它撞了四堵墙。</span></p>
     </div>
 
     <div class="grid grid--2 walls">
@@ -300,8 +300,8 @@
         <rect class="zone--host" x="20" y="20" width="490" height="332" rx="28"/>
         <text class="t-eb lang-en" x="44" y="54">HOST · BRAIN</text>
         <text class="t-eb lang-zh" x="44" y="54">宿主 · 大脑</text>
-        <text class="t-zone lang-en" x="44" y="82">alb host</text>
-        <text class="t-zone lang-zh" x="44" y="82">alb 宿主端</text>
+        <text class="t-zone lang-en" x="44" y="82">dhands host</text>
+        <text class="t-zone lang-zh" x="44" y="82">dhands 宿主端</text>
 
         <rect class="box" x="44" y="104" width="213" height="104" rx="16"/>
         <circle class="dot--p" cx="68" cy="140" r="6"/>
@@ -395,8 +395,8 @@
         <rect class="zone--host" x="36" y="12" width="316" height="340" rx="24"/>
         <text class="t-eb lang-en" x="52" y="40">HOST · BRAIN</text>
         <text class="t-eb lang-zh" x="52" y="40">宿主 · 大脑</text>
-        <text class="t-zone lang-en" x="52" y="64">alb host</text>
-        <text class="t-zone lang-zh" x="52" y="64">alb 宿主端</text>
+        <text class="t-zone lang-en" x="52" y="64">dhands host</text>
+        <text class="t-zone lang-zh" x="52" y="64">dhands 宿主端</text>
 
         <rect class="box" x="52" y="80" width="284" height="56" rx="14"/>
         <circle class="dot--p" cx="70" cy="101" r="5"/>
@@ -563,7 +563,7 @@
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">Protocol</span><span class="lang-zh">协议</span></span>
       <h2><span class="lang-en">The channel.</span><span class="lang-zh">通道。</span></h2>
-      <p class="lead"><span class="lang-en">One WebSocket, six message types. alb host already speaks WebSocket (<code>/chat/ws</code>), so the design adds a <code>/device/channel</code> endpoint (proposed, not built) to the same FastAPI app and lets devices connect as clients. Authentication would reuse the shared token the bench agent already uses (<code>ALB_AGENT_TOKEN</code>).</span><span class="lang-zh">一条 WebSocket，六种消息类型。alb 宿主本来就已经有 WebSocket（<code>/chat/ws</code>），设计上给同一个 FastAPI app 加一个 <code>/device/channel</code> 端点（提议，尚未实现），让设备作为 client 连上来。认证沿用台架 agent 现在用的共享令牌（<code>ALB_AGENT_TOKEN</code>）。</span></p>
+      <p class="lead"><span class="lang-en">One WebSocket, six message types. DeviceHands host already speaks WebSocket (<code>/chat/ws</code>), so the design adds a <code>/device/channel</code> endpoint (proposed, not built) to the same FastAPI app and lets devices connect as clients. Authentication would reuse the shared token the bench agent already uses (<code>DHANDS_AGENT_TOKEN</code>).</span><span class="lang-zh">一条 WebSocket，六种消息类型。DeviceHands 宿主本来就已经有 WebSocket（<code>/chat/ws</code>），设计上给同一个 FastAPI app 加一个 <code>/device/channel</code> 端点（提议，尚未实现），让设备作为 client 连上来。认证沿用台架 agent 现在用的共享令牌（<code>DHANDS_AGENT_TOKEN</code>）。</span></p>
     </div>
 
     <h3 class="subhead"><span class="lang-en">Message types</span><span class="lang-zh">消息类型</span></h3>
@@ -591,7 +591,7 @@
       <article class="card msg">
         <span class="dir dir--up"><span class="lang-en">device → host</span><span class="lang-zh">设备 → 宿主</span></span>
         <h3>RPC_REPLY</h3>
-        <p><span class="lang-en">Result of an RPC_CALL, with <code>{ok, data, error, artifacts}</code> shape — same as the rest of alb.</span><span class="lang-zh">RPC_CALL 的结果，格式 <code>{ok, data, error, artifacts}</code>，和 alb 其他部分一致。</span></p>
+        <p><span class="lang-en">Result of an RPC_CALL, with <code>{ok, data, error, artifacts}</code> shape — same as the rest of DeviceHands.</span><span class="lang-zh">RPC_CALL 的结果，格式 <code>{ok, data, error, artifacts}</code>，和 DeviceHands 其他部分一致。</span></p>
       </article>
       <article class="card msg">
         <span class="dir dir--up"><span class="lang-en">device → host</span><span class="lang-zh">设备 → 宿主</span></span>
@@ -652,7 +652,7 @@
     </div>
     <div class="prose">
       <p><span class="lang-en">Google's public direction already points here. <strong>AICore</strong> ships a system-level LLM runtime on Pixel 8+ and is expanding; <strong>Gemini Nano</strong> is the first model delivered through it. <strong>LiteRT</strong> (formerly TFLite) gives anyone a path to ship their own quantized model on-device. And Google's own “Gemma 4 for Android” push calls out the <em>on-device agent</em> as a flagship use case.</span><span class="lang-zh">Google 的公开方向已经指向这里。<strong>AICore</strong> 在 Pixel 8+ 上提供系统级 LLM 运行时，并在扩展；<strong>Gemini Nano</strong> 是第一个通过它交付的模型。<strong>LiteRT</strong>（原 TFLite）给任何人一条路径，把自己的量化模型带到设备端。Google 自己的「Gemma 4 for Android」也把<em>设备端 agent</em> 列为旗舰用例。</span></p>
-      <p><span class="lang-en">alb does not compete with any of that — it composes. alb-mobile will use whatever the device provides: AICore if available, LiteRT if not, Gemma 4 quantized as a fallback. The <em>interesting work</em> is not the model — it's the <strong>host ↔ device protocol</strong> and the division of labor. That's what we own.</span><span class="lang-zh">alb 不和这些竞争，而是把它们组合起来用。alb-mobile 有什么用什么：有 AICore 就用 AICore，没有就用 LiteRT，再退一步用量化的 Gemma 4。真正有价值的工作不是模型本身，而是<strong>宿主 ↔ 设备的协议</strong>和分工。这是我们要做的部分。</span></p>
+      <p><span class="lang-en">DeviceHands does not compete with any of that — it composes. alb-mobile will use whatever the device provides: AICore if available, LiteRT if not, Gemma 4 quantized as a fallback. The <em>interesting work</em> is not the model — it's the <strong>host ↔ device protocol</strong> and the division of labor. That's what we own.</span><span class="lang-zh">DeviceHands 不和这些竞争，而是把它们组合起来用。alb-mobile 有什么用什么：有 AICore 就用 AICore，没有就用 LiteRT，再退一步用量化的 Gemma 4。真正有价值的工作不是模型本身，而是<strong>宿主 ↔ 设备的协议</strong>和分工。这是我们要做的部分。</span></p>
     </div>
   </div>
 </section>
@@ -684,7 +684,7 @@
       </details>
       <details>
         <summary><span class="lang-en">What about iOS?</span><span class="lang-zh">iOS 呢？</span></summary>
-        <p><span class="lang-en">Not in scope. iOS's debugging model is fundamentally different, and Apple does not expose anything comparable to AICore or adb-equivalent at this layer. A reduced host-side alb for iOS is conceivable — not on this roadmap.</span><span class="lang-zh">不在范围内。iOS 的调试模型根本不一样，Apple 也没有 AICore / adb 的等价物。给 iOS 做一个精简版的宿主端 alb 可以想象，但不在这个路线图里。</span></p>
+        <p><span class="lang-en">Not in scope. iOS's debugging model is fundamentally different, and Apple does not expose anything comparable to AICore or adb-equivalent at this layer. A reduced host-side DeviceHands for iOS is conceivable — not on this roadmap.</span><span class="lang-zh">不在范围内。iOS 的调试模型根本不一样，Apple 也没有 AICore / adb 的等价物。给 iOS 做一个精简版的宿主端 DeviceHands 可以想象，但不在这个路线图里。</span></p>
       </details>
     </div>
   </div>

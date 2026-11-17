@@ -56,7 +56,7 @@ async def collect_logcat(
 
     LLM notes:
       - Returns summary (count of lines/errors/warnings), not full log
-      - Full log is in result.artifacts[0], use alb_log_search or alb_log_tail
+      - Full log is in result.artifacts[0], use dhands_log_search or dhands_log_tail
       - For duration > 300s, split into several calls (no background watch tool yet)
 
     Args:
@@ -82,7 +82,7 @@ async def collect_logcat(
 | **动词开头，语义完整** | `collect_logcat` ✅ / `logcat` ❌ |
 | **capability + action** | `app_install` / `filesync_push` / `power_reboot` |
 | **async 优先** | 所有 capability 函数 `async def` |
-| **tool 名加 `alb_` 前缀** | MCP tool: `alb_collect_logcat` 或简化 `alb_logcat` |
+| **tool 名加 `dhands_` 前缀** | MCP tool: `dhands_collect_logcat` 或简化 `dhands_logcat` |
 
 ### 参数名
 
@@ -173,7 +173,7 @@ def logcat(clear_before: bool = False): ...
 ### 永远返回 Result
 
 ```python
-from alb.infra.result import Result, ok, fail
+from devicehands.infra.result import Result, ok, fail
 
 async def collect_logcat(...) -> Result[LogcatSummary]:
     try:
@@ -243,13 +243,13 @@ async def push(local, remote) -> Result[None]:
 | ❌ | ✅ |
 |----|----|
 | "Network error" | "Check Xshell tunnel status; run: ss -tlnp \| grep 5037" |
-| "Failed" | "Device offline; run: alb_devices to refresh" |
+| "Failed" | "Device offline; run: dhands_devices to refresh" |
 | "Permission denied" | "Scope to specific path, e.g. /sdcard/Download/" |
 
 ### 使用错误码表
 
-所有 `code` 都必须在 `src/alb/infra/errors.py` 的 `ERROR_CODES` 里登记，[`errors.md`](./errors.md) 由它生成。加新 code 时：
-1. `src/alb/infra/errors.py` 添加到 `ERROR_CODES`
+所有 `code` 都必须在 `src/devicehands/infra/errors.py` 的 `ERROR_CODES` 里登记，[`errors.md`](./errors.md) 由它生成。加新 code 时：
+1. `src/devicehands/infra/errors.py` 添加到 `ERROR_CODES`
 2. 运行 `uv run python scripts/gen_errors_doc.py` 重新生成 `docs/errors.md`（`tests/test_docs_errors.py` 会检查它是不是最新的）
 3. 给出 suggestion 范例
 
@@ -291,7 +291,7 @@ async def push(local: Path, remote: str) -> Result[None]:
 使用 `workspace_path()` 辅助函数：
 
 ```python
-from alb.infra.workspace import workspace_path, iso_timestamp
+from devicehands.infra.workspace import workspace_path, iso_timestamp
 
 logfile = workspace_path(
     "logs",                          # 分类子目录
@@ -313,10 +313,10 @@ logfile = workspace_path(
 ### CLI
 
 ```python
-# src/alb/cli/logging_cli.py
+# src/devicehands/cli/logging_cli.py
 import typer
-from alb.capabilities.logging import collect_logcat
-from alb.cli.common import run_async, print_result, json_mode
+from devicehands.capabilities.logging import collect_logcat
+from devicehands.cli.common import run_async, print_result, json_mode
 
 app = typer.Typer(help="Logging commands")
 
@@ -337,13 +337,13 @@ def cli_logcat(
 ### MCP
 
 ```python
-# src/alb/mcp/tools/logging.py
+# src/devicehands/mcp/tools/logging.py
 from mcp.server.fastmcp import FastMCP
-from alb.capabilities.logging import collect_logcat
+from devicehands.capabilities.logging import collect_logcat
 
 def register(mcp: FastMCP):
     @mcp.tool()
-    async def alb_logcat(
+    async def dhands_logcat(
         duration: int = 60,
         filter: str | None = None,
     ) -> dict:
@@ -363,9 +363,9 @@ def register(mcp: FastMCP):
 ### API
 
 ```python
-# src/alb/api/routers/logging.py
+# src/devicehands/api/routers/logging.py
 from fastapi import APIRouter
-from alb.capabilities.logging import collect_logcat
+from devicehands.capabilities.logging import collect_logcat
 
 router = APIRouter(prefix="/logging")
 
@@ -426,9 +426,9 @@ async def test_collect_logcat_timeout(mock_transport):
 
 看这几个已实现的 capability 做参考：
 
-- `src/alb/capabilities/shell.py` —— 最基础
-- `src/alb/capabilities/logging.py` —— 流式采集 + 产物管理
-- `src/alb/capabilities/filesync.py` —— 传输 + 权限切点
-- `src/alb/capabilities/diagnose.py` —— 多步骤组合操作
+- `src/devicehands/capabilities/shell.py` —— 最基础
+- `src/devicehands/capabilities/logging.py` —— 流式采集 + 产物管理
+- `src/devicehands/capabilities/filesync.py` —— 传输 + 权限切点
+- `src/devicehands/capabilities/diagnose.py` —— 多步骤组合操作
 
 （实现在 M1 陆续补齐。）

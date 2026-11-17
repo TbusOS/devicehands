@@ -6,12 +6,12 @@
 <title>Big and small models working together — android-llm-bridge</title>
 <meta name="alb-title-en" content="Big and small models working together — android-llm-bridge">
 <meta name="alb-title-zh" content="大模型拿主意，小模型盯日志 —— android-llm-bridge">
-<meta name="description" content="How alb splits the work between models: the main brain plans and patches next to the code, a small local model watches the log stream, and findings pass between them instead of raw logs. What is shipped today and what is planned.">
+<meta name="description" content="How DeviceHands splits the work between models: the main brain plans and patches next to the code, a small local model watches the log stream, and findings pass between them instead of raw logs. What is shipped today and what is planned.">
 <link rel="canonical" href="https://doc.tbusos.com/android-llm-bridge/models.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="android-llm-bridge">
 <meta property="og:title" content="Big and small models working together — android-llm-bridge">
-<meta property="og:description" content="A big model to think, small models to watch: how alb splits debugging work between models, what ships today and what is planned.">
+<meta property="og:description" content="A big model to think, small models to watch: how DeviceHands splits debugging work between models, what ships today and what is planned.">
 <meta property="og:url" content="https://doc.tbusos.com/android-llm-bridge/models.html">
 <meta property="og:image" content="https://doc.tbusos.com/android-llm-bridge/assets/site/og.png">
 <meta property="og:image:width" content="1200">
@@ -78,12 +78,12 @@
       <span class="lang-zh">大模型<em>拿主意</em>，小模型<em>盯日志</em>。</span>
     </h1>
     <p class="lead">
-      <span class="lang-en">One boot prints far more than a frontier model should read. alb is built so each role can use the model that fits it: the main brain plans and patches, a small model sits next to the log stream, and what passes between them is a finding and a pointer to the raw lines, not the whole log.</span>
-      <span class="lang-zh">板子启动一次打印的东西，远比一个大模型值得读的多。alb 的设计是让每个角色用合适的模型：主脑负责想和改，小模型守在日志旁边，两边之间传的是结论和原文位置，不是整份日志。</span>
+      <span class="lang-en">One boot prints far more than a frontier model should read. DeviceHands is built so each role can use the model that fits it: the main brain plans and patches, a small model sits next to the log stream, and what passes between them is a finding and a pointer to the raw lines, not the whole log.</span>
+      <span class="lang-zh">板子启动一次打印的东西，远比一个大模型值得读的多。DeviceHands 的设计是让每个角色用合适的模型：主脑负责想和改，小模型守在日志旁边，两边之间传的是结论和原文位置，不是整份日志。</span>
     </p>
     <ul class="states">
       <li><span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span><span><span class="lang-en">The main brain (Claude Code, Codex, Cursor or your own model) drives the board over MCP or the CLI, and every log lands in a workspace on disk.</span><span class="lang-zh">主脑（Claude Code、Codex、Cursor 或你自己的模型）经 MCP 或命令行调板子，日志全部落在磁盘上的工作区里。</span></span></li>
-      <li><span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span><span><span class="lang-en">The hub's own assistant and <code>alb chat</code> run on a local model (Ollama, any OpenAI-compatible server) or on Anthropic, with the same board tools.</span><span class="lang-zh">hub 自带的助手和 <code>alb chat</code> 可以跑在本地模型上（Ollama、任何 OpenAI 兼容的服务），也可以接 Anthropic，用的是同一套板子工具。</span></span></li>
+      <li><span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span><span><span class="lang-en">The hub's own assistant and <code>dhands chat</code> run on a local model (Ollama, any OpenAI-compatible server) or on Anthropic, with the same board tools.</span><span class="lang-zh">hub 自带的助手和 <code>dhands chat</code> 可以跑在本地模型上（Ollama、任何 OpenAI 兼容的服务），也可以接 Anthropic，用的是同一套板子工具。</span></span></li>
       <li><span class="pill pill--plan"><span class="lang-en">planned</span><span class="lang-zh">规划中</span></span><span><span class="lang-en">A small model that watches the stream by itself and hands findings to the main brain.</span><span class="lang-zh">小模型自己盯着日志流，把结论交给主脑。</span></span></li>
       <li><span class="pill pill--design"><span class="lang-en">design only</span><span class="lang-zh">只有设计</span></span><span><span class="lang-en">A model that runs on the board itself.</span><span class="lang-zh">直接跑在板子上的模型。</span></span></li>
     </ul>
@@ -95,7 +95,7 @@
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">The hand-off</span><span class="lang-zh">怎么交接</span></span>
       <h2><span class="lang-en">The small model reads everything. The big model reads three lines.</span><span class="lang-zh">小模型全量读，大模型只读那几行。</span></h2>
-      <p class="lead"><span class="lang-en">The left column exists today: alb records UART, logcat and dmesg in full. The middle step is the plan: a small model next to the stream that flags what matters, so the main brain pays for findings instead of raw logs and can still open the original lines to check.</span><span class="lang-zh">左边那一列现在就有：alb 把串口、logcat、dmesg 全量录下来。中间那一步是规划：一个守在日志旁边的小模型，把要紧的标出来。主脑花 token 读的是结论，不是原始日志；想核对时，原文随时能打开。</span></p>
+      <p class="lead"><span class="lang-en">The left column exists today: DeviceHands records UART, logcat and dmesg in full. The middle step is the plan: a small model next to the stream that flags what matters, so the main brain pays for findings instead of raw logs and can still open the original lines to check.</span><span class="lang-zh">左边那一列现在就有：DeviceHands 把串口、logcat、dmesg 全量录下来。中间那一步是规划：一个守在日志旁边的小模型，把要紧的标出来。主脑花 token 读的是结论，不是原始日志；想核对时，原文随时能打开。</span></p>
     </div>
 
     <div class="fig" data-play>
@@ -216,8 +216,8 @@
         <div class="place" aria-hidden="true"><span class="here"><span class="lang-en">build server</span><span class="lang-zh">编译机</span></span><i></i><span><span class="lang-en">bench PC</span><span class="lang-zh">台架电脑</span></span><i></i><span><span class="lang-en">board</span><span class="lang-zh">板子</span></span></div>
         <span class="pill pill--partial"><span class="lang-en">partly shipped</span><span class="lang-zh">部分实现</span></span>
         <h3><span class="lang-en">A local model next to the hub</span><span class="lang-zh">hub 旁边的本地模型</span></h3>
-        <p><span class="lang-en">Today: the hub's assistant and <code>alb chat</code> run on Ollama or any OpenAI-compatible local server and call 35 board tools. An MCP client can also pass one question to the local model with <code>alb_playground_chat</code>. Planned: it reads new logs in the workspace by itself.</span><span class="lang-zh">现在：hub 的助手和 <code>alb chat</code> 可以跑在 Ollama 或任何 OpenAI 兼容的本地服务上，能调 35 个板子工具。MCP 客户端还可以用 <code>alb_playground_chat</code> 把一个问题交给本地模型。规划：让它自己读工作区里新落下的日志。</span></p>
-        <p class="src"><code>src/alb/agent/backends/</code> · <code>src/alb/mcp/executor.py</code> · <code>src/alb/mcp/tools/playground.py</code></p>
+        <p><span class="lang-en">Today: the hub's assistant and <code>dhands chat</code> run on Ollama or any OpenAI-compatible local server and call 35 board tools. An MCP client can also pass one question to the local model with <code>dhands_playground_chat</code>. Planned: it reads new logs in the workspace by itself.</span><span class="lang-zh">现在：hub 的助手和 <code>dhands chat</code> 可以跑在 Ollama 或任何 OpenAI 兼容的本地服务上，能调 35 个板子工具。MCP 客户端还可以用 <code>dhands_playground_chat</code> 把一个问题交给本地模型。规划：让它自己读工作区里新落下的日志。</span></p>
+        <p class="src"><code>src/devicehands/agent/backends/</code> · <code>src/devicehands/mcp/executor.py</code> · <code>src/devicehands/mcp/tools/playground.py</code></p>
       </article>
       <article class="card card--uart">
         <div class="place" aria-hidden="true"><span><span class="lang-en">build server</span><span class="lang-zh">编译机</span></span><i></i><span class="here"><span class="lang-en">bench PC</span><span class="lang-zh">台架电脑</span></span><i></i><span><span class="lang-en">board</span><span class="lang-zh">板子</span></span></div>
@@ -248,19 +248,19 @@
       <div class="cpanel">
         <div class="cpanel__bar"><span><span class="lang-en">main brain · your coding agent</span><span class="lang-zh">主脑 · 你的编程助手</span></span></div>
 <pre class="code"><span class="c"># in your android-llm-bridge checkout</span>
-<span class="p">$</span> claude mcp add alb -- uv run --project "$PWD" alb-mcp
+<span class="p">$</span> claude mcp add devicehands -- uv run --project "$PWD" dhands-mcp
 <span class="c"># or</span>
-<span class="p">$</span> codex mcp add alb -- uv run --project "$PWD" alb-mcp</pre>
+<span class="p">$</span> codex mcp add devicehands -- uv run --project "$PWD" dhands-mcp</pre>
       </div>
       <div class="cpanel">
         <div class="cpanel__bar"><span><span class="lang-en">local model · the hub's assistant</span><span class="lang-zh">本地模型 · hub 自带的助手</span></span></div>
-<pre class="code"><span class="p">$</span> export ALB_OLLAMA_URL=http://&lt;llm-host&gt;:11434
-<span class="p">$</span> export ALB_OLLAMA_MODEL=&lt;model&gt;
-<span class="p">$</span> uv run alb chat      <span class="c"># in a terminal, with the board tools</span>
-<span class="p">$</span> uv run alb-api       <span class="c"># web UI and its assistant at /app</span></pre>
+<pre class="code"><span class="p">$</span> export DHANDS_OLLAMA_URL=http://&lt;llm-host&gt;:11434
+<span class="p">$</span> export DHANDS_OLLAMA_MODEL=&lt;model&gt;
+<span class="p">$</span> uv run dhands chat   <span class="c"># in a terminal, with the board tools</span>
+<span class="p">$</span> uv run dhands-hub    <span class="c"># web UI and its assistant at /app</span></pre>
       </div>
     </div>
-    <p class="src" style="margin-top:14px"><span class="lang-en">Backends: Ollama, OpenAI-compatible, Anthropic (<code>src/alb/agent/backends/</code>). Settings: <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/configuration.md">configuration.md</a>, <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/llm-integration.md">llm-integration.md</a>.</span><span class="lang-zh">后端：Ollama、OpenAI 兼容接口、Anthropic（<code>src/alb/agent/backends/</code>）。配置项见 <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/configuration.md">configuration.md</a> 和 <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/llm-integration.md">llm-integration.md</a>。</span></p>
+    <p class="src" style="margin-top:14px"><span class="lang-en">Backends: Ollama, OpenAI-compatible, Anthropic (<code>src/devicehands/agent/backends/</code>). Settings: <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/configuration.md">configuration.md</a>, <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/llm-integration.md">llm-integration.md</a>.</span><span class="lang-zh">后端：Ollama、OpenAI 兼容接口、Anthropic（<code>src/devicehands/agent/backends/</code>）。配置项见 <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/configuration.md">configuration.md</a> 和 <a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/llm-integration.md">llm-integration.md</a>。</span></p>
   </div>
 </section>
 

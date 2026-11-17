@@ -20,8 +20,8 @@ tags: [roadmap, milestones, planning]
 | 方面 | 现状 |
 |---|---|
 | 传输 | adb(USB / 网络)、ssh、串口、按命令自动选的混合路由，都能用 |
-| 能力 | `src/alb/capabilities/` 下 16 个模块：shell、日志(含串口)、文件同步、诊断、电源、应用、adbd(root / remount)、停在 bootloader(break-in)、启动阶段、时间轴、性能采集、UI(截图 / 控件树)、设备信息、配置分区、环境检查等 |
-| 命令行 | `alb` 28 个命令组，统一 `--json` 输出 |
+| 能力 | `src/devicehands/capabilities/` 下 16 个模块：shell、日志(含串口)、文件同步、诊断、电源、应用、adbd(root / remount)、停在 bootloader(break-in)、启动阶段、时间轴、性能采集、UI(截图 / 控件树)、设备信息、配置分区、环境检查等 |
+| 命令行 | `dhands` 28 个命令组，统一 `--json` 输出 |
 | MCP | 36 个工具 |
 | Web | FastAPI 接口 + Web 界面 v3(Material 3,按「板子」组织页面，中英文、深浅色，ADR-064) |
 | 远程台架 | 板子插在一台 Windows 上，Linux 侧经 hub 用 adb / 串口 / fastboot / 高通 9008 调它(见第二节) |
@@ -37,7 +37,7 @@ tags: [roadmap, milestones, planning]
 
 ```
  Linux(hub)                                Windows(台架)
- alb 命令行 / MCP / 网页 ──> hub ◄── 出站拨回 ── 台架 agent ── USB / 串口 ── 板子
+ dhands 命令行/MCP/网页  ──> hub ◄── 出站拨回 ── 台架 agent ── USB / 串口 ── 板子
                              │                     │
                              │  adb、串口字节原样转发(只改 Linux 就能加功能)
                              │  fastboot、9008、USB 枚举、Windows 日志
@@ -50,7 +50,7 @@ tags: [roadmap, milestones, planning]
 | 批次 | 内容 | 出处 |
 |---|---|---|
 | 第一批(要换一次 Windows agent) | 操作表;fastboot erase / set-active / boot 单独命令;USB 列表认出板子在哪种模式;Windows 侧日志(agent 自己的、USB 驱动的)只读取尾部 | ADR-059 |
-| 第二批(只改 Linux) | 上电停在 bootloader;root + remount;pstore 内核日志;设备端口通道(`alb port`);logcat / dmesg / 串口合并时间轴;网页整包烧录 | ADR-056、ADR-058、`alb timeline`、`alb port` |
+| 第二批(只改 Linux) | 上电停在 bootloader;root + remount;pstore 内核日志;设备端口通道(`dhands port`);logcat / dmesg / 串口合并时间轴;网页整包烧录 | ADR-056、ADR-058、`dhands timeline`、`dhands port` |
 | 第三批(下载模式) | 高通 9008(EDL)三个操作：送 programmer、按清单写、重启出 9008 | ADR-066 |
 
 围绕它补的：远程拉起台架 agent(ADR-061)、台架板子表与运行中切换串口(ADR-063)、
@@ -67,7 +67,7 @@ adb 端点由代码解析(ADR-057)、推大镜像偶发断开的修复(ADR-065)�
 | **M0** 设计 | 仓库骨架、技术方案文档、ADR | ✅ |
 | **M1** 核心可用 | 四种传输 + 六个能力 + 权限 + CLI + MCP | ✅ |
 | **M2** 扩展能力 | Web API、流式接口(logcat / 串口 / 对话) | ✅ |
-| | 模型后端(Ollama、OpenAI 兼容)、`alb chat`、`POST /chat`、会话落盘 | ✅ |
+| | 模型后端(Ollama、OpenAI 兼容)、`dhands chat`、`POST /chat`、会话落盘 | ✅ |
 | | 性能采集(CPU / 内存 / 温度等)、UI(截图 / 控件树) | ✅ |
 | | 人工批准 | 🚧 网页助手有「调工具前先问我」开关(默认关) |
 | | 子 Agent 并行、多设备并发、跑分、抓包 / 弱网、撤销 / 快照 | 📋 |
