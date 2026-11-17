@@ -166,7 +166,7 @@ describe("Console", () => {
   });
 
   it("serial keystrokes are held back until Typing is switched on; buttons still send", async () => {
-    localStorage.removeItem("alb.console.serialTyping");
+    localStorage.removeItem("dhands.console.serialTyping");
     mockFetch();
     renderPage();
     await waitFor(() => expect(uartWs()).toBeTruthy());
@@ -182,7 +182,7 @@ describe("Console", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "键盘输入" }));
     act(() => serialTerm.cb("ls\r"));
     expect(Array.from(uartWs().sent.at(-1) as Uint8Array)).toEqual([108, 115, 13]);
-    expect(localStorage.getItem("alb.console.serialTyping")).toBe("1");
+    expect(localStorage.getItem("dhands.console.serialTyping")).toBe("1");
   });
 
   it("Stop in bootloader asks first, then streams the result into the terminal", async () => {
@@ -223,7 +223,7 @@ describe("Console", () => {
     fireEvent.change(screen.getByLabelText("命令"), { target: { value: "uname -a" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     expect(screen.getByText("uname -a")).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem("alb.console.snippets") as string).map((s: { cmd: string }) => s.cmd)).toContain("uname -a");
+    expect(JSON.parse(localStorage.getItem("dhands.console.snippets") as string).map((s: { cmd: string }) => s.cmd)).toContain("uname -a");
   });
 
   it("does not crash when localStorage throws", async () => {

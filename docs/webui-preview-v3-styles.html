@@ -6,7 +6,7 @@
 <!-- Web UI v3 design baseline (draft): app shell + device overview.
      Sample data only. No external resources: fonts fall back to the
      local stack until the UI bundles its own. -->
-<title>alb Console v3</title>
+<title>DeviceHands Console v3</title>
 <style>
 /* Layout: sticky status bar (which board, which channels are alive) over a
    left rail grouped by job — device / flash / bench / assistant / system —
@@ -1018,9 +1018,9 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
 
 <header class="topbar">
   <div class="topbar__in">
-    <a class="brand" href="#overview" aria-label="alb home">
+    <a class="brand" href="#overview" aria-label="DeviceHands home">
       <span class="brand__mark"><svg class="i"><use href="#i-bridge"/></svg></span>
-      <span><span class="brand__name">alb</span> <span class="brand__sub">android-llm-bridge</span></span>
+      <span><span class="brand__name">dhands</span> <span class="brand__sub">android-llm-bridge</span></span>
     </a>
     <span class="divider-v"></span>
     <div style="position:relative">
@@ -1220,7 +1220,7 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
         <div class="panel__head">
           <h2 data-en="Last boot">上次开机</h2>
           <span class="hint" data-en="serial, dmesg and logcat on one clock">串口、dmesg、logcat 放在同一个时钟上</span>
-          <div class="src"><code>alb timeline</code><span class="src__new" data-en="new: GET /api/timeline/boots">新:GET /api/timeline/boots</span></div>
+          <div class="src"><code>dhands timeline</code><span class="src__new" data-en="new: GET /api/timeline/boots">新:GET /api/timeline/boots</span></div>
         </div>
         <div class="legend">
           <span><i class="c-uart"></i><span data-en="serial (bootloader)">串口(bootloader)</span></span>
@@ -1284,8 +1284,8 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
         <ul class="acts-list">
           <li><time>09:40</time><svg class="i"><use href="#i-bolt"/></svg><span class="what"><span data-en="Flashed boot_a ← boot.img (96 MiB)">烧写 boot_a ← boot.img(96 MiB)</span><small data-en="web · checked product board_x first · 3.1 s">网页 · 先核对了 product board_x · 3.1 秒</small></span><span class="pill pill--ok">ok</span></li>
           <li><time>09:36</time><svg class="i"><use href="#i-plug"/></svg><span class="what"><span data-en="Serial capture, 30 s, 412 lines">串口抓取 30 秒,412 行</span><small>uart-2026-10-28T09-36.log</small></span><span class="pill pill--ok">ok</span></li>
-          <li><time>09:31</time><svg class="i"><use href="#i-terminal"/></svg><span class="what"><span class="mono">setprop persist.vendor.sensors.debug 1</span><small data-en="CLI · alb shell">命令行 · alb shell</small></span><span class="pill pill--ok">exit 0</span></li>
-          <li><time>09:12</time><svg class="i"><use href="#i-spark"/></svg><span class="what"><span data-en="AI session asked for the last tombstone">AI 会话读取了最近一个 tombstone</span><small data-en="MCP · alb_tombstone_pull">MCP · alb_tombstone_pull</small></span><span class="pill pill--ok">ok</span></li>
+          <li><time>09:31</time><svg class="i"><use href="#i-terminal"/></svg><span class="what"><span class="mono">setprop persist.vendor.sensors.debug 1</span><small data-en="CLI · dhands shell">命令行 · dhands shell</small></span><span class="pill pill--ok">exit 0</span></li>
+          <li><time>09:12</time><svg class="i"><use href="#i-spark"/></svg><span class="what"><span data-en="AI session asked for the last tombstone">AI 会话读取了最近一个 tombstone</span><small data-en="MCP · dhands_tombstone_pull">MCP · dhands_tombstone_pull</small></span><span class="pill pill--ok">ok</span></li>
           <li><time>08:58</time><svg class="i"><use href="#i-camera"/></svg><span class="what"><span data-en="Screenshot 1080 × 2400">截屏 1080 × 2400</span><small>screenshot-0858.png</small></span><span class="pill pill--ok">ok</span></li>
         </ul>
       </article>
@@ -1324,7 +1324,7 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
   </div>
   <label class="assist__agent" for="agent-mode">
     <input type="checkbox" id="agent-mode" checked>
-    <span data-en="Agent mode: may use alb tools">Agent 模式:允许调用 alb 工具</span>
+    <span data-en="Agent mode: may use DeviceHands tools">Agent 模式:允许调用 DeviceHands 工具</span>
     <small data-en="Read-only tools run straight away; anything that changes the board asks you first.">只读的工具直接跑;会改动板子的先问你。</small>
   </label>
 
@@ -1338,7 +1338,7 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
       <small>console-ramoops-0 · 2 records · last 40 lines read</small>
     </div>
     <div class="tool">
-      <svg class="i"><use href="#i-check"/></svg><code>alb_log_search "sensors_poll|iio:device0"</code><span class="pill pill--idle" data-en="read-only · 1.1 s">只读 · 1.1 s</span>
+      <svg class="i"><use href="#i-check"/></svg><code>dhands_log_search "sensors_poll|iio:device0"</code><span class="pill pill--idle" data-en="read-only · 1.1 s">只读 · 1.1 s</span>
       <small>dmesg 9 · logcat 31 · timeline 09:30–09:32</small>
     </div>
     <div class="msg">
@@ -1356,7 +1356,7 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
 
   <div class="assist__body ondev" id="assist-board" hidden>
     <h3 data-en="Talk to a model running on the board">和板子上跑的模型对话</h3>
-    <p data-en="For trying on-device inference: quality, first-token latency, tokens per second. alb reaches the board's local server through the device port channel, so the bench agent does not change.">用来试端侧推理:效果、首字延迟、每秒 token 数。alb 经设备端口通道连到板上的推理服务,台架 agent 不用改。</p>
+    <p data-en="For trying on-device inference: quality, first-token latency, tokens per second. DeviceHands reaches the board's local server through the device port channel, so the bench agent does not change.">用来试端侧推理:效果、首字延迟、每秒 token 数。DeviceHands 经设备端口通道连到板上的推理服务,台架 agent 不用改。</p>
     <ul>
       <li><span>llama.cpp server</span><small>tcp:8080 · /v1/chat/completions</small><span class="pill pill--idle" data-en="not found">未发现</span></li>
       <li><span>Android AICore (Gemini Nano)</span><small data-en="needs a small bridge app on the board">需要板上装一个桥接应用</small><span class="pill pill--idle" data-en="not found">未发现</span></li>
@@ -1539,7 +1539,7 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
     });
   });
   document.getElementById("agent-mode").addEventListener("change", function (e) {
-    toast(e.target.checked ? t("Agent 模式开:模型可以调用 alb 工具。", "Agent mode on: the model may call alb tools.") : t("Agent 模式关:只聊天,不调用工具。", "Agent mode off: chat only, no tools."));
+    toast(e.target.checked ? t("Agent 模式开:模型可以调用 DeviceHands 工具。", "Agent mode on: the model may call DeviceHands tools.") : t("Agent 模式关:只聊天,不调用工具。", "Agent mode off: chat only, no tools."));
   });
   document.getElementById("assist-form").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -1552,7 +1552,7 @@ body.assist-open .assist-btn { background: var(--accent-soft); color: var(--on-a
   });
   document.getElementById("propose-run").addEventListener("click", function () { toast(t("设计稿:这里会先出确认条,再执行 setenforce 0。", "Draft: a confirm bar would appear before running setenforce 0.")); });
   document.getElementById("propose-skip").addEventListener("click", function () { toast(t("已跳过,对话里会记下这一条没执行。", "Skipped; the chat records that it was not run.")); });
-  document.getElementById("probe-btn").addEventListener("click", function () { toast(t("设计稿:会经 alb port 依次试 8080 等端口。", "Draft: would try port 8080 and others through alb port.")); });
+  document.getElementById("probe-btn").addEventListener("click", function () { toast(t("设计稿:会经 dhands port 依次试 8080 等端口。", "Draft: would try port 8080 and others through dhands port.")); });
   document.getElementById("ctx-add").addEventListener("click", function () { toast(t("设计稿:会把当前页面的摘要加进上下文。", "Draft: adds a summary of this page to the context.")); });
 
   /* ---------- style skins (design comparison) ---------- */

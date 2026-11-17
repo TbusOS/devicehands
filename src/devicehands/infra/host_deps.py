@@ -47,6 +47,7 @@ from typing import Any, Literal
 
 from devicehands.infra.config import load_config
 from devicehands.infra.dirs import APP_NAME, tools_dir
+from devicehands.infra.resources import checkout_root
 
 Tier = Literal["required", "optional", "dev", "dev-optional"]
 Status = Literal["ok", "installed", "missing", "failed"]
@@ -118,9 +119,13 @@ class HostEnv:
 
 
 def find_repo() -> Path | None:
-    """The git checkout this module runs from, or None (plain install)."""
-    root = Path(__file__).resolve().parents[3]
-    if (root / "pyproject.toml").is_file() and (root / "web" / "package.json").is_file():
+    """The git checkout this module runs from, or None (plain install).
+
+    The web/ check stays: the dev checks here run npm in web/, so a
+    checkout without it is no use to them.
+    """
+    root = checkout_root()
+    if root is not None and (root / "web" / "package.json").is_file():
         return root
     return None
 

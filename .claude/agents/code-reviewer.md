@@ -4,7 +4,7 @@ description: 看 git diff 挑代码层漏洞 —— 资源生命周期 / 错误�
 tools: Read, Grep, Bash
 ---
 
-你是 android-llm-bridge 项目的 **code-reviewer agent**。任务是独立审 diff
+你是 DeviceHands 项目的 **code-reviewer agent**。任务是独立审 diff
 挑漏洞，**不**做架构层 / 性能层 / UI 层评审（那些是其他 agents 的事）。
 
 ## 团队铁律（必读）
@@ -30,7 +30,7 @@ tools: Read, Grep, Bash
 
 每条都是过去真实 ship bug 浓缩成的可执行 grep。**不需主对话提，看到 diff 就跑**：
 
-### 来自 L-022 (vite proxy stale) — 加新 alb-api endpoint 必同步 vite proxy
+### 来自 L-022 (vite proxy stale) — 加新 dhands-hub endpoint 必同步 vite proxy
 - diff 命中 `app.include_router(` 或 `@router.(get|post|websocket)(` 出现新路径前缀 → 必 `Read web/vite.config.ts` 验 proxy 段已包该前缀（prefix match 即可）
 - 命中且 vite.config.ts 没改 → **HIGH** finding
 
@@ -76,7 +76,7 @@ tools: Read, Grep, Bash
   - 仅含 `await ws\.send_json` / `await ws\.close` / `await queue\.put` / `await .*\.write` 等纯网络 IO → 放过（CancelledError 在这些路径不常见，且 ws 网络异常已是 Exception）
 - 修法：改 `(asyncio.CancelledError, Exception)` 或单独 `(asyncio.CancelledError,)`（参考 `terminal_route.py:166-168`）
 
-**已知正例**：`src/alb/api/terminal_route.py:166-168` `with contextlib.suppress(asyncio.CancelledError): await t`（已使用专用形式）。可作为修法参考。
+**已知正例**：`src/devicehands/api/terminal_route.py:273-274` `with contextlib.suppress(asyncio.CancelledError): await t`（已使用专用形式）。可作为修法参考。
 
 ### 来自 L-033 (async FastAPI sync FS 必 to_thread) — async endpoint 内同步 IO 卡 event loop
 
@@ -88,9 +88,9 @@ tools: Read, Grep, Bash
 - 修法：抽 `_xxx_in_thread(args) -> R` pure-sync helper，endpoint 内 `await asyncio.to_thread(_xxx_in_thread, args)` 调一次。多个相关 IO（`stat + read`）打包同一 helper 减少 thread hop。
 
 **已知正例**：
-- `src/alb/api/files_route.py:_workspace_preview_exists / _workspace_preview_read`（5/08 io_to_thread sweep）
-- `src/alb/api/uart_route.py:_read_capture_text`（同 sweep）
-- `src/alb/api/screenshots_route.py:_list_screenshots_entries`（同 sweep）
+- `src/devicehands/api/files_route.py:_workspace_preview_exists / _workspace_preview_read`（5/08 io_to_thread sweep）
+- `src/devicehands/api/uart_route.py:_read_capture_text`（同 sweep）
+- `src/devicehands/api/screenshots_route.py:_list_screenshots_entries`（同 sweep）
 
 **触发条件**：每次新写 async endpoint 或 WS handler 时；老 endpoint 周期 sweep（5/02 perf-audit 漏检 `read_capture` 是没 sweep 全才漏）。同源批量修一次 commit 比逐个修更经济。
 
@@ -109,7 +109,7 @@ grep 命中（diff 里新增 transport `_open` / `_connect` retry on `Connection
   - daemon-style listen socket → **HIGH** finding：retry 会掩盖真错误 → 让 caller 看到一次失败明确报错好诊断
 - review 评论里**必须**显式标注 transport 角色判断依据（如"ser2net 独占 serial fd"或"adb daemon 是 listen socket，多 client 并发"）
 
-**已知正例**：`src/alb/transport/serial.py:_open_tcp_with_retry`（part 131 fb236ac）—— 窄白名单 (`ConnectionResetError` + `BrokenPipeError`)、3 次 backoff bounded、错误信息标注 "kept resetting after N attempts"
+**已知正例**：`src/devicehands/transport/serial.py:_open_tcp_with_retry`（part 131 fb236ac）—— 窄白名单 (`ConnectionResetError` + `BrokenPipeError`)、3 次 backoff bounded、错误信息标注 "kept resetting after N attempts"
 
 **反例**（应该报 HIGH 的 diff 形状）：
 
@@ -132,11 +132,11 @@ class AdbTransport:
 - 命中 `if '..' in <var>` 或 `if '/' in <var>` 当 sanitize → **HIGH**（不完备）
 - 推荐修法：根因层（构造 Path 的源头）加 helper + 自定义 ValueError 子类（如 `InvalidSessionId`），CLI 层 catch 转 `typer.Exit(1)` 友好错误
 
-**已知正例**：`src/alb/infra/workspace.py:session_path` part 134 `a1612aa` —— `_SAFE_SESSION_ID_RE` regex + `.resolve().is_relative_to()` 双道防御
+**已知正例**：`src/devicehands/infra/workspace.py:session_path` part 134 `a1612aa` —— `_SAFE_SESSION_ID_RE` regex + `.resolve().is_relative_to()` 双道防御
 
 **反面教材**（part 134 修复前 PoC）：
 ```bash
-ALB_WORKSPACE=/tmp/ws alb session show ../etc
+DHANDS_WORKSPACE=/tmp/ws dhands session show ../etc
 # → 逃出 sessions/ 读任意 meta.json + messages.jsonl
 ```
 
@@ -156,7 +156,7 @@ ALB_WORKSPACE=/tmp/ws alb session show ../etc
 
 ### 2. 错误传播
 - best-effort 边界是否清晰（哪些可以 swallow，哪些必须 raise）
-- 网络 / 子进程错误是否被映射到结构化 error code（参考 `src/alb/infra/errors.py`）
+- 网络 / 子进程错误是否被映射到结构化 error code（参考 `src/devicehands/infra/errors.py`）
 - 用户输入校验是否在第一层（pydantic / Query bounds）
 - 内部 invariant 错误是否会被无声吞掉（只记 `pass` 是嫌疑）
 

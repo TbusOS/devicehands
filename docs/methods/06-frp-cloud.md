@@ -100,7 +100,7 @@ alb setup frp --connect device-A
 
 ## 五、LLM 集成的特殊考量
 
-远程调试时 LLM 的 MCP server 应该**跑在 Linux 调试端**，不是跑在板子或中转机。LLM 通过 MCP 发命令 → alb 走 frp 隧道 → 板子执行。
+远程调试时 LLM 的 MCP server 应该**跑在 Linux 调试端**，不是跑在板子或中转机。LLM 通过 MCP 发命令 → dhands 走 frp 隧道 → 板子执行。
 
 ---
 
@@ -115,7 +115,7 @@ alb setup frp --connect device-A
 
 ## 七、关联 TODO
 
-- `src/alb/transport/frp.py` —— 待实现
+- `src/devicehands/transport/frp.py` —— 待实现
 - `scripts/setup-method-frp.sh` —— 待实现
 - `docs/security-cloud-relay.md` —— 云中转专门的安全指南（M3 写）
 - `registry.py` 里已登记 `status="planned"`

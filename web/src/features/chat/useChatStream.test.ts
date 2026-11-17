@@ -122,9 +122,9 @@ describe("useChatStream", () => {
     act(() => result.current.send("reboot it"));
     act(() => emit(0, { kind: "open" }));
     act(() =>
-      emit(0, { kind: "json", data: { type: "tool_confirm_request", id: "q1", name: "alb_reboot", arguments: { mode: "normal" } } }),
+      emit(0, { kind: "json", data: { type: "tool_confirm_request", id: "q1", name: "dhands_reboot", arguments: { mode: "normal" } } }),
     );
-    expect(result.current.confirmRequest).toEqual({ id: "q1", name: "alb_reboot", arguments: { mode: "normal" } });
+    expect(result.current.confirmRequest).toEqual({ id: "q1", name: "dhands_reboot", arguments: { mode: "normal" } });
     act(() => result.current.answerConfirm(false));
     expect(currentClients[0]?.sentMessages.at(-1)).toEqual({ type: "tool_confirm", id: "q1", approve: false });
     expect(result.current.confirmRequest).toBeNull();
@@ -134,7 +134,7 @@ describe("useChatStream", () => {
     const { result } = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true, confirmTools: true }));
     act(() => result.current.send("reboot it"));
     act(() => emit(0, { kind: "open" }));
-    act(() => emit(0, { kind: "json", data: { type: "tool_confirm_request", id: "q1", name: "alb_reboot", arguments: {} } }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_confirm_request", id: "q1", name: "dhands_reboot", arguments: {} } }));
     act(() => result.current.cancel());
     expect(result.current.confirmRequest).toBeNull();
   });
@@ -151,7 +151,7 @@ describe("useChatStream", () => {
         data: {
           type: "tool_call_start",
           id: "tc-1",
-          name: "alb_status",
+          name: "dhands_status",
           arguments: { foo: 1 },
         },
       }),
@@ -161,7 +161,7 @@ describe("useChatStream", () => {
     expect(ass?.toolCalls).toHaveLength(1);
     expect(ass?.toolCalls[0]).toMatchObject({
       id: "tc-1",
-      name: "alb_status",
+      name: "dhands_status",
       status: "running",
     });
 
@@ -171,7 +171,7 @@ describe("useChatStream", () => {
         data: {
           type: "tool_call_end",
           id: "tc-1",
-          name: "alb_status",
+          name: "dhands_status",
           result: { ok: true },
         },
       }),
@@ -186,15 +186,15 @@ describe("useChatStream", () => {
     const { result } = renderHook(() => useChatStream({ backend: "ollama", model: null, tools: true }));
     act(() => result.current.send("有崩溃吗"));
     act(() => emit(0, { kind: "open" }));
-    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "a", name: "alb_logcat", arguments: {} } }));
-    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "b", name: "alb_battery", arguments: {} } }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "a", name: "dhands_logcat", arguments: {} } }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "b", name: "dhands_battery", arguments: {} } }));
     act(() =>
       emit(0, {
         kind: "json",
-        data: { type: "tool_call_end", id: "a", name: "alb_logcat", result: { ok: true }, cut: { kept: 4000, total: 22512 } },
+        data: { type: "tool_call_end", id: "a", name: "dhands_logcat", result: { ok: true }, cut: { kept: 4000, total: 22512 } },
       }),
     );
-    act(() => emit(0, { kind: "json", data: { type: "tool_call_end", id: "b", name: "alb_battery", result: { ok: true } } }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_end", id: "b", name: "dhands_battery", result: { ok: true } } }));
     const ass = result.current.turns[1];
     expect(ass?.toolCalls[0]).toMatchObject({ status: "done", cut: { kept: 4000, total: 22512 } });
     expect(ass?.toolCalls[1]?.status).toBe("done");
@@ -210,13 +210,13 @@ describe("useChatStream", () => {
     act(() =>
       emit(0, {
         kind: "json",
-        data: { type: "tool_call_start", id: "a", name: "alb_logcat", arguments: {}, requested_name: "alb_logalb_logcat" },
+        data: { type: "tool_call_start", id: "a", name: "dhands_logcat", arguments: {}, requested_name: "dhands_logdhands_logcat" },
       }),
     );
-    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "b", name: "alb_dmesg", arguments: {} } }));
+    act(() => emit(0, { kind: "json", data: { type: "tool_call_start", id: "b", name: "dhands_dmesg", arguments: {} } }));
     let ass = result.current.turns[1];
     expect(ass?.content).toBe("");
-    expect(ass?.toolCalls[0]).toMatchObject({ lead: "我先看日志", requestedName: "alb_logalb_logcat" });
+    expect(ass?.toolCalls[0]).toMatchObject({ lead: "我先看日志", requestedName: "dhands_logdhands_logcat" });
     // only the first call of the turn carries the text
     expect(ass?.toolCalls[1]).not.toHaveProperty("lead");
     expect(ass?.toolCalls[1]).not.toHaveProperty("requestedName");

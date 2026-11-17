@@ -105,3 +105,4 @@ grep -E '^(FAILED|ERROR) ' after.txt | awk '{print $2}' | sort -u
 | 2026-11-16 | `e36c43f` | 3037 | 3036 | 1 | 0 | 0 | 首次记录 |
 | 2026-11-16 | `1caf3f6` | 3294 | 3288 | 1 | 5 | 0 | 新增 `tests/protocol/`:252 条通过,5 条预期失败,各对应 `protocol/v1/known-gaps.md` 里的一条 |
 | 2026-11-17 | `46c4652` | 3398 | 3392 | 1 | 5 | 0 | 上一行之后 P1 改名等提交增加到 3373(当时没单独记行);PR #1 修首轮 CI 新增 4 条,输入校验和 `process.run()` 新增 15 条 |
+| 2026-11-17 | `d4bdf18` | 3427 | 3421 | 1 | 5 | 0 | P1 收尾:资源查找、`.env` 位置、wheel 相关新增 29 条(`tests/infra/test_resources.py` 等) |

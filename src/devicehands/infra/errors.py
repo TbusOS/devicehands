@@ -688,8 +688,10 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "AGENT_UPDATE_REJECTED",
         "transport",
         "The agent refused the update bundle; it keeps running unchanged",
-        "Check the hub's bench-py folder (only flat file names, "
-        "dhands_bench.py present) and that the agent was started with a config file",
+        "Check the folder the hub sends the agent files from: DHANDS_AGENT_BUNDLE_DIR "
+        "if set, else the installed package's _resources/bench, or bench-py when the "
+        "hub runs from a source checkout (only flat file names, dhands_bench.py "
+        "present); and check that the agent was started with a config file",
     ),
     "AGENT_UPDATE_CHECK_FAILED": ErrorSpec(
         "AGENT_UPDATE_CHECK_FAILED",

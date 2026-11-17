@@ -193,8 +193,8 @@
       <span class="lang-zh">把评审团队入仓，<em>过程公开可追</em>。</span>
     </h1>
     <p class="lead">
-      <span class="lang-en">alb's <code>.claude/</code> tree carries 7 review agents, 6 slash commands, and a 5-file knowledge base. Every non-trivial commit goes through the team, every accepted suggestion writes a regression note, every reversed decision lands a fresh ADR. Below: the workflow, the numbers, and what the team caught that humans missed.</span>
-      <span class="lang-zh">alb 仓库的 <code>.claude/</code> 目录里入仓了 7 个评审 agent、6 条 slash 命令、5 份共享知识库。每条非 trivial 改动都过这套团队，采纳的建议会留下回归记录，反转的决策会立新 ADR。下面是工作流、实战数字，以及团队抓到的人没看出来的问题。</span>
+      <span class="lang-en">DeviceHands' <code>.claude/</code> tree carries 7 review agents, 6 slash commands, and a 5-file knowledge base. Every non-trivial commit goes through the team, every accepted suggestion writes a regression note, every reversed decision lands a fresh ADR. Below: the workflow, the numbers, and what the team caught that humans missed.</span>
+      <span class="lang-zh">DeviceHands 仓库的 <code>.claude/</code> 目录里入仓了 7 个评审 agent、6 条 slash 命令、5 份共享知识库。每条非 trivial 改动都过这套团队，采纳的建议会留下回归记录，反转的决策会立新 ADR。下面是工作流、实战数字，以及团队抓到的人没看出来的问题。</span>
     </p>
 
     <dl class="stats" aria-label="agents team metrics">
@@ -603,7 +603,7 @@
           </tr>
           <tr>
             <td>DEBT-014</td>
-            <td><span class="lang-en">alb-api SPA fallback</span><span class="lang-zh">alb-api SPA fallback</span></td>
+            <td><span class="lang-en">dhands-hub SPA fallback</span><span class="lang-zh">dhands-hub SPA fallback</span></td>
             <td class="c">10</td>
             <td class="rate"><span class="bar"><b style="width:90%"></b></span>90%</td>
             <td><span class="lang-en">Subclassed StaticFiles, kept asset 404s honest.</span><span class="lang-zh">子类化 StaticFiles，保留 asset 真 404 不被改写成白页。</span></td>
@@ -632,8 +632,8 @@
         <span class="pill"><span class="lang-en">Highlight · F.6</span><span class="lang-zh">高光 · F.6</span></span>
         <h3><span class="lang-en">F.6 end-to-end run found a 4-month-old wiring bug</span><span class="lang-zh">F.6 端到端跑出了 4 个月前的接线 bug</span></h3>
         <p>
-          <span class="lang-en">Unit tests, type-check, sensitive-word scan, offline-purity check — all green. Then the F.6 closing run booted alb-api, hit a real chat session, and watched the LiveSession spark stay flat at zero. Trace: <code>audit_route._project()</code> had been silently dropping the <code>data</code> field on every event since C.1 (commit 36537d5, 4 months prior). The reducer's defensive <code>data ?? {}</code> fallback masked it; only end-to-end data flow exposed it.</span>
-          <span class="lang-zh">单元测试、类型检查、敏感词、offline-purity 全绿。然后 F.6 收官阶段起 alb-api 跑真 chat session，发现 LiveSession spark 贴底为零。追根溯源：<code>audit_route._project()</code> 从 C.1（commit 36537d5，4 个月前）开始就一直在静默丢弃 <code>data</code> 字段。reducer 的防御性 <code>data ?? {}</code> 兜底把这条 bug 盖住了 —— 只有端到端跑真数据才能挖出来。</span>
+          <span class="lang-en">Unit tests, type-check, sensitive-word scan, offline-purity check — all green. Then the F.6 closing run booted dhands-hub, hit a real chat session, and watched the LiveSession spark stay flat at zero. Trace: <code>audit_route._project()</code> had been silently dropping the <code>data</code> field on every event since C.1 (commit 36537d5, 4 months prior). The reducer's defensive <code>data ?? {}</code> fallback masked it; only end-to-end data flow exposed it.</span>
+          <span class="lang-zh">单元测试、类型检查、敏感词、offline-purity 全绿。然后 F.6 收官阶段起 dhands-hub 跑真 chat session，发现 LiveSession spark 贴底为零。追根溯源：<code>audit_route._project()</code> 从 C.1（commit 36537d5，4 个月前）开始就一直在静默丢弃 <code>data</code> 字段。reducer 的防御性 <code>data ?? {}</code> 兜底把这条 bug 盖住了 —— 只有端到端跑真数据才能挖出来。</span>
         </p>
         <p>
           <span class="lang-en">Lesson L-017: deployment-layer wiring (SPA fallback, projection, CDN cache rules) is a path too. If you mount it, hit it with a real browser before you ship.</span>

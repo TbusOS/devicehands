@@ -907,7 +907,7 @@ def test_cut_info_says_how_much_the_model_sees() -> None:
     assert f"cut {cut['total'] - cut['kept']} of {cut['total']} characters" in text
     # the page finds the note in session history with this pattern
     # (cutInStored in web/src/features/v3/chat/toolText.ts)
-    m = re.search(r"…\[alb cut (\d+) of (\d+) characters here", text)
+    m = re.search(r"…\[DeviceHands cut (\d+) of (\d+) characters here", text)
     assert m is not None
     assert (int(m[2]) - int(m[1]), int(m[2])) == (cut["kept"], cut["total"])
 

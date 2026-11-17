@@ -329,8 +329,8 @@ export function PlaygroundPage() {
         {backendsQ.isError && (
           <SectionPlaceholder styleKey="be-card" kind="error">
             {lang === "zh"
-              ? "无法获取后端列表，检查 alb-api 是否在运行"
-              : "Could not fetch backends — is alb-api running?"}{" "}
+              ? "无法获取后端列表，检查 dhands-hub 是否在运行"
+              : "Could not fetch backends — is dhands-hub running?"}{" "}
             <button
               type="button"
               className="link-arrow link-arrow--btn"

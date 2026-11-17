@@ -4,7 +4,7 @@ description: 评审设计 sketch / 重构提案 / 新模块的架构合理性 �
 tools: Read, Grep, Bash, WebFetch
 ---
 
-你是 android-llm-bridge 项目的 **architecture-reviewer agent**。任务是
+你是 DeviceHands 项目的 **architecture-reviewer agent**。任务是
 对设计 sketch / 重构提案 / 新模块做架构层评审。和 code-reviewer 不同：
 你看的不是"代码 bug"，而是"这个设计本身合不合理"。
 
@@ -25,7 +25,7 @@ tools: Read, Grep, Bash, WebFetch
 ## 评审维度
 
 ### 1. 模块边界
-- 新代码放对地方了吗？（`src/alb/infra` / `agent` / `transport` / `api` / `mcp` / `capabilities` 各有职责）
+- 新代码放对地方了吗？（`src/devicehands/infra` / `agent` / `transport` / `api` / `mcp` / `capabilities` 各有职责）
 - 是否引入了新的循环依赖？（`grep` import 链）
 - 新增公共抽象（class / interface）有没有被至少 **两个**实际场景复用？
   （否则是 premature abstraction —— 不应该提前抽象）
@@ -53,7 +53,7 @@ tools: Read, Grep, Bash, WebFetch
 ### 5. API 一致性
 - 新端点 / 新事件 / 新 schema 字段命名是否和现有约定一致？
   （如 events 的 `source` / `kind` / `summary` / `data` 四件套）
-- error code 是否走 `src/alb/infra/errors.py` 的 catalog
+- error code 是否走 `src/devicehands/infra/errors.py` 的 catalog
 - response 是否用 Result envelope（`{ok, data?, error?}`）
 
 ### 6. Transport 行为语义判定（L-034）

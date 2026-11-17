@@ -71,7 +71,11 @@ Windows 台架主机
 两个容易踩的地方:
 
 - `run-hub.sh` 用 `set -a` 把 `hub.env` 导入成环境变量,所以 `hub.env` 里的值赢过 `.env.local`。
-- `.env.local` 先在当前目录找,找不到再到代码仓库根目录找;同名文件只读找到的第一个(`env_loader.py` 的 `_default_roots`)。在别的程序的目录里运行 `dhands`,会把那里的 `.env.local` 读进环境变量;其中只有 `DHANDS_` 开头的变量和[附表](#附不以-dhands_-开头但会影响-dhands-的变量)里的几个对 dhands 起作用。
+- `.env.local` / `.env` 只在两个地方找,按顺序:
+  1. 本项目源码检出的根目录。只在从检出运行时才找:`src/devicehands/` 往上三级目录里的 `pyproject.toml` 写着 `name = "devicehands"`,才认它是检出(`src/devicehands/infra/resources.py` 的 `checkout_root`、`is_checkout`)。pip 装好的包没有这一步。
+  2. 用户配置目录(`src/devicehands/infra/dirs.py` 的 `config_dir`,由 platformdirs 按系统给出):Linux `~/.config/devicehands`(设了 `XDG_CONFIG_HOME` 时是 `$XDG_CONFIG_HOME/devicehands`),macOS `~/Library/Application Support/devicehands`,Windows `%LOCALAPPDATA%\devicehands`。
+
+  同名文件只读找到的第一个(`env_loader.py` 的 `default_roots` 和 `load_env_files`)。**当前目录不找**:在别的项目目录里运行 `dhands`,不会把那里的 `.env` 读进来。
 
 ---
 
@@ -244,7 +248,7 @@ hub 推荐用 `deploy/hub/run-hub.sh` 启动:它把同目录的 `hub.env` 导入
 | `DHANDS_WS_DEFLATE` | 设成 `1` 打开 WebSocket 压缩 | 关 | `src/devicehands/api/server.py` |
 | `DHANDS_BENCH_SSH_HOST` | `dhands bench agent-start` 用来 ssh 到台架主机的 Host(hub 用户 `~/.ssh/config` 里的名字) | 不设:命令报 `AGENT_START_NOT_CONFIGURED` | `src/devicehands/remote/agent_start.py` |
 | `DHANDS_BENCH_AGENT_TASK` | 台架主机上启动 agent 的计划任务名 | `dhands-bench` | `src/devicehands/remote/agent_start.py` |
-| `DHANDS_AGENT_BUNDLE_DIR` | `dhands bench agent-update` 推给 agent 的文件从哪个目录取 | 本仓库的 `bench-py` | `src/devicehands/remote/agent_update.py` |
+| `DHANDS_AGENT_BUNDLE_DIR` | `dhands bench agent-update` 推给 agent 的文件从哪个目录取 | 装好的包里的 `devicehands/_resources/bench`;从源码检出运行时是仓库的 `bench-py` | `src/devicehands/remote/agent_update.py`(`bundle_dir`)、`src/devicehands/infra/resources.py` |
 | `DHANDS_LOG_LEVEL` | hub 日志级别,名字(`DEBUG`)或数字都行 | `INFO` | `src/devicehands/api/log_setup.py` |
 | `DHANDS_WARMUP` | 设成 `0` 关掉启动时的模型预热 | 开(只在设了 `DHANDS_OLLAMA_MODEL` 时预热) | `src/devicehands/api/server.py` |
 | `DHANDS_TPS_SAMPLE_INTERVAL_S` | 网页上模型生成速度(token/s)的采样间隔,秒;不是正数时用默认值 | 1.0 | `src/devicehands/infra/metric_sampler.py` |
@@ -453,6 +457,14 @@ note = "左边排针上的调试串口"
 ### 9.5 .env.local / .env
 
 模板是仓库根目录的 `.env.example`。代码:`src/devicehands/infra/env_loader.py`。
+
+放在哪(详见 [1.2](#12-优先级)):
+
+- 从源码检出运行:放检出根目录,和 `.env.example` 同一层。
+- pip / wheel 安装:放用户配置目录。Linux `~/.config/devicehands/.env.local`,macOS `~/Library/Application Support/devicehands/.env.local`,Windows `%LOCALAPPDATA%\devicehands\.env.local`。
+- 两处都有同名文件时,只读检出根目录那份。当前目录里的不读。
+
+谁读、怎么写:
 
 - 只有 `dhands` 和 `dhands-hub` 读,`dhands-mcp` 不读。MCP 用的变量写在 MCP 客户端配置里(写法见 [`llm-integration.md`](./llm-integration.md))。
 - 一行一个 `KEY=VALUE`,可以带 `export ` 前缀,值两边的一对引号会去掉。

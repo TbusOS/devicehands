@@ -1,6 +1,6 @@
 /**
  * Data for the overview cards and the top-bar model chip: LLM backends
- * with live health, the alb-wide counts behind the summary tiles, and
+ * with live health, the hub-wide counts behind the summary tiles, and
  * helpers that turn the device list (and why it may be empty) into words.
  *
  * Query keys match the other readers of the same endpoints (`backends`,
@@ -168,7 +168,7 @@ export function transportLabel(name: string | null | undefined): string {
 
 export type DeviceListState =
   | { kind: "loading" }
-  /** GET /devices itself failed: the alb service is down or unreachable. */
+  /** GET /devices itself failed: the DeviceHands service is down or unreachable. */
   | { kind: "fetch"; message: string }
   /** The service answered ok=false: the transport (adb server, tunnel) is broken. */
   | { kind: "transport"; message: string }
@@ -189,8 +189,8 @@ export function deviceListCopy(t: T, s: DeviceListState, transport: string): { t
     return {
       title: t("读不到设备列表", "Can't read the device list"),
       body: t(
-        `GET /devices 请求失败(${s.message})。alb 服务可能没在跑,或者这个网页和服务之间断开了。`,
-        `GET /devices failed (${s.message}). The alb service may be down, or this page lost its connection to it.`,
+        `GET /devices 请求失败(${s.message})。DeviceHands 服务可能没在跑,或者这个网页和服务之间断开了。`,
+        `GET /devices failed (${s.message}). The DeviceHands service may be down, or this page lost its connection to it.`,
       ),
     };
   }

@@ -1,5 +1,5 @@
 name: Board / tool support request · 申请支持我的板子
-description: Ask alb to support a board, SoC family, debug link or vendor flash tool. 想让 alb 支持某块板子、某类芯片、某种连接方式或厂商烧录工具。
+description: Ask DeviceHands to support a board, SoC family, debug link or vendor flash tool. 想让 DeviceHands 支持某块板子、某类芯片、某种连接方式或厂商烧录工具。
 title: "[board] "
 labels: ["board-support"]
 body:
@@ -9,8 +9,8 @@ body:
         Thanks for asking! Please use **public information only** — no internal part numbers, customer names, serial numbers or private IPs.
         感谢提需求！请只写**公开信息**：不要写内部料号、客户名、序列号或内网地址。
 
-        Not sure what alb already does? See the [website](https://doc.tbusos.com/android-llm-bridge/) and the [connections table](https://doc.tbusos.com/android-llm-bridge/#links).
-        不确定 alb 现在能做什么？先看[项目主页](https://doc.tbusos.com/android-llm-bridge/)和[连接方式表](https://doc.tbusos.com/android-llm-bridge/#links)。
+        Not sure what DeviceHands already does? See the [website](https://doc.tbusos.com/android-llm-bridge/) and the [connections table](https://doc.tbusos.com/android-llm-bridge/#links).
+        不确定 DeviceHands 现在能做什么？先看[项目主页](https://doc.tbusos.com/android-llm-bridge/)和[连接方式表](https://doc.tbusos.com/android-llm-bridge/#links)。
 
   - type: input
     id: hardware
@@ -51,7 +51,7 @@ body:
   - type: textarea
     id: want
     attributes:
-      label: What should alb do · 希望 alb 做什么
+      label: What should DeviceHands do · 希望 DeviceHands 做什么
       description: The debugging task you want an AI agent to handle, step by step if you can. 你想让 AI Agent 帮你做的调试任务，能分步写更好。
       placeholder: |
         e.g. flash a new kernel, catch the boot log on the serial console, tell me where it hangs

@@ -107,8 +107,8 @@ com2tcp --baud 115200 \\.\COM3 9001
 sudo apt install picocom socat minicom   # minicom 备选
 ```
 
-这三个都是可选的：alb 自己读写串口不需要它们，只有手动开交互终端（第 5 步）才用到。
-`alb setup deps` 会列出缺了哪个、各发行版怎么装；它不会自动装这两个（要 sudo）。
+这三个都是可选的：dhands 自己读写串口不需要它们，只有手动开交互终端（第 5 步）才用到。
+`dhands setup deps` 会列出缺了哪个、各发行版怎么装；它不会自动装这两个（要 sudo）。
 
 ### 第 4 步 · 验证隧道
 
@@ -138,29 +138,31 @@ picocom -b 115200 /tmp/ttyV0
 # 退出: Ctrl-A Ctrl-X
 ```
 
-**用 alb**：alb 直接连 `localhost:9001`，不需要 socat / picocom。
+**用 dhands**：dhands 直接连 TCP 端口，不需要 socat / picocom。它默认连 `localhost:8777`，那是 hub 的串口转发口
+（`src/devicehands/infra/config.py:58` 的 `default_tcp_port`）；本文的隧道开在 9001，先用 `--save` 告诉它一次。
 
 ```bash
-alb setup serial                         # 检查 localhost:9001 在监听，并试着打开一次串口
-alb setup serial --tcp-port 9002 --save  # 端口不是 9001：验证通过后写进 config.toml
-alb serial health                        # 连得上吗，连的是哪个地址
-alb serial status                        # 板子现在处在什么状态：shell / u-boot / 启动中 / panic
-alb serial capture -d 60 -o ./uart.log   # 抓 60 秒串口输出
-alb serial shell 'uname -a'              # 在串口 shell 里跑一条命令，等提示符，拿回输出
-alb serial send 'reboot'                 # 只发字节（末尾加换行），不等输出
-alb serial break-in --reboot adb         # 经 adb 重启，并在 bootloader 倒计时里按键停住
+dhands setup serial --tcp-port 9001 --save # 检查 localhost:9001 在监听、试着打开一次串口，通过后写进 config.toml
+dhands serial health                     # 连得上吗，连的是哪个地址
+dhands serial status                     # 板子现在处在什么状态：shell / u-boot / 启动中 / panic
+dhands serial capture -d 60 -o ./uart.log # 抓 60 秒串口输出
+dhands serial shell 'uname -a'           # 在串口 shell 里跑一条命令，等提示符，拿回输出
+dhands serial send 'reboot'              # 只发字节（末尾加换行），不等输出
+dhands serial break-in --reboot adb      # 经 adb 重启，并在 bootloader 倒计时里按键停住
 ```
 
-alb 没有交互式终端命令。要边看边敲，用 Web 界面的 UART 控制台，或者用上面的 socat + picocom。
+`dhands setup serial` 不带 `--tcp-port` 时查的是 8777，不读 config.toml 里存的端口（`src/devicehands/cli/setup_cli.py:282`）。
 
-alb 按这个顺序找串口（`src/alb/transport/factory.py`，serial 分支）：
+dhands 没有交互式终端命令。要边看边敲，用 Web 界面的 UART 控制台，或者用上面的 socat + picocom。
 
-1. 环境变量 `ALB_SERIAL_DEVICE`（本机串口设备，如 `/dev/ttyUSB0`）
-2. 环境变量 `ALB_SERIAL_TCP`（`主机:端口`，如 `localhost:9002`）
-3. `~/.config/alb/config.toml` 的 `[transport.serial]` 里的 `default_tcp_host` / `default_tcp_port`，
-   默认 `localhost:9001`
+dhands 按这个顺序找串口（`src/devicehands/transport/factory.py`，serial 分支）：
 
-`alb serial capture/send/shell/...` 的 `--device` 是给日志目录用的设备名（只能是字母、数字、`._:-`），
+1. 环境变量 `DHANDS_SERIAL_DEVICE`（本机串口设备，如 `/dev/ttyUSB0`）
+2. 环境变量 `DHANDS_SERIAL_TCP`（`主机:端口`，如 `localhost:9002`）
+3. `~/.config/devicehands/config.toml` 的 `[transport.serial]` 里的 `default_tcp_host` / `default_tcp_port`，
+   默认 `localhost:8777`
+
+`dhands serial capture/send/shell/...` 的 `--device` 是给日志目录用的设备名（只能是字母、数字、`._:-`），
 不是串口路径，`--device /dev/ttyUSB0` 会被拒绝。
 
 波特率只对本机串口设备有效（取 `[transport.serial] default_baud`，默认 115200）。
@@ -177,10 +179,10 @@ alb 按这个顺序找串口（`src/alb/transport/factory.py`，serial 分支）
 
 ```bash
 # 终端 A：先起抓取（时长要盖住整个启动）
-alb serial capture -d 180 -o ./boot.log
+dhands serial capture -d 180 -o ./boot.log
 
 # 终端 B：抓取跑着的时候复位板子
-alb serial shell 'reboot'      # 软复位
+dhands serial shell 'reboot'   # 软复位
 # 或者直接上电（硬复位场景下 B 什么都不用做）
 ```
 
@@ -202,27 +204,27 @@ console:/ $
 
 - 抓取是**增量落盘**的，不必等满时长 —— 另开一个终端
   `tail -F ./boot.log | grep -m1 'Starting service .adbd.'` 就能在启动完成的那一刻返回。
-- 抓取期间**可以同时**跑 `alb serial shell` / `alb serial send` / 开 Web UART 控制台，
+- 抓取期间**可以同时**跑 `dhands serial shell` / `dhands serial send` / 开 Web UART 控制台，
   三者共用同一条链路，谁也不会把谁挤掉。
 
 > **为什么需要专门说这条**：串口不是网络端口，操作系统对它是**独占打开**的 ——
-> 一个进程拿着，第二个就打不开。所以 alb 的做法是 hub 侧只开一次串口，把收到的字节
+> 一个进程拿着，第二个就打不开。所以 DeviceHands 的做法是 hub 侧只开一次串口，把收到的字节
 > **复制给每个读方**，写入则合并回同一条链路（UART 物理上本来就是广播介质，
 > 一份字节所有人都该看见）。
 > 早期版本是「一条连接开一次串口」，于是抓取期间 `serial shell` 必然报
 > `BOARD_UNREACHABLE`（其实板子是好的），`serial send` 更糟 —— 报"写入成功"但字节被丢弃。
 > 见 [issue #4](https://github.com/TbusOS/android-llm-bridge/issues/4)。
 > 如果现在还看到 `SERIAL_PORT_BUSY`，那是**别的程序**（终端软件、厂商烧录工具）
-> 占着串口，不是 alb 自己在打架。
+> 占着串口，不是 dhands 自己在打架。
 
 ### 场景 2 · 进 u-boot 命令行
 
 需要在启动头几秒中断：
 
 ```bash
-alb serial break-in --reboot adb    # 经 adb 重启（会先问一次，-y 跳过）
-alb serial break-in --reboot serial # 经串口 shell 重启
-alb serial break-in                 # 不带 --reboot：命令提示你时，手动复位或上电
+dhands serial break-in --reboot adb # 经 adb 重启（会先问一次，-y 跳过）
+dhands serial break-in --reboot serial # 经串口 shell 重启
+dhands serial break-in              # 不带 --reboot：命令提示你时，手动复位或上电
 ```
 
 这个命令先开始读串口，再重启板子，所以不会错过倒计时。它的步骤：
@@ -233,14 +235,14 @@ alb serial break-in                 # 不带 --reboot：命令提示你时，手
    按了键但没等到提示符、连接出错；同时打印最后收到的几行
 4. 整个过程的串口日志都会保存（`-o` 指定位置）
 
-停住以后，用 `alb serial shell` 发 u-boot 命令：
+停住以后，用 `dhands serial shell` 发 u-boot 命令：
 
 ```bash
-alb serial shell 'printenv'            # 看环境变量
-alb serial shell 'mmc part'            # 看分区表
-alb serial shell 'setenv bootargs ...' # 改启动参数
-alb serial shell 'saveenv'             # 保存
-alb serial send 'boot'                 # 继续启动（不等提示符）
+dhands serial shell 'printenv'         # 看环境变量
+dhands serial shell 'mmc part'         # 看分区表
+dhands serial shell 'setenv bootargs ...' # 改启动参数
+dhands serial shell 'saveenv'          # 保存
+dhands serial send 'boot'              # 继续启动（不等提示符）
 ```
 
 ### 场景 3 · 抓 kernel panic
@@ -248,28 +250,28 @@ alb serial send 'boot'                 # 继续启动（不等提示符）
 ```bash
 # 场景：reboot 后偶发 panic
 # 终端 A：先抓（时长盖住复现过程）
-alb serial capture -d 600 -o ./panic.log
+dhands serial capture -d 600 -o ./panic.log
 
 # 终端 B：触发导致 panic 的操作，然后在抓到的日志里找
-alb log search 'Kernel panic|Unable to handle kernel|Oops' --path ./panic.log
+dhands log search 'Kernel panic|Unable to handle kernel|Oops' --path ./panic.log
 ```
 
-CLI 没有「抓到 panic 就停」的命令；`alb serial capture` 抓满时长才返回。
-MCP tool `alb_uart_watch_panic` 抓完整段后报告有没有 panic / Oops，并带上崩溃前后的几行。
+CLI 没有「抓到 panic 就停」的命令；`dhands serial capture` 抓满时长才返回。
+MCP tool `dhands_uart_watch_panic` 抓完整段后报告有没有 panic / Oops，并带上崩溃前后的几行。
 
 ### 场景 4 · 板子完全不响应时救场
 
 ```bash
 # adb / ssh 都没，只有串口：
-alb serial status
+dhands serial status
 
 # 状态是 shell_root / shell_user：
 #   → 系统还在跑，只是 adb / sshd 挂了
-#   → alb serial shell 'echo b > /proc/sysrq-trigger' 强制重启
+#   → dhands serial shell 'echo b > /proc/sysrq-trigger' 强制重启
 
 # 状态是 idle（没有输出）或 panic：
 #   → 内核挂了，只能硬件复位
-#   → 先起 alb serial capture -d 180，再复位，抓启动过程
+#   → 先起 dhands serial capture -d 180，再复位，抓启动过程
 ```
 
 ---
@@ -287,17 +289,17 @@ ss -tlnp | grep 9001
 
 ### 问题 2 · 敲字符没反应 / 乱码
 
-多半是波特率不对。`alb serial status` 报 `corrupted`（输出大多不可打印）就是这种情况。
+多半是波特率不对。`dhands serial status` 报 `corrupted`（输出大多不可打印）就是这种情况。
 
 ```bash
 # 走 ser2net / 隧道（TCP）：波特率在 Windows 上改，改 ser2net.conf 里那一行再重启 ser2net
 
-# 本机串口设备：让 alb 依次试几种常见波特率，按可读程度排名
-alb serial probe --device /dev/ttyUSB0
-alb serial probe --device /dev/ttyUSB0 --rates 115200,1500000
+# 本机串口设备：让 dhands 依次试几种常见波特率，按可读程度排名
+dhands serial probe --device /dev/ttyUSB0
+dhands serial probe --device /dev/ttyUSB0 --rates 115200,1500000
 
 # 试出来以后写进 config.toml（只写 default_baud，见问题 8）
-alb setup serial --device /dev/ttyUSB0 --baud 1500000 --save
+dhands setup serial --device /dev/ttyUSB0 --baud 1500000 --save
 ```
 
 常见波特率：
@@ -331,33 +333,33 @@ picocom -b 115200 --omap crcrlf /tmp/ttyV0
 用 `--send` 换按键，用 `--expect` 换倒计时提示的正则：
 
 ```bash
-alb serial break-in --send '\x03'             # 发 Ctrl-C
-alb serial break-in --send ' \r'              # 空格加回车
-alb serial break-in --expect 'Autoboot in \d+' # 板子的提示文字不一样时
+dhands serial break-in --send '\x03'          # 发 Ctrl-C
+dhands serial break-in --send ' \r'           # 空格加回车
+dhands serial break-in --expect 'Autoboot in \d+' # 板子的提示文字不一样时
 ```
 
 
 ### 问题 5 · 多块板子同时调
 
 每块板子一个 TCP 端口：Windows 端 ser2net 配多行（9001、9002 …），Xshell 也各加一条隧道。
-alb 这边每条命令用 `ALB_SERIAL_TCP` 选端口：
+dhands 这边每条命令用 `DHANDS_SERIAL_TCP` 选端口：
 
 ```bash
-ALB_SERIAL_TCP=localhost:9002 alb serial capture -d 60 --device board-b
+DHANDS_SERIAL_TCP=localhost:9002 dhands serial capture -d 60 --device board-b
 ```
 
 `--device board-b` 只决定日志放进 `workspace/devices/board-b/`，不选端口。
-走 alb hub + Windows agent 的台架，换板子用 `alb bench board use <名字>`，
+走 DeviceHands hub + Windows agent 的台架，换板子用 `dhands bench board use <名字>`，
 见 [`../dial-home-runbook.md`](../dial-home-runbook.md)。
 
 ### 问题 6 · 串口日志太多怎么办
 
-alb 不切片：`alb serial capture` 每次写一个文件，`-d` 最长 3600 秒。
+dhands 不切片：`dhands serial capture` 每次写一个文件，`-d` 最长 3600 秒。
 长时间抓就分几次跑，然后检索，不要整个打开：
 
 ```bash
-alb log search 'panic|Oops|watchdog' --since 2h   # 在 workspace 里所有日志中找
-alb log tail <workspace 里的日志路径>              # 只看结尾一段（只收 workspace 内的路径）
+dhands log search 'panic|Oops|watchdog' --since 2h # 在 workspace 里所有日志中找
+dhands log tail <workspace 里的日志路径>           # 只看结尾一段（只收 workspace 内的路径）
 ```
 
 ### 问题 7 · 想用 minicom 不用 picocom
@@ -375,16 +377,16 @@ picocom 更轻，推荐。minicom 交互更丰富。
 
 ```bash
 ls /dev/ttyUSB* /dev/ttyACM*                 # 找到设备
-alb setup serial --device /dev/ttyUSB0       # 检查设备在、能打开
-export ALB_SERIAL_DEVICE=/dev/ttyUSB0        # alb serial * 用这个设备
-alb serial status
+dhands setup serial --device /dev/ttyUSB0    # 检查设备在、能打开
+export DHANDS_SERIAL_DEVICE=/dev/ttyUSB0     # dhands serial * 用这个设备
+dhands serial status
 ```
 
 打不开多半是权限：把自己加进 `dialout` 组（`sudo usermod -aG dialout $USER`，重新登录生效）。
 
-注意：`alb setup serial --device /dev/ttyUSB0 --save` 只把 `--baud` 写进 `config.toml`，
+注意：`dhands setup serial --device /dev/ttyUSB0 --save` 只把 `--baud` 写进 `config.toml`，
 **不写设备路径**（`[transport.serial]` 没有存设备路径的字段），尽管 `--help` 说会写。
-所以本机串口要靠 `ALB_SERIAL_DEVICE` 选，每个要用 alb 的 shell 都要设。
+所以本机串口要靠 `DHANDS_SERIAL_DEVICE` 选，每个要用 dhands 的 shell 都要设。
 
 ---
 
@@ -399,14 +401,14 @@ alb serial status
 #   5037 → adb server
 #   9001 → ser2net
 
-alb setup adb       # 方案 A
-alb setup serial    # 方案 G
+dhands setup adb    # 方案 A
+dhands setup serial # 方案 G
 
 # 使用：
-alb devices                              # 走 adb
-alb logcat -d 30                         # 走 adb
-alb serial capture -d 180 -o ./boot.log  # 走串口，先起（另一个终端）
-alb shell "reboot"                       # 走 adb，重启过程在 boot.log 里
+dhands devices                           # 走 adb
+dhands logcat -d 30                      # 走 adb
+dhands serial capture -d 180 -o ./boot.log # 走串口，先起（另一个终端）
+dhands shell "reboot"                    # 走 adb，重启过程在 boot.log 里
 ```
 
 ### 组合：C + G
@@ -415,9 +417,9 @@ alb shell "reboot"                       # 走 adb，重启过程在 boot.log �
 
 ```bash
 # 新编的 kernel 推进去后 boot 失败，立刻切 UART：
-alb serial capture -d 180 -o ./boot.log &           # 先起，切 G 看
-alb --transport ssh shell "cp /tmp/Image /boot/Image"   # 用 C 推
-alb --transport ssh shell "reboot"
+dhands serial capture -d 180 -o ./boot.log &        # 先起，切 G 看
+dhands --transport ssh shell "cp /tmp/Image /boot/Image" # 用 C 推
+dhands --transport ssh shell "reboot"
 ```
 
 ---
@@ -473,33 +475,33 @@ alb --transport ssh shell "reboot"
 
 ---
 
-## 九、alb 的 UART 相关能力
+## 九、DeviceHands 的 UART 相关能力
 
 | 命令 / tool | 说明 |
 |----------|------|
-| `alb setup serial` | 检查 TCP 端口或本机设备，试着打开一次；`--save` 写进 config.toml（本机设备只写波特率） |
-| `alb serial health` | 连得上吗，连的是哪个地址 |
-| `alb serial status` | 识别板子当前状态（shell / u-boot / 启动中 / panic / 乱码 / 没输出），不发命令 |
-| `alb serial capture -d N` | 抓 N 秒串口输出（1–3600），写进 workspace 或 `-o` |
-| `alb serial send "<text>"` | 只发字节，末尾加换行（`--no-newline` 不加），不等输出 |
-| `alb serial shell "<cmd>"` | 发一条命令，等提示符，返回输出 |
-| `alb serial break-in` | 在 bootloader 倒计时里按键，停在 u-boot 提示符 |
-| `alb serial probe --device /dev/ttyUSB0` | 本机串口设备：依次试几种波特率，按可读程度排名 |
-| `alb serial learn` | 板子的 shell 提示符认不出来时，从实际输出推出一条正则（见下） |
-| MCP: `alb_uart_capture` | 抓一段串口输出 |
-| MCP: `alb_uart_send` | 发字节，不读回 |
-| MCP: `alb_uart_shell` | 跑一条命令并返回输出 |
-| MCP: `alb_uart_watch_panic` | 抓一段，报告有没有 kernel panic / Oops |
+| `dhands setup serial` | 检查 TCP 端口或本机设备，试着打开一次；`--save` 写进 config.toml（本机设备只写波特率） |
+| `dhands serial health` | 连得上吗，连的是哪个地址 |
+| `dhands serial status` | 识别板子当前状态（shell / u-boot / 启动中 / panic / 乱码 / 没输出），不发命令 |
+| `dhands serial capture -d N` | 抓 N 秒串口输出（1–3600），写进 workspace 或 `-o` |
+| `dhands serial send "<text>"` | 只发字节，末尾加换行（`--no-newline` 不加），不等输出 |
+| `dhands serial shell "<cmd>"` | 发一条命令，等提示符，返回输出 |
+| `dhands serial break-in` | 在 bootloader 倒计时里按键，停在 u-boot 提示符 |
+| `dhands serial probe --device /dev/ttyUSB0` | 本机串口设备：依次试几种波特率，按可读程度排名 |
+| `dhands serial learn` | 板子的 shell 提示符认不出来时，从实际输出推出一条正则（见下） |
+| MCP: `dhands_uart_capture` | 抓一段串口输出 |
+| MCP: `dhands_uart_send` | 发字节，不读回 |
+| MCP: `dhands_uart_shell` | 跑一条命令并返回输出 |
+| MCP: `dhands_uart_watch_panic` | 抓一段，报告有没有 kernel panic / Oops |
 
-`alb serial learn` 只打印一段 TOML，不写文件。把它贴进 `~/.config/alb/config.toml`：
+`dhands serial learn` 只打印一段 TOML，不写文件。把它贴进 `~/.config/devicehands/config.toml`：
 
 ```toml
 [transport.serial.prompts]
 shell_root = "<learn 打印的正则>"
 ```
 
-键名必须是内置状态名之一（如 `shell_root`、`shell_user`）。写错了，alb 建串口连接时直接报
-`unknown serial state pattern key`（`src/alb/transport/serial_state.py`），不会悄悄退回默认值。
+键名必须是内置状态名之一（如 `shell_root`、`shell_user`）。写错了，dhands 建串口连接时直接报
+`unknown serial state pattern key`（`src/devicehands/transport/serial_state.py`），不会悄悄退回默认值。
 
 ---
 

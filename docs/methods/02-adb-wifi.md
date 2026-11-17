@@ -48,11 +48,11 @@ WiFi adb 的 RSA 授权需要板子屏幕确认，这一步**必须走一次 USB
 
 ### 第 1 步 · 板子切入 TCP 模式
 
-通过 USB 或 alb（方案 A）：
+通过 USB 或 dhands（方案 A）：
 
 ```bash
 # Linux 端（adb 已通过方案 A 工作）
-alb shell "ip addr show wlan0"
+dhands shell "ip addr show wlan0"
 # 记下板子 IP，如 192.168.1.42
 
 alb reboot-to-tcp-mode 5555       # alb 封装
@@ -67,13 +67,13 @@ adb tcpip 5555
 alb setup wifi --host 192.168.1.42
 # 内部执行：adb connect 192.168.1.42:5555
 
-alb devices
+dhands devices
 # 应看到：192.168.1.42:5555    device
 ```
 
 ### 第 3 步 · 正常使用
 
-所有 `alb xxx` 命令和方案 A 一样使用。底层走 WiFi。
+所有 `dhands xxx` 命令和方案 A 一样使用。底层走 WiFi。
 
 ---
 
@@ -83,12 +83,12 @@ alb devices
 
 ```bash
 # 同时有 USB 和 WiFi
-alb devices
+dhands devices
 # abc123              device   (via USB, 方案 A)
 # 192.168.1.42:5555   device   (via WiFi, 方案 B)
 
-alb shell "ls" --device abc123           # 走 USB
-alb shell "ls" --device 192.168.1.42:5555  # 走 WiFi
+dhands shell "ls" --device abc123        # 走 USB
+dhands shell "ls" --device 192.168.1.42:5555 # 走 WiFi
 ```
 
 ---
@@ -128,14 +128,14 @@ Android 11 起支持不用 USB 引导的 `adb pair`：
 ### 3 · 速度慢
 ```bash
 # 看看板子信号
-alb shell "dumpsys wifi | grep -i rssi"
+dhands shell "dumpsys wifi | grep -i rssi"
 # RSSI > -60 dBm 为好
 ```
 WiFi 5/6 理论能跑 几 MB/s 到几十 MB/s，远不如 USB (USB 3.0 可达 400 MB/s)。
 
 ### 4 · 想从 WiFi 切回 USB
 ```bash
-alb shell "ip addr show wlan0"  # 记 IP 以防再用
+dhands shell "ip addr show wlan0" # 记 IP 以防再用
 alb disconnect 192.168.1.42     # 断开 WiFi
 # 然后 USB 照常
 ```

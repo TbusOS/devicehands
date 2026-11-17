@@ -1,7 +1,7 @@
 /**
  * The assistant side of the overview: the agent session running right
  * now, the LLM backends and whether they answer, and four counts for
- * the whole alb service (devices online, sessions, MCP tools, tokens per
+ * the whole DeviceHands service (devices online, sessions, MCP tools, tokens per
  * second over the last 5 minutes).
  */
 import { Link } from "@tanstack/react-router";
@@ -113,7 +113,7 @@ export function BackendsCard() {
       />
       {be.isError ? (
         <ErrorBanner action={<button type="button" className="btn btn--text btn--sm" onClick={() => void be.refetch()}>{t("重试", "Retry")}</button>}>
-          {t("读不到模型后端列表(GET /playground/backends 失败)。alb 服务可能没在跑。", "Can't read the backend list (GET /playground/backends failed). The alb service may be down.")}
+          {t("读不到模型后端列表(GET /playground/backends 失败)。DeviceHands 服务可能没在跑。", "Can't read the backend list (GET /playground/backends failed). The DeviceHands service may be down.")}
         </ErrorBanner>
       ) : be.isLoading ? (
         <div className="skeleton" style={{ height: 96 }} />
@@ -192,7 +192,7 @@ export function SummaryCard() {
   ];
   return (
     <article className="card span-12">
-      <CardHead title={t("服务概况", "Service at a glance")} sub={t("整个 alb 服务,不只这块板子", "the whole alb service, not just this board")} />
+      <CardHead title={t("服务概况", "Service at a glance")} sub={t("整个 DeviceHands 服务,不只这块板子", "the whole DeviceHands service, not just this board")} />
       <div className="metrics metrics--4">
         {tiles.map((x) => (
           <div className="metric" key={x.k} data-kpi={x.k}>

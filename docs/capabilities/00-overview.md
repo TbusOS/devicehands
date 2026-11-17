@@ -9,7 +9,7 @@ tags: [capabilities, overview]
 
 # 业务能力总览
 
-> 六大能力是 M1 交付范围。每个能力都是一个 Python 模块（`src/alb/capabilities/`），通过 CLI / MCP / Web API 三层暴露。
+> 六大能力是 M1 交付范围。每个能力都是一个 Python 模块（`src/devicehands/capabilities/`），通过 CLI / MCP / Web API 三层暴露。
 
 ---
 
@@ -17,12 +17,12 @@ tags: [capabilities, overview]
 
 | 能力 | 模块 | CLI | MCP tool | 典型用途 |
 |-----|------|-----|---------|---------|
-| [shell](./shell.md) | `capabilities/shell.py` | `alb shell` | `alb_shell` | 执行任意命令，结构化返回 |
-| [logging](./logging.md) | `capabilities/logging.py` | `alb logcat / dmesg / uart-capture / log-search / log-tail` | `alb_logcat / alb_dmesg / alb_uart_capture / ...` | 日志采集、检索、换页 |
-| [filesync](./filesync.md) | `capabilities/filesync.py` | `alb push / pull / rsync` | `alb_push / alb_pull / alb_rsync` | 文件传输（自动选最快通道） |
-| [diagnose](./diagnose.md) | `capabilities/diagnose.py` | `alb diag bugreport / anr / tombstone` | `alb_bugreport / alb_anr_pull / alb_tombstone_pull` | 一键拉诊断信息 |
-| [power](./power.md) | `capabilities/power.py` | `alb power reboot / sleep-wake / battery` | `alb_reboot / alb_sleep_wake_test / alb_battery` | 重启、休眠测试、电池 |
-| [app](./app.md) | `capabilities/app.py` | `alb app install/uninstall/start/stop/list` | `alb_app_*` | apk 管理 |
+| [shell](./shell.md) | `capabilities/shell.py` | `dhands shell` | `dhands_shell` | 执行任意命令，结构化返回 |
+| [logging](./logging.md) | `capabilities/logging.py` | `dhands logcat / dmesg / uart-capture / log-search / log-tail` | `dhands_logcat / dhands_dmesg / dhands_uart_capture / ...` | 日志采集、检索、换页 |
+| [filesync](./filesync.md) | `capabilities/filesync.py` | `alb push / pull / rsync` | `dhands_push / dhands_pull / dhands_rsync` | 文件传输（自动选最快通道） |
+| [diagnose](./diagnose.md) | `capabilities/diagnose.py` | `dhands diag bugreport / anr / tombstone` | `dhands_bugreport / dhands_anr_pull / dhands_tombstone_pull` | 一键拉诊断信息 |
+| [power](./power.md) | `capabilities/power.py` | `dhands power reboot / sleep-wake / battery` | `dhands_reboot / dhands_sleep_wake_test / dhands_battery` | 重启、休眠测试、电池 |
+| [app](./app.md) | `capabilities/app.py` | `dhands app install/uninstall/start/stop/list` | `dhands_app_*` | apk 管理 |
 
 ---
 
@@ -88,14 +88,14 @@ tags: [capabilities, overview]
 
 ---
 
-## 六、典型调用链（以 `alb_logcat` 为例）
+## 六、典型调用链（以 `dhands_logcat` 为例）
 
 ```
-LLM 调 alb_logcat(duration=60, filter="*:E")
+LLM 调 dhands_logcat(duration=60, filter="*:E")
   ↓
-alb.mcp.tools.logging:alb_logcat (薄壳)
+devicehands.mcp.tools.logging:dhands_logcat (薄壳)
   ↓
-alb.capabilities.logging:collect_logcat (业务)
+devicehands.capabilities.logging:collect_logcat (业务)
   ↓
 ├─ infra.permissions.check_permissions("logging.logcat", ...)
 ├─ infra.workspace.workspace_path("logs", ...)

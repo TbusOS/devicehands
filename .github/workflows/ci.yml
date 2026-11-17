@@ -80,4 +80,231 @@ jobs:
         # running after 120 s gets every thread's stack printed, so a hang
         # names its test instead of ending as a silent job timeout. It does
         # not stop the test; the job timeout above still does that.
-        run: uv run pytest -q --no-cov --continue-on-collection-errors -o faulthandler_timeout=120
+        #
+        # -rs: list every skipped test with its reason. A test that went from
+        # passing to skipped leaves the failure count unchanged but no longer
+        # checks anything; without the list, Windows' 223 skips could only be
+        # reasoned about, not read.
+        run: uv run pytest -q -rs --no-cov --continue-on-collection-errors -o faulthandler_timeout=120
+
+  # P1 acceptance (design 5.11): installed the normal way, on all three
+  # systems, the hub serves the web UI. Builds the sdist, the wheel from that
+  # sdist (`uv build` does both), pip-installs the wheel into a fresh venv
+  # outside the checkout, starts `dhands-hub` from outside the checkout with
+  # a temporary workspace and config dir, and fetches /app/.
+  # docs/app/ is a committed build, so no npm here.
+  wheel-install:
+    name: wheel install / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      PYTHONUTF8: "1"
+      # The runner context is not available in job-level env, so the
+      # script puts its folders under RUNNER_TEMP itself.
+      SMOKE_PORT: "18775"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python (for the venv the wheel goes into)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: uv build --out-dir "$RUNNER_TEMP/dist"
+
+      - name: Write the check script
+        # Kept here, not in the repository, so it reads as part of this job.
+        # Two phases: `install` checks the wheel's contents and installs it,
+        # `serve` starts the hub and fetches the page.
+        run: |
+          cat > "$RUNNER_TEMP/wheel_smoke.py" <<'PY'
+          """Install the devicehands wheel outside the checkout and open the UI."""
+          import os
+          import socket
+          import subprocess
+          import sys
+          import time
+          import urllib.request
+          import venv
+          import zipfile
+          from pathlib import Path
+
+          NT = os.name == "nt"
+          SMOKE = Path(os.environ.get("SMOKE_DIR")
+                       or Path(os.environ["RUNNER_TEMP"]) / "wheel-smoke").resolve()
+          DIST = Path(os.environ["DIST_DIR"]).resolve()
+          PORT = int(os.environ.get("SMOKE_PORT", "18775"))
+          START_TIMEOUT = float(os.environ.get("SMOKE_START_TIMEOUT", "60"))
+          VENV = SMOKE / "venv"
+          BIN = VENV / ("Scripts" if NT else "bin")
+          PY = BIN / ("python.exe" if NT else "python")
+          HUB = BIN / ("dhands-hub.exe" if NT else "dhands-hub")
+          RUN = SMOKE / "run"  # cwd for everything: no pyproject.toml here
+          WEB = "devicehands/_resources/web/index.html"
+          BENCH = "devicehands/_resources/bench/dhands_bench.py"
+          SECRETS = {"bench.conf", "agent.conf", "hub.env", ".env.local"}
+
+
+          def fail(msg):
+              print(f"FAIL: {msg}", flush=True)
+              sys.exit(1)
+
+
+          def the_wheel():
+              wheels = sorted(DIST.glob("devicehands-*.whl"))
+              if len(wheels) != 1:
+                  fail(f"expected one wheel in {DIST}, found {wheels}")
+              return wheels[0]
+
+
+          def install():
+              whl = the_wheel()
+              names = zipfile.ZipFile(whl).namelist()
+              for need in (WEB, BENCH):
+                  if need not in names:
+                      fail(f"{need} not in {whl.name}")
+              leaked = [n for n in names if n.rsplit("/", 1)[-1] in SECRETS]
+              if leaked:
+                  fail(f"local config files packed: {leaked}")
+              print(f"wheel {whl.name}: {len(names)} files, web + bench present")
+              RUN.mkdir(parents=True, exist_ok=True)
+              if not PY.exists():
+                  venv.create(VENV, with_pip=True)
+              subprocess.run(
+                  [str(PY), "-m", "pip", "install", "--disable-pip-version-check", str(whl)],
+                  check=True, cwd=RUN,
+              )
+              # Where the installed code finds its files: inside the venv,
+              # not in any checkout.
+              probe = (
+                  "import devicehands, sys\n"
+                  "from devicehands.infra.resources import resource_dir, checkout_root\n"
+                  "from devicehands.remote.agent_update import bundle_dir, local_build\n"
+                  "print(devicehands.__file__)\n"
+                  "print(resource_dir('web'))\n"
+                  "print(bundle_dir())\n"
+                  "print(checkout_root())\n"
+                  "print(local_build())\n"
+              )
+              out = subprocess.run(
+                  [str(PY), "-c", probe], check=True, cwd=RUN, env=hub_env(),
+                  capture_output=True, text=True,
+              ).stdout.split("\n")
+              pkg, web, bench, checkout, build = out[:5]
+              print(f"package {pkg}\nweb     {web}\nbench   {bench}\n"
+                    f"checkout {checkout}\nbench build {build}")
+              venv_root = str(VENV.resolve())
+              for label, p in (("package", pkg), ("web", web), ("bench", bench)):
+                  if not str(Path(p).resolve()).startswith(venv_root):
+                      fail(f"{label} {p} is not inside {venv_root}")
+              if checkout != "None":
+                  fail(f"installed copy thinks it runs from a checkout: {checkout}")
+              if not build:
+                  fail("no bench build from the shipped dhands_bench.py")
+
+
+          def hub_env():
+              env = {k: v for k, v in os.environ.items()
+                     if not k.startswith(("DHANDS_", "ALB_")) and k != "ADB_SERVER_SOCKET"}
+              home = SMOKE / "home"
+              env.update({
+                  "HOME": str(home),
+                  "USERPROFILE": str(home),
+                  "XDG_CONFIG_HOME": str(SMOKE / "xdg-config"),
+                  "XDG_DATA_HOME": str(SMOKE / "xdg-data"),
+                  "XDG_CACHE_HOME": str(SMOKE / "xdg-cache"),
+                  "LOCALAPPDATA": str(SMOKE / "localappdata"),
+                  "APPDATA": str(SMOKE / "appdata"),
+                  "DHANDS_WORKSPACE": str(SMOKE / "workspace"),
+                  "DHANDS_CONFIG": str(SMOKE / "config" / "config.toml"),
+                  "DHANDS_API_HOST": "127.0.0.1",
+                  "DHANDS_API_PORT": str(PORT),
+                  "DHANDS_WARMUP": "0",
+              })
+              for k in ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME",
+                        "LOCALAPPDATA", "APPDATA"):
+                  Path(env[k]).mkdir(parents=True, exist_ok=True)
+              return env
+
+
+          def port_open():
+              with socket.socket() as s:
+                  s.settimeout(0.5)
+                  return s.connect_ex(("127.0.0.1", PORT)) == 0
+
+
+          def serve():
+              if port_open():
+                  fail(f"port {PORT} is already in use")
+              expected = zipfile.ZipFile(the_wheel()).read(WEB)
+              RUN.mkdir(parents=True, exist_ok=True)
+              log_path = SMOKE / "hub.log"
+              with open(log_path, "wb") as log:
+                  proc = subprocess.Popen([str(HUB)], cwd=RUN, env=hub_env(),
+                                          stdout=log, stderr=subprocess.STDOUT)
+              try:
+                  url = f"http://127.0.0.1:{PORT}/app/"
+                  deadline = time.monotonic() + START_TIMEOUT
+                  while True:
+                      if proc.poll() is not None:
+                          fail(f"dhands-hub exited with {proc.returncode} before serving")
+                      try:
+                          with urllib.request.urlopen(url, timeout=5) as r:
+                              status, ctype, body = r.status, r.headers.get("content-type"), r.read()
+                          break
+                      except OSError:
+                          if time.monotonic() > deadline:
+                              fail(f"no answer from {url} within {START_TIMEOUT:g} s")
+                          time.sleep(0.5)
+                  print(f"GET {url} -> {status} {ctype}, {len(body)} bytes")
+                  print(body[:120].decode("utf-8", "replace"))
+                  if status != 200 or "text/html" not in (ctype or ""):
+                      fail("not a 200 HTML answer")
+                  if body != expected:
+                      fail("served index.html is not the one in the wheel")
+              finally:
+                  proc.terminate()
+                  try:
+                      proc.wait(timeout=15)
+                  except subprocess.TimeoutExpired:
+                      proc.kill()
+                      proc.wait(timeout=15)
+                  print("---- hub log ----")
+                  print(log_path.read_text(encoding="utf-8", errors="replace")[-3000:])
+              # The console-script launcher must not leave a server behind.
+              for _ in range(20):
+                  if not port_open():
+                      break
+                  time.sleep(0.5)
+              else:
+                  fail(f"port {PORT} still open after dhands-hub was stopped")
+              print("OK: installed wheel serves the web UI")
+
+
+          if __name__ == "__main__":
+              {"install": install, "serve": serve}[sys.argv[1]]()
+          PY
+
+      - name: Install the wheel into a fresh venv outside the checkout
+        working-directory: ${{ runner.temp }}
+        env:
+          DIST_DIR: ${{ runner.temp }}/dist
+        run: python "$RUNNER_TEMP/wheel_smoke.py" install
+
+      - name: Start dhands-hub from outside the checkout and fetch /app/
+        working-directory: ${{ runner.temp }}
+        env:
+          DIST_DIR: ${{ runner.temp }}/dist
+        run: python "$RUNNER_TEMP/wheel_smoke.py" serve

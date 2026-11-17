@@ -1,4 +1,4 @@
-# alb Web API reference
+# DeviceHands Web API reference
 
 **Schema version: `1`.** The running server reports its schema through
 `GET /api/version` — always check that before wiring a client to a
@@ -11,15 +11,15 @@ API; anything it needs must be documented here.
 ## Base URL
 
 ```
-http://<host>:8765
+http://<host>:8775
 ```
 
 Default ports:
 
-- `8765` — `alb-api` (FastAPI) on Linux dev servers
+- `8775` — `dhands-hub` (FastAPI) on Linux dev servers
 - `7001` — Windows standalone build (future M2.5)
 
-`ALB_API_HOST` and `ALB_API_PORT` env vars override the defaults.
+`DHANDS_API_HOST` and `DHANDS_API_PORT` env vars override the defaults.
 
 ## Discovery
 
@@ -28,7 +28,7 @@ Default ports:
 Tiny liveness probe.
 
 ```json
-{"ok": "true", "version": "0.5.2", "api": "alb"}
+{"ok": "true", "version": "0.5.2", "api": "devicehands"}
 ```
 
 ### GET /api/version
@@ -39,7 +39,7 @@ disables any tab whose backing endpoint is missing.
 ```json
 {
   "version": "1",
-  "alb_version": "0.5.2",
+  "dhands_version": "0.0.1",
   "rest": [
     {"method": "GET", "path": "/health", "description": "..."},
     ...
@@ -87,7 +87,7 @@ after a turn or two otherwise looked it up with a tool or said it had none.
 The session stores the message as typed.
 
 Each model turn is capped at 4096 output tokens
-(`alb.agent.loop.DEFAULT_MAX_OUTPUT_TOKENS`). A turn that hits it ends with
+(`devicehands.agent.loop.DEFAULT_MAX_OUTPUT_TOKENS`). A turn that hits it ends with
 `LLM_OUTPUT_TRUNCATED`; the text streamed so far stays.
 
 Response:
@@ -118,8 +118,8 @@ Streaming agent chat.
 | S → C | `{"type":"token","delta":"..."}` | Assistant text, sent as the model produces it, in every turn. Text the model writes before calling a tool ("let me check the log") arrives before that `tool_call_start`; the web UI shows it above the tool card and starts the answer afresh |
 | S → C | `{"type":"tool_confirm_request","id":"...","name":"...","arguments":{...}}` | Only with `"confirm_tools": true` in the request: the call waits for an answer |
 | C → S | `{"type":"tool_confirm","id":"...","approve":true}` | Answer to one `tool_confirm_request` |
-| S → C | `{"type":"tool_call_start","id":"...","name":"...","arguments":{...}}` | Tool about to run. Has `"requested_name"` when the hub repaired a name the backend garbled (a known tool name with the start of itself glued in front, e.g. `alb_describealb_describe_errors`); `name` is the tool that runs |
-| S → C | `{"type":"tool_call_end","name":"...","result":{...}}` | Tool completed. `result` is the whole result. Has `"cut":{"kept":N,"total":M}` when the model was given a cut copy (results over `ALB_AGENT_TOOL_RESULT_MAX_CHARS`, default 4000): it read N of the M characters of the result's JSON, the start and the end. The web UI says so on the tool card, because the answer may miss what was in the middle |
+| S → C | `{"type":"tool_call_start","id":"...","name":"...","arguments":{...}}` | Tool about to run. Has `"requested_name"` when the hub repaired a name the backend garbled (a known tool name with the start of itself glued in front, e.g. `dhands_describedhands_describe_errors`); `name` is the tool that runs |
+| S → C | `{"type":"tool_call_end","name":"...","result":{...}}` | Tool completed. `result` is the whole result. Has `"cut":{"kept":N,"total":M}` when the model was given a cut copy (results over `DHANDS_AGENT_TOOL_RESULT_MAX_CHARS`, default 4000): it read N of the M characters of the result's JSON, the start and the end. The web UI says so on the tool card, because the answer may miss what was in the middle |
 | S → C | `{"type":"done","content":"...","session_id":"...","model":"...","backend":"...","usage":{...}}` | Terminal; always present |
 
 Client closes after `done`. Server closes on disconnect.
@@ -158,9 +158,9 @@ Registered LLM backends.
 ```
 
 `host_compute_type` (ADR-027, formal 2026-05-02) is one of:
-- `"cpu"` — alb-host runs the inference locally on CPU (Ollama, embedded llama.cpp)
-- `"gpu"` — alb-host requires a local GPU
-- `"remote"` — alb-host only sends HTTP; model runs elsewhere (openai-compat, anthropic)
+- `"cpu"` — the DeviceHands host runs the inference locally on CPU (Ollama, embedded llama.cpp)
+- `"gpu"` — the DeviceHands host requires a local GPU
+- `"remote"` — the DeviceHands host only sends HTTP; model runs elsewhere (openai-compat, anthropic)
 
 This field replaces the old `runs_on_cpu: bool` which lied for HTTP-only
 backends. UI may render as a 3-state badge.
@@ -324,8 +324,8 @@ chat sessions: `GET /sessions` does not list them.
 ## Remote device agent (dial-home)
 
 Rendezvous endpoints for the remote device agent
-(`clients/windows-agent/alb_agent.py`). Both WebSocket endpoints check the
-shared token (`ALB_AGENT_TOKEN`); full bring-up in
+(`bench-py/dhands_bench.py`). Both WebSocket endpoints check the
+shared token (`DHANDS_AGENT_TOKEN`); full bring-up in
 [dial-home-runbook.md](./dial-home-runbook.md).
 
 ### WS /agent/connect
@@ -364,8 +364,8 @@ so the next poll reflects plug/unplug.
     }
   ],
   "forwarders": {
-    "adb":    {"bound": true, "port": 5037},
-    "serial": {"bound": true, "port": 9001, "configured": true,
+    "adb":    {"bound": true, "port": 8776},
+    "serial": {"bound": true, "port": 8777, "configured": true,
                "com": "COM4", "baud": 115200, "readers": 2}
   }
 }
@@ -375,7 +375,7 @@ so the next poll reflects plug/unplug.
 device list was empty — the signature of a renamed vendor adb holding the
 exclusive USB interface.
 
-`serial.readers` is how many alb clients currently share the one COM channel —
+`serial.readers` is how many dhands clients currently share the one COM channel —
 a capture, a `serial shell`, and the web UART console at the same time reads
 `3`. The port is opened once and its bytes are fanned out; `0` means no client
 is attached and the port is closed.
@@ -399,7 +399,7 @@ mid-flash would interrupt it.
 ## Timeline (serial + dmesg + logcat on one clock)
 
 Recordings live under `workspace/devices/<serial>/timeline/capture-<ts>/`, the same place
-`alb timeline capture` writes, so CLI and web recordings show up in both.
+`dhands timeline capture` writes, so CLI and web recordings show up in both.
 
 ### POST /api/timeline/capture?device=
 
@@ -422,7 +422,7 @@ level / tag / pid are parsed from logcat threadtime lines only.
 ### GET /api/timeline/captures/{name}/density?device=&bucket_s=
 
 Line counts per bucket for each track (logcat split by level) plus `markers` (panic, ANR, crash, SELinux
-denial, boot milestone, alb's own `[alb]` notes) — what the timeline lanes are drawn from.
+denial, boot milestone, DeviceHands' own `[dhands]` notes) — what the timeline lanes are drawn from.
 
 ### GET /api/timeline/captures/{name}/boot?device=
 
@@ -445,7 +445,7 @@ recording still running are kept. Without `all=true` it does nothing (400).
 | Endpoint | What it does |
 |---|---|
 | `POST /api/diag/pstore?device=` | Pull `/sys/fs/pstore` (else `/proc/last_kmsg`) into the workspace; records with a one-line summary and `has_panic`. `ROOT_REQUIRED` when the listing is denied. |
-| `POST /api/adb/root` · `/unroot` · `/remount` `?device=` | Wrap `alb adb root / unroot / remount`; codes such as `ADB_UNROOT_NO_EFFECT` pass through. |
+| `POST /api/adb/root` · `/unroot` · `/remount` `?device=` | Wrap `dhands adb root / unroot / remount`; codes such as `ADB_UNROOT_NO_EFFECT` pass through. |
 | `POST /api/serial/break-in?device=` | Body `{reboot: "" \| "auto" \| "adb" \| "serial", timeout_s}`. NDJSON; stops the board at its bootloader prompt over the hub's shared serial session (`BREAKIN_BOOTED_PAST` if the countdown was missed). |
 
 ## Flash job records
@@ -458,7 +458,7 @@ browser goes away; these let a reloaded page show what happened.
 
 `POST /api/assistant/ondevice/probe?device=` body `{ports: [8080, 8000, 11434]}` → per port
 `{port, ok, kind: "openai" | "ollama" | null, models, error}`. It reaches the board-local port through the adb
-`tcp:<port>` service (the same path as `alb port`), so the bench agent does not change.
+`tcp:<port>` service (the same path as `dhands port`), so the bench agent does not change.
 
 ## Error codes (cross-endpoint)
 
@@ -470,8 +470,8 @@ browser goes away; these let a reloaded page show what happened.
 | `BACKEND_UNREACHABLE` | playground | ollama daemon down, etc. |
 | `BACKEND_HTTP_ERROR` | playground | backend returned 4xx/5xx |
 | `BACKEND_TIMEOUT` | playground | request timed out |
-| `LLM_CONTEXT_TRUNCATED` | chat / playground | the prompt filled the whole context window (`num_ctx`, default 16384, env `ALB_OLLAMA_NUM_CTX`); the start was cut off, so the reply is not used |
-| `LLM_OUTPUT_TRUNCATED` | chat | the answer reached the output limit of one model turn (4096 tokens, `alb.agent.loop.DEFAULT_MAX_OUTPUT_TOKENS`) and was cut off; the text streamed so far stays on the page and in the session |
+| `LLM_CONTEXT_TRUNCATED` | chat / playground | the prompt filled the whole context window (`num_ctx`, default 16384, env `DHANDS_OLLAMA_NUM_CTX`); the start was cut off, so the reply is not used |
+| `LLM_OUTPUT_TRUNCATED` | chat | the answer reached the output limit of one model turn (4096 tokens, `devicehands.agent.loop.DEFAULT_MAX_OUTPUT_TOKENS`) and was cut off; the text streamed so far stays on the page and in the session |
 | `CHAT_STOPPED` | chat WS | the page closed the socket before `done`; tool calls left without a result get this one in the session |
 | `TRANSPORT_NO_PTY` | terminal | transport doesn't support interactive shell |
 | `PTY_SPAWN_FAILED` | terminal | fork / exec failed |

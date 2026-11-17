@@ -1,9 +1,9 @@
 /**
  * API calls used by the v3 pages. Shapes follow the hub routes
- * (src/alb/api/*_route.py); endpoints that stream answer NDJSON — one JSON
+ * (src/devicehands/api/*_route.py); endpoints that stream answer NDJSON — one JSON
  * object per line, progress first and a final `{"ev": "done"}` verdict.
  */
-import { AlbApiError } from "./api";
+import { HubApiError } from "./api";
 
 /* ---------------- helpers ---------------- */
 
@@ -27,7 +27,7 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
     } catch {
       /* body was not JSON */
     }
-    throw new AlbApiError(`GET ${url.split("?")[0]} returned ${r.status}${detail ? `: ${detail}` : ""}`, r.status, `HTTP_${r.status}`);
+    throw new HubApiError(`GET ${url.split("?")[0]} returned ${r.status}${detail ? `: ${detail}` : ""}`, r.status, `HTTP_${r.status}`);
   }
   return (await r.json()) as T;
 }
@@ -42,7 +42,7 @@ async function deleteJson<T>(url: string): Promise<T> {
   }
   if (!r.ok) {
     const detail = (parsed as { detail?: unknown } | null)?.detail;
-    throw new AlbApiError(
+    throw new HubApiError(
       `DELETE ${url.split("?")[0]} returned ${r.status}${typeof detail === "string" ? `: ${detail}` : ""}`,
       r.status,
       `HTTP_${r.status}`,

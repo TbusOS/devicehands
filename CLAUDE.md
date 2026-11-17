@@ -100,16 +100,16 @@ The git history has been rewritten twice to remove leaked content
 propose another rewrite: **coordinate with the maintainer first**, do not
 force-push unilaterally.
 
-## 6. `clients/windows-agent/` is the single source of truth
+## 6. `bench-py/` is the single source of truth
 
 Deployments of the Windows device agent exist as **copies** of this
 directory (a private internal mirror repo, and an operator-facing staging
-folder on a file share — real `agent.conf` values live only in those
+folder on a file share — real `bench.conf` values live only in those
 copies, never here).
 
 Rule for all edits: **change the files here first**, then sync outward
 (mirror repo via its normal git sync; staging folder by copying files over,
-preserving its local `agent.conf`). Never edit a downstream copy directly —
+preserving its local `bench.conf`). Never edit a downstream copy directly —
 a fix applied only there is lost on the next sync, and the copies silently
 diverge.
 

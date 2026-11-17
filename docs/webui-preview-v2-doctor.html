@@ -216,8 +216,8 @@
             <span class="lang-zh">Doctor 环境健康检查</span>
           </h1>
           <p>
-            <span class="lang-en">Six-layer snapshot: env, binaries, config, adb, serial, ssh. Same probes as <code>alb doctor</code>.</span>
-            <span class="lang-zh">六层快照：env、binaries、config、adb、serial、ssh。和 <code>alb doctor</code> 命令一致。</span>
+            <span class="lang-en">Six-layer snapshot: env, binaries, config, adb, serial, ssh. Same probes as <code>dhands doctor</code>.</span>
+            <span class="lang-zh">六层快照：env、binaries、config、adb、serial、ssh。和 <code>dhands doctor</code> 命令一致。</span>
           </p>
         </div>
         <div class="doctor-page__actions">
@@ -261,7 +261,7 @@
           <ul class="doctor-checks">
             <li class="doctor-check" data-status="skip">
               <span class="doctor-check__icon">○</span>
-              <span class="doctor-check__name">ALB_WORKSPACE</span>
+              <span class="doctor-check__name">DHANDS_WORKSPACE</span>
               <span class="doctor-check__detail">(unset)</span>
             </li>
             <li class="doctor-check" data-status="ok">
@@ -271,12 +271,12 @@
             </li>
             <li class="doctor-check" data-status="skip">
               <span class="doctor-check__icon">○</span>
-              <span class="doctor-check__name">ALB_CONFIG</span>
+              <span class="doctor-check__name">DHANDS_CONFIG</span>
               <span class="doctor-check__detail">(unset)</span>
             </li>
             <li class="doctor-check" data-status="skip">
               <span class="doctor-check__icon">○</span>
-              <span class="doctor-check__name">ALB_PROFILE</span>
+              <span class="doctor-check__name">DHANDS_PROFILE</span>
               <span class="doctor-check__detail">(unset)</span>
             </li>
           </ul>
@@ -315,7 +315,7 @@
             <li class="doctor-check" data-status="ok">
               <span class="doctor-check__icon">✓</span>
               <span class="doctor-check__name">global config</span>
-              <span class="doctor-check__detail">~/.config/alb/config.toml</span>
+              <span class="doctor-check__detail">~/.config/devicehands/config.toml</span>
             </li>
             <li class="doctor-check" data-status="ok">
               <span class="doctor-check__icon">✓</span>
@@ -367,7 +367,7 @@
             <li class="doctor-check" data-status="skip">
               <span class="doctor-check__icon">○</span>
               <span class="doctor-check__name">ssh</span>
-              <span class="doctor-check__detail">(ALB_SSH_HOST unset; skipping)</span>
+              <span class="doctor-check__detail">(DHANDS_SSH_HOST unset; skipping)</span>
             </li>
           </ul>
         </article>

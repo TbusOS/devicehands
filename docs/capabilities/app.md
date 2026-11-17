@@ -16,13 +16,13 @@ Android app（apk）管理：安装 / 卸载 / 启动 / 停止 / 列表 / 清数
 ## CLI
 
 ```bash
-alb app install <apk> [options]
-alb app uninstall <package> [options]
-alb app start <package>[/.Activity]
-alb app stop <package>
-alb app list [--filter PATTERN] [--system] [--disabled]
-alb app info <package>
-alb app clear-data <package>           # 清 app 数据（ask 级）
+dhands app install <apk> [options]
+dhands app uninstall <package> [options]
+dhands app start <package>[/.Activity]
+dhands app stop <package>
+dhands app list [--filter PATTERN] [--system] [--disabled]
+dhands app info <package>
+dhands app clear-data <package>        # 清 app 数据（ask 级）
 alb app grant <package> <permission>   # 授权
 alb app revoke <package> <permission>
 ```
@@ -41,7 +41,7 @@ alb app revoke <package> <permission>
 
 ```python
 @mcp.tool()
-async def alb_app_install(apk_path: str,
+async def dhands_app_install(apk_path: str,
                           replace: bool = True,
                           grant_runtime: bool = False) -> dict:
     """
@@ -58,11 +58,11 @@ async def alb_app_install(apk_path: str,
     """
 
 @mcp.tool()
-async def alb_app_uninstall(package: str, keep_data: bool = False) -> dict:
+async def dhands_app_uninstall(package: str, keep_data: bool = False) -> dict:
     """Uninstall package. Permission level: ask (since user data may be lost)."""
 
 @mcp.tool()
-async def alb_app_start(component: str) -> dict:
+async def dhands_app_start(component: str) -> dict:
     """
     Start an app / activity.
 
@@ -72,21 +72,21 @@ async def alb_app_start(component: str) -> dict:
     """
 
 @mcp.tool()
-async def alb_app_stop(package: str) -> dict:
+async def dhands_app_stop(package: str) -> dict:
     """Force-stop app. Kills all processes. Permission: allow."""
 
 @mcp.tool()
-async def alb_app_list(filter: str | None = None,
+async def dhands_app_list(filter: str | None = None,
                        include_system: bool = False) -> dict:
     """List installed packages. Returns structured list.
        filter is a substring match on package name."""
 
 @mcp.tool()
-async def alb_app_info(package: str) -> dict:
+async def dhands_app_info(package: str) -> dict:
     """Detailed info: version, install time, permissions, components, size."""
 
 @mcp.tool()
-async def alb_app_clear_data(package: str) -> dict:
+async def dhands_app_clear_data(package: str) -> dict:
     """Clear app data. DESTRUCTIVE. Permission: ask."""
 ```
 
@@ -95,7 +95,7 @@ async def alb_app_clear_data(package: str) -> dict:
 ## 业务函数
 
 ```python
-# src/alb/capabilities/app.py
+# src/devicehands/capabilities/app.py
 
 async def install(transport, apk: Path,
                   replace: bool = True,
@@ -181,23 +181,23 @@ async def clear_data(transport, package: str) -> Result[None]:
 
 ### 测试流：装 + 启 + 跑 + 清
 ```bash
-alb app install my-test.apk --grant-runtime
-alb app start com.example.test
+dhands app install my-test.apk --grant-runtime
+dhands app start com.example.test
 # ... 跑测试 ...
-alb app stop com.example.test
-alb app clear-data com.example.test     # 清状态准备下次
-alb app uninstall com.example.test --keep-data=false
+dhands app stop com.example.test
+dhands app clear-data com.example.test  # 清状态准备下次
+dhands app uninstall com.example.test --keep-data=false
 ```
 
 ### 查看某 app 版本
 ```bash
-alb app info com.example.app
+dhands app info com.example.app
 # returns: versionCode/Name, installed/update time, permissions, ...
 ```
 
 ### 列出某前缀的所有包
 ```bash
-alb app list --filter com.example
+dhands app list --filter com.example
 ```
 
 ---
@@ -206,7 +206,7 @@ alb app list --filter com.example
 
 | 错误码 | 场景 | suggestion |
 |-------|------|-----------|
-| `APP_NOT_INSTALLED` | 对不存在的包操作 | alb app list 确认 |
+| `APP_NOT_INSTALLED` | 对不存在的包操作 | dhands app list 确认 |
 | `PACKAGE_NAME_INVALID` | 包名格式错 | 应为 com.x.y |
 | `FILE_NOT_FOUND` | apk 不存在 | 检查路径 |
 | `INSTALL_FAILED_VERSION_DOWNGRADE` | 装老版本 | 用 --downgrade 或先 uninstall |
@@ -217,7 +217,7 @@ alb app list --filter com.example
 
 ## 关联文件
 
-- `src/alb/capabilities/app.py`
-- `src/alb/cli/app_cli.py`
-- `src/alb/mcp/tools/app.py`
+- `src/devicehands/capabilities/app.py`
+- `src/devicehands/cli/app_cli.py`
+- `src/devicehands/mcp/tools/app.py`
 - `tests/capabilities/test_app.py`

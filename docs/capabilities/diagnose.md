@@ -44,7 +44,7 @@ alb diagnose all                       # 一次全拉（适合大型排故障）
 
 ```python
 @mcp.tool()
-async def alb_bugreport(output_dir: str | None = None) -> dict:
+async def dhands_bugreport(output_dir: str | None = None) -> dict:
     """
     Trigger adb bugreport and save the zip to workspace.
 
@@ -55,11 +55,11 @@ async def alb_bugreport(output_dir: str | None = None) -> dict:
 
     LLM notes:
       - Takes 60-180s; returns only the zip path, NOT the content.
-      - Use alb_log_search on the extracted logcat for analysis.
+      - Use dhands_log_search on the extracted logcat for analysis.
     """
 
 @mcp.tool()
-async def alb_anr_pull(clear_after: bool = False) -> dict:
+async def dhands_anr_pull(clear_after: bool = False) -> dict:
     """
     Pull /data/anr/*.txt to workspace.
 
@@ -69,16 +69,16 @@ async def alb_anr_pull(clear_after: bool = False) -> dict:
 
     LLM notes:
       - Returns count + list of files pulled.
-      - Each ANR file is ~KB to MB. Use alb_log_tail to read content.
+      - Each ANR file is ~KB to MB. Use dhands_log_tail to read content.
       - clear_after=True deletes device-side files after pull (fresh slate for next).
     """
 
 @mcp.tool()
-async def alb_tombstone_pull(limit: int = 10) -> dict:
+async def dhands_tombstone_pull(limit: int = 10) -> dict:
     """Pull native crash tombstones. Similar to anr_pull."""
 
 @mcp.tool()
-async def alb_devinfo() -> dict:
+async def dhands_devinfo() -> dict:
     """Collect basic device info (brand/model/build/kernel/battery/storage).
        Fast - returns structured data directly (no artifact)."""
 ```
@@ -88,13 +88,13 @@ async def alb_devinfo() -> dict:
 ## 业务函数
 
 ```python
-# src/alb/capabilities/diagnose.py
+# src/devicehands/capabilities/diagnose.py
 
 async def bugreport(transport, output_dir: Path | None = None) -> Result[BugreportResult]:
     """调 adb bugreport -> zip. 只支持 adb 传输（A/B）."""
     if not isinstance(transport, AdbTransport):
         return fail(code="TRANSPORT_NOT_SUPPORTED",
-                    suggestion="bugreport needs adb. Run: alb setup adb")
+                    suggestion="bugreport needs adb. Run: dhands setup adb")
     # 权限检查 - bugreport 是只读操作，默认 allow
     r = await transport.shell("bugreportz", timeout=300)
     # parse path from stdout, then adb pull
@@ -144,8 +144,8 @@ workspace/devices/<serial>/tombstones/
 `metadata.json` / `context.json` 含：
 - 采集时间
 - 设备状态（uptime, free memory, battery）
-- 最近 `alb_shell` / `alb_logcat` 调用记录
-- 当前 ALB session ID
+- 最近 `dhands_shell` / `dhands_logcat` 调用记录
+- 当前 DeviceHands session ID
 
 —— LLM 分析 ANR 时能看到"ANR 发生时设备处于什么状态"。
 
@@ -156,12 +156,12 @@ workspace/devices/<serial>/tombstones/
 ### 工作流 1 · 标准排 crash
 
 ```
-1. alb_status                        # 确认设备在线
-2. alb_devinfo                       # 设备基础信息（一次）
+1. dhands_status                     # 确认设备在线
+2. dhands_devinfo                    # 设备基础信息（一次）
 3. 做某操作使其 crash
-4. alb_anr_pull(clear_after=True)
+4. dhands_anr_pull(clear_after=True)
    → { count: 1, files: ["/workspace/.../anr_xxx.txt"] }
-5. alb_log_tail(path=files[0], lines=100)
+5. dhands_log_tail(path=files[0], lines=100)
    → 读前 100 行看 stack
 6. 分析 + 给结论
 ```
@@ -169,19 +169,19 @@ workspace/devices/<serial>/tombstones/
 ### 工作流 2 · 偶发 bug，拉完整 bugreport
 
 ```
-1. alb_bugreport
+1. dhands_bugreport
    → zip 落 workspace，180 秒完成
-2. alb_log_search(pattern="FATAL", path=<zip>/bugreport.txt)
-3. alb_log_search(pattern="W ActivityManager", ...)
+2. dhands_log_search(pattern="FATAL", path=<zip>/bugreport.txt)
+3. dhands_log_search(pattern="W ActivityManager", ...)
 4. 综合分析
 ```
 
 ### 工作流 3 · native 崩溃
 
 ```
-1. alb_tombstone_pull(limit=3)       # 最近 3 个
-2. 逐个 alb_log_tail 读 stack
-3. 结合 alb_devinfo 的 CPU arch 定位 symbol
+1. dhands_tombstone_pull(limit=3)    # 最近 3 个
+2. 逐个 dhands_log_tail 读 stack
+3. 结合 dhands_devinfo 的 CPU arch 定位 symbol
 ```
 
 ---
@@ -189,7 +189,7 @@ workspace/devices/<serial>/tombstones/
 ## 权限系统
 
 诊断类 tool 几乎都是只读 + 标准路径，默认全部 allow。唯一例外：
-- `alb_anr_pull --clear-after` → 删除 `/data/anr/*` 是写操作，过 `ask`
+- `dhands_anr_pull --clear-after` → 删除 `/data/anr/*` 是写操作，过 `ask`
 
 ---
 
@@ -206,7 +206,7 @@ workspace/devices/<serial>/tombstones/
 
 ## 关联文件
 
-- `src/alb/capabilities/diagnose.py`
-- `src/alb/cli/diagnose_cli.py`
-- `src/alb/mcp/tools/diagnose.py`
+- `src/devicehands/capabilities/diagnose.py`
+- `src/devicehands/cli/diagnose_cli.py`
+- `src/devicehands/mcp/tools/diagnose.py`
 - `tests/capabilities/test_diagnose.py`

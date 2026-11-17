@@ -127,7 +127,7 @@
 
           <div class="msg" data-at="11400"><span class="ava" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.5-5.5 7-5.5s6.200 1.900 7 5.500"/></svg></span><div><div class="msg__name"><span class="lang-en">You</span><span class="lang-zh">你</span></div><div class="msg__body"><span class="lang-en">Flash it.</span><span class="lang-zh">烧。</span></div></div></div>
 
-          <div class="msg msg--brain" data-at="12600"><span class="ava ava--brain" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><rect x="7" y="7" width="10" height="10" rx="2.5"/></svg></span><div><div class="msg__name"><span class="lang-en">Main brain</span><span class="lang-zh">主脑</span></div><div class="msg__body"><span class="lang-en">Flashed. Watcher, keep an eye on the next resumes.</span><span class="lang-zh">烧好了。哨兵，接着盯后面的唤醒。</span><br><span class="call">alb flash write boot_a images/board-a/boot.img -y</span></div></div></div>
+          <div class="msg msg--brain" data-at="12600"><span class="ava ava--brain" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><rect x="7" y="7" width="10" height="10" rx="2.5"/></svg></span><div><div class="msg__name"><span class="lang-en">Main brain</span><span class="lang-zh">主脑</span></div><div class="msg__body"><span class="lang-en">Flashed. Watcher, keep an eye on the next resumes.</span><span class="lang-zh">烧好了。哨兵，接着盯后面的唤醒。</span><br><span class="call">dhands flash write boot_a images/board-a/boot.img -y</span></div></div></div>
 
           <div class="msg msg--watch" data-at="14600"><span class="ava ava--watch" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg></span><div><div class="msg__name"><span class="lang-en">Log watcher</span><span class="lang-zh">日志哨兵</span></div><div class="msg__body"><span class="lang-en">Every resume since the flash: no supply warning, Wi-Fi back each time.</span><span class="lang-zh">烧完之后的每一次唤醒：没有再出现供电告警，Wi-Fi 每次都连上了。</span></div></div></div>
         </div>
@@ -199,9 +199,9 @@
         <ul>
           <li><span class="lang-en">An assistant in the web UI that calls 35 board tools while it answers</span><span class="lang-zh">网页界面里的助手，回答时能调 35 个板子工具</span></li>
           <li><span class="lang-en">Runs on Ollama, an OpenAI-compatible server or Anthropic</span><span class="lang-zh">可以接 Ollama、OpenAI 兼容的服务或 Anthropic</span></li>
-          <li><span class="lang-en">Conversations are saved and can be listed and replayed with <code>alb session</code></span><span class="lang-zh">对话会保存下来，用 <code>alb session</code> 能列出和回放</span></li>
+          <li><span class="lang-en">Conversations are saved and can be listed and replayed with <code>dhands session</code></span><span class="lang-zh">对话会保存下来，用 <code>dhands session</code> 能列出和回放</span></li>
         </ul>
-        <p class="src"><code>src/alb/api/chat_route.py</code> · <code>src/alb/mcp/executor.py</code> · <code>src/alb/agent/backends/</code></p>
+        <p class="src"><code>src/devicehands/api/chat_route.py</code> · <code>src/devicehands/mcp/executor.py</code> · <code>src/devicehands/agent/backends/</code></p>
         <p class="more"><a href="webui-preview.html"><span class="lang-en">See the web UI →</span><span class="lang-zh">看网页界面 →</span></a></p>
       </article>
       <article class="card card--filled">

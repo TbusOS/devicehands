@@ -16,31 +16,32 @@ real board has to be run by hand — that is what this page is for.
 ```
    Linux hub (one host)                          Windows host (has the device)
  ┌───────────────────────────┐                 ┌────────────────────────────┐
- │ alb-api                    │                 │ alb_agent.py               │
- │  ├─ adb forwarder :5037 ───┼── wss (out) ◄───┼── dials the hub            │
- │  └─ serial forwarder :9001 │                 │   ├─ adb server :5037      │
+ │ dhands-hub                 │                 │ dhands_bench.py            │
+ │  ├─ adb forwarder :8776 ───┼── wss (out) ◄───┼── dials the hub            │
+ │  └─ serial forwarder :8777 │                 │   ├─ adb server :5037      │
  │                            │                 │   └─ COM port (UART)       │
- │ alb / alb-mcp (same host)  │                 └──────────────┬─────────────┘
- │  ├─ adb  → 127.0.0.1:5037  │                                │ USB + serial
- │  └─ serial→127.0.0.1:9001  │                       ┌────────┴────────┐
+ │ dhands / dhands-mcp        │                 └──────────────┬─────────────┘
+ │   (same host)              │                                │
+ │  ├─ adb  → 127.0.0.1:8776  │                                │ USB + serial
+ │  └─ serial→127.0.0.1:8777  │                       ┌────────┴────────┐
  └───────────────────────────┘                       │  target board   │
                                                       └─────────────────┘
 ```
 
-The forwarders are real loopback listeners owned by the `alb-api` process
-(ADR-051), so the separate `alb` CLI and `alb-mcp` processes reach the device by
-plain `connect(127.0.0.1, …)` — nothing about alb's transports or MCP tools
+The forwarders are real loopback listeners owned by the `dhands-hub` process
+(ADR-051), so the separate `dhands` CLI and `dhands-mcp` processes reach the device by
+plain `connect(127.0.0.1, …)` — nothing about DeviceHands' transports or MCP tools
 changes for remote vs local.
 
 ## What you need
 
-- **Linux hub**: alb installed (`alb-api`, `alb`, `alb-mcp` on PATH), reachable
+- **Linux hub**: DeviceHands installed (`dhands-hub`, `dhands`, `dhands-mcp` on PATH), reachable
   from the Windows host at some `wss://<hub>/agent/connect` (terminate TLS at
   your reverse proxy, or use `ws://` only on a trusted LAN). The two machines
   need not share a subnet — see [5. Across networks](#5-across-networks).
 - **Windows host**: Python 3.11+, the device on USB (for adb) and/or a serial
   port (for UART), and outbound network to the hub. `adb` on PATH if you want
-  adb. The agent is `clients/windows-agent/` (`alb_agent.py` + `requirements.txt`).
+  adb. The agent is `bench-py/` (`dhands_bench.py` + `requirements.txt`).
 - **A shared token** (any random string) so only your agent can dial in.
 
 ## 1. Hub (Linux)
@@ -49,113 +50,117 @@ The one-command path — fill a file, run a script:
 
 ```bash
 cd deploy/hub
-cp hub.env.example hub.env    # fill in ALB_AGENT_TOKEN (+ COM/baud for serial)
+cp hub.env.example hub.env    # fill in DHANDS_AGENT_TOKEN (+ COM/baud for serial)
 ./run-hub.sh
 ```
 
 `run-hub.sh` loads `hub.env` (which is gitignored — only the `.example` is
-tracked) and starts `alb-api`, falling back to `uv run alb-api` inside a repo
+tracked) and starts `dhands-hub`, falling back to `uv run dhands-hub` inside a repo
 checkout. Everything below is what the file configures, if you prefer to set
 the environment by hand. The serial COM + baud are chosen on the **hub** (it
 drives the agent); leave them unset to run adb-only.
 
 | env var | purpose | example |
 |---|---|---|
-| `ALB_AGENT_TOKEN` | auth — must match the agent's `token` (agent.conf / `--token`) | `s3cret-xyz` |
-| `ALB_AGENT_SERIAL_COM` | the COM port the agent should open (enables serial) | `COM27` |
-| `ALB_AGENT_SERIAL_BAUD` | serial baud | `1500000` |
-| `ALB_ADB_FORWARD_PORT` | override the adb forward port (default `5037`) | `15037` |
-| `ALB_SERIAL_FORWARD_PORT` | override the serial forward port (default `9001`) | `19001` |
+| `DHANDS_AGENT_TOKEN` | auth — must match the agent's `token` (bench.conf / `--token`) | `s3cret-xyz` |
+| `DHANDS_AGENT_SERIAL_COM` | the COM port the agent should open (enables serial) | `COM27` |
+| `DHANDS_AGENT_SERIAL_BAUD` | serial baud | `1500000` |
+| `DHANDS_ADB_FORWARD_PORT` | override the adb forward port (default `8776`) | `15037` |
+| `DHANDS_SERIAL_FORWARD_PORT` | override the serial forward port (default `8777`) | `19001` |
 
 ```bash
-export ALB_AGENT_TOKEN='s3cret-xyz'
-export ALB_AGENT_SERIAL_COM='COM27'      # omit for adb-only
-export ALB_AGENT_SERIAL_BAUD='1500000'
-alb-api
+export DHANDS_AGENT_TOKEN='s3cret-xyz'
+export DHANDS_AGENT_SERIAL_COM='COM27'   # omit for adb-only
+export DHANDS_AGENT_SERIAL_BAUD='1500000'
+dhands-hub
 ```
 
-> **Important — the forward port must be free.** The adb forwarder binds
-> `127.0.0.1:5037`, which is also the default adb-server port. If the hub runs
-> its own adb server, the bind fails: the agent still connects (signaling +
-> serial keep working) but adb stays unavailable and the log says so. Either
-> stop the hub's adb server (`adb kill-server`) or set `ALB_ADB_FORWARD_PORT`
-> to a free port. On the hub, the forwarder *is* the adb server alb talks to.
+> **The forward ports must be free.** The adb forwarder binds
+> `127.0.0.1:8776` and the serial forwarder `127.0.0.1:8777`
+> (`src/devicehands/infra/ports.py`). Neither is adb's own 5037, so an adb
+> server already running on the hub machine does not get in the way — leave it
+> alone. A bind still fails when another program holds the port, typically a
+> second hub: the agent stays connected (signaling + the other channel keep
+> working), the forwarder stays unbound, and the hub log says which port. Stop
+> the other program or set `DHANDS_ADB_FORWARD_PORT` /
+> `DHANDS_SERIAL_FORWARD_PORT` to a free port. On the hub, the forwarder *is*
+> the adb server dhands talks to.
 
-**adb: set nothing, even if you moved the adb forward port.** The `alb` CLI
-and `alb-mcp` ask the running hub for the port (ADR-057,
-`src/alb/infra/adb_endpoint.py`, `resolve_endpoint`). The first match wins:
+**adb: set nothing, even if you moved the adb forward port.** The `dhands` CLI
+and `dhands-mcp` ask the running hub for the port (ADR-057,
+`src/devicehands/infra/adb_endpoint.py`, `resolve_endpoint`). The first match wins:
 
-1. `[transport.adb] server_socket` in `~/.config/alb/config.toml`
+1. `[transport.adb] server_socket` in `~/.config/devicehands/config.toml`
 2. `ADB_SERVER_SOCKET` in the environment
 3. the adb forwarder port that the hub on this machine reports at `/agent/status`
 4. adb's own default, `localhost:5037`
 
 So leave `ADB_SERVER_SOCKET` unset. A hand-copied value beats the hub's answer,
 and once it goes stale the only symptom is "0 devices" — the same thing an
-unplugged board shows. `alb setup adb` prints which endpoint alb uses and where
+unplugged board shows. `dhands setup adb` prints which endpoint dhands uses and where
 it came from (`from env` / `from hub` / ...).
 
-Two limits of the lookup: it asks the hub at `http://127.0.0.1:8765` — if the hub
-listens on another port, give the client the same `ALB_API_PORT` (or
-`ALB_API_URL`); and it only finds a forwarder that is bound, that is, after the
+Two limits of the lookup: it asks the hub at `http://127.0.0.1:8775` — if the hub
+listens on another port, give the client the same `DHANDS_API_PORT` (or
+`DHANDS_API_URL`); and it only finds a forwarder that is bound, that is, after the
 agent has connected.
 
-**serial: not looked up.** alb takes `ALB_SERIAL_DEVICE` (a local tty), else
-`ALB_SERIAL_TCP` (`host:port`), else `default_tcp_host` / `default_tcp_port`
-under `[transport.serial]` in `config.toml` — default `localhost:9001`, which is
-the forwarder's default (`src/alb/transport/factory.py`, serial branch). If you
-moved the serial forward port, point alb at it: set
-`ALB_SERIAL_TCP=127.0.0.1:<port>` in every shell that runs `alb` / `alb-mcp`,
-or save it once with `alb setup serial --tcp-port <port> --save` (it saves only
+**serial: not looked up.** dhands takes `DHANDS_SERIAL_DEVICE` (a local tty), else
+`DHANDS_SERIAL_TCP` (`host:port`), else `default_tcp_host` / `default_tcp_port`
+under `[transport.serial]` in `config.toml` — default `localhost:8777`, which is
+the forwarder's default (`src/devicehands/transport/factory.py`, serial branch). If you
+moved the serial forward port, point dhands at it: set
+`DHANDS_SERIAL_TCP=127.0.0.1:<port>` in every shell that runs `dhands` / `dhands-mcp`,
+or save it once with `dhands setup serial --tcp-port <port> --save` (it saves only
 after its probe opens the port, so run it while the hub and the agent are up).
 
 ## 2. Agent (Windows host, where the device is)
 
-Copy `clients/windows-agent/` onto the host, then:
+Copy `bench-py/` onto the host, then:
 
-1. Copy `agent.conf.example` to `agent.conf` and fill in `hub_url` + `token`
+1. Copy `bench.conf.example` to `bench.conf` and fill in `hub_url` + `token`
    (the same token as the hub's `hub.env`).
-2. Double-click `run-agent.bat` — it installs the two dependencies on first
+2. Double-click `run-bench.bat` — it installs the two dependencies on first
    run and starts the agent.
 
-Or by hand, flags overriding anything in `agent.conf`:
+Or by hand, flags overriding anything in `bench.conf`:
 
 ```
 pip install -r requirements.txt
-python alb_agent.py --hub-url wss://<hub>/agent/connect --token s3cret-xyz --name bench-01
+python dhands_bench.py --hub-url wss://<hub>/agent/connect --token s3cret-xyz --name bench-01
 ```
 
 The agent auto-reconnects with backoff and serves a **local status page** on
-`http://127.0.0.1:8731` (change with `--status-port`, disable with
+`http://127.0.0.1:8741` (change with `--status-port`, disable with
 `--status-port 0`). Open it first — it tells you whether the dial-home reached
 the hub *before* you involve a board, even when the hub never saw the agent
 (wrong token / hub unreachable show up here, with the last error).
 
 To start the agent later without going to the host: run
 `setup-remote-start.bat` there once (authorises the hub's ssh key, registers
-the `alb-agent` scheduled task), set `ALB_BENCH_SSH_HOST` in the hub's
-`hub.env`, and run `alb bench agent-start` on the hub. It starts an agent
+the `dhands-bench` scheduled task), set `DHANDS_BENCH_SSH_HOST` in the hub's
+`hub.env`, and run `dhands bench agent-start` on the hub. It starts an agent
 that is not running; it does not restart one that is (ADR-061).
 
 ## 3. Verify each hop
 
 Walk down the chain; each hop has an unambiguous "good" signal.
 
-1. **Agent reached the hub** — `http://127.0.0.1:8731` (on the Windows host)
+1. **Agent reached the hub** — `http://127.0.0.1:8741` (on the Windows host)
    shows **connected**, with uptime climbing. Headless check:
-   `curl -s http://127.0.0.1:8731/status.json`.
-2. **Hub sees the agent** — on the hub (`alb-api` defaults to port `8765`):
-   `curl -s http://127.0.0.1:8765/agent/status` shows the agent under `agents`,
+   `curl -s http://127.0.0.1:8741/status.json`.
+2. **Hub sees the agent** — on the hub (`dhands-hub` defaults to port `8775`):
+   `curl -s http://127.0.0.1:8775/agent/status` shows the agent under `agents`,
    `forwarders.adb.bound: true` (and `serial.bound: true` if a COM is set), and
    the enumerated `adb_devices` / `com_ports`.
 3. **Web Connection Center** — the web UI's Connections page lists the agent
    card with its devices, and the forwarder rows show *bound*.
-4. **adb** — on the hub: `alb devices` lists the board; `alb shell getprop ro.product.model`
-   returns it. (Both go `alb → 127.0.0.1:5037 → forwarder → agent → adb server`.)
-5. **serial / UART** — `alb serial capture -d 10` (or the web UART console) shows live
+4. **adb** — on the hub: `dhands devices` lists the board; `dhands shell getprop ro.product.model`
+   returns it. (Both go `dhands → 127.0.0.1:8776 → forwarder → agent → adb server`.)
+5. **serial / UART** — `dhands serial capture -d 10` (or the web UART console) shows live
    serial output; typing in the console reaches the board.
-6. **MCP** — from Claude Code / Cursor / Codex pointed at `alb-mcp`:
-   `alb_shell` / `alb_devices` / `alb_uart_send` operate the same device.
+6. **MCP** — from Claude Code / Cursor / Codex pointed at `dhands-mcp`:
+   `dhands_shell` / `dhands_devices` / `dhands_uart_send` operate the same device.
 7. **File transfer** — in the web Files tab, drag a local file onto the
    Workspace pane (uploads to `devices/<serial>/`), then **Push** it to the
    board.
@@ -165,36 +170,36 @@ Walk down the chain; each hop has an unambiguous "good" signal.
 | symptom | layer | check / fix |
 |---|---|---|
 | status page shows **disconnected** + an error | agent → hub | read `last_error`: `1008` = bad token; connection refused / timeout = hub URL / TLS / firewall |
-| status page never loads | agent not running / port taken | is `alb_agent.py` running? try `--status-port` |
+| status page never loads | agent not running / port taken | is `dhands_bench.py` running? try `--status-port` |
 | `/agent/status` shows no agents | hub | agent didn't register — recheck token match + hub URL path is `/agent/connect` |
-| `forwarders.adb.bound: false` | hub | a local adb server holds `5037` — `adb kill-server` on the hub or set `ALB_ADB_FORWARD_PORT` (the hub log prints the bind error) |
-| `alb devices` empty but agent connected | Windows adb | `adb devices` on the Windows host — authorize the USB prompt; the agent only proxies what its local adb sees. A wedged enumeration can be kicked remotely: `curl -X POST http://<hub>:8765/api/agent/adb/restart` (the agent restarts its local adb server and re-reports) |
-| adb empty + `/agent/status` shows `adb_conflicts` | Windows adb takeover | a renamed vendor adb build holds the exclusive USB interface — `curl -X POST "http://<hub>:8765/api/agent/adb/restart?kill_conflicts=true"` terminates the suspects (agent-side heuristic) and restarts the server; expect it to recur whenever the vendor tool runs |
-| serial silent | hub COM / agent | `ALB_AGENT_SERIAL_COM` set on the **hub**? COM exists on the Windows host? right baud? |
-| `SERIAL_PORT_BUSY`, or the agent logs `cannot open COM…: Access is denied` | Windows host | some **other** program on the agent host holds the port (terminal emulator, vendor flashing tool) — close it. Concurrent alb clients are not the cause: they share one channel, and `/agent/status` → `forwarders.serial.readers` shows how many are attached |
+| `forwarders.adb.bound: false` | hub | another program holds the forward port (default `8776`), e.g. a second hub — stop it or set `DHANDS_ADB_FORWARD_PORT` to a free port (the hub log prints the bind error). A local adb server is not the cause: it uses `5037` |
+| `dhands devices` empty but agent connected | Windows adb | `adb devices` on the Windows host — authorize the USB prompt; the agent only proxies what its local adb sees. A wedged enumeration can be kicked remotely: `curl -X POST http://<hub>:8775/api/agent/adb/restart` (the agent restarts its local adb server and re-reports) |
+| adb empty + `/agent/status` shows `adb_conflicts` | Windows adb takeover | a renamed vendor adb build holds the exclusive USB interface — `curl -X POST "http://<hub>:8775/api/agent/adb/restart?kill_conflicts=true"` terminates the suspects (agent-side heuristic) and restarts the server; expect it to recur whenever the vendor tool runs |
+| serial silent | hub COM / agent | `DHANDS_AGENT_SERIAL_COM` set on the **hub**? COM exists on the Windows host? right baud? |
+| `SERIAL_PORT_BUSY`, or the agent logs `cannot open COM…: Access is denied` | Windows host | some **other** program on the agent host holds the port (terminal emulator, vendor flashing tool) — close it. Concurrent dhands clients are not the cause: they share one channel, and `/agent/status` → `forwarders.serial.readers` shows how many are attached |
 | `serial shell` fails while a capture runs | — | fixed (issue #4). If it still happens, the hub is running a build older than the shared-channel fan-out — check `forwarders.serial.readers` exists in `/agent/status` |
 | agent connects then drops in a loop | hub | older builds tore the session down on a forwarder bind failure — current builds keep it up and warn; if looping, it's the handshake (token/version) |
-| the board is in fastboot (UART shows the bootloader processing commands) but `alb flash devices` lists nothing | agent host USB | `alb bench usb` lists what the agent host itself sees on USB and the mode each board is in: a board shown with `driver: missing` needs the Android bootloader (WinUSB) driver on that host; no board at all means the cable is not on that host or the board is not enumerating. Needs an agent from the op-table era (`alb bench ops` says so if it is older) |
-| `alb power reboot fastboot` then flashing fails with `Download is not allowed on locked devices` | — | that command lands in **fastbootd** (userspace, dynamic partitions only). Use `alb power reboot bootloader --allow-dangerous --no-wait-boot` for the bootloader's fastboot |
-| need the agent host's own log, or the driver-install log | agent host | `alb bench log agent` / `alb bench log setupapi` (by source name; `-n` lines, `-g` text). `alb bench ops` lists the sources this agent offers |
+| the board is in fastboot (UART shows the bootloader processing commands) but `dhands flash devices` lists nothing | agent host USB | `dhands bench usb` lists what the agent host itself sees on USB and the mode each board is in: a board shown with `driver: missing` needs the Android bootloader (WinUSB) driver on that host; no board at all means the cable is not on that host or the board is not enumerating. Needs an agent from the op-table era (`dhands bench ops` says so if it is older) |
+| `dhands power reboot fastboot` then flashing fails with `Download is not allowed on locked devices` | — | that command lands in **fastbootd** (userspace, dynamic partitions only). Use `dhands power reboot bootloader --allow-dangerous --no-wait-boot` for the bootloader's fastboot |
+| need the agent host's own log, or the driver-install log | agent host | `dhands bench log agent` / `dhands bench log setupapi` (by source name; `-n` lines, `-g` text). `dhands bench ops` lists the sources this agent offers |
 
 ## 5. Across networks
 
 The hub and the bench PC do **not** have to share a subnet. The agent opens
 every connection itself — the signaling socket to `hub_url` and each data
 channel to `/agent/channel` on the same host and port
-(`clients/windows-agent/alb_agent.py`, `_channel_url`) — and the hub never
+(`bench-py/dhands_bench.py`, `_channel_url`) — and the hub never
 connects back. So the one requirement is:
 
 > the bench PC can open a TCP connection to the hub's address and port
-> (`8765` unless `ALB_API_PORT` says otherwise).
+> (`8775` unless `DHANDS_API_PORT` says otherwise).
 
 The bench needs no inbound port. If only the bench side is reachable from
 outside, that does not help: the direction is fixed, agent → hub.
 
 ```
  bench PC (any network)                       build server
- alb_agent.py ── opens ws:// or wss:// ──▶ reverse proxy / VPN ──▶ alb-api :8765
+ dhands_bench.py ── opens ws:// or wss:// ──▶ reverse proxy / VPN ──▶ dhands-hub :8775
    /agent/connect   signaling, one socket
    /agent/channel   adb, serial, flash data, one socket each
 ```
@@ -203,18 +208,18 @@ outside, that does not help: the direction is fixed, agent → hub.
 
 | where the two machines are | `hub_url` on the bench | what to set up |
 |---|---|---|
-| same LAN | `ws://<hub-ip>:8765/agent/connect` | nothing |
-| different subnets, routed (office VLANs, two buildings) | `ws://<hub-ip>:8765/agent/connect` | let bench → hub:8765 through the firewall |
-| different sites over the internet — **VPN** (recommended) | `ws://<hub-vpn-ip>:8765/agent/connect` | WireGuard, Tailscale or the company VPN on both machines; the hub stays off the public internet |
+| same LAN | `ws://<hub-ip>:8775/agent/connect` | nothing |
+| different subnets, routed (office VLANs, two buildings) | `ws://<hub-ip>:8775/agent/connect` | let bench → hub:8775 through the firewall |
+| different sites over the internet — **VPN** (recommended) | `ws://<hub-vpn-ip>:8775/agent/connect` | WireGuard, Tailscale or the company VPN on both machines; the hub stays off the public internet |
 | different sites — **reverse proxy with TLS** | `wss://hub.example.com/agent/connect` | a proxy in front of the hub (example below), login on everything except the two agent endpoints |
-| different sites — **port relay** (frp and similar) | `ws://<relay>:<port>/agent/connect` | the relay forwards to hub:8765; same login rule as the proxy |
+| different sites — **port relay** (frp and similar) | `ws://<relay>:<port>/agent/connect` | the relay forwards to hub:8775; same login rule as the proxy |
 
-### Do not publish port 8765 as it is
+### Do not publish port 8775 as it is
 
-Only the two agent endpoints check `ALB_AGENT_TOKEN`
-(`src/alb/api/agent_route.py`, module docstring). The web UI and the rest of
-the HTTP API have no login — `alb-api` prints a warning about this when it
-binds `0.0.0.0` (`src/alb/api/server.py`). Anyone who can reach the port can
+Only the two agent endpoints check `DHANDS_AGENT_TOKEN`
+(`src/devicehands/api/agent_route.py`, module docstring). The web UI and the rest of
+the HTTP API have no login — `dhands-hub` prints a warning about this when it
+binds `0.0.0.0` (`src/devicehands/api/server.py`). Anyone who can reach the port can
 run shell commands on the boards, write their UART and flash them. Across the
 internet, put the hub behind a VPN, or behind a proxy that makes people log in.
 
@@ -231,24 +236,24 @@ server {
     ssl_certificate     /etc/ssl/hub.example.com.crt;
     ssl_certificate_key /etc/ssl/hub.example.com.key;
 
-    # Agent endpoints: WebSocket, token checked by alb itself.
+    # Agent endpoints: WebSocket, token checked by DeviceHands itself.
     # Exact-match locations; the ?cid=… query on /agent/channel still matches.
-    location = /agent/connect { include /etc/nginx/alb-ws.conf; }
-    location = /agent/channel { include /etc/nginx/alb-ws.conf; }
+    location = /agent/connect { include /etc/nginx/dhands-ws.conf; }
+    location = /agent/channel { include /etc/nginx/dhands-ws.conf; }
 
     # Web UI and HTTP API: people log in.
     location / {
-        auth_basic           "alb hub";
-        auth_basic_user_file /etc/nginx/alb.htpasswd;
+        auth_basic           "DeviceHands hub";
+        auth_basic_user_file /etc/nginx/dhands.htpasswd;
         client_max_body_size 0;          # file push / image upload
-        include /etc/nginx/alb-ws.conf;  # the UI streams logs and chat over WebSocket
+        include /etc/nginx/dhands-ws.conf; # the UI streams logs and chat over WebSocket
     }
 }
 ```
 
 ```nginx
-# /etc/nginx/alb-ws.conf
-proxy_pass         http://127.0.0.1:8765;
+# /etc/nginx/dhands-ws.conf
+proxy_pass         http://127.0.0.1:8775;
 proxy_http_version 1.1;
 proxy_set_header   Upgrade $http_upgrade;
 proxy_set_header   Connection "upgrade";
@@ -257,8 +262,8 @@ proxy_read_timeout 1h;                   # long captures and flashes
 proxy_send_timeout 1h;
 ```
 
-With the proxy on the hub machine, keep `alb-api` off the network so nobody
-goes around the login: set `ALB_API_HOST=127.0.0.1` in `hub.env`.
+With the proxy on the hub machine, keep `dhands-hub` off the network so nobody
+goes around the login: set `DHANDS_API_HOST=127.0.0.1` in `hub.env`.
 
 Any other proxy works the same way if it upgrades WebSocket connections,
 leaves the two agent paths unauthenticated and does not cut idle connections
@@ -273,11 +278,11 @@ already trusts — a public one, or your company CA installed on the bench.
 
 1. `Test-NetConnection <hub-host> -Port 443` (PowerShell; use the port in your
    `hub_url`) — `TcpTestSucceeded : True` means the network path is open.
-   `False` is a routing, VPN or firewall problem, not an alb one.
-2. Start the agent and open `http://127.0.0.1:8731`: **connected** means the
+   `False` is a routing, VPN or firewall problem, not a DeviceHands one.
+2. Start the agent and open `http://127.0.0.1:8741`: **connected** means the
    signaling socket made it through. A TLS error in `last_error` is the
    certificate; `1008` is the token.
-3. On the hub, `alb devices` — if it lists the board, the data channels made
+3. On the hub, `dhands devices` — if it lists the board, the data channels made
    it through as well.
 
 ### Not yet tried on a real bench
@@ -302,5 +307,5 @@ once — have not been measured. Report what you see in an issue.
   so they never reach the access log. **If you ran a build from before this
   change, treat the token as exposed** — it was written in clear text to the
   hub's log on every channel open. Rotate it in all three places at once:
-  the hub's env file, the agent's `agent.conf`, and any staging copy of the
+  the hub's env file, the agent's `bench.conf`, and any staging copy of the
   agent; then restart the hub and the agent.

@@ -56,16 +56,16 @@ export function unavailableReason(t: T, why: FlashUnavailable | null | undefined
   if (cause === "no_fastboot") {
     const who = current?.name || current?.agent_id || "";
     return t(
-      `烧录现在不可用:agent ${who} 连上了,但没有报告 fastboot 能力,它那台机器上找不到 fastboot。在那台机器的 agent.conf 里把 fastboot_path 设成 fastboot 可执行文件的路径,然后重启 agent。`,
-      `Flashing is unavailable: agent ${who} is connected but does not advertise fastboot, because it finds no fastboot executable on its machine. Set fastboot_path in that machine's agent.conf to the fastboot executable, then restart the agent.`,
+      `烧录现在不可用:agent ${who} 连上了,但没有报告 fastboot 能力,它那台机器上找不到 fastboot。在那台机器的 bench.conf 里把 fastboot_path 设成 fastboot 可执行文件的路径,然后重启 agent。`,
+      `Flashing is unavailable: agent ${who} is connected but does not advertise fastboot, because it finds no fastboot executable on its machine. Set fastboot_path in that machine's bench.conf to the fastboot executable, then restart the agent.`,
     );
   }
   if (why?.message) {
     return t(`烧录现在不可用:${why.message}`, `Flashing is unavailable: ${why.message}`);
   }
   return t(
-    "烧录现在不可用:台架 agent 没有连上,或者它没有报告 fastboot 能力。agent 连着时,在它的 agent.conf 里设 fastboot_path 后重启 agent。",
-    "Flashing is unavailable: the bench agent is not connected, or it does not advertise fastboot. If it is connected, set fastboot_path in its agent.conf and restart it.",
+    "烧录现在不可用:台架 agent 没有连上,或者它没有报告 fastboot 能力。agent 连着时,在它的 bench.conf 里设 fastboot_path 后重启 agent。",
+    "Flashing is unavailable: the bench agent is not connected, or it does not advertise fastboot. If it is connected, set fastboot_path in its bench.conf and restart it.",
   );
 }
 

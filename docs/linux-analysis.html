@@ -78,8 +78,8 @@
       <span class="lang-zh">跑 Linux 内核的都能查：<em>从开发板到大型服务器</em>。</span>
     </h1>
     <p class="lead">
-      <span class="lang-en">The next main line of work for alb: collect with the tools Linux already has, such as profilers, the scheduler's tracepoints, leak detectors, eBPF and ftrace, network tools and plain logs; let a model read the result; and draw the answer in the browser. Where the CPU time goes, which thread is waiting on which lock, where the memory went, which source line the crash is on.</span>
-      <span class="lang-zh">这是 alb 接下来的主力方向：用 Linux 自己已经有的工具采数据（性能分析、调度器跟踪点、内存泄漏检测、eBPF 和 ftrace、网络工具，还有日志本身），交给模型读，再在网页上把答案画出来。CPU 时间花在哪、哪个线程在等哪把锁、内存去了哪、崩在源码的哪一行。</span>
+      <span class="lang-en">The next main line of work for DeviceHands: collect with the tools Linux already has, such as profilers, the scheduler's tracepoints, leak detectors, eBPF and ftrace, network tools and plain logs; let a model read the result; and draw the answer in the browser. Where the CPU time goes, which thread is waiting on which lock, where the memory went, which source line the crash is on.</span>
+      <span class="lang-zh">这是 DeviceHands 接下来的主力方向：用 Linux 自己已经有的工具采数据（性能分析、调度器跟踪点、内存泄漏检测、eBPF 和 ftrace、网络工具，还有日志本身），交给模型读，再在网页上把答案画出来。CPU 时间花在哪、哪个线程在等哪把锁、内存去了哪、崩在源码的哪一行。</span>
     </p>
     <div class="concept" style="margin-top:26px; max-width:860px">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19zM12 10v5M12 17.5v.5"/></svg>
@@ -262,13 +262,13 @@
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">Not only embedded</span><span class="lang-zh">不只是嵌入式</span></span>
       <h2><span class="lang-en">The same kernel, three sizes of machine.</span><span class="lang-zh">同一个内核，三种大小的机器。</span></h2>
-      <p class="lead"><span class="lang-en">The collectors come with Linux, so the same questions can be asked of a board on a bench, a PC and a server with many cores. What changes is how alb reaches the machine and which question hurts most.</span><span class="lang-zh">这些采集工具是 Linux 自带的，所以台架上的板子、PC、多核服务器，问的是同一批问题。不同的是 alb 怎么连到这台机器，以及哪个问题最疼。</span></p>
+      <p class="lead"><span class="lang-en">The collectors come with Linux, so the same questions can be asked of a board on a bench, a PC and a server with many cores. What changes is how DeviceHands reaches the machine and which question hurts most.</span><span class="lang-zh">这些采集工具是 Linux 自带的，所以台架上的板子、PC、多核服务器，问的是同一批问题。不同的是 DeviceHands 怎么连到这台机器，以及哪个问题最疼。</span></p>
     </div>
     <div class="where3 cards3">
       <article class="card card--uart">
         <span class="pill pill--plan"><span class="lang-en">planned</span><span class="lang-zh">规划中</span></span>
         <h3><span class="lang-en">Dev boards and embedded devices</span><span class="lang-zh">开发板和嵌入式设备</span></h3>
-        <p><span class="lang-en">Boot time, suspend and resume, a driver that hogs a core, a crash with only a PC value on the serial console. Reached the way alb reaches boards today: adb, ssh or UART, through the bench agent.</span><span class="lang-zh">启动时间、休眠唤醒、把一个核占满的驱动、串口上只留下一个 PC 值的崩溃。连法和 alb 现在连板子一样：adb、ssh 或串口，经台架 agent。</span></p>
+        <p><span class="lang-en">Boot time, suspend and resume, a driver that hogs a core, a crash with only a PC value on the serial console. Reached the way DeviceHands reaches boards today: adb, ssh or UART, through the bench agent.</span><span class="lang-zh">启动时间、休眠唤醒、把一个核占满的驱动、串口上只留下一个 PC 值的崩溃。连法和 DeviceHands 现在连板子一样：adb、ssh 或串口，经台架 agent。</span></p>
       </article>
       <article class="card card--tertiary">
         <span class="pill pill--plan"><span class="lang-en">planned</span><span class="lang-zh">规划中</span></span>
@@ -289,7 +289,7 @@
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">What goes in the box</span><span class="lang-zh">工具箱里放什么</span></span>
       <h2><span class="lang-en">Eight families of tools, each with a view.</span><span class="lang-zh">八类工具，每一类配一种视图。</span></h2>
-      <p class="lead"><span class="lang-en">alb will not rewrite these tools. The plan is to start them on the target, bring the raw data back to the workspace, and add the two parts they lack: a model that reads the result, and a view that shows it.</span><span class="lang-zh">alb 不会重写这些工具。计划是在目标机上把它们跑起来，把原始数据收回工作区，再补上它们没有的两样：读结果的模型，和把结果画出来的视图。</span></p>
+      <p class="lead"><span class="lang-en">DeviceHands will not rewrite these tools. The plan is to start them on the target, bring the raw data back to the workspace, and add the two parts they lack: a model that reads the result, and a view that shows it.</span><span class="lang-zh">DeviceHands 不会重写这些工具。计划是在目标机上把它们跑起来，把原始数据收回工作区，再补上它们没有的两样：读结果的模型，和把结果画出来的视图。</span></p>
     </div>
     <div class="fam">
       <article class="card"><h3><span class="lang-en">Profiling and PC sampling</span><span class="lang-zh">性能分析和 PC 采样</span> <span class="pill pill--plan"><span class="lang-en">planned</span><span class="lang-zh">规划中</span></span></h3><p><span class="lang-en">Sample where the program counter is and fold the stacks: which functions the time goes to.</span><span class="lang-zh">定时采样 PC 落在哪、把调用栈叠起来：时间花在了哪些函数上。</span></p><div class="tools"><code>perf</code><code>simpleperf</code><code>flame graph</code></div></article>
@@ -308,26 +308,26 @@
   <div class="wrap">
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">What is already there</span><span class="lang-zh">现在已经有的底子</span></span>
-      <h2><span class="lang-en">The plan stands on three things alb does today.</span><span class="lang-zh">这个规划站在 alb 今天已经做到的三件事上。</span></h2>
+      <h2><span class="lang-en">The plan stands on three things DeviceHands does today.</span><span class="lang-zh">这个规划站在 DeviceHands 今天已经做到的三件事上。</span></h2>
     </div>
     <div class="grid grid--3 cards3">
       <article class="card">
         <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span>
         <h3><span class="lang-en">It can already reach the machine</span><span class="lang-zh">机器已经连得上</span></h3>
         <p><span class="lang-en">adb, ssh and UART are in place, locally or through a bench agent at another site. A collector is one more command sent down the same way.</span><span class="lang-zh">adb、ssh、串口都已经有了，本地能用，经另一个地方的台架 agent 也能用。采集工具只是顺着同一条路多发一条命令。</span></p>
-        <p class="src"><code>src/alb/transport/</code></p>
+        <p class="src"><code>src/devicehands/transport/</code></p>
       </article>
       <article class="card">
         <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span>
         <h3><span class="lang-en">One clock for every source</span><span class="lang-zh">所有来源同一个时钟</span></h3>
-        <p><span class="lang-en"><code>alb timeline</code> already lines up UART, logcat and dmesg. A trace that joins the same timeline can be read against what the console said at that moment.</span><span class="lang-zh"><code>alb timeline</code> 已经把串口、logcat、dmesg 排在一起。跟踪数据并进同一条时间轴，就能对着那一刻串口打了什么来读。</span></p>
-        <p class="src"><code>src/alb/capabilities/timeline.py</code></p>
+        <p><span class="lang-en"><code>dhands timeline</code> already lines up UART, logcat and dmesg. A trace that joins the same timeline can be read against what the console said at that moment.</span><span class="lang-zh"><code>dhands timeline</code> 已经把串口、logcat、dmesg 排在一起。跟踪数据并进同一条时间轴，就能对着那一刻串口打了什么来读。</span></p>
+        <p class="src"><code>src/devicehands/capabilities/timeline.py</code></p>
       </article>
       <article class="card">
         <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span>
         <h3><span class="lang-en">First numbers and crash records</span><span class="lang-zh">基础数据和崩溃记录</span></h3>
-        <p><span class="lang-en"><code>alb metrics</code> samples CPU, memory, temperature and I/O; <code>alb diag</code> pulls pstore records, tombstones and ANR traces; the web UI draws the curves. These are the Android-side starting points.</span><span class="lang-zh"><code>alb metrics</code> 采 CPU、内存、温度和读写；<code>alb diag</code> 取 pstore 记录、tombstone 和 ANR；网页界面画曲线。这些是安卓这一侧已有的起点。</span></p>
-        <p class="src"><code>src/alb/capabilities/</code> · <code>web/src/features/</code></p>
+        <p><span class="lang-en"><code>dhands metrics</code> samples CPU, memory, temperature and I/O; <code>dhands diag</code> pulls pstore records, tombstones and ANR traces; the web UI draws the curves. These are the Android-side starting points.</span><span class="lang-zh"><code>dhands metrics</code> 采 CPU、内存、温度和读写；<code>dhands diag</code> 取 pstore 记录、tombstone 和 ANR；网页界面画曲线。这些是安卓这一侧已有的起点。</span></p>
+        <p class="src"><code>src/devicehands/capabilities/</code> · <code>web/src/features/</code></p>
       </article>
     </div>
     <div class="vendor-cta" style="margin-top:24px; display:flex; flex-wrap:wrap; gap:12px; align-items:center">

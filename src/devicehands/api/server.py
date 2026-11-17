@@ -57,7 +57,8 @@ from devicehands.api.ui_static import mount_ui
 from devicehands.infra.env_loader import load_env_files
 from devicehands.infra.ports import DEFAULT_API_PORT
 
-# Load .env.local / .env so DHANDS_* values reach FastAPI request handlers.
+# Load .env.local / .env (checkout root, then the per-user config dir; see
+# infra.env_loader) so DHANDS_* values reach FastAPI request handlers.
 load_env_files()
 
 
@@ -224,7 +225,8 @@ _HELP_EPILOG = """\
 Running dhands-hub with no arguments starts the HTTP + WebSocket server
 in the foreground (web UI, REST API, bench agent endpoint). Press Ctrl-C
 to stop it. Settings come from environment variables (also read from
-.env.local / .env in the current directory):
+.env.local / .env: in the source checkout when run from one, then in the
+per-user config dir; never in the current directory):
 
   DHANDS_API_HOST      address to listen on (default 0.0.0.0, all interfaces)
   DHANDS_API_PORT      port to listen on (default {port})

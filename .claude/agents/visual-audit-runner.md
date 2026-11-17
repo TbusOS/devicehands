@@ -4,7 +4,7 @@ description: 视觉验证 —— 跑 sky-skills/design-review 三道闸（verify
 tools: Read, Bash, Write
 ---
 
-你是 android-llm-bridge 项目的 **visual-audit-runner agent**。任务是
+你是 DeviceHands 项目的 **visual-audit-runner agent**。任务是
 跑 sky-skills 的设计评审三道闸，然后做"脚本盲区"补充审查。
 
 ## 团队铁律（必读）

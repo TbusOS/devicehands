@@ -31,7 +31,7 @@ import { SnackbarHost, useSnack } from "../../../components/v3/ui";
 import { useApp } from "../../../stores/app";
 import { useShell } from "../../../stores/shell";
 
-const ROOT = "/srv/alb-ws";
+const ROOT = "/srv/dhands-ws";
 
 function mockFetch(root: string | null = ROOT) {
   const calls: string[] = [];
@@ -214,28 +214,28 @@ describe("tool calls", () => {
       user("u1", "tail it"),
       ai("a1", {
         content: "done",
-        toolCalls: [{ id: "c1", name: "alb_log_tail", arguments: { path: "/srv/alb-ws/devices/board-a/logs/x.txt", lines: 3000, opts: { from_line: 1 } }, result: { ok: true, data: LOG, artifacts: [] }, status: "done", startedAt: 0, endedAt: 1200 }],
+        toolCalls: [{ id: "c1", name: "dhands_log_tail", arguments: { path: "/srv/dhands-ws/devices/board-a/logs/x.txt", lines: 3000, opts: { from_line: 1 } }, result: { ok: true, data: LOG, artifacts: [] }, status: "done", startedAt: 0, endedAt: 1200 }],
       }),
     ];
     render(tree());
-    const head = screen.getByText(/^alb_log_tail /);
+    const head = screen.getByText(/^dhands_log_tail /);
     expect(head.textContent).toContain("lines=3000");
     expect(screen.getByText("1.2 s")).toBeInTheDocument();
     expect(screen.getByText("line 0")).toBeInTheDocument(); // first output line, collapsed
-    expect(screen.queryByLabelText("alb_log_tail 的输出")).toBeNull();
+    expect(screen.queryByLabelText("dhands_log_tail 的输出")).toBeNull();
 
     const toggle = screen.getByRole("button", { name: /参数和输出/ });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByLabelText("alb_log_tail 的参数").textContent).toContain('"opts": {\n    "from_line": 1\n  }');
-    const out = screen.getByLabelText("alb_log_tail 的输出");
+    expect(screen.getByLabelText("dhands_log_tail 的参数").textContent).toContain('"opts": {\n    "from_line": 1\n  }');
+    const out = screen.getByLabelText("dhands_log_tail 的输出");
     expect(out.textContent?.length).toBe(LOG.length); // nothing cut (the old v3 card stopped at 4000 chars)
     expect(out.textContent).toContain("line 2999");
     expect(screen.getByText(/输出 · 3000 行/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "JSON" }));
-    expect(screen.getByLabelText("alb_log_tail 的输出").textContent).toContain('"ok": true');
+    expect(screen.getByLabelText("dhands_log_tail 的输出").textContent).toContain('"ok": true');
     fireEvent.click(screen.getByRole("button", { name: "文本" }));
 
     fireEvent.click(screen.getByRole("button", { name: "复制输出" }));
@@ -245,7 +245,7 @@ describe("tool calls", () => {
 
   it("Open large shows the output as numbered lines in the log dialog; Esc closes only the dialog", () => {
     mockFetch();
-    chat.state.turns = [user("u1", "q"), ai("a1", { content: "x", toolCalls: [{ id: "c1", name: "alb_shell", arguments: { cmd: "dmesg" }, result: { ok: true, data: { stdout: LOG, stderr: "", exit_code: 0 } }, status: "done", startedAt: 0, endedAt: 10 }] })];
+    chat.state.turns = [user("u1", "q"), ai("a1", { content: "x", toolCalls: [{ id: "c1", name: "dhands_shell", arguments: { cmd: "dmesg" }, result: { ok: true, data: { stdout: LOG, stderr: "", exit_code: 0 } }, status: "done", startedAt: 0, endedAt: 10 }] })];
     useShell.setState({ sheetOpen: true });
     render(tree());
     fireEvent.click(screen.getByRole("button", { name: /放大查看/ }));
@@ -267,8 +267,8 @@ describe("tool calls", () => {
         ai("a1", {
           status: "streaming",
           toolCalls: [
-            { id: "c1", name: "alb_devinfo", arguments: {}, result: { ok: false, error: { code: "DEVICE_NOT_FOUND", message: "no such device" } }, status: "done", startedAt: 0, endedAt: 5 },
-            { id: "c2", name: "alb_logcat", arguments: { duration: 5 }, status: "running", startedAt: 0 },
+            { id: "c1", name: "dhands_devinfo", arguments: {}, result: { ok: false, error: { code: "DEVICE_NOT_FOUND", message: "no such device" } }, status: "done", startedAt: 0, endedAt: 5 },
+            { id: "c2", name: "dhands_logcat", arguments: { duration: 5 }, status: "running", startedAt: 0 },
           ],
         }),
       ],
@@ -382,10 +382,10 @@ describe("small things", () => {
 
 describe("ask before each tool call", () => {
   it("a held tool call shows its name and arguments; Run and Skip answer it", () => {
-    chat.state = { ...chat.state, isStreaming: true, confirmRequest: { id: "q1", name: "alb_reboot", arguments: { mode: "normal" } } };
+    chat.state = { ...chat.state, isStreaming: true, confirmRequest: { id: "q1", name: "dhands_reboot", arguments: { mode: "normal" } } };
     render(tree());
     const card = screen.getByRole("alertdialog");
-    expect(card.textContent).toContain("alb_reboot");
+    expect(card.textContent).toContain("dhands_reboot");
     expect(card.textContent).toContain('"mode": "normal"');
     fireEvent.click(within(card).getByRole("button", { name: "执行" }));
     expect(chat.answerConfirm).toHaveBeenCalledWith(true);
@@ -414,7 +414,7 @@ describe("streamed answers (2026-11-03)", () => {
       ai("a1", {
         content: "设备在线:\n\n- **型号**:A\n- **状态**:device",
         toolCalls: [
-          { id: "c1", name: "alb_devices", requestedName: "alb_devalb_devices", lead: "我先查一下设备", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 },
+          { id: "c1", name: "dhands_devices", requestedName: "dhands_devdhands_devices", lead: "我先查一下设备", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 },
         ],
       }),
     ];
@@ -426,7 +426,7 @@ describe("streamed answers (2026-11-03)", () => {
     expect(lead && card && lead.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelectorAll(".msg--ai ul li strong")).toHaveLength(2);
     expect(container.textContent).not.toContain("**");
-    expect(screen.getByText("alb_devalb_devices")).toBeTruthy();
+    expect(screen.getByText("dhands_devdhands_devices")).toBeTruthy();
   });
 
   it("a call whose result the model read cut says so on the card (2026-11-06)", () => {
@@ -435,8 +435,8 @@ describe("streamed answers (2026-11-03)", () => {
       ai("a1", {
         content: "没有崩溃",
         toolCalls: [
-          { id: "c1", name: "alb_logcat", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5, cut: { kept: 4000, total: 22512 } },
-          { id: "c2", name: "alb_battery", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 },
+          { id: "c1", name: "dhands_logcat", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5, cut: { kept: 4000, total: 22512 } },
+          { id: "c2", name: "dhands_battery", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 },
         ],
       }),
     ];
@@ -448,7 +448,7 @@ describe("streamed answers (2026-11-03)", () => {
   });
 
   it("after the tools ran, it says it is thinking until the answer starts", () => {
-    const call = { id: "c1", name: "alb_status", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 };
+    const call = { id: "c1", name: "dhands_status", arguments: {}, result: { ok: true }, status: "done", startedAt: 0, endedAt: 5 };
     chat.state.turns = [user("u1", "q"), ai("a1", { status: "streaming", toolCalls: [call] })];
     const r = render(tree());
     expect(screen.getByText("思考中…")).toBeTruthy();
@@ -523,7 +523,7 @@ describe("reading settings: sheet width and text size (2026-11-03)", () => {
     sheet();
     fireEvent.click(screen.getByRole("button", { name: "放大字体" }));
     fireEvent.keyDown(screen.getByRole("separator", { name: /拖动调整助手宽度/ }), { key: "ArrowLeft" });
-    const saved = JSON.parse(localStorage.getItem("alb.shell") ?? "{}");
+    const saved = JSON.parse(localStorage.getItem("dhands.shell") ?? "{}");
     expect(saved.state).toMatchObject({ chatFontPx: 15, sheetWidth: 432 });
   });
 

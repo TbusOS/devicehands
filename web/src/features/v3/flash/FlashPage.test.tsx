@@ -428,12 +428,12 @@ describe("Flash page: what the v2 tab had", () => {
     await waitFor(() => expect([...pick.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["at-lock-vboot", "at-unlock-vboot"]));
   });
 
-  it("unavailable, agent connected without fastboot: says to set fastboot_path in agent.conf and restart", async () => {
+  it("unavailable, agent connected without fastboot: says to set fastboot_path in bench.conf and restart", async () => {
     mockHub(undefined, { status: { available: false }, agents: { ...AGENTS_OK, agents: [{ ...AGENTS_OK.agents[0], caps: ["adb"] }] } });
     renderPage();
     const banner = await screen.findByText(/agent bench-01 is connected but does not advertise fastboot/);
     expect(banner.textContent).toContain("fastboot_path");
-    expect(banner.textContent).toContain("agent.conf");
+    expect(banner.textContent).toContain("bench.conf");
     expect(banner.textContent).toContain("restart the agent");
     // the same reason is the tooltip on the disabled buttons
     expect(screen.getByRole("button", { name: "Reboot to Android" })).toHaveAttribute("title", banner.textContent ?? "");
@@ -449,7 +449,7 @@ describe("Flash page: what the v2 tab had", () => {
     mockHub((url) => (url.startsWith("/agent/status") ? json({ detail: "down" }, 503) : undefined), { status: { available: false } });
     renderPage();
     const banner = await screen.findByText(/Flashing is unavailable/);
-    await waitFor(() => expect(banner.textContent).toContain("set fastboot_path in its agent.conf"));
+    await waitFor(() => expect(banner.textContent).toContain("set fastboot_path in its bench.conf"));
   });
 
   it("unavailable: the hub's cause decides the wording, even when the agent status cannot be read", async () => {

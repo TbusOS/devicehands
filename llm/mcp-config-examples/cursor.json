@@ -2,21 +2,21 @@
   "_comment": "Cursor MCP configuration. Put into ~/.cursor/mcp.json.",
 
   "mcpServers": {
-    "alb": {
+    "devicehands": {
       "command": "uvx",
       "args": [
         "--from",
-        "/path/to/android-llm-bridge",
-        "alb-mcp"
+        "/path/to/devicehands",
+        "dhands-mcp"
       ],
       "env": {
-        "ALB_WORKSPACE": "~/alb-workspace"
+        "DHANDS_WORKSPACE": "~/dhands-workspace"
       }
     }
   },
 
   "_notes": {
     "uvx": "uvx is part of uv; runs a command in ephemeral env, convenient for tools.",
-    "alternative": "You can use 'uv run --project /path/to/android-llm-bridge alb-mcp' like the Claude Code example if you prefer a stable venv."
+    "alternative": "You can use 'uv run --project /path/to/devicehands dhands-mcp' like the Claude Code example if you prefer a stable venv."
   }
 }
