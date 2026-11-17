@@ -58,10 +58,10 @@ class _CloseState:
     reason: str = "ended"
     error: str | None = None
 
-_FILTER_TOKEN = re.compile(r"^[A-Za-z0-9_.*-]+:[VDIWEFSvdiwefs]$")
+_FILTER_TOKEN = re.compile(r"^[A-Za-z0-9_.*-]+:[VDIWEFSvdiwefs]\Z")
 
 
-_BUFFER_NAME = re.compile(r"^[a-z]{1,16}$")
+_BUFFER_NAME = re.compile(r"^[a-z]{1,16}\Z")
 _MAX_BUFFERS = 8
 
 

@@ -64,7 +64,7 @@ NDJSON = "application/x-ndjson"
 
 # `capture-<iso timestamp>` plus an optional `-N` when two captures start in
 # the same second. The only names this API creates and the only ones it reads.
-_NAME_RE = re.compile(r"^capture-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d(?:-\d{1,3})?$")
+_NAME_RE = re.compile(r"^capture-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d(?:-\d{1,3})?\Z")
 
 # How long after the capture starts the reboot is issued: long enough for the
 # three readers to be attached, short enough that the boot is not missed.

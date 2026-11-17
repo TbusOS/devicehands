@@ -21,7 +21,7 @@ from devicehands.infra.dirs import default_workspace_dir
 # The pattern is intentionally tighter than the factory so we reject any
 # user-supplied id that could escape the sessions/ root via `..` / absolute
 # paths / unicode trickery. See L-035 (path-traversal hardening).
-_SAFE_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+_SAFE_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 
 # device serial shape: adb serial / ssh host / serial port basename.  Mirrors
 # the conservative shape from `api/uart_stream_route._DEVICE_SAFE_RE` (the
@@ -30,7 +30,7 @@ _SAFE_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 # `--device` CLI flag and `?device=` query params).
 # Leading char must be alnum so we reject `.` / `..` / `.foo` even though
 # the remaining char class allows `.` (for IP-style serials like 192.168.x.x).
-_SAFE_DEVICE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
+_SAFE_DEVICE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}\Z")
 
 
 class InvalidSessionId(ValueError):
@@ -46,7 +46,7 @@ class InvalidDeviceSerial(ValueError):
 # CLI flag and `DHANDS_PROFILE` env; `profile_path(name)` builds
 # `workspace/profiles/<name>.toml` so a `../etc` name would land
 # `workspace/etc.toml` and load attacker-planted TOML as dhands config.
-_SAFE_PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_SAFE_PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\Z")
 
 
 class InvalidProfileName(ValueError):
@@ -58,8 +58,18 @@ def is_safe_session_id(s: object) -> bool:
 
     Accepts any object — non-str input returns False so callers can pass
     raw JSON / dict-get values without an extra isinstance check.
+
+    A Windows reserved device name (``NUL``, ``com1``) is refused too: the
+    id becomes a directory name, and on Windows ``sessions/NUL`` is the
+    null device, not a directory. Session ids are names the program picks,
+    so refusing costs nothing (device serials are escaped instead, see
+    :func:`device_dir_name`, because ``COM5`` is a real port name there).
     """
-    return isinstance(s, str) and bool(_SAFE_SESSION_ID_RE.match(s))
+    return (
+        isinstance(s, str)
+        and bool(_SAFE_SESSION_ID_RE.match(s))
+        and s.upper() not in _WINDOWS_RESERVED
+    )
 
 
 def is_safe_device(s: object) -> bool:
@@ -76,9 +86,15 @@ def is_safe_device(s: object) -> bool:
 def is_safe_profile_name(s: object) -> bool:
     """True if `s` is a safe profile name (no traversal). See `profile_path`.
 
-    Accepts any object — non-str returns False.
+    Accepts any object — non-str returns False. A Windows reserved device
+    name is refused: ``profiles/NUL.toml`` is the null device there, with
+    or without the extension (same reasoning as :func:`is_safe_session_id`).
     """
-    return isinstance(s, str) and bool(_SAFE_PROFILE_NAME_RE.match(s))
+    return (
+        isinstance(s, str)
+        and bool(_SAFE_PROFILE_NAME_RE.match(s))
+        and s.upper() not in _WINDOWS_RESERVED
+    )
 
 
 def workspace_root() -> Path:

@@ -17,6 +17,7 @@ from devicehands.infra.workspace import (
     InvalidDeviceSerial,
     InvalidSessionId,
     device_dir_name,
+    is_safe_profile_name,
     session_path,
     workspace_path,
 )
@@ -40,6 +41,9 @@ from devicehands.infra.workspace import (
         "a" * 200,              # > 128 char limit
         "-leading-dash",        # leading non-alnum
         "_leading-underscore",  # leading underscore (factory uses date prefix)
+        "abc\n",                # trailing newline: `$` would let it through
+        "NUL",                  # Windows reserved device name
+        "com1",                 # reserved, any case
     ],
 )
 def test_session_path_rejects_traversal_and_unsafe_ids(
@@ -97,6 +101,7 @@ def test_session_path_accepts_valid_ids(
         "-leading-dash",     # leading dash
         "_leading-uscore",   # leading underscore
         ":colon-led",        # leading colon
+        "abc\n",             # trailing newline: `$` would let it through
     ],
 )
 def test_workspace_path_rejects_traversal_in_device(
@@ -176,3 +181,18 @@ def test_session_path_traversal_escape_via_resolved_symlink_blocked(
     # `escape` matches the safe-id regex but resolves outside sessions/
     with pytest.raises(InvalidSessionId, match="escapes sessions/"):
         session_path("escape")
+
+
+@pytest.mark.parametrize(
+    ("name", "ok"),
+    [
+        ("dev", True),
+        ("bench-2", True),
+        ("abc\n", False),   # trailing newline
+        ("NUL", False),      # profiles/NUL.toml is the null device on Windows
+        ("lpt1", False),
+        ("COM10", True),     # only COM0..COM9 are reserved
+    ],
+)
+def test_profile_name_refuses_newline_and_windows_reserved_names(name: str, ok: bool) -> None:
+    assert is_safe_profile_name(name) is ok
