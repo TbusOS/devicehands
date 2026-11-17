@@ -6,7 +6,7 @@
 <title>Debugging across two sites — android-llm-bridge</title>
 <meta name="alb-title-en" content="Debugging across two sites — android-llm-bridge">
 <meta name="alb-title-zh" content="两地调试：主脑在 A 地，板子在 B 地 —— android-llm-bridge">
-<meta name="description" content="Run the model, the source tree and the alb hub at one site and keep the board on a bench PC at another. The bench agent opens every connection outwards, so the remote site needs no inbound port. Setups for LAN, VPN and a TLS reverse proxy.">
+<meta name="description" content="Run the model, the source tree and the DeviceHands hub at one site and keep the board on a bench PC at another. The bench agent opens every connection outwards, so the remote site needs no inbound port. Setups for LAN, VPN and a TLS reverse proxy.">
 <link rel="canonical" href="https://doc.tbusos.com/android-llm-bridge/remote-debug.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="android-llm-bridge">
@@ -78,8 +78,8 @@
       <span class="lang-zh">主脑在 A 地，<em>板子在 B 地</em>。</span>
     </h1>
     <p class="lead">
-      <span class="lang-en">The model, the source tree and the alb hub stay on a machine at one site. The board stays on a bench PC somewhere else: another building, a lab, a customer's desk. The bench agent opens every connection outwards, so site B opens no inbound port and nobody ships the board.</span>
-      <span class="lang-zh">模型、源码树和 alb hub 留在一个地方的机器上。板子留在另一个地方的台架电脑上：另一栋楼、实验室、客户的桌子上都行。每条连接都由台架 agent 往外发起，B 地不用开任何入站端口，板子也不用寄来寄去。</span>
+      <span class="lang-en">The model, the source tree and the DeviceHands hub stay on a machine at one site. The board stays on a bench PC somewhere else: another building, a lab, a customer's desk. The bench agent opens every connection outwards, so site B opens no inbound port and nobody ships the board.</span>
+      <span class="lang-zh">模型、源码树和 DeviceHands hub 留在一个地方的机器上。板子留在另一个地方的台架电脑上：另一栋楼、实验室、客户的桌子上都行。每条连接都由台架 agent 往外发起，B 地不用开任何入站端口，板子也不用寄来寄去。</span>
     </p>
     <ul class="states">
       <li><span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span><span><span class="lang-en">The agent dials the hub for signaling and for every data channel; the hub never connects back. adb, the serial console, fastboot, Qualcomm EDL and vendor tools all ride these connections.</span><span class="lang-zh">信令和每一条数据通道都由 agent 连向 hub，hub 从不反过来连。adb、串口、fastboot、高通 9008、厂商工具都走这些连接。</span></span></li>
@@ -116,7 +116,7 @@
           <div class="site__name"><span class="lang-en">Site A</span><span class="lang-zh">A 地</span><small><span class="lang-en">you, the code and the main brain</span><span class="lang-zh">你、代码和主脑</span></small></div>
           <div class="box"><b><span class="lang-en">You</span><span class="lang-zh">你</span></b><small><span class="lang-en">terminal over ssh · web UI in a browser</span><span class="lang-zh">ssh 终端 · 浏览器里的网页界面</span></small></div>
           <div class="box"><b><span class="lang-en">AI coding agent</span><span class="lang-zh">AI 编程助手</span></b><small><span class="lang-en">edits and builds in the source tree</span><span class="lang-zh">在源码树里改代码、编译</span></small></div>
-          <div class="box box--hub"><b>alb hub</b><small><span class="lang-en">listens on one port · checks the agent's token</span><span class="lang-zh">只监听一个端口 · 核对 agent 的令牌</span></small></div>
+          <div class="box box--hub"><b>DeviceHands hub</b><small><span class="lang-en">listens on one port · checks the agent's token</span><span class="lang-zh">只监听一个端口 · 核对 agent 的令牌</span></small></div>
         </div>
 
         <div class="between">
@@ -145,10 +145,10 @@
       <ol class="walk">
         <li data-at="1200"><span class="lang-en">The bench agent starts and dials the hub's address. Site B's firewall only sees an outgoing connection.</span><span class="lang-zh">台架 agent 启动，拨 hub 的地址。B 地的防火墙看到的只是一条出站连接。</span></li>
         <li data-at="4200"><span class="lang-en">The hub checks the token. Each adb, serial or flash channel after this is another connection the agent opens.</span><span class="lang-zh">hub 核对令牌。之后每一条 adb、串口、烧录通道，都是 agent 再开出来的一条连接。</span></li>
-        <li data-at="6400"><span class="lang-en">At site A the agent runs <code>alb flash write</code>. The image crosses the link once and the bench agent flashes it next to the board.</span><span class="lang-zh">A 地的 AI 助手跑 <code>alb flash write</code>。镜像过一次链路，台架 agent 在板子旁边把它烧进去。</span></li>
+        <li data-at="6400"><span class="lang-en">At site A the agent runs <code>dhands flash write</code>. The image crosses the link once and the bench agent flashes it next to the board.</span><span class="lang-zh">A 地的 AI 助手跑 <code>dhands flash write</code>。镜像过一次链路，台架 agent 在板子旁边把它烧进去。</span></li>
         <li data-at="9600"><span class="lang-en">UART bytes and logs flow back into the workspace at site A, where the model reads them.</span><span class="lang-zh">串口字节和日志流回 A 地的工作区，模型在那边读。</span></li>
       </ol>
-      <p class="fig__cap"><span class="lang-en">The direction of every connection is as drawn (see <code>_channel_url</code> in <code>clients/windows-agent/alb_agent.py</code>). The picture shows no speeds: none have been measured across sites.</span><span class="lang-zh">每条连接的方向就是图上画的（见 <code>clients/windows-agent/alb_agent.py</code> 里的 <code>_channel_url</code>）。图上没有速度：跨地点的速度还没有测过。</span></p>
+      <p class="fig__cap"><span class="lang-en">The direction of every connection is as drawn (see <code>_channel_url</code> in <code>bench-py/dhands_bench.py</code>). The picture shows no speeds: none have been measured across sites.</span><span class="lang-zh">每条连接的方向就是图上画的（见 <code>bench-py/dhands_bench.py</code> 里的 <code>_channel_url</code>）。图上没有速度：跨地点的速度还没有测过。</span></p>
     </div>
   </div>
 </section>
@@ -158,22 +158,22 @@
     <div class="section__head">
       <span class="eyebrow"><span class="lang-en">Pick a setup</span><span class="lang-zh">选一种接法</span></span>
       <h2><span class="lang-en">Same desk or another country: only <code>hub_url</code> changes.</span><span class="lang-zh">同一张桌子还是另一个国家，改的只有 <code>hub_url</code>。</span></h2>
-      <p class="lead"><span class="lang-en"><code>hub_url</code> is one line in the bench PC's <code>agent.conf</code>. What differs between setups is what you put in front of the hub.</span><span class="lang-zh"><code>hub_url</code> 是台架电脑 <code>agent.conf</code> 里的一行。各种接法的区别，在于 hub 前面放什么。</span></p>
+      <p class="lead"><span class="lang-en"><code>hub_url</code> is one line in the bench PC's <code>bench.conf</code>. What differs between setups is what you put in front of the hub.</span><span class="lang-zh"><code>hub_url</code> 是台架电脑 <code>bench.conf</code> 里的一行。各种接法的区别，在于 hub 前面放什么。</span></p>
     </div>
     <div class="setups">
       <div class="setup">
         <h3><span class="lang-en">Same LAN</span><span class="lang-zh">同一个局域网</span></h3>
-        <div><code>ws://&lt;hub-ip&gt;:8765/agent/connect</code></div>
+        <div><code>ws://&lt;hub-ip&gt;:8775/agent/connect</code></div>
         <div><span class="lang-en">Nothing to set up. This is the setup used on a real bench so far.</span><span class="lang-zh">不用额外配置。目前真台架用的就是这种。</span></div>
       </div>
       <div class="setup">
         <h3><span class="lang-en">Different subnets, routed</span><span class="lang-zh">不同网段，有路由</span></h3>
-        <div><code>ws://&lt;hub-ip&gt;:8765/agent/connect</code></div>
+        <div><code>ws://&lt;hub-ip&gt;:8775/agent/connect</code></div>
         <div><span class="lang-en">Office VLANs or two buildings: let the bench reach the hub's port through the firewall.</span><span class="lang-zh">办公室的不同 VLAN、两栋楼之间：防火墙放行台架到 hub 那个端口。</span></div>
       </div>
       <div class="setup">
         <h3><span class="lang-en">Two sites over a VPN</span><span class="lang-zh">两地，走 VPN</span> <span class="pill pill--today"><span class="lang-en">recommended</span><span class="lang-zh">推荐</span></span></h3>
-        <div><code>ws://&lt;hub-vpn-ip&gt;:8765/agent/connect</code></div>
+        <div><code>ws://&lt;hub-vpn-ip&gt;:8775/agent/connect</code></div>
         <div><span class="lang-en">WireGuard, Tailscale or the company VPN on both machines. The hub stays off the public internet.</span><span class="lang-zh">两台机器都接进 WireGuard、Tailscale 或公司 VPN。hub 不暴露在公网上。</span></div>
       </div>
       <div class="setup">
@@ -189,7 +189,7 @@
     </div>
     <div class="concept" style="margin-top:16px">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19zM12 10v5M12 17.5v.5"/></svg>
-      <span><span class="lang-en"><b>Do not publish port 8765 as it is.</b> Only the two agent endpoints check a token. The web UI and the rest of the HTTP API have no login, so anyone who can reach the port can run commands on your boards and flash them. Across the internet, use a VPN or a proxy that makes people log in.</span><span class="lang-zh"><b>不要把 8765 端口直接放到公网上。</b>只有 agent 用的两个地址会核对令牌；网页和其余的 HTTP 接口没有登录，谁能连到这个端口，谁就能在你的板子上跑命令、烧录。跨公网时用 VPN，或者用要求登录的代理。</span></span>
+      <span><span class="lang-en"><b>Do not publish port 8775 as it is.</b> Only the two agent endpoints check a token. The web UI and the rest of the HTTP API have no login, so anyone who can reach the port can run commands on your boards and flash them. Across the internet, use a VPN or a proxy that makes people log in.</span><span class="lang-zh"><b>不要把 8775 端口直接放到公网上。</b>只有 agent 用的两个地址会核对令牌；网页和其余的 HTTP 接口没有登录，谁能连到这个端口，谁就能在你的板子上跑命令、烧录。跨公网时用 VPN，或者用要求登录的代理。</span></span>
     </div>
   </div>
 </section>
@@ -206,28 +206,28 @@
 <pre class="code"><span class="p">$</span> cd deploy/hub
 <span class="p">$</span> cp hub.env.example hub.env
 <span class="c"># in hub.env: the shared token</span>
-ALB_AGENT_TOKEN=&lt;a-long-random-string&gt;
+DHANDS_AGENT_TOKEN=&lt;a-long-random-string&gt;
 <span class="p">$</span> ./run-hub.sh</pre>
       </div>
       <div class="cpanel">
-        <div class="cpanel__bar"><span><span class="lang-en">site B · Windows · agent.conf</span><span class="lang-zh">B 地 · Windows · agent.conf</span></span></div>
-<pre class="code"><span class="c"># copy clients/windows-agent/ to the bench PC</span>
-hub_url=ws://&lt;hub-vpn-ip&gt;:8765/agent/connect
+        <div class="cpanel__bar"><span><span class="lang-en">site B · Windows · bench.conf</span><span class="lang-zh">B 地 · Windows · bench.conf</span></span></div>
+<pre class="code"><span class="c"># copy bench-py/ to the bench PC</span>
+hub_url=ws://&lt;hub-vpn-ip&gt;:8775/agent/connect
 token=&lt;the-same-string&gt;
 name=bench-01
-<span class="c"># then double-click run-agent.bat</span></pre>
+<span class="c"># then double-click run-bench.bat</span></pre>
       </div>
     </div>
     <div class="grid grid--3 cards3" style="margin-top:16px">
       <article class="card">
         <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span>
         <h3><span class="lang-en">Check it from the bench</span><span class="lang-zh">在台架这边自查</span></h3>
-        <p><span class="lang-en">The agent serves a status page on the bench PC itself, at <code>http://127.0.0.1:8731</code>: connected or not, and the last error. On the hub, <code>alb devices</code> listing the board means the data channels made it too.</span><span class="lang-zh">agent 在台架电脑本机开一个状态页 <code>http://127.0.0.1:8731</code>：连没连上、最近一次报错是什么。hub 这边 <code>alb devices</code> 能列出板子，说明数据通道也通了。</span></p>
+        <p><span class="lang-en">The agent serves a status page on the bench PC itself, at <code>http://127.0.0.1:8741</code>: connected or not, and the last error. On the hub, <code>dhands devices</code> listing the board means the data channels made it too.</span><span class="lang-zh">agent 在台架电脑本机开一个状态页 <code>http://127.0.0.1:8741</code>：连没连上、最近一次报错是什么。hub 这边 <code>dhands devices</code> 能列出板子，说明数据通道也通了。</span></p>
       </article>
       <article class="card">
         <span class="pill pill--today"><span class="lang-en">shipped</span><span class="lang-zh">已实现</span></span>
         <h3><span class="lang-en">Nobody has to be at site B</span><span class="lang-zh">B 地不用有人守着</span></h3>
-        <p><span class="lang-en">A new agent version is pushed from the hub with <code>alb bench agent-update</code>, and <code>alb bench usb</code> shows what is plugged into the bench PC and which mode each board is in.</span><span class="lang-zh">agent 要换新版，在 hub 这边用 <code>alb bench agent-update</code> 推过去。<code>alb bench usb</code> 能看到台架电脑上插着什么、每块板现在是什么模式。</span></p>
+        <p><span class="lang-en">A new agent version is pushed from the hub with <code>dhands bench agent-update</code>, and <code>dhands bench usb</code> shows what is plugged into the bench PC and which mode each board is in.</span><span class="lang-zh">agent 要换新版，在 hub 这边用 <code>dhands bench agent-update</code> 推过去。<code>dhands bench usb</code> 能看到台架电脑上插着什么、每块板现在是什么模式。</span></p>
       </article>
       <article class="card">
         <span class="pill pill--plan"><span class="lang-en">planned</span><span class="lang-zh">规划中</span></span>
@@ -236,7 +236,7 @@ name=bench-01
         <p class="more"><a href="models.html"><span class="lang-en">Big and small models →</span><span class="lang-zh">大小模型怎么分工 →</span></a></p>
       </article>
     </div>
-    <p style="margin-top:20px; display:flex; flex-wrap:wrap; gap:8px 24px"><a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/dial-home-runbook.md#5-across-networks"><span class="lang-en">Runbook: across networks →</span><span class="lang-zh">操作手册：跨网络部署 →</span></a><a href="https://github.com/TbusOS/android-llm-bridge/blob/main/clients/windows-agent/README.md"><span class="lang-en">Bench agent manual →</span><span class="lang-zh">台架 agent 使用说明 →</span></a></p>
+    <p style="margin-top:20px; display:flex; flex-wrap:wrap; gap:8px 24px"><a href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/dial-home-runbook.md#5-across-networks"><span class="lang-en">Runbook: across networks →</span><span class="lang-zh">操作手册：跨网络部署 →</span></a><a href="https://github.com/TbusOS/devicehands/blob/main/bench-py/README.md"><span class="lang-en">Bench agent manual →</span><span class="lang-zh">台架 agent 使用说明 →</span></a></p>
   </div>
 </section>
 

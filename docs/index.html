@@ -346,13 +346,13 @@ git clone https://github.com/TbusOS/android-llm-bridge
 cd android-llm-bridge &amp;&amp; ./scripts/install.sh
 
 <span class="c"># 2 · <span class="zh">看看它够得到什么</span><span class="en">see what it can reach</span></span>
-uv run alb status
-uv run alb devices
+uv run dhands status
+uv run dhands devices
 
 <span class="c"># 3 · <span class="zh">把手交给你的 AI</span><span class="en">hand it to your AI</span></span>
-claude mcp add alb -- uv run --project "$PWD" alb-mcp</code></pre>
+claude mcp add devicehands -- uv run --project "$PWD" dhands-mcp</code></pre>
   </div>
-  <p class="note note--c rv"><span class="zh">代码目前在 <code>android-llm-bridge</code> 仓库,正在改名为 DeviceHands;命令行工具叫 <code>alb</code>。然后对你的 AI 说一句:「帮我看看这块板子为什么起不来。」</span><span class="en">The code lives in the <code>android-llm-bridge</code> repository for now and is being renamed to DeviceHands; the command-line tool is called <code>alb</code>. Then tell your AI: "find out why this board will not boot."</span></p>
+  <p class="note note--c rv"><span class="zh">代码目前在 <code>android-llm-bridge</code> 仓库,正在改名为 DeviceHands;命令行工具叫 <code>dhands</code>。然后对你的 AI 说一句:「帮我看看这块板子为什么起不来。」</span><span class="en">The code lives in the <code>android-llm-bridge</code> repository for now and is being renamed to DeviceHands; the command-line tool is called <code>dhands</code>. Then tell your AI: "find out why this board will not boot."</span></p>
   <div class="hero__cta hero__cta--c rv">
     <a class="btn btn--gold" href="https://github.com/TbusOS/devicehands"><span class="zh">去 GitHub</span><span class="en">Go to GitHub</span></a>
     <a class="btn" href="https://doc.tbusos.com/android-llm-bridge/"><span class="zh">读文档</span><span class="en">Read the docs</span></a>

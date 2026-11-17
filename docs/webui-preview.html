@@ -192,8 +192,8 @@
       <a class="btn btn--tonal" href="https://github.com/TbusOS/android-llm-bridge/blob/main/docs/web-api.md"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d='m8 7-5 5 5 5M16 7l5 5-5 5'/></svg><span class="lang-en">Web API reference</span><span class="lang-zh">Web API 参考</span></a>
     </div>
     <div class="note"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx='12' cy='12' r='9'/><path d='M12 11v6M12 7.5h.01'/></svg><p>
-      <span class="lang-en">The screenshots and design pages below use sample data and are not connected to any board. To use the real UI, start <code>alb-api</code> (port 8765 by default) and open <code>http://&lt;host&gt;:8765/app/</code>.</span>
-      <span class="lang-zh">下面的截图和设计稿用的都是示例数据，不连任何板子。要用真正的界面，启动 <code>alb-api</code>（默认端口 8765），再打开 <code>http://&lt;host&gt;:8765/app/</code>。</span>
+      <span class="lang-en">The screenshots and design pages below use sample data and are not connected to any board. To use the real UI, start <code>dhands-hub</code> (port 8775 by default) and open <code>http://&lt;host&gt;:8775/app/</code>.</span>
+      <span class="lang-zh">下面的截图和设计稿用的都是示例数据，不连任何板子。要用真正的界面，启动 <code>dhands-hub</code>（默认端口 8775），再打开 <code>http://&lt;host&gt;:8775/app/</code>。</span>
     </p></div>
     <nav class="onpage" aria-label="On this page">
       <span class="onpage__label"><span class="lang-en">On this page</span><span class="lang-zh">本页</span></span>
@@ -226,8 +226,8 @@
         <div class="shot__body">
           <div class="shot__head"><span class="shot__ic"><svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><rect x='3' y='3' width='7.5' height='7.5' rx='1.5'/><rect x='13.5' y='3' width='7.5' height='7.5' rx='1.5'/><rect x='3' y='13.5' width='7.5' height='7.5' rx='1.5'/><rect x='13.5' y='13.5' width='7.5' height='7.5' rx='1.5'/></svg></span><h3><span class="lang-en">Overview</span><span class="lang-zh">总览</span></h3><span class="pill pill--device"><span class="lang-en">Device</span><span class="lang-zh">设备</span></span></div>
           <p>
-            <span class="lang-en">Start here: which devices are online, which boot stage the current board is in, which of the four channels reach it, which part of the last boot was slow, and what crashed lately. Further down is the whole alb service at a glance: which model backends respond and which agent sessions are running.</span>
-            <span class="lang-zh">打开网页先看这里：哪些设备在线、当前板子停在开机的哪一步、四条通道哪几条能连上、上次开机慢在哪一段、最近有哪些崩溃。页面下方是整个 alb 服务的概况：哪些模型后端能用、有没有正在跑的 AI 会话。</span>
+            <span class="lang-en">Start here: which devices are online, which boot stage the current board is in, which of the four channels reach it, which part of the last boot was slow, and what crashed lately. Further down is the whole DeviceHands service at a glance: which model backends respond and which agent sessions are running.</span>
+            <span class="lang-zh">打开网页先看这里：哪些设备在线、当前板子停在开机的哪一步、四条通道哪几条能连上、上次开机慢在哪一段、最近有哪些崩溃。页面下方是整个 DeviceHands 服务的概况：哪些模型后端能用、有没有正在跑的 AI 会话。</span>
           </p>
           <a class="textlink" href="webui-preview-v3.html"><span class="lang-en">Open the interactive design</span><span class="lang-zh">打开交互设计稿</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d='M5 12h14M13 6l6 6-6 6'/></svg></a>
         </div>
@@ -310,14 +310,14 @@
 
       <article class="card shot">
         <a class="shot__img" href="webui-preview-v3-chat.html" tabindex="-1" aria-hidden="true">
-          <img class="lang-en" src="assets/v3/shots/chat-en.jpg" width="1440" height="900" loading="lazy" decoding="async" alt="Chat design page: the assistant calls alb tools to look into a kernel panic, with a tool card expanded to show arguments and output">
-          <img class="lang-zh" src="assets/v3/shots/chat-zh.jpg" width="1440" height="900" loading="lazy" decoding="async" alt="对话设计稿截图：助手调用 alb 工具分析一次内核崩溃，工具卡展开显示参数和输出">
+          <img class="lang-en" src="assets/v3/shots/chat-en.jpg" width="1440" height="900" loading="lazy" decoding="async" alt="Chat design page: the assistant calls DeviceHands tools to look into a kernel panic, with a tool card expanded to show arguments and output">
+          <img class="lang-zh" src="assets/v3/shots/chat-zh.jpg" width="1440" height="900" loading="lazy" decoding="async" alt="对话设计稿截图：助手调用 DeviceHands 工具分析一次内核崩溃，工具卡展开显示参数和输出">
         </a>
         <div class="shot__body">
           <div class="shot__head"><span class="shot__ic shot__ic--assist"><svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d='M4 5h16v11H9l-5 4z'/></svg></span><h3><span class="lang-en">Chat</span><span class="lang-zh">对话</span></h3><span class="pill pill--assist"><span class="lang-en">Assistant</span><span class="lang-zh">助手</span></span></div>
           <p>
-            <span class="lang-en">Ask about the board in plain words and cite a log, a problem or a time range with @. With agent mode on, the model reads logs and runs alb tools itself; each tool call expands to show its arguments and output, and long output opens in a large view. The model can run on the host, behind a cloud API, or on the board.</span>
-            <span class="lang-zh">用大白话问板子的事，用 @ 引用一段日志、一个问题或一段时间。开了 Agent 模式，模型会自己读日志、调用 alb 工具，每次调用都能展开看参数和输出，长输出可以放大查看；模型可以跑在本机、云端 API 或板子上。</span>
+            <span class="lang-en">Ask about the board in plain words and cite a log, a problem or a time range with @. With agent mode on, the model reads logs and runs DeviceHands tools itself; each tool call expands to show its arguments and output, and long output opens in a large view. The model can run on the host, behind a cloud API, or on the board.</span>
+            <span class="lang-zh">用大白话问板子的事，用 @ 引用一段日志、一个问题或一段时间。开了 Agent 模式，模型会自己读日志、调用 DeviceHands 工具，每次调用都能展开看参数和输出，长输出可以放大查看；模型可以跑在本机、云端 API 或板子上。</span>
           </p>
           <p class="caveat">
             <span class="lang-en">Not built yet: the backend does not yet ask before a tool changes the board (the draft shows that step), and the on-board option can only look for an inference service so far.</span>
