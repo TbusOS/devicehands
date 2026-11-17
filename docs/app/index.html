@@ -6,15 +6,15 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="android-llm-bridge Web UI — debug Android devices via adb / ssh / UART, with optional local LLM chat. All resources are bundled locally; no external requests at runtime."
+      content="DeviceHands Web UI — debug Android devices via adb / ssh / UART, with optional local LLM chat. All resources are bundled locally; no external requests at runtime."
     />
-    <title>alb · Web UI</title>
+    <title>DeviceHands · Web UI</title>
     <!--
       DEBT-015 fix · 2026-04-29 · spa-github-pages recovery.
       Inline (no external resource) and runs BEFORE the React bundle,
       so TanStack Router sees the correct path on first render. Only
       activates when GH Pages bounced us here from docs/404.html with
-      ?spa=1&p=<encoded>. alb-api dev/local doesn't need this branch
+      ?spa=1&p=<encoded>. dhands-hub dev/local doesn't need this branch
       (SPAStaticFiles already serves index.html for deep paths) but
       the script is a no-op there since ?spa=1 isn't set.
     -->
@@ -50,7 +50,7 @@
         window.history.replaceState({}, "", restored);
       })();
     </script>
-    <script type="module" crossorigin src="/app/assets/index-B27vpJrS.js"></script>
+    <script type="module" crossorigin src="/app/assets/index-begjFK3s.js"></script>
     <link rel="stylesheet" crossorigin href="/app/assets/index-CrHrD9tB.css">
   </head>
   <body>
