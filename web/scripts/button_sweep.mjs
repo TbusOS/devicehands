@@ -101,11 +101,11 @@ const browser = CDP ? await connectRemote(CDP) : await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "en-US", acceptDownloads: true });
 await ctx.addInitScript(() => {
   try {
-    const raw = localStorage.getItem("alb.app");
+    const raw = localStorage.getItem("dhands.app");
     const v = raw ? JSON.parse(raw) : { state: {}, version: 0 };
     if (v.state?.lang !== "en") {
       v.state = { ...(v.state ?? {}), lang: "en" };
-      localStorage.setItem("alb.app", JSON.stringify(v));
+      localStorage.setItem("dhands.app", JSON.stringify(v));
     }
   } catch {}
   // count DOM changes so a click's effect can be measured

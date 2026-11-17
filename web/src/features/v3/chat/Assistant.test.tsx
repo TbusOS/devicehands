@@ -523,7 +523,7 @@ describe("reading settings: sheet width and text size (2026-11-03)", () => {
     sheet();
     fireEvent.click(screen.getByRole("button", { name: "放大字体" }));
     fireEvent.keyDown(screen.getByRole("separator", { name: /拖动调整助手宽度/ }), { key: "ArrowLeft" });
-    const saved = JSON.parse(localStorage.getItem("alb.shell") ?? "{}");
+    const saved = JSON.parse(localStorage.getItem("dhands.shell") ?? "{}");
     expect(saved.state).toMatchObject({ chatFontPx: 15, sheetWidth: 432 });
   });
 

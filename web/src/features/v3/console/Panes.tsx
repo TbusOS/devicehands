@@ -261,7 +261,7 @@ export interface SerialInfo {
 // board sitting at its prompt, so v2 kept typing off until asked; the
 // choice is remembered per browser. Buttons (Ctrl+C, snippets, break-in)
 // are deliberate and are not gated by it.
-const TYPING_KEY = "alb.console.serialTyping";
+const TYPING_KEY = "dhands.console.serialTyping";
 
 function readTyping(): boolean {
   try {

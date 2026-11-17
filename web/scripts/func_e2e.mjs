@@ -148,12 +148,12 @@ await guard(ctx);
 // console is on so the echo checks can type.
 await ctx.addInitScript(() => {
   try {
-    localStorage.setItem("alb.console.serialTyping", "1");
-    const raw = localStorage.getItem("alb.app");
+    localStorage.setItem("dhands.console.serialTyping", "1");
+    const raw = localStorage.getItem("dhands.app");
     const v = raw ? JSON.parse(raw) : { state: {}, version: 0 };
     if (v.state?.lang !== "en") {
       v.state = { ...(v.state ?? {}), lang: "en" };
-      localStorage.setItem("alb.app", JSON.stringify(v));
+      localStorage.setItem("dhands.app", JSON.stringify(v));
     }
   } catch {}
 });
