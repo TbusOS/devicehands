@@ -4,18 +4,27 @@ dhands's deployment-specific settings (Ollama URL, default model, API port,
 SSH host, …) are all `DHANDS_*` environment variables read via typer's
 `envvar=` parameter or direct `os.environ.get`.
 
-In addition to shell `export` and Claude Code / Cursor MCP config, we
-support a `.env.local` file at the project root — the canonical pattern
-borrowed from Django / Next.js / Supabase / most modern dev stacks:
+In addition to shell `export` and Claude Code / Cursor MCP config, the
+values can sit in a `.env.local` file (template: `.env.example` in the
+repository):
 
-    .env.example   # committed — template with safe localhost defaults
-    .env.local     # gitignored — your real deployment values
-    .env           # committed — shared defaults (optional)
+    .env.local     # your real values; gitignored in a checkout
+    .env           # shared defaults (optional)
+
+Where the files are looked for, first folder that has the file wins:
+    1. this project's source checkout, when the code runs from one
+       (infra.resources.checkout_root: pyproject.toml names devicehands)
+    2. the per-user config dir (infra.dirs.config_dir,
+       Linux: ~/.config/devicehands)
+
+The current directory is not looked at. It used to be, and running dhands
+inside some other project then pulled that project's whole `.env` into
+os.environ — and on into every subprocess dhands starts.
 
 Priority (highest first):
     1. Existing shell environment (`export FOO=bar` in ~/.bashrc etc.)
-    2. `.env.local` at project root
-    3. `.env` at project root
+    2. `.env.local`
+    3. `.env`
     4. Library / CLI flag defaults
 
 This module never overwrites an environment variable that is already
@@ -28,14 +37,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from devicehands.infra.dirs import config_dir
+from devicehands.infra.resources import checkout_root
+
 
 def load_env_files(roots: list[Path] | None = None) -> list[Path]:
     """Load `.env.local` then `.env` from the given roots into `os.environ`.
 
     Args:
-        roots: candidate directories. Default: current working directory and,
-            if different, the project root inferred from this file's location
-            (`<repo>/src/devicehands/infra/env_loader.py` → `<repo>`).
+        roots: candidate directories. Default: default_roots() — this
+            project's checkout (if the code runs from one), then the
+            per-user config dir.
 
     Returns:
         List of files that were actually loaded (for logging/debugging).
@@ -43,7 +55,7 @@ def load_env_files(roots: list[Path] | None = None) -> list[Path]:
     Never overwrites variables already present in `os.environ`.
     """
     if roots is None:
-        roots = list(_default_roots())
+        roots = default_roots()
 
     loaded: list[Path] = []
     # .env.local has higher priority than .env; load .local first so .env
@@ -59,21 +71,19 @@ def load_env_files(roots: list[Path] | None = None) -> list[Path]:
     return loaded
 
 
-def _default_roots() -> list[Path]:
-    """CWD + inferred repo root. Dedup while preserving order."""
+def default_roots() -> list[Path]:
+    """Checkout root (only when running from this project's checkout), then
+    the per-user config dir. Dedup while preserving order."""
     seen: set[Path] = set()
     out: list[Path] = []
-    for r in (Path.cwd(), _repo_root()):
+    for r in (checkout_root(), config_dir()):
+        if r is None:
+            continue
         r = r.resolve()
         if r not in seen:
             seen.add(r)
             out.append(r)
     return out
-
-
-def _repo_root() -> Path:
-    """Infer repo root from this file: .../<repo>/src/devicehands/infra/env_loader.py"""
-    return Path(__file__).resolve().parents[3]
 
 
 def _load_one(path: Path) -> None:

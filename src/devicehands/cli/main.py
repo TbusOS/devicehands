@@ -21,7 +21,8 @@ from devicehands.capabilities.logging import collect_dmesg, collect_logcat, sear
 from devicehands.capabilities.shell import execute as shell_execute
 from devicehands.infra.env_loader import load_env_files
 
-# Load .env.local / .env at CLI startup so subcommands see the values
+# Load .env.local / .env (checkout root, then the per-user config dir; see
+# infra.env_loader) at CLI startup so subcommands see the values
 # (typer's envvar= and os.environ.get both pick them up).
 load_env_files()
 from devicehands.cli.app_cli import app as app_cli
