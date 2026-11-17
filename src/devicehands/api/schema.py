@@ -830,11 +830,11 @@ WS_ENDPOINTS: list[WSSpec] = [
 ]
 
 
-def schema_dict(alb_version: str) -> dict[str, Any]:
+def schema_dict(dhands_version: str) -> dict[str, Any]:
     """Assemble the full /api/version payload."""
     return {
         "version": API_VERSION,
-        "alb_version": alb_version,
+        "dhands_version": dhands_version,
         "rest": REST_ENDPOINTS,
         "ws": WS_ENDPOINTS,
         "reference": "docs/web-api.md",

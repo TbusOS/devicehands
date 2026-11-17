@@ -2,7 +2,7 @@
  * Flash tab hooks — fastboot state, image upload, and the NDJSON job stream.
  *
  * The job endpoints do not return a JSON object; they stream one JSON object
- * per line, progress first and the verdict last (see `alb/api/flash_route`).
+ * per line, progress first and the verdict last (see `devicehands/api/flash_route`).
  * So this cannot be a plain `useQuery` — it reads the body with a
  * ReadableStream reader and pushes each line into React state as it lands.
  * That is the whole reason the endpoint streams: during a partition write a
@@ -28,7 +28,7 @@ export interface FlashStatus {
    * bench refuses; every web flash died at FLASH_PARTITION_REJECTED.)
    */
   partitions: string[];
-  /** The bench board the hub has chosen (`alb bench board use`), or "". */
+  /** The bench board the hub has chosen (`dhands bench board use`), or "". */
   board: string;
   /**
    * Why NO partition may be written right now (ADR-063 phase 2): the agent

@@ -212,7 +212,7 @@ export function OneMode({ run, available, board, partitions, partitionsProblem, 
 
 /**
  * Says what a successful write established and no more: `OKAY` is fastboot
- * reporting that it wrote, not a read-back, and alb performs none. Implying
+ * reporting that it wrote, not a read-back, and DeviceHands performs none. Implying
  * otherwise is the overclaim this line exists to stop.
  */
 export function NotReadBack() {

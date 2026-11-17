@@ -41,8 +41,8 @@ const DETAIL: Record<string, object> = {
     ok: true, session_id: "20261028-aaaa1111", created: null, backend: "ollama", model: "qwen-x", device: "board-a", turns: 6, last_event_ts: null,
     messages: [
       { role: "user", content: "Why did the last boot panic?" },
-      { role: "assistant", content: "", tool_calls: [{ id: "c1", name: "alb_diag_pstore", arguments: { device: "board-a" } }] },
-      { role: "tool", tool_call_id: "c1", name: "alb_diag_pstore", content: "Kernel panic - not syncing" },
+      { role: "assistant", content: "", tool_calls: [{ id: "c1", name: "dhands_diag_pstore", arguments: { device: "board-a" } }] },
+      { role: "tool", tool_call_id: "c1", name: "dhands_diag_pstore", content: "Kernel panic - not syncing" },
       { role: "assistant", content: "A null pointer in the sensor driver." },
     ],
   },
@@ -91,9 +91,9 @@ function mockFetch(o: Over = {}) {
           : Response.json({
               ok: true, count: 3, categories: [],
               tools: [
-                { name: "alb_logcat", description: "", category: "logs" },
-                { name: "alb_log_search", description: "", category: "logs" },
-                { name: "alb_reboot", description: "", category: "power" },
+                { name: "dhands_logcat", description: "", category: "logs" },
+                { name: "dhands_log_search", description: "", category: "logs" },
+                { name: "dhands_reboot", description: "", category: "power" },
               ],
             });
       }
@@ -211,7 +211,7 @@ describe("Chat page", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Why did the last boot panic?" }));
     // the first session is the live one only when its id matches; here it is not
-    expect(await screen.findByText(/alb_diag_pstore/)).toBeInTheDocument();
+    expect(await screen.findByText(/dhands_diag_pstore/)).toBeInTheDocument();
     expect(screen.getByText("Kernel panic - not syncing")).toBeInTheDocument();
   });
 
@@ -224,8 +224,8 @@ describe("Chat page", () => {
               ...DETAIL[id],
               messages: [
                 { role: "user", content: "Why is boot slow?" },
-                { role: "assistant", content: "", tool_calls: [{ id: "c9", name: "alb_dmesg", arguments: '{"device":"board-a","since":"boot"}' }] },
-                { role: "tool", tool_call_id: "c9", name: "alb_dmesg", content: JSON.stringify({ ok: true, data: long }) },
+                { role: "assistant", content: "", tool_calls: [{ id: "c9", name: "dhands_dmesg", arguments: '{"device":"board-a","since":"boot"}' }] },
+                { role: "tool", tool_call_id: "c9", name: "dhands_dmesg", content: JSON.stringify({ ok: true, data: long }) },
                 { role: "assistant", content: "Two services start serially." },
               ],
             })
@@ -234,10 +234,10 @@ describe("Chat page", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Why is boot slow?" }));
     // the stored JSON argument string is summarised like a live call
-    expect(await screen.findByText("alb_dmesg device=board-a since=boot")).toBeInTheDocument();
+    expect(await screen.findByText("dhands_dmesg device=board-a since=boot")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: /参数和输出/ }));
-    expect(screen.getByLabelText("alb_dmesg 的参数").textContent).toContain('"since": "boot"');
-    const out = screen.getByLabelText("alb_dmesg 的输出").textContent ?? "";
+    expect(screen.getByLabelText("dhands_dmesg 的参数").textContent).toContain('"since": "boot"');
+    const out = screen.getByLabelText("dhands_dmesg 的输出").textContent ?? "";
     expect(long.length).toBeGreaterThan(4000);
     expect(out).toBe(long); // the stored JSON is unwrapped to its log text, nothing cut
     fireEvent.click(screen.getByRole("button", { name: /放大查看/ }));
@@ -247,7 +247,7 @@ describe("Chat page", () => {
   it("a stored result the model read cut says so: the session kept only that part (2026-11-06)", async () => {
     const stored =
       '{"ok": true, "data": {"lines": ["line 00000' +
-      " …[alb cut 18512 of 22512 characters here to keep the model fast; the person sees the whole result on the page.]… " +
+      " …[DeviceHands cut 18512 of 22512 characters here to keep the model fast; the person sees the whole result on the page.]… " +
       'line 00803"]}}';
     mockFetch({
       detail: (id) =>
@@ -256,9 +256,9 @@ describe("Chat page", () => {
               ...DETAIL[id],
               messages: [
                 { role: "user", content: "Why is boot slow?" },
-                { role: "assistant", content: "", tool_calls: [{ id: "c9", name: "alb_logcat", arguments: "{}" }, { id: "c8", name: "alb_battery", arguments: "{}" }] },
-                { role: "tool", tool_call_id: "c9", name: "alb_logcat", content: stored },
-                { role: "tool", tool_call_id: "c8", name: "alb_battery", content: '{"ok": true}' },
+                { role: "assistant", content: "", tool_calls: [{ id: "c9", name: "dhands_logcat", arguments: "{}" }, { id: "c8", name: "dhands_battery", arguments: "{}" }] },
+                { role: "tool", tool_call_id: "c9", name: "dhands_logcat", content: stored },
+                { role: "tool", tool_call_id: "c8", name: "dhands_battery", content: '{"ok": true}' },
                 { role: "assistant", content: "Two services start serially." },
               ],
             })

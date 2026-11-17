@@ -85,7 +85,7 @@ export function SerialPanel({ device }: { device: string | null }) {
   };
 
   // Connect once per mount. `device` may be null, and the serial transport
-  // does not use it to pick a port (alb/transport/factory.py), so an adb
+  // does not use it to pick a port (devicehands/transport/factory.py), so an adb
   // device appearing mid-boot must not reconnect and wipe the boot log.
   const deviceRef = useRef(device);
   deviceRef.current = device;

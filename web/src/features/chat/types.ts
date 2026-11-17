@@ -2,7 +2,7 @@
  * Domain types for the Chat panel.
  *
  * The wire protocol (WS /chat/ws StreamEvent) lives in
- * docs/web-api.md and src/alb/agent/loop.py::run_stream — these
+ * docs/web-api.md and src/devicehands/agent/loop.py::run_stream — these
  * structs are the client-side projection.
  */
 

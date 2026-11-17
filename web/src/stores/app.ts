@@ -40,7 +40,7 @@ export const useApp = create<AppState>()(
       setModel: (model) => set({ model }),
     }),
     {
-      name: "alb.app",
+      name: "dhands.app",
       partialize: (s) => ({
         theme: s.theme,
         lang: s.lang,

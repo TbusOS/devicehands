@@ -405,17 +405,17 @@ describe("OverviewPage assistant and service cards", () => {
         until: "",
         events: [
           ev("tps_sample", 1_000, { data: { rate_per_s: 17, total_tokens: 340, backend: "ollama" } }),
-          ev("tool_call_start", 4_000, { data: { id: "t2", name: "alb_logcat" } }),
+          ev("tool_call_start", 4_000, { data: { id: "t2", name: "dhands_logcat" } }),
           ev("tool_call_end", 6_000, { data: { id: "t1", ok: true } }),
-          ev("tool_call_start", 8_000, { data: { id: "t1", name: "alb_dmesg" } }),
+          ev("tool_call_start", 8_000, { data: { id: "t1", name: "dhands_dmesg" } }),
           ev("user", 9_000, { summary: "Why did the board reboot?" }),
         ],
       });
     });
     expect(await screen.findByText("Why did the board reboot?")).toBeTruthy();
     const card = screen.getByText("Agent session").closest("article") as HTMLElement;
-    expect(card.querySelector(".live__tool--done")?.textContent).toContain("alb_dmesg");
-    expect(card.querySelector(".live__tool--running")?.textContent).toContain("alb_logcat");
+    expect(card.querySelector(".live__tool--done")?.textContent).toContain("dhands_dmesg");
+    expect(card.querySelector(".live__tool--running")?.textContent).toContain("dhands_logcat");
     expect(card.textContent).toContain("17tok/s now");
     expect(card.textContent).toContain("ollama");
     expect(card.textContent).toContain("340 tok");

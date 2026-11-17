@@ -6,7 +6,7 @@ export interface Snippet {
   risky: boolean;
 }
 
-const KEY = "alb.console.snippets";
+const KEY = "dhands.console.snippets";
 
 export const DEFAULT_SNIPPETS: Snippet[] = [
   { id: "d1", cmd: "getprop ro.build.fingerprint", risky: false },

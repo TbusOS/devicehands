@@ -8,10 +8,10 @@
 #   web/scripts/win_browser.sh [--edge] [local-port]   # stays in the foreground
 #   web/scripts/win_browser.sh --stop                  # only stop a test browser left behind
 # env:
-#   ALB_BENCH_SSH_HOST  ssh alias of the bench host (the one
-#                       `alb bench agent-start` uses, set in hub.env)
+#   DHANDS_BENCH_SSH_HOST  ssh alias of the bench host (the one
+#                          `dhands bench agent-start` uses, set in hub.env)
 # then, from another shell:
-#   ALB_CDP_URL=http://127.0.0.1:9333 ALB_BASE=http://<hub-lan-address>:8765/app \
+#   DHANDS_CDP_URL=http://127.0.0.1:9343 DHANDS_BASE=http://<hub-lan-address>:8775/app \
 #     node web/scripts/func_e2e.mjs
 #
 # Chrome by default. Headless Edge hangs the NEXT DevTools connection after a
@@ -23,16 +23,18 @@
 # at once (bench, 2026-11-02). --edge is there to look at the pages in Edge;
 # restart this script between Edge runs.
 #
-# The browser gets a throw-away profile (%TEMP%\alb-e2e-chrome or
-# alb-e2e-edge), never the user's own. It does NOT end with the ssh session —
+# The browser gets a throw-away profile (%TEMP%\dhands-e2e-chrome or
+# dhands-e2e-edge), never the user's own. It does NOT end with the ssh session —
 # Start-Process lets it outlive it (2026-10-28: 7 processes were still there
 # after the session closed) — so this script stops it on exit, picking
 # processes by that profile path in their command line: the user's own
 # browser windows are never touched.
 set -euo pipefail
 
-HOST="${ALB_BENCH_SSH_HOST:?set ALB_BENCH_SSH_HOST to the bench ssh alias}"
-REMOTE_PORT=9333
+HOST="${DHANDS_BENCH_SSH_HOST:?set DHANDS_BENCH_SSH_HOST to the bench ssh alias}"
+# 9343, not the 9333 the old alb copy of this script uses: both can run on
+# one bench host, and each stops only the browsers under its own profile name.
+REMOTE_PORT=9343
 
 remote_ps() {
   # -EncodedCommand works whichever default shell the bench's sshd has
@@ -44,8 +46,8 @@ remote_ps() {
 
 STOP_PS=$(cat <<'PSEOF'
 $mine = @(Get-CimInstance Win32_Process | Where-Object {
-  ($_.Name -eq 'chrome.exe' -and $_.CommandLine -like '*alb-e2e-chrome*') -or
-  ($_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*alb-e2e-edge*') })
+  ($_.Name -eq 'chrome.exe' -and $_.CommandLine -like '*dhands-e2e-chrome*') -or
+  ($_.Name -eq 'msedge.exe' -and $_.CommandLine -like '*dhands-e2e-edge*') })
 $mine | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 "stopped test browser processes: " + $mine.Count
 PSEOF
@@ -60,7 +62,7 @@ if [ "${1:-}" = "--edge" ]; then
   KIND=edge
   shift
 fi
-PORT="${1:-9333}"
+PORT="${1:-9343}"
 
 if [ "$KIND" = edge ]; then
   FIND_PS=$(cat <<'PSEOF'
@@ -82,7 +84,7 @@ fi
 START_PS=$(cat <<'PSEOF'
 @@FIND@@
 if (-not $e -or -not (Test-Path $e)) { "no @@KIND@@ on the bench host"; exit 3 }
-$d = Join-Path $env:TEMP 'alb-e2e-@@KIND@@'
+$d = Join-Path $env:TEMP 'dhands-e2e-@@KIND@@'
 Start-Process -Wait -FilePath $e -ArgumentList '--headless=new','--remote-debugging-port=@@PORT@@',"--user-data-dir=$d",'--no-first-run','--no-default-browser-check','about:blank'
 PSEOF
 )

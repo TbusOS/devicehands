@@ -205,7 +205,7 @@ function BoardsCard() {
       ) : !d || (d.boards.length === 0 && !d.problem) ? (
         <div style={{ padding: "0 16px 16px" }}>
           <Empty icon="chip" title={t("这台 hub 没有配板子表", "This hub has no board table")}>
-            {t("在 hub 的 ALB_BENCH_BOARDS 设置里指向一个板子表(TOML),重启 alb-api 后这里会列出每块板和它的串口。", "Point the hub's ALB_BENCH_BOARDS setting at a boards TOML and restart alb-api; each board and its serial port then show up here.")}
+            {t("在 hub 的 DHANDS_BENCH_BOARDS 设置里指向一个板子表(TOML),重启 dhands-hub 后这里会列出每块板和它的串口。", "Point the hub's DHANDS_BENCH_BOARDS setting at a boards TOML and restart dhands-hub; each board and its serial port then show up here.")}
           </Empty>
         </div>
       ) : (
@@ -273,7 +273,7 @@ function BoardsCard() {
       )}
       <div className="banner" style={{ margin: "4px 16px 16px" }}>
         <Icon name="info" />
-        <p>{t("板子表本身在 hub 的 ALB_BENCH_BOARDS 设置里,每块板的烧录名单在台架 agent.conf 里;这一页负责查看和切换。", "The table itself lives in the hub's ALB_BENCH_BOARDS setting and each board's flash list in the bench agent.conf; this page shows them and switches between them.")}</p>
+        <p>{t("板子表本身在 hub 的 DHANDS_BENCH_BOARDS 设置里,每块板的烧录名单在台架的 bench.conf 里;这一页负责查看和切换。", "The table itself lives in the hub's DHANDS_BENCH_BOARDS setting and each board's flash list in the bench host's bench.conf; this page shows them and switches between them.")}</p>
       </div>
     </article>
   );

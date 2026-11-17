@@ -1,9 +1,9 @@
 {
-  "name": "alb-web",
+  "name": "devicehands-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "android-llm-bridge Web UI — React + Vite + TypeScript, built into docs/app/.",
+  "description": "DeviceHands Web UI — React + Vite + TypeScript, built into docs/app/.",
   "scripts": {
     "dev": "vite",
     "dev:fresh": "rm -rf node_modules/.vite && vite",

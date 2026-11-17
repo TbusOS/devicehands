@@ -75,19 +75,19 @@ describe("Markdown", () => {
   });
 
   it("underscores in tool names do not turn italic; asterisks do", () => {
-    const c = html("调了 alb_status 和 __init__,*注意* 2*3*4");
+    const c = html("调了 dhands_status 和 __init__,*注意* 2*3*4");
     expect(c.querySelector("em")?.textContent).toBe("注意");
     expect(c.querySelectorAll("em")).toHaveLength(1);
-    expect(c.textContent).toContain("alb_status");
+    expect(c.textContent).toContain("dhands_status");
     expect(c.textContent).toContain("2*3*4");
   });
 
   it("inline code, strike and bold nest without losing their place", () => {
-    const c = html("**用 `alb_shell` 跑** 然后 ~~重启~~ 再看 `dmesg`");
-    expect(c.querySelector("strong code")?.textContent).toBe("alb_shell");
+    const c = html("**用 `dhands_shell` 跑** 然后 ~~重启~~ 再看 `dmesg`");
+    expect(c.querySelector("strong code")?.textContent).toBe("dhands_shell");
     expect(c.querySelector("del")?.textContent).toBe("重启");
     const codes = [...c.querySelectorAll("code")].map((e) => e.textContent);
-    expect(codes).toEqual(["alb_shell", "dmesg"]);
+    expect(codes).toEqual(["dhands_shell", "dmesg"]);
   });
 
   it("links: http(s) only, opened in a new tab", () => {

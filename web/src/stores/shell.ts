@@ -80,7 +80,7 @@ export const useShell = create<ShellState>()(
       setChatFontPx: (px) => set({ chatFontPx: clamp(px, CHAT_FONT_MIN, CHAT_FONT_MAX, CHAT_FONT_DEFAULT) }),
     }),
     {
-      name: "alb.shell",
+      name: "dhands.shell",
       partialize: (s) => ({
         source: s.source,
         agentMode: s.agentMode,

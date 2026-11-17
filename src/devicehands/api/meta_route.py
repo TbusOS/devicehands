@@ -19,14 +19,14 @@ router = APIRouter()
 @router.get("/api/version")
 async def api_version() -> dict[str, Any]:
     """Return the full Web API schema (REST paths + WS message types)."""
-    return schema_dict(alb_version=__version__)
+    return schema_dict(dhands_version=__version__)
 
 
 @router.get("/api/schema")
 async def api_schema_alias() -> dict[str, Any]:
     """Alias for /api/version — kept so `openapi.json` isn't the only
     discovery route."""
-    return schema_dict(alb_version=__version__)
+    return schema_dict(dhands_version=__version__)
 
 
 @router.get("/api/ping")
