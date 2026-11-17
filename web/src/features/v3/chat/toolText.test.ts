@@ -58,7 +58,7 @@ describe("tool text", () => {
     expect(workspaceRel("/srv/ws/devices/b1/logs/a.txt", "/srv/ws/")).toBe("devices/b1/logs/a.txt");
     // tool wrote through a symlinked parent; the hub reports the resolved root
     expect(workspaceRel("/mnt/link/proj/workspace/devices/b1/x.log", "/data/proj/workspace")).toBe("devices/b1/x.log");
-    expect(workspaceRel("C:\\alb\\ws\\logs\\a.txt", "C:\\alb\\ws")).toBe("logs/a.txt");
+    expect(workspaceRel("C:\\dhands\\ws\\logs\\a.txt", "C:\\dhands\\ws")).toBe("logs/a.txt");
     expect(workspaceRel("/tmp/elsewhere/a.txt", "/srv/ws")).toBeNull();
     expect(workspaceRel("/srv/ws/../etc/passwd", "/srv/ws")).toBeNull();
     expect(workspaceRel("/srv/ws/a.txt", null)).toBeNull();
