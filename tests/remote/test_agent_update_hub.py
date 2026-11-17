@@ -49,9 +49,12 @@ def _folder(tmp_path: Path) -> Path:
 def test_the_bundle_is_the_agent_files_and_never_the_folders_own_config(tmp_path):
     src = _folder(tmp_path)
     build, names = au.make_bundle(src, None, tmp_path / "b.zip")
-    assert names == ["README.md", "dhands_bench.py", "run-bench.bat"]
+    # Which files, not their order: the order comes from sorting Paths, and
+    # a WindowsPath sorts without case ("dhands_bench.py" before "README.md").
+    # Nothing reads the order — the build is the digest of dhands_bench.py.
+    assert sorted(names) == ["README.md", "dhands_bench.py", "run-bench.bat"]
     with zipfile.ZipFile(tmp_path / "b.zip") as zf:
-        assert sorted(zf.namelist()) == names
+        assert zf.namelist() == names
         assert zf.read("run-bench.bat") == b"@echo off\r\n", "bytes travel unchanged"
     assert build == au.build_of(b"print('agent')\n")
 
