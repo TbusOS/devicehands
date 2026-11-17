@@ -293,6 +293,9 @@ agent 是 `bench-py/` 里的 `dhands_bench.py`,跑在插着板子的 Windows 主
 | `status_host` | 状态页绑定的地址。改成别的会让状态页暴露到本机以外 | `127.0.0.1` |
 | `log_file` | 运行日志文件,相对路径相对脚本所在目录;写 `none` 关掉 | 不写日志文件(模板里写的是 `logs/bench.log`) |
 | `fastboot_path` | fastboot 程序路径 | PATH 上的 fastboot;找不到就不提供烧录能力 |
+| `adb_path` | adb 程序路径 | PATH 上的 adb |
+| `adb_port` | 台架主机上 adb server 的端口。hub 开 adb 通道时 agent 连 `127.0.0.1:<这个端口>`,跑 `adb` 时也带上 `-P <这个端口>` | 5037 |
+| `heartbeat_s` | 心跳间隔(秒)。给测试用的口子,正式部署不改 | 20 |
 | `flash_partitions` / `flash_partitions.<board>` | 不再生效(ADR-070):还能读,启动日志提示可以删掉。写哪些分区以厂商的烧录清单为准 | — |
 | `fastboot_product.<board>` | 这块板子 `fastboot getvar product` 应答的值,`<board>` 是 hub 板子表里的名字。任何一块板设了,写分区前就核对:没选板子、选的板子没设、答案不对,都拒绝写 | 不设 |
 | `edl_sahara` | 9008 模式用的 QSaharaServer 路径 | 不设 |
@@ -315,7 +318,7 @@ agent 是 `bench-py/` 里的 `dhands_bench.py`,跑在插着板子的 Windows 主
 - `edl_sahara` / `edl_firehose` / `edl_root` 三个要一起写。少一个、或路径不存在,9008 的三个操作都不提供,启动日志里写明原因(`_resolve_edl`)。
 - `tool_*.<tool>`(`_resolve_tools`):缺 `tool_exe` 或 `tool_root`、写了相对路径、正则写错、超时不在 1-1700、`tool_usb` 不是 `VID:PID`,agent 拒绝启动;exe 或根目录此刻不存在,启动日志警告,这个工具不提供。用法见 [`bench-py/README.md`](../bench-py/README.md)「其它厂商的下载工具」。
 
-agent 连的 adb server 固定是台架主机上的 `127.0.0.1:5037`,不能改(`ADB_TARGET`)。
+hub 能让 agent 连的只有台架主机上的 adb server(`ADB_TARGET`,线路上写作 `127.0.0.1:5037`);它实际在哪个端口由 `adb_port` 定。
 
 ### 6.2 agent 相关的环境变量
 

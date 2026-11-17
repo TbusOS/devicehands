@@ -44,6 +44,12 @@ log_file=logs/bench.log
 #   fastboot_path=D:\platform-tools\fastboot.exe
 #fastboot_path=
 
+# adb: the executable (default: adb on PATH) and the port this host's adb
+# server listens on (default 5037). The hub's adb channel reaches that
+# server; nothing else on this host.
+#adb_path=
+#adb_port=5037
+
 # Which partitions may be written is not set here (ADR-070): a package's
 # own manifest says which partitions it writes and with which file
 # (`dhands flash plan --only`), and partition names are only shape-checked

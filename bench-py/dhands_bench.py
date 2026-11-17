@@ -81,6 +81,13 @@ PROTOCOL_VERSION = 1
 # it would become an open proxy on the local LAN.
 ADB_TARGET = "127.0.0.1:5037"
 ALLOWED_TCP_TARGETS = frozenset({ADB_TARGET})
+# ADB_TARGET names "this host's adb server"; where that server listens is
+# this host's business. The default is adb's own port; `adb_port` in
+# bench.conf moves it (a second adb server, or a test that must not touch
+# the real one). `adb_path` picks the adb executable the same way.
+DEFAULT_ADB_PORT = 5037
+_ADB_PORT = DEFAULT_ADB_PORT
+_ADB_PATH = "adb"
 
 # Dial-back credential headers (ADR-055) — mirror devicehands.remote.protocol. They
 # used to ride the query string, where the hub's access log recorded both in
@@ -108,6 +115,9 @@ _JOB_OUTPUT_CAP = 64 * 1024
 _WAITING_MARKER = "waiting for any device"
 
 HEARTBEAT_INTERVAL_S = 20.0
+# `heartbeat_s` in bench.conf: for tests that cannot wait 20 s for a beat.
+# A real bench keeps the protocol's value (protocol/v2/sequences.md §9).
+_HEARTBEAT_S = HEARTBEAT_INTERVAL_S
 RECONNECT_BACKOFF_S = (1.0, 2.0, 5.0, 10.0)
 _CHUNK = 65536
 DEFAULT_STATUS_PORT = 8741
@@ -479,11 +489,17 @@ def _channel_headers(token: str | None, csecret: str | None) -> dict[str, str]:
 # ── adb device enumeration (best-effort) ─────────────────────────────
 
 
+def _adb_argv(*args: str) -> list[str]:
+    """adb with this host's adb server port: `-P` only when it is not adb's
+    own default, so the default command line stays what it always was."""
+    port = [] if _ADB_PORT == DEFAULT_ADB_PORT else ["-P", str(_ADB_PORT)]
+    return [_ADB_PATH, *port, *args]
+
+
 async def _adb_devices() -> list[str]:
     try:
         proc = await asyncio.create_subprocess_exec(
-            "adb",
-            "devices",
+            *_adb_argv("devices"),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
@@ -551,13 +567,9 @@ async def _handle_tcp_channel(
         return
 
     csecret = str(frame.get("csecret") or "")
-    host, _, port_s = target.partition(":")
-    try:
-        port = int(port_s)
-    except ValueError:
-        _log.warning("bad target port %r", target)
-        await _report_channel_error(ws, cid, f"bad target port in {target!r}")
-        return
+    # The target is checked against the allowlist above; where this host's
+    # adb server actually listens is this host's configuration.
+    host, port = "127.0.0.1", _ADB_PORT
 
     # DAEMON channel (ADR-052): a single attempt. No retry of the data channel.
     try:
@@ -592,6 +604,11 @@ async def _handle_tcp_channel(
             await writer.wait_closed()
 
 
+# pyserial's loopback port: what is written is read back. A serial channel
+# to it checks the whole tunnel on a host with no serial port at all.
+_SERIAL_LOOPBACK = "loop://"
+
+
 async def _handle_serial_channel(
     hub_url: str, token: str | None, frame: dict[str, Any], ws: Any = None
 ) -> None:
@@ -611,11 +628,19 @@ async def _handle_serial_channel(
         await _report_channel_error(ws, cid, "pyserial not installed on the agent host")
         return
 
+    if "://" in com and com != _SERIAL_LOOPBACK:
+        # pyserial reads `socket://host:port`, `rfc2217://…` as ports: opening
+        # one would make this host connect wherever the hub says — the very
+        # thing the tcp allowlist exists to prevent.
+        _log.warning("serial channel %s: refused port URL %r", cid[:8], com)
+        await _report_channel_error(ws, cid, f"port {com!r} is a URL; only {_SERIAL_LOOPBACK} is")
+        return
     try:
         # write_timeout: a write stuck on flow control would otherwise block
         # its worker thread FOREVER — and on Windows the executor join at
         # shutdown can't be interrupted, leaving the console unkillable.
-        ser = serial.Serial(com, baud, timeout=0.05, write_timeout=2)
+        # serial_for_url reads a plain port name exactly as Serial() does.
+        ser = serial.serial_for_url(com, baud, timeout=0.05, write_timeout=2)
     except Exception as e:
         # The COM port is EXCLUSIVE. The hub now shares one channel across all
         # its readers, so a failure here means some OTHER program on this host
@@ -5103,7 +5128,7 @@ def _self_check_main(args: argparse.Namespace) -> int:
 async def _heartbeat(ws: Any) -> None:
     try:
         while not _shutdown.is_set():
-            await asyncio.sleep(HEARTBEAT_INTERVAL_S)
+            await asyncio.sleep(_HEARTBEAT_S)
             await ws.send(_frame("heartbeat"))
     except Exception:
         return
@@ -5220,7 +5245,7 @@ async def _restart_adb_and_report(ws: Any, kill_conflicts: bool = False) -> None
         killed = await asyncio.to_thread(_kill_adb_conflicts)
         if killed:
             _log.info("terminated adb conflicts on hub request: %s", ", ".join(killed))
-    for args in (("adb", "kill-server"), ("adb", "start-server")):
+    for args in (_adb_argv("kill-server"), _adb_argv("start-server")):
         try:
             proc = await asyncio.create_subprocess_exec(
                 *args,
@@ -5460,6 +5485,13 @@ def _port_number(value: str) -> int:
     return port
 
 
+def _positive_seconds(value: str) -> float:
+    seconds = float(value)  # ValueError propagates to the caller's error message
+    if not 0 < seconds <= 3600:
+        raise ValueError("seconds out of range (0, 3600]")
+    return seconds
+
+
 # key → converter. argparse `type=` does NOT run on defaults injected via
 # set_defaults(), so non-string values must be converted here.
 _CONFIG_KEYS: dict[str, Any] = {
@@ -5470,6 +5502,9 @@ _CONFIG_KEYS: dict[str, Any] = {
     "status_port": _port_number,
     "status_host": str,
     "log_file": str,
+    "adb_path": str,
+    "adb_port": _port_number,
+    "heartbeat_s": _positive_seconds,
     # ADR-056 flashing. Keys here MUST stay in lockstep with the argparse
     # options in _parse_args — an unknown key is a hard error by design, so a
     # flag that exists only on the command line reads to the operator as
@@ -5610,6 +5645,25 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="also log to this file, rotating at ~5 MB x3 (relative paths are"
         " resolved next to this script; 'none' disables)",
+    )
+    ap.add_argument(
+        "--adb-path",
+        default=None,
+        help="adb executable (or adb_path in bench.conf); defaults to adb on PATH",
+    )
+    ap.add_argument(
+        "--adb-port",
+        type=_port_number,
+        default=None,
+        help=f"port of this host's adb server (or adb_port in bench.conf; default "
+        f"{DEFAULT_ADB_PORT})",
+    )
+    ap.add_argument(
+        "--heartbeat-s",
+        type=_positive_seconds,
+        default=None,
+        help=f"heartbeat interval in seconds (or heartbeat_s in bench.conf; default "
+        f"{HEARTBEAT_INTERVAL_S:.0f}). For tests; a real bench keeps the default",
     )
     ap.add_argument(
         "--fastboot-path",
@@ -6105,6 +6159,17 @@ def _partition_set(raw: str) -> frozenset[str]:
     return frozenset(p.strip() for p in raw.split(",") if p.strip())
 
 
+def _apply_host_config(args: argparse.Namespace) -> None:
+    """adb executable and port, heartbeat interval: plain values, no checks
+    beyond the converters'."""
+    global _ADB_PATH, _ADB_PORT, _HEARTBEAT_S
+    _ADB_PATH = getattr(args, "adb_path", None) or "adb"
+    port = getattr(args, "adb_port", None)
+    _ADB_PORT = DEFAULT_ADB_PORT if port is None else int(port)
+    beat = getattr(args, "heartbeat_s", None)
+    _HEARTBEAT_S = HEARTBEAT_INTERVAL_S if beat is None else float(beat)
+
+
 def _apply_flash_config(args: argparse.Namespace) -> None:
     """Resolve the flash settings and build the op table once, before
     anything can use them.
@@ -6167,6 +6232,7 @@ def main() -> None:
     _CONFIG_EXPLICIT = args.config_explicit
     _IDENTITY_STABLE = args.agent_id_explicit
     _AGENT_ID = args.agent_id
+    _apply_host_config(args)
     # Before the previous instance is stopped: a flash setting this build
     # refuses must leave the running agent in place, not the bench without one.
     _apply_flash_config(args)

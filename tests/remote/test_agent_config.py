@@ -410,3 +410,33 @@ def test_flash_config_reaches_the_module_globals(tmp_path, monkeypatch):
     agent._apply_flash_config(agent._parse_args(["--config", str(cfg)]))
     assert agent._FASTBOOT_PATH == str(exe)
     assert agent._FLASH_PARTITIONS == frozenset({"boot", "dtbo"})  # whitespace trimmed
+
+
+# ── adb executable / port, heartbeat interval ─────────────────────────
+
+
+def test_adb_and_heartbeat_keys_are_read_and_converted(tmp_path: Path) -> None:
+    p = _write(tmp_path, "hub_url=ws://h/x\nadb_path=/opt/adb\nadb_port=15038\nheartbeat_s=0.5\n")
+    cfg = agent._load_config(p)
+    assert (cfg["adb_path"], cfg["adb_port"], cfg["heartbeat_s"]) == ("/opt/adb", 15038, 0.5)
+
+
+@pytest.mark.parametrize("line", ["heartbeat_s=0", "heartbeat_s=-1", "adb_port=70000"])
+def test_out_of_range_host_values_refuse_the_start(tmp_path: Path, line: str) -> None:
+    p = _write(tmp_path, f"hub_url=ws://h/x\n{line}\n")
+    with pytest.raises(SystemExit):
+        agent._load_config(p)
+
+
+def test_adb_gets_the_port_only_when_it_is_not_the_default() -> None:
+    args = agent._parse_args(["--hub-url", "ws://h/x", "--adb-path", "adbx"])
+    agent._apply_host_config(args)
+    assert agent._adb_argv("devices") == ["adbx", "devices"]
+    assert agent._HEARTBEAT_S == agent.HEARTBEAT_INTERVAL_S
+    args = agent._parse_args(["--hub-url", "ws://h/x", "--adb-port", "15038", "--heartbeat-s", "2"])
+    agent._apply_host_config(args)
+    try:
+        assert agent._adb_argv("devices") == ["adb", "-P", "15038", "devices"]
+        assert agent._HEARTBEAT_S == 2.0
+    finally:
+        agent._apply_host_config(agent._parse_args(["--hub-url", "ws://h/x"]))
