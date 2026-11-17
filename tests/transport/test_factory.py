@@ -8,6 +8,8 @@ well-formed serials are always allowed.
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -83,11 +85,29 @@ def test_serial_fallback_off_when_default_is_not_adb(monkeypatch) -> None:
 
 # ─── DHANDS_ADB_PATH reaches the adb that actually runs (2026-11-09) ──
 def _fake_adb(tmp_path: Path) -> Path:
-    adb = tmp_path / "platform-tools" / "adb"
-    adb.parent.mkdir()
-    adb.write_text('#!/bin/sh\necho "fake-adb $*"\n')
+    """A stand-in adb that prints "fake-adb <its arguments>".
+
+    POSIX starts the shell script through its #! line. Windows starts only
+    real executables that way ([WinError 193] for the script) and runs a
+    .cmd through cmd.exe, so there the stand-in is adb.cmd — what a user
+    names in DHANDS_ADB_PATH there is adb.exe, which needs neither."""
+    tools = tmp_path / "platform-tools"
+    tools.mkdir()
+    if sys.platform == "win32":
+        adb = tools / "adb.cmd"
+        adb.write_bytes(b"@echo fake-adb %*\r\n")
+        return adb
+    adb = tools / "adb"
+    adb.write_bytes(b'#!/bin/sh\necho "fake-adb $*"\n')
     adb.chmod(0o755)
     return adb
+
+
+def _system_dirs_only() -> str:
+    """A PATH with the system's own directories and no adb in them."""
+    if sys.platform == "win32":
+        return os.path.join(os.environ.get("SYSTEMROOT", r"C:\Windows"), "System32")
+    return "/usr/bin:/bin"
 
 
 def test_adb_path_env_runs_that_adb_with_pinned_path(
@@ -101,7 +121,7 @@ def test_adb_path_env_runs_that_adb_with_pinned_path(
     from devicehands.transport.adb import AdbTransport
 
     adb = _fake_adb(tmp_path)
-    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.setenv("PATH", _system_dirs_only())
     monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "no-config.toml"))
     monkeypatch.setenv("DHANDS_ADB_PATH", str(adb))
     monkeypatch.setattr(factory, "_cached_settings", None)
