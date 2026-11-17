@@ -9,7 +9,9 @@ repeatable, and what the scheduled task is told to do.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
+import types
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -152,6 +154,15 @@ def test_a_folder_name_with_xml_characters_stays_one_value():
     assert t.findtext("t:Actions/t:Exec/t:WorkingDirectory", namespaces=NS) == r"D:\R&D <bench>"
 
 
-def test_off_windows_it_changes_nothing(capsys):
+def test_off_windows_it_changes_nothing(capsys, monkeypatch):
+    # Pin the system the script sees. Without this, on a Windows CI runner
+    # the call below really ran the setup: it wrote the key into
+    # ProgramData\ssh\administrators_authorized_keys and registered the task.
+    # Only the script's own `os` is swapped; os.name itself is left alone
+    # (pathlib picks its Path class from it).
+    off_windows = types.ModuleType("os")
+    off_windows.__dict__.update(vars(os))
+    off_windows.name = "posix"
+    monkeypatch.setattr(srs, "os", off_windows)
     assert srs.main(["--key", KEY]) == 2
     assert "run it there" in capsys.readouterr().out

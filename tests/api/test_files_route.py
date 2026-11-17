@@ -181,8 +181,8 @@ def test_device_files_build_transport_failure(workspace, monkeypatch) -> None:
 # ─── GET /workspace/files ───────────────────────────────────────────
 def test_workspace_files_lists_directory(client, workspace) -> None:
     (workspace / "devices" / "abc" / "logs").mkdir(parents=True)
-    (workspace / "devices" / "abc" / "logs" / "a.log").write_text("a\n")
-    (workspace / "devices" / "abc" / "logs" / "b.log").write_text("bb\n")
+    (workspace / "devices" / "abc" / "logs" / "a.log").write_bytes(b"a\n")
+    (workspace / "devices" / "abc" / "logs" / "b.log").write_bytes(b"bb\n")
 
     body = client.get(
         "/workspace/files", params={"path": "devices/abc/logs"}
@@ -304,7 +304,7 @@ def test_pull_rejects_local_traversal(client) -> None:
 def test_push_to_sdcard_passes_through(client, fake_transport, workspace) -> None:
     src = workspace / "devices/SERIAL01/upload/a.txt"
     src.parent.mkdir(parents=True)
-    src.write_text("hello\n")
+    src.write_bytes(b"hello\n")  # bytes: write_text gives \r\n on Windows
 
     body = client.post(
         "/devices/SERIAL01/files/push",
@@ -687,7 +687,7 @@ def test_pull_stream_default_local_lands_in_workspace(
         ws.send_json({"remote": "/sdcard/foo.txt"})
         ready = ws.receive_json()
         assert ready["direction"] == "pull"
-        assert "/devices/SERIAL01/pulls/" in ready["local"]
+        assert Path(ready["local"]).parent.parts[-3:] == ("devices", "SERIAL01", "pulls")
         closed, _ = _drain_ws(ws)
 
     assert closed["reason"] == "done"
@@ -850,7 +850,7 @@ def test_workspace_preview_text_file_full(client, workspace) -> None:
     """Small UTF-8 file → ok=true, full text, truncated=false."""
     f = workspace / "logs" / "small.txt"
     f.parent.mkdir(parents=True)
-    f.write_text("hello\nworld\n", encoding="utf-8")
+    f.write_bytes(b"hello\nworld\n")
 
     r = client.get("/workspace/files/preview/logs/small.txt")
     assert r.status_code == 200

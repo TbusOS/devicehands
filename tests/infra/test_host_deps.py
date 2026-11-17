@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import zipfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -24,6 +25,18 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 # ─── helpers ──────────────────────────────────────────────────────
+# The installers are for Linux and macOS hosts (links into ~/.local/bin, a
+# Platform-Tools download for those two systems). The fakes below are
+# extension-less shell scripts: on Windows, PATH lookup (shutil.which, and
+# so host_deps) only finds names with a PATHEXT extension, so a test that
+# puts one on PATH and expects it found cannot run there.
+_fake_tools_on_path = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="fake tools are extension-less scripts; Windows PATH lookup needs .exe/.cmd, "
+    "and these installers are for Linux and macOS hosts",
+)
+
+
 def _exe(path: Path, body: str = "#!/bin/sh\nexit 0\n") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body)
@@ -70,6 +83,7 @@ def _by_name(results: Sequence[hd.DepResult]) -> dict[str, hd.DepResult]:
 
 
 # ─── Platform-Tools (adb / fastboot) ──────────────────────────────
+@_fake_tools_on_path
 def test_install_downloads_unpacks_and_links_platform_tools(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
@@ -94,6 +108,7 @@ def test_install_downloads_unpacks_and_links_platform_tools(
     assert not hd.blocking(list(res.values()), hd.BASE_TIERS)
 
 
+@_fake_tools_on_path
 def test_adb_already_on_path_is_not_shadowed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """An adb of another version in front of the one in use would restart
     the adb server it reaches — only the missing fastboot gets linked."""
@@ -138,6 +153,7 @@ def test_download_failure_says_how_to_install_by_hand(
     assert hd.blocking(list(res.values()), hd.BASE_TIERS) == [adb]
 
 
+@_fake_tools_on_path
 def test_download_is_tried_again_after_a_dropped_connection(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
@@ -172,6 +188,7 @@ def test_download_waits_for_a_yes(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     assert len(asked) == 1 and "license" in asked[0]  # _no_fetch would have raised
 
 
+@_fake_tools_on_path
 def test_own_zip_skips_the_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     env = _env(tmp_path, platform_tools_zip=_pt_zip(tmp_path / "mine.zip"))
     monkeypatch.setenv("PATH", str(env.bin_dir))
@@ -263,6 +280,7 @@ def test_dev_checks_read_the_checkout(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert "chromium_headless_shell-1217" in res["playwright-browsers"].detail
 
 
+@_fake_tools_on_path
 def test_npm_failure_shows_its_output_and_stops_the_browser_step(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
@@ -291,6 +309,7 @@ def test_npm_failure_shows_its_output_and_stops_the_browser_step(
     assert hd.blocking(list(res.values()), hd.BASE_TIERS + hd.DEV_TIERS)
 
 
+@_fake_tools_on_path
 def test_npm_exit_0_that_installed_nothing_is_a_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
@@ -326,6 +345,7 @@ def test_no_node_means_npm_is_not_run(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert "npm" not in ran and "npx" not in ran
 
 
+@_fake_tools_on_path
 def test_mksh_no_root_install(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     tools = tmp_path / "tools"
     _exe(tools / "apt-get")
@@ -376,6 +396,7 @@ def test_install_doc_lists_every_dep() -> None:
 
 
 # ─── CLI + doctor read the same list ──────────────────────────────
+@_fake_tools_on_path
 def test_cli_exit_code_follows_required_tools(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     from devicehands.cli.main import app
 

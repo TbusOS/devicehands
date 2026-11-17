@@ -67,14 +67,17 @@ jobs:
         run: uv run python scripts/check_adr_refs.py
 
       - name: Unit tests
-        # TEMPORARY: macOS and Windows have never run the test suite, so test
-        # failures there do not fail the job yet. Tighten this (remove
-        # continue-on-error) once the results of the first runs are known.
-        # Ubuntu must pass.
+        # Must pass on all three systems. Until PR #1 the macOS and Windows
+        # runs were allowed to fail (they had never run); PR #1 made them pass
+        # and removed that allowance.
         #
         # --continue-on-collection-errors: a test file that cannot be imported
-        # (on Windows, every file that imports devicehands.api.server until P1) is
-        # reported as an error, and the remaining tests still run. The exit
-        # code stays non-zero, so Ubuntu still fails on a collection error.
-        continue-on-error: ${{ matrix.os != 'ubuntu-latest' }}
-        run: uv run pytest -q --no-cov --continue-on-collection-errors
+        # is reported as an error and the remaining tests still run, so one
+        # broken import does not hide every other result. The exit code stays
+        # non-zero, so the job still fails.
+        #
+        # faulthandler_timeout (built into pytest, no plugin): a test still
+        # running after 120 s gets every thread's stack printed, so a hang
+        # names its test instead of ending as a silent job timeout. It does
+        # not stop the test; the job timeout above still does that.
+        run: uv run pytest -q --no-cov --continue-on-collection-errors -o faulthandler_timeout=120

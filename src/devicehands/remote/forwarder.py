@@ -145,12 +145,16 @@ class ChannelForwarder:
 
     async def detach(self) -> None:
         """Close the listener + cancel all in-flight connection tasks. Safe
-        on every teardown path so the port never leaks."""
+        on every teardown path so the port never leaks.
+
+        Order matters (same as PortChannel.close): from Python 3.12
+        ``Server.wait_closed()`` waits for every accepted connection to
+        finish, so it comes after the connection tasks are cancelled. The
+        other way round, a hub shutdown hung for as long as any local client
+        (an adb server keeps its connection open) stayed connected."""
         server, self._server = self._server, None
         if server is not None:
             server.close()
-            with contextlib.suppress(Exception):
-                await server.wait_closed()
         tasks = list(self._conns)
         self._conns.clear()
         for t in tasks:
@@ -158,6 +162,9 @@ class ChannelForwarder:
         for t in tasks:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await t
+        if server is not None:
+            with contextlib.suppress(Exception):
+                await server.wait_closed()
 
     async def _on_local_conn(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter

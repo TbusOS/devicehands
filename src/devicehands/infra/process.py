@@ -29,6 +29,7 @@ Design notes
 from __future__ import annotations
 
 import asyncio
+import errno
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -70,6 +71,17 @@ class ProcessResult:
         if not lines:
             return ""
         return "\n".join(lines[-n:])
+
+
+def _not_runnable(binary: str, e: OSError, start: float) -> ProcessResult:
+    """Result for a binary that could not be started at all."""
+    return ProcessResult(
+        exit_code=-1,
+        stdout="",
+        stderr=f"binary not found or not executable: {binary} ({e})",
+        duration_ms=int((perf_counter() - start) * 1000),
+        binary_missing=True,
+    )
 
 
 async def run(
@@ -119,14 +131,17 @@ async def run(
             env=env,
             cwd=cwd,
         )
-    except (FileNotFoundError, NotADirectoryError) as e:
-        return ProcessResult(
-            exit_code=-1,
-            stdout="",
-            stderr=f"binary not found or not executable: {args[0]} ({e})",
-            duration_ms=int((perf_counter() - start) * 1000),
-            binary_missing=True,
-        )
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
+        # PermissionError: the file exists without execute permission.
+        return _not_runnable(args[0], e, start)
+    except OSError as e:
+        # ENOEXEC: not a program the system can start — a script without
+        # a #! line, or on Windows anything that is not an .exe
+        # ([WinError 193], which Python maps to ENOEXEC). Any other OSError
+        # (out of file descriptors, ...) is not about the binary: raise it.
+        if e.errno != errno.ENOEXEC:
+            raise
+        return _not_runnable(args[0], e, start)
 
     try:
         async with asyncio.timeout(timeout):

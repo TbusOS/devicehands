@@ -147,6 +147,29 @@ async def test_detach_closes_listener_no_eaddrinuse():
             await server.wait_closed()
 
 
+async def test_detach_returns_while_a_client_is_still_connected():
+    """An adb server keeps its connection to the forwarder open. From Python
+    3.12 Server.wait_closed() waits for that connection, so detach() (the
+    hub's shutdown) hung until the client left by itself."""
+    server, adb_port = await _start_echo_server()
+    fwd = AdbForwarder(lambda: _FakeAgent("127.0.0.1", adb_port), port=0)
+    await fwd.attach()
+    reader, writer = await asyncio.open_connection("127.0.0.1", fwd.port)
+    try:
+        writer.write(b"hi")
+        await writer.drain()
+        assert await asyncio.wait_for(reader.readexactly(2), timeout=5) == b"hi"
+        await asyncio.wait_for(fwd.detach(), timeout=5)
+        assert await asyncio.wait_for(reader.read(), timeout=5) == b""
+    finally:
+        writer.close()
+        with contextlib.suppress(Exception):
+            await writer.wait_closed()
+        server.close()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(server.wait_closed(), timeout=5)
+
+
 async def test_attach_is_idempotent():
     agent = _FakeAgent("127.0.0.1", 1)
     fwd = AdbForwarder(lambda: agent, port=0)
@@ -279,6 +302,22 @@ async def _wait_refs(fwd: SerialForwarder, want: int, budget_s: float = 5.0) -> 
         await asyncio.sleep(0.01)
 
 
+async def _wait_closed(agent: _ExclusiveSerialAgent, want: int, budget_s: float = 5.0) -> None:
+    """Wait until the agent has seen `want` channel closes.
+
+    session_refs drops to 0 BEFORE the channel is closed: the forwarder
+    decrements the count, then awaits the session's close (still under its
+    lock, so no new open can race it). A test that reads closed_channels the
+    moment refs reach 0 can land in between. The Windows CI run did (0 == 1);
+    on Linux the same happens when _wait_refs polls every loop iteration."""
+    deadline = asyncio.get_running_loop().time() + budget_s
+    while agent.closed_channels != want:
+        assert asyncio.get_running_loop().time() < deadline, (
+            f"closed_channels stuck at {agent.closed_channels}, wanted {want}"
+        )
+        await asyncio.sleep(0.01)
+
+
 async def test_serial_readers_share_one_channel_and_all_see_the_stream():
     """The core of issue #4: `serial capture` + `serial shell` at the same time.
 
@@ -345,7 +384,7 @@ async def test_serial_channel_survives_until_the_last_reader_leaves():
         with contextlib.suppress(Exception):
             await w_cap.wait_closed()
         await _wait_refs(fwd, 0)
-        assert agent.closed_channels == 1  # last one out closed the COM
+        await _wait_closed(agent, 1)  # last one out closed the COM
         assert agent.open_calls == 1
     finally:
         await fwd.detach()
@@ -372,8 +411,8 @@ async def test_serial_reopens_after_everyone_left():
             with contextlib.suppress(Exception):
                 await writer.wait_closed()
             await _wait_refs(fwd, 0)
+        await _wait_closed(agent, 2)
         assert agent.open_calls == 2
-        assert agent.closed_channels == 2
     finally:
         await fwd.detach()
         server.close()
@@ -395,9 +434,12 @@ async def test_serial_session_end_closes_every_local_connection():
 
         # the board side goes away
         server.close()
-        with contextlib.suppress(Exception):
-            await server.wait_closed()
         await fwd._session._channel.aclose()  # type: ignore[union-attr]
+        # Only after the channel is closed: from Python 3.12 on,
+        # Server.wait_closed() also waits for the connections the server
+        # accepted, and the channel is one of them — awaited before aclose(),
+        # it never returns.
+        await asyncio.wait_for(server.wait_closed(), timeout=5)
 
         assert await asyncio.wait_for(r1.read(), timeout=5) == b""
         assert await asyncio.wait_for(r2.read(), timeout=5) == b""

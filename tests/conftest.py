@@ -64,6 +64,23 @@ def workspace_tripwire() -> type[_DefaultWorkspaceTripwire]:
     return _DefaultWorkspaceTripwire
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _plain_cli_output() -> Iterator[None]:
+    """CLI output in tests is plain text, on every machine.
+
+    typer decides at import time to force a colour terminal when
+    GITHUB_ACTIONS, FORCE_COLOR or PY_COLORS is set (typer/rich_utils.py,
+    ``FORCE_TERMINAL``). On a CI runner that put ANSI codes between the words
+    of ``--help`` and error output, so text assertions such as
+    ``"--fast" in r.output`` passed locally and failed in CI. The value is read
+    each time typer builds its console, so setting it here is enough."""
+    import typer.rich_utils
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(typer.rich_utils, "FORCE_TERMINAL", False)
+        yield
+
+
 @pytest.fixture(autouse=True)
 def _no_adb_path_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """A developer's own DHANDS_ADB_PATH would replace every test's adb

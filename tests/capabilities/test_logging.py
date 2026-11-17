@@ -112,7 +112,7 @@ async def test_collect_logcat_passes_buffers_only_when_asked(tmp_path: Path) -> 
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("bad", [["Events"], ["main -c"], ["x"] * 9])
+@pytest.mark.parametrize("bad", [["Events"], ["main -c"], ["x"] * 9, ["main\n"]])
 async def test_collect_logcat_rejects_bad_buffers(bad: list[str]) -> None:
     r = await collect_logcat(_mk_transport(), duration=5, buffers=bad)
     assert not r.ok and r.error is not None

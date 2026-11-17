@@ -43,7 +43,7 @@ class AppListResult:
         return {"packages": self.packages, "count": len(self.packages)}
 
 
-_PACKAGE_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$")
+_PACKAGE_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+\Z")
 # `am start -n` component is `pkg/activity` where activity is either an
 # absolute class (`com.x.MyActivity`) or short-form (`.MyActivity`,
 # resolved against pkg). We whitelist both forms — anything else

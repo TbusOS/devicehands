@@ -53,7 +53,7 @@ _KV_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_.-]*)="([^"\r\n]*)"\s*$')
 # A by-name entry. It is interpolated into a shell command on the device, so
 # the shape check is a security control, not tidiness: a name with a space, a
 # quote or a slash would otherwise become extra argv or escape the directory.
-_DEV_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$")
+_DEV_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\Z")
 
 # How much of a partition head to sniff during a scan. Small on purpose —
 # this runs against every partition on the device, and the question ("does

@@ -187,7 +187,8 @@ def test_default_prompt_omits_workspace_if_none() -> None:
 
 def test_default_prompt_includes_workspace_if_given() -> None:
     p = default_agent_prompt(transport_name="adb", workspace_root=Path("/home/ws"))
-    assert "Workspace root: /home/ws" in p.as_text()
+    # the host's own spelling of the path (\home\ws on Windows)
+    assert f"Workspace root: {Path('/home/ws')}" in p.as_text()
 
 
 def test_default_prompt_includes_tool_count_if_given() -> None:

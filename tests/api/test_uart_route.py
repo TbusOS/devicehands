@@ -134,9 +134,9 @@ def test_list_captures_returns_newest_first(client, workspace) -> None:
     logs.mkdir(parents=True, exist_ok=True)
     old = logs / "2026-05-01T00-00-00-uart.log"
     new = logs / "2026-05-01T01-00-00-uart.log"
-    old.write_text("old\n")
+    old.write_bytes(b"old\n")
     time.sleep(0.01)  # ensure mtime ordering
-    new.write_text("new\n")
+    new.write_bytes(b"new\n")
 
     body = client.get("/uart/captures").json()
     assert body["ok"] is True
@@ -160,7 +160,7 @@ def test_read_capture_returns_text(client, workspace) -> None:
     logs = workspace / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     f = logs / "2026-05-01T01-00-00-uart.log"
-    f.write_text("hello uart\nstack trace line\n")
+    f.write_bytes(b"hello uart\nstack trace line\n")  # bytes: no \r\n on Windows
 
     body = client.get(f"/uart/captures/{f.name}").json()
     assert body["ok"] is True

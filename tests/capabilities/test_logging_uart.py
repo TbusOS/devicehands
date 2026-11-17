@@ -82,7 +82,7 @@ async def test_capture_uart_happy_path(monkeypatch, tmp_path: Path) -> None:
     assert r.data.errors >= 2
     assert len(r.artifacts) == 1
     # Artifact should land under devices/abc/logs/
-    assert "devices/abc/logs" in str(r.artifacts[0])
+    assert r.artifacts[0].parent.parts[-3:] == ("devices", "abc", "logs")
     assert r.artifacts[0].exists()
 
 

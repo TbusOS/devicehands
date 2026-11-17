@@ -148,7 +148,7 @@ _LOGCAT_THREADTIME_RE = re.compile(
 
 
 # `logcat -b` names: the same shape rule as /logcat/stream and the timeline.
-_BUFFER_NAME = re.compile(r"^[a-z]{1,16}$")
+_BUFFER_NAME = re.compile(r"^[a-z]{1,16}\Z")
 _MAX_BUFFERS = 8
 
 

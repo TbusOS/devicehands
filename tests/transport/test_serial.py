@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
 
@@ -22,14 +23,36 @@ from devicehands.transport.serial import (
 async def _fake_ser2net(
     handler: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Coroutine],
 ) -> AsyncIterator[tuple[str, int]]:
-    """Spawn an asyncio server on an ephemeral port; yield (host, port)."""
-    server = await asyncio.start_server(handler, host="127.0.0.1", port=0)
+    """Spawn an asyncio server on an ephemeral port; yield (host, port).
+
+    On the way out, handlers still running are cancelled and every
+    connection is closed before ``Server.wait_closed()``. From Python 3.12
+    that call waits for each accepted connection: a handler that just
+    returns leaves its side half-open for good (the run hung), and one
+    still sleeping held the test for the rest of its sleep."""
+    running: set[asyncio.Task[None]] = set()
+
+    async def closing(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        task = asyncio.current_task()
+        if task is not None:
+            running.add(task)
+        try:
+            await handler(reader, writer)
+        finally:
+            writer.close()
+            running.discard(task)  # type: ignore[arg-type]
+
+    server = await asyncio.start_server(closing, host="127.0.0.1", port=0)
     sock = server.sockets[0].getsockname()
     host, port = sock[0], sock[1]
     try:
         yield host, port
     finally:
         server.close()
+        for task in list(running):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
         await server.wait_closed()
 
 

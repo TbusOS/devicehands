@@ -110,6 +110,11 @@ def _sysfs_device(root: Path, name: str, serial: str, prot: str = "03") -> None:
 
 @pytest.fixture
 def usb(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    if sys.platform == "win32":
+        pytest.skip(
+            "fake sysfs: interface directories are named like 1-3:1.0, which a "
+            "Windows path cannot hold; the agent reads sysfs only off Windows"
+        )
     root = tmp_path / "sys-bus-usb-devices"
     (root / "usb1").mkdir(parents=True)  # a root hub: never a board
     monkeypatch.setattr(agent, "_SYSFS_USB_ROOT", root)

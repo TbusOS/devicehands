@@ -86,6 +86,13 @@ async def test_uninstall_invalid_package() -> None:
 
 
 @pytest.mark.asyncio
+async def test_uninstall_package_with_trailing_newline_is_invalid() -> None:
+    """`$` matched before a final newline; the check now ends at the string."""
+    r = await uninstall(_mk_transport(), "com.example.app\n")
+    assert r.error is not None and r.error.code == "PACKAGE_NAME_INVALID"
+
+
+@pytest.mark.asyncio
 async def test_uninstall_ask() -> None:
     t = _mk_transport(perm_behavior="ask")
     r = await uninstall(t, "com.example.app")

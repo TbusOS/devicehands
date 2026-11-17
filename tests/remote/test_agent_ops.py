@@ -618,6 +618,11 @@ async def _open(
 def _sysfs_tree(root: Path) -> None:
     """A minimal /sys/bus/usb/devices: one root hub (ignored), one device in
     bootloader fastboot (interface class ff/42/03, no driver bound)."""
+    if sys.platform == "win32":
+        pytest.skip(
+            "fake sysfs: interface directories are named like 1-3:1.0, which a "
+            "Windows path cannot hold; the agent reads sysfs only off Windows"
+        )
     (root / "usb1").mkdir(parents=True)
     dev = root / "1-3"
     for name, value in {

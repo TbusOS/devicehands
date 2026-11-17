@@ -22,7 +22,14 @@ Shells (checked on real ones through a pty, 2026-10-30):
     editing does not count it as printed width; a prompt that already uses
     a delimiter keeps its own. Android's mkshrc prompt (`${|…}` showing
     `1|` after a failure) is unaffected: `$?` is read, not changed.
-  * bash — `\\[ … \\]` around the marker.
+  * bash — printed by PROMPT_COMMAND, not put into PS1. bash prints PS1
+    again whenever readline redraws the line (Ctrl-L; on a macOS CI
+    runner every prompt's code came out twice), and each redraw reported
+    the previous code once more, which was then taken for the next
+    command's code.
+    PROMPT_COMMAND runs once per new prompt. The function returns `$?`
+    unchanged, so a PROMPT_COMMAND that was already set, and PS1, still
+    see the command's code.
   * anything else (dash, toybox sh) — SETUP changes nothing, no marker
     ever comes back; after ARM_TIMEOUT_S the held output is shown as is
     and exit codes are simply unavailable for that session.
@@ -44,7 +51,8 @@ SETUP: bytes = (
     b" PS1=\"$__d$__r$__d$(printf '\\033]133;D;')\"'$?'\"$(printf '\\007')$__d$PS1\";"
     b" unset __d __r;"
     b" elif [ -n \"$BASH_VERSION\" ]; then"
-    b" PS1='\\[\\e]133;D;$?\\a\\]'\"$PS1\";"
+    b" __dhands_mark() { local r=$?; printf '\\033]133;D;%s\\007' \"$r\"; return $r; };"
+    b" PROMPT_COMMAND=\"__dhands_mark${PROMPT_COMMAND:+;$PROMPT_COMMAND}\";"
     b" fi\n"
 )
 
