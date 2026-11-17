@@ -6,27 +6,27 @@ owner: sky
 
 # MCP 客户端配置示例
 
-本目录收集各家 LLM 客户端接入 `android-llm-bridge` 的 MCP 配置模板。
+本目录收集各家 LLM 客户端接入 DeviceHands 的 MCP 配置模板。
 
 ## 文件一览
 
 | 文件 | 客户端 | 配置文件位置 |
 |-----|------|------------|
-| [claude-code.json](./claude-code.json) | Claude Code | 项目根 `.mcp.json`(或 `claude mcp add alb -- uv run --project <路径> alb-mcp`) |
+| [claude-code.json](./claude-code.json) | Claude Code | 项目根 `.mcp.json`(或 `claude mcp add devicehands -- uv run --project <路径> dhands-mcp`) |
 | [cursor.json](./cursor.json) | Cursor | `~/.cursor/mcp.json` |
-| [codex.toml](./codex.toml) | OpenAI Codex CLI | `~/.codex/config.toml`(或 `codex mcp add alb -- uv run --project <路径> alb-mcp`) |
+| [codex.toml](./codex.toml) | OpenAI Codex CLI | `~/.codex/config.toml`(或 `codex mcp add devicehands -- uv run --project <路径> dhands-mcp`) |
 
 ## 使用
 
 1. 复制对应文件内容到你的客户端配置文件
-2. 把 `/path/to/android-llm-bridge` 换成你 clone 的实际路径
-3. 按需调整 `ALB_WORKSPACE` / `ALB_PROFILE`
-4. 首次使用前先手动跑 `alb setup <method>` 配置一种传输
+2. 把 `/path/to/devicehands` 换成你 clone 的实际路径
+3. 按需调整 `DHANDS_WORKSPACE` / `DHANDS_PROFILE`
+4. 首次使用前先手动跑 `dhands setup <method>` 配置一种传输
 5. 重启 LLM 客户端
 
 ## 验证
 
-在客户端里问："use alb to list devices"，如果能拿到 `alb_devices` 的结果就接入成功。
+在客户端里问："use devicehands to list devices"，如果能拿到 `dhands_devices` 的结果就接入成功。
 
 ## 贡献你的客户端
 

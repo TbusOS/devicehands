@@ -1,4 +1,4 @@
-# android-llm-bridge · agents 团队说明书
+# DeviceHands · agents 团队说明书
 
 7 个项目专属 agents 团队，保证开发质量、界面流畅性、性能、架构合理性。
 任何 clone 这个仓库的环境都能直接启动这套团队（agents / commands /

@@ -1,16 +1,16 @@
 # AGENTS.md · Agent 规范（通用）
 
-> 给**任何 AI Agent**（Claude / GPT / Gemini / 本地模型等）的 android-llm-bridge 使用规范。
+> 给**任何 AI Agent**（Claude / GPT / Gemini / 本地模型等）的 DeviceHands 使用规范。
 > Claude Code 用户读 [`CLAUDE.md`](./CLAUDE.md)，其他 Agent 读这篇。
 
 ---
 
 ## 一、你是什么
 
-你是一个 AI Agent，正在通过 android-llm-bridge（alb）调试安卓设备。alb 提供：
+你是一个 AI Agent，正在通过 DeviceHands（dhands）调试安卓设备。DeviceHands 提供：
 
 - **MCP tools**（原生接入）—— 推荐
-- **CLI commands** (`alb ...`) —— 通过 subprocess
+- **CLI commands** (`dhands ...`) —— 通过 subprocess
 - **Web API** (FastAPI) —— 通过 HTTP
 
 调用方式取决于你的 runtime。如果你有 MCP 能力，优先用。
@@ -53,29 +53,29 @@ workspace/devices/<serial>/{logs,anr,bugreports,perf,...}/
 
 ```
 new_session:
-    alb_status       # 看当前 device / transport
-    alb_describe     # 看可用 tool 全集（一次即可）
+    dhands_status    # 看当前 device / transport
+    dhands_describe  # 看可用 tool 全集（一次即可）
 ```
 
 ### 2. 长数据走产物，不走 stdout
 
 ```
 # ✅
-r = alb_logcat(duration=60)
+r = dhands_logcat(duration=60)
 # r.artifacts[0] 是产物路径
-r2 = alb_log_search(pattern="error", path=r.artifacts[0])
+r2 = dhands_log_search(pattern="error", path=r.artifacts[0])
 
-# ❌ 不要 alb_shell("logcat -d") 直接取所有行
+# ❌ 不要 dhands_shell("logcat -d") 直接取所有行
 ```
 
 ### 3. 错误驱动行为
 
 ```python
-r = alb_shell(cmd)
+r = dhands_shell(cmd)
 if not r["ok"]:
     match r["error"]["code"]:
         case "DEVICE_OFFLINE":
-            alb_wait_boot()
+            dhands_wait_boot()
             # retry
         case "PERMISSION_DENIED":
             # 告诉用户，不要绕
@@ -94,25 +94,25 @@ if not r["ok"]:
 
 | tool | 用途 | 对应 |
 |------|-----|------|
-| `alb_status` | 当前状态 | —— 每次会话开头 |
-| `alb_describe` | tool 全集 schema | —— 首次会话 |
-| `alb_devices` | 列连接设备 | —— 检查设备 |
-| `alb_shell` | 跑命令 | —— 最通用 |
-| `alb_logcat` | 采 logcat | —— 排 crash |
-| `alb_dmesg` | 采 dmesg | —— 排内核 |
-| `alb_uart_capture` | 抓串口 | —— 排 boot |
-| `alb_log_search` | 搜日志 | —— 在 artifact 里找 |
-| `alb_log_tail` | 读日志片段 | —— 按需读 |
-| `alb_push` / `alb_pull` | 文件传输 | —— |
-| `alb_rsync` | 增量同步 | —— 大目录 |
-| `alb_bugreport` | 全量诊断 | —— 疑难杂症 |
-| `alb_anr_pull` / `alb_tombstone_pull` | 拉 crash | —— 事后 |
-| `alb_devinfo` | 设备信息 | —— |
-| `alb_battery` | 电池 | —— |
-| `alb_reboot` | 重启 | —— 注意权限流 |
-| `alb_app_install` / `alb_app_uninstall` / ... | apk 管理 | —— |
+| `dhands_status` | 当前状态 | —— 每次会话开头 |
+| `dhands_describe` | tool 全集 schema | —— 首次会话 |
+| `dhands_devices` | 列连接设备 | —— 检查设备 |
+| `dhands_shell` | 跑命令 | —— 最通用 |
+| `dhands_logcat` | 采 logcat | —— 排 crash |
+| `dhands_dmesg` | 采 dmesg | —— 排内核 |
+| `dhands_uart_capture` | 抓串口 | —— 排 boot |
+| `dhands_log_search` | 搜日志 | —— 在 artifact 里找 |
+| `dhands_log_tail` | 读日志片段 | —— 按需读 |
+| `dhands_push` / `dhands_pull` | 文件传输 | —— |
+| `dhands_rsync` | 增量同步 | —— 大目录 |
+| `dhands_bugreport` | 全量诊断 | —— 疑难杂症 |
+| `dhands_anr_pull` / `dhands_tombstone_pull` | 拉 crash | —— 事后 |
+| `dhands_devinfo` | 设备信息 | —— |
+| `dhands_battery` | 电池 | —— |
+| `dhands_reboot` | 重启 | —— 注意权限流 |
+| `dhands_app_install` / `dhands_app_uninstall` / ... | apk 管理 | —— |
 
-完整: `alb_describe` 动态查询。
+完整: `dhands_describe` 动态查询。
 
 ---
 
@@ -122,11 +122,11 @@ if not r["ok"]:
 
 | 限制 | 说明 |
 |------|------|
-| `alb_logcat` | 只在 adb (A/B)，ssh (C) 间接；**不支持 serial (G)** |
-| `alb_uart_capture` | **仅 serial (G)** |
-| `alb_bugreport` | 仅 adb (A/B) |
-| `alb_rsync` | 仅 ssh (C) |
-| `alb_reboot recovery/bootloader` | 仅 adb (A) |
+| `dhands_logcat` | 只在 adb (A/B)，ssh (C) 间接；**不支持 serial (G)** |
+| `dhands_uart_capture` | **仅 serial (G)** |
+| `dhands_bugreport` | 仅 adb (A/B) |
+| `dhands_rsync` | 仅 ssh (C) |
+| `dhands_reboot recovery/bootloader` | 仅 adb (A) |
 
 遇到 `TRANSPORT_NOT_SUPPORTED` 错误时，读 suggestion 知道该切哪个 transport。
 
@@ -136,15 +136,15 @@ if not r["ok"]:
 
 | ❌ 错误 | ✅ 正确 |
 |--------|--------|
-| 直接拼 `adb` 命令 | 用 `alb_*` tool |
+| 直接拼 `adb` 命令 | 用 `dhands_*` tool |
 | 把 logcat 全文塞回复 | 返回摘要 + artifact 路径 |
 | 没 check `ok` 就用 `data` | 永远先 check |
 | 忽略 `error.suggestion` | 读并行动 |
-| 用 `alb_shell` 跑 `rm -rf` | 明确用 `alb_app_clear_data` 或 `alb_pull --delete` |
-| 硬编码设备 serial | 动态 `alb_devices` |
-| 循环 `alb_shell("getprop sys.boot_completed")` | 用 `alb_wait_boot` |
+| 用 `dhands_shell` 跑 `rm -rf` | 明确用 `dhands_app_clear_data` 或 `dhands_pull --delete` |
+| 硬编码设备 serial | 动态 `dhands_devices` |
+| 循环 `dhands_shell("getprop sys.boot_completed")` | 用 `dhands_wait_boot` |
 | 长 duration 阻塞 | 分段 / watch 模式 |
-| `alb_logcat` 不带 filter | 加 `filter="*:E"` 或 tag 收敛 |
+| `dhands_logcat` 不带 filter | 加 `filter="*:E"` 或 tag 收敛 |
 
 ---
 
@@ -153,14 +153,14 @@ if not r["ok"]:
 当有多台设备时：
 
 ```python
-devices = alb_devices()["data"]["devices"]
+devices = dhands_devices()["data"]["devices"]
 for d in devices:
-    alb_shell("...", device=d["serial"])
+    dhands_shell("...", device=d["serial"])
 ```
 
 或用 profile（预设配置）：
 ```
-alb_shell("...", profile="lab-devices")
+dhands_shell("...", profile="lab-devices")
 ```
 
 **M2 起**可以 `alb_spawn_agent` 并行操作（子 agent 隔离）。
@@ -173,7 +173,7 @@ alb_shell("...", profile="lab-devices")
 
 - 以"测试"为由把敏感信息 push 到板子
 - 跑 `getprop | grep -i key` 然后把结果贴回
-- 假设自己有 root（先 `alb_shell "id"` 确认）
+- 假设自己有 root（先 `dhands_shell "id"` 确认）
 - 为用户装未经他同意的 apk
 
 ### 要
@@ -195,7 +195,7 @@ alb_shell("...", profile="lab-devices")
 ### 需要用户介入
 
 - `DEVICE_UNAUTHORIZED` → "请在设备屏幕点允许"
-- `TRANSPORT_NOT_CONFIGURED` → "请跑 alb setup X"
+- `TRANSPORT_NOT_CONFIGURED` → "请跑 dhands setup X"
 - `PERMISSION_DENIED` → "此操作危险，按 suggestion 调整"
 
 ### 硬性失败
@@ -225,7 +225,7 @@ ANR 在 workspace/devices/abc/anr/2026-04-15T10-31-12/。
 不要：
 - 把 logcat 几百行粘过来
 - "我运行了命令 xxx，它返回了 yyy"（太啰嗦）
-- "应该是" / "可能是"（说不准就说"数据不足，需要 alb_bugreport"）
+- "应该是" / "可能是"（说不准就说"数据不足，需要 dhands_bugreport"）
 
 ---
 
