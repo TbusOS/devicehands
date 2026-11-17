@@ -422,3 +422,28 @@ def test_doctor_binaries_layer_is_the_same_list(monkeypatch: pytest.MonkeyPatch,
     assert [c.name for c in layer.checks] == [d.name for d in hd.select(hd.BASE_TIERS)]
     status = {c.name: c.status for c in layer.checks}
     assert status["adb"] == "err" and status["fastboot"] == "skip" and status["ollama"] == "skip"
+
+
+# ─── find_repo ────────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(
+    hd.checkout_root() is None,
+    reason="devicehands imported from an installed copy, not this checkout",
+)
+def test_find_repo_is_this_checkout():
+    assert hd.find_repo() == REPO
+
+
+def test_find_repo_none_for_an_install(monkeypatch):
+    """Installed copy: no checkout, so the dev checks report "no repo"."""
+    monkeypatch.setattr(hd, "checkout_root", lambda: None)
+    assert hd.find_repo() is None
+
+
+def test_find_repo_needs_web(monkeypatch, tmp_path):
+    monkeypatch.setattr(hd, "checkout_root", lambda: tmp_path)
+    assert hd.find_repo() is None
+    (tmp_path / "web").mkdir()
+    (tmp_path / "web" / "package.json").write_text("{}", encoding="utf-8")
+    assert hd.find_repo() == tmp_path

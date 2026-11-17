@@ -95,6 +95,24 @@ def test_bundle_dir_defaults_to_this_checkout_and_can_be_overridden(monkeypatch,
     assert au.bundle_dir() == tmp_path
 
 
+def test_bundle_dir_uses_the_copy_shipped_in_the_package(monkeypatch, tmp_path):
+    """An installed hub has no bench-py checkout; the files come from the
+    package's _resources/bench (infra.resources)."""
+    monkeypatch.delenv("DHANDS_AGENT_BUNDLE_DIR", raising=False)
+    shipped = tmp_path / "_resources" / "bench"
+    shipped.mkdir(parents=True)
+    monkeypatch.setattr(au, "resource_dir", lambda name: shipped)
+    assert au.bundle_dir() == shipped
+
+
+def test_bundle_dir_names_the_expected_folder_when_nothing_shipped(monkeypatch, tmp_path):
+    monkeypatch.delenv("DHANDS_AGENT_BUNDLE_DIR", raising=False)
+    monkeypatch.setattr(au, "resource_dir", lambda name: None)
+    monkeypatch.setattr(au, "expected_dir", lambda name: tmp_path / "missing")
+    assert au.bundle_dir() == tmp_path / "missing"
+    assert au.local_build() == ""
+
+
 # ── waiting for the agent to come back ───────────────────────────────
 
 
