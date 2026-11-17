@@ -75,12 +75,16 @@ export DHANDS_AGENT_SERIAL_BAUD='1500000'
 dhands-hub
 ```
 
-> **Important — the forward port must be free.** The adb forwarder binds
-> `127.0.0.1:5037`, which is also the default adb-server port. If the hub runs
-> its own adb server, the bind fails: the agent still connects (signaling +
-> serial keep working) but adb stays unavailable and the log says so. Either
-> stop the hub's adb server (`adb kill-server`) or set `DHANDS_ADB_FORWARD_PORT`
-> to a free port. On the hub, the forwarder *is* the adb server dhands talks to.
+> **The forward ports must be free.** The adb forwarder binds
+> `127.0.0.1:8776` and the serial forwarder `127.0.0.1:8777`
+> (`src/devicehands/infra/ports.py`). Neither is adb's own 5037, so an adb
+> server already running on the hub machine does not get in the way — leave it
+> alone. A bind still fails when another program holds the port, typically a
+> second hub: the agent stays connected (signaling + the other channel keep
+> working), the forwarder stays unbound, and the hub log says which port. Stop
+> the other program or set `DHANDS_ADB_FORWARD_PORT` /
+> `DHANDS_SERIAL_FORWARD_PORT` to a free port. On the hub, the forwarder *is*
+> the adb server dhands talks to.
 
 **adb: set nothing, even if you moved the adb forward port.** The `dhands` CLI
 and `dhands-mcp` ask the running hub for the port (ADR-057,
@@ -168,7 +172,7 @@ Walk down the chain; each hop has an unambiguous "good" signal.
 | status page shows **disconnected** + an error | agent → hub | read `last_error`: `1008` = bad token; connection refused / timeout = hub URL / TLS / firewall |
 | status page never loads | agent not running / port taken | is `dhands_bench.py` running? try `--status-port` |
 | `/agent/status` shows no agents | hub | agent didn't register — recheck token match + hub URL path is `/agent/connect` |
-| `forwarders.adb.bound: false` | hub | a local adb server holds `5037` — `adb kill-server` on the hub or set `DHANDS_ADB_FORWARD_PORT` (the hub log prints the bind error) |
+| `forwarders.adb.bound: false` | hub | another program holds the forward port (default `8776`), e.g. a second hub — stop it or set `DHANDS_ADB_FORWARD_PORT` to a free port (the hub log prints the bind error). A local adb server is not the cause: it uses `5037` |
 | `dhands devices` empty but agent connected | Windows adb | `adb devices` on the Windows host — authorize the USB prompt; the agent only proxies what its local adb sees. A wedged enumeration can be kicked remotely: `curl -X POST http://<hub>:8775/api/agent/adb/restart` (the agent restarts its local adb server and re-reports) |
 | adb empty + `/agent/status` shows `adb_conflicts` | Windows adb takeover | a renamed vendor adb build holds the exclusive USB interface — `curl -X POST "http://<hub>:8775/api/agent/adb/restart?kill_conflicts=true"` terminates the suspects (agent-side heuristic) and restarts the server; expect it to recur whenever the vendor tool runs |
 | serial silent | hub COM / agent | `DHANDS_AGENT_SERIAL_COM` set on the **hub**? COM exists on the Windows host? right baud? |

@@ -138,11 +138,11 @@ picocom -b 115200 /tmp/ttyV0
 # 退出: Ctrl-A Ctrl-X
 ```
 
-**用 dhands**：dhands 直接连 `localhost:9001`，不需要 socat / picocom。
+**用 dhands**：dhands 直接连 TCP 端口，不需要 socat / picocom。它默认连 `localhost:8777`，那是 hub 的串口转发口
+（`src/devicehands/infra/config.py:58` 的 `default_tcp_port`）；本文的隧道开在 9001，先用 `--save` 告诉它一次。
 
 ```bash
-dhands setup serial                      # 检查 localhost:9001 在监听，并试着打开一次串口
-dhands setup serial --tcp-port 9002 --save # 端口不是 9001：验证通过后写进 config.toml
+dhands setup serial --tcp-port 9001 --save # 检查 localhost:9001 在监听、试着打开一次串口，通过后写进 config.toml
 dhands serial health                     # 连得上吗，连的是哪个地址
 dhands serial status                     # 板子现在处在什么状态：shell / u-boot / 启动中 / panic
 dhands serial capture -d 60 -o ./uart.log # 抓 60 秒串口输出
@@ -150,6 +150,8 @@ dhands serial shell 'uname -a'           # 在串口 shell 里跑一条命令，
 dhands serial send 'reboot'              # 只发字节（末尾加换行），不等输出
 dhands serial break-in --reboot adb      # 经 adb 重启，并在 bootloader 倒计时里按键停住
 ```
+
+`dhands setup serial` 不带 `--tcp-port` 时查的是 8777，不读 config.toml 里存的端口（`src/devicehands/cli/setup_cli.py:282`）。
 
 dhands 没有交互式终端命令。要边看边敲，用 Web 界面的 UART 控制台，或者用上面的 socat + picocom。
 

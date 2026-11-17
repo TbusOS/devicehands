@@ -222,7 +222,9 @@ DHANDS_SSH_HOST=192.168.1.42 uv run dhands --transport ssh shell 'uname -a'
 uv run dhands fs rsync ~/out/system/ /system-dev/ # 方案 C 独占
 
 # 方案 G — UART 串口（TCP via ser2net + Xshell）
-uv run dhands setup serial --tcp-host localhost --tcp-port 9001
+# 隧道端口 9001 照 docs/methods/07-uart-serial.md;dhands 默认连 8777(hub 的串口转发口),
+# 所以要 --save 存进 config.toml,下面两条才连 9001
+uv run dhands setup serial --tcp-host localhost --tcp-port 9001 --save
 uv run dhands serial capture --duration 30    # 抓启动 / panic / u-boot 日志
 uv run dhands serial shell "dmesg | tail"
 ```
