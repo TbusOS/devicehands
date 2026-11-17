@@ -189,8 +189,8 @@ export function deviceListCopy(t: T, s: DeviceListState, transport: string): { t
     return {
       title: t("读不到设备列表", "Can't read the device list"),
       body: t(
-        `GET /devices 请求失败(${s.message})。alb 服务可能没在跑,或者这个网页和服务之间断开了。`,
-        `GET /devices failed (${s.message}). The alb service may be down, or this page lost its connection to it.`,
+        `GET /devices 请求失败(${s.message})。DeviceHands 服务可能没在跑,或者这个网页和服务之间断开了。`,
+        `GET /devices failed (${s.message}). The DeviceHands service may be down, or this page lost its connection to it.`,
       ),
     };
   }

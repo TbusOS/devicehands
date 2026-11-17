@@ -38,8 +38,8 @@ export function ConnectionsPage() {
             </p>
             <p className="conn-empty__hint">
               {zh
-                ? "确认 alb-api 正在运行。"
-                : "Check that alb-api is running."}
+                ? "确认 dhands-hub 正在运行。"
+                : "Check that dhands-hub is running."}
             </p>
           </div>
         ) : (
@@ -174,8 +174,8 @@ export function ConnectionsPage() {
                       </span>
                       <span className="fwd-row__detail">
                         {zh
-                          ? "设置 ALB_AGENT_SERIAL_COM"
-                          : "set ALB_AGENT_SERIAL_COM"}
+                          ? "设置 DHANDS_AGENT_SERIAL_COM"
+                          : "set DHANDS_AGENT_SERIAL_COM"}
                       </span>
                     </>
                   )}
@@ -190,7 +190,7 @@ export function ConnectionsPage() {
                   : "Run the agent on the device's host (it needs only Python + websockets):"}
               </span>
               <code className="conn-hint__code">
-                python alb_agent.py --hub-url wss://&lt;hub&gt;/agent/connect
+                python dhands_bench.py --hub-url wss://&lt;hub&gt;/agent/connect
                 --token &lt;token&gt;
               </code>
             </div>

@@ -327,8 +327,8 @@ export function TopBar() {
         <span className="brand__mark">
           <Icon name="bridge" />
         </span>
-        <span className="brand__name">alb</span>
-        <span className="brand__sub">android-llm-bridge</span>
+        <span className="brand__name">dhands</span>
+        <span className="brand__sub">DeviceHands</span>
       </a>
       <BoardMenu
         rows={rows}

@@ -70,7 +70,7 @@ function useTermActions(x: ReturnType<typeof useXterm>, name: string) {
         toast(t("终端里还没有内容。", "The terminal is empty."));
         return;
       }
-      if (!downloadText(`alb-${name}-${stamp()}.txt`, text)) toast(t("保存失败。", "Could not save the file."));
+      if (!downloadText(`dhands-${name}-${stamp()}.txt`, text)) toast(t("保存失败。", "Could not save the file."));
     },
   };
 }
@@ -339,7 +339,7 @@ export function SerialPane({ id, active, register, info }: PaneProps & { info: S
   }, [id, register, state, writeEnabled, sendBytes, x]);
 
   function note(text: string) {
-    x.write(`\r\n\x1b[2m[alb] ${text}\x1b[0m\r\n`);
+    x.write(`\r\n\x1b[2m[dhands] ${text}\x1b[0m\r\n`);
   }
   const clearAndStart = () => {
     x.clear();

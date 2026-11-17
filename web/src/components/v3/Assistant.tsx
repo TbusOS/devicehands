@@ -339,8 +339,8 @@ export function Conversation({ className }: { className?: string }) {
           <h3>{t("问这块板子", "Ask about this board")}</h3>
           <p>
             {t(
-              "比如:上一次开机为什么崩溃?最近有没有 ANR?开了 Agent 模式,模型会自己读日志、调用 alb 工具。",
-              "For example: why did the last boot crash? Any ANRs lately? With agent mode on, the model reads logs and runs alb tools itself.",
+              "比如:上一次开机为什么崩溃?最近有没有 ANR?开了 Agent 模式,模型会自己读日志、调用 DeviceHands 工具。",
+              "For example: why did the last boot crash? Any ANRs lately? With agent mode on, the model reads logs and runs DeviceHands tools itself.",
             )}
           </p>
         </div>
@@ -524,8 +524,8 @@ export function OnDevicePanel() {
       <h3>{t("和板子上跑的模型对话", "Talk to a model running on the board")}</h3>
       <p>
         {t(
-          "用来试端侧推理:效果、首字延迟、每秒 token 数。alb 经设备端口通道连到板上的推理服务,台架 agent 不用改。",
-          "For trying on-device inference: quality, first-token latency, tokens per second. alb reaches the board's local server through the device port channel; the bench agent does not change.",
+          "用来试端侧推理:效果、首字延迟、每秒 token 数。DeviceHands 经设备端口通道连到板上的推理服务,台架 agent 不用改。",
+          "For trying on-device inference: quality, first-token latency, tokens per second. DeviceHands reaches the board's local server through the device port channel; the bench agent does not change.",
         )}
       </p>
       <ul className="list">
@@ -605,11 +605,11 @@ export function AssistantSheet({ onOpenFull }: { onOpenFull: () => void }) {
       <label className="sheet__agent">
         <input type="checkbox" className="switch" checked={agentMode} onChange={(e) => {
           setAgentMode(e.target.checked);
-          toast(e.target.checked ? t("Agent 模式开:模型可以调用 alb 工具。", "Agent mode on: the model may call alb tools.") : t("Agent 模式关:只聊天,不调用工具。", "Agent mode off: chat only."));
+          toast(e.target.checked ? t("Agent 模式开:模型可以调用 DeviceHands 工具。", "Agent mode on: the model may call DeviceHands tools.") : t("Agent 模式关:只聊天,不调用工具。", "Agent mode off: chat only."));
         }} />
         <span>
           <b>{t("Agent 模式", "Agent mode")}</b>
-          <small>{t("模型可以调用 alb 工具读日志、跑命令,每次调用都显示在对话里。", "The model may call alb tools to read logs and run commands; every call shows in the chat.")}</small>
+          <small>{t("模型可以调用 DeviceHands 工具读日志、跑命令,每次调用都显示在对话里。", "The model may call DeviceHands tools to read logs and run commands; every call shows in the chat.")}</small>
         </span>
       </label>
       {agentMode ? <ConfirmToolsSwitch className="sheet__agent" /> : null}

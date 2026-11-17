@@ -148,8 +148,8 @@ export function ChatPage3() {
         eyebrow={t("助手", "Assistant")}
         title={t("对话", "Chat")}
         desc={t(
-          "用大白话问板子的事。开了 Agent 模式,模型会自己读日志、调用 alb 工具;默认直接执行、不先问你,包括会改动板子的那几个。要每次先问,打开右边的「调工具前先问我」。",
-          "Ask about the board in plain words. With agent mode on, the model reads logs and runs alb tools on its own; by default they run without asking first, including the ones that change the board. To be asked each time, turn on Ask before each tool call on the right.",
+          "用大白话问板子的事。开了 Agent 模式,模型会自己读日志、调用 DeviceHands 工具;默认直接执行、不先问你,包括会改动板子的那几个。要每次先问,打开右边的「调工具前先问我」。",
+          "Ask about the board in plain words. With agent mode on, the model reads logs and runs DeviceHands tools on its own; by default they run without asking first, including the ones that change the board. To be asked each time, turn on Ask before each tool call on the right.",
         )}
         actions={
           <button type="button" className="btn btn--filled" onClick={newChat} disabled={a.turns.length === 0 && selected === null} title={a.turns.length === 0 && selected === null ? t("现在就是一段新对话", "This already is a new chat") : undefined}>
@@ -559,7 +559,7 @@ function ToolsCard() {
             aria-label={t("Agent 模式", "Agent mode")}
             onChange={(e) => {
               setAgentMode(e.target.checked);
-              toast(e.target.checked ? t("Agent 模式开:模型可以调用 alb 工具。", "Agent mode on: the model may call alb tools.") : t("Agent 模式关:只聊天,不调用工具。", "Agent mode off: chat only."));
+              toast(e.target.checked ? t("Agent 模式开:模型可以调用 DeviceHands 工具。", "Agent mode on: the model may call DeviceHands tools.") : t("Agent 模式关:只聊天,不调用工具。", "Agent mode off: chat only."));
             }}
           />
         }

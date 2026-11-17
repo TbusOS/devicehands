@@ -125,12 +125,12 @@ export function DoctorPage() {
             {lang === "zh" ? (
               <>
                 六层快照：env、binaries、config、adb、serial、ssh。和{" "}
-                <code>alb doctor</code> 命令一致。
+                <code>dhands doctor</code> 命令一致。
               </>
             ) : (
               <>
                 Six-layer snapshot: env, binaries, config, adb, serial, ssh.
-                Same probes as <code>alb doctor</code>.
+                Same probes as <code>dhands doctor</code>.
               </>
             )}
           </p>
