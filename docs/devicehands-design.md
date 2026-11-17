@@ -343,15 +343,17 @@ timeout  = 600
 | 台架程序 | `alb_agent.py` | `dhands-bench` |
 | 环境变量前缀 | `ALB_` | `DHANDS_` |
 | 网页和接口端口 | 8765 | 8775 |
-| adb 隧道端口 | 5037 | 运行时分配,不占 adb 自己的默认端口 |
-| 串口隧道端口 | 9001 | 运行时分配 |
+| adb 隧道端口 | 5037 | 8776,`DHANDS_ADB_FORWARD_PORT` 可改;不占 adb 自己的默认端口 |
+| 串口隧道端口 | 9001 | 8777,`DHANDS_SERIAL_FORWARD_PORT` 可改 |
 | 台架状态页端口 | 8731 | 8741 |
 | 配置目录 | `~/.config/alb` | 由 `platformdirs` 给出的 `devicehands` 目录 |
 | 数据目录 | 当前目录的 `workspace/`,否则 `~/.alb-workspace` | 配置里指定,默认在用户数据目录下,不跟着当前目录变 |
 | MCP 服务名和工具前缀 | `alb`、`alb_` | `devicehands`、`dhands_` |
 | 协议里的 HTTP 头 | `x-alb-token`、`x-alb-csecret` | `x-dhands-token`、`x-dhands-csecret` |
 
-- 网页文件和台架更新包打进安装包,用 `importlib.resources` 读取,不再靠找仓库目录。
+两个隧道端口原写「运行时分配」,实现选了固定默认值 8776 / 8777(`src/devicehands/infra/ports.py:13-14,24-25`,读环境变量在 `src/devicehands/remote/forwarder.py`)。要满足的两条照样满足:不占 adb 默认端口 5037,和旧程序的 9001 不同。
+
+- 网页文件和台架更新包打进安装包,用 `importlib.resources` 读取,不再靠找仓库目录。已完成:p1/pkg 的 `dae715ed`。
 - 新程序不读旧程序的任何配置、数据或端口。旧的 `alb` 留在旧仓库,不受影响。
 
 ### 5.12 版本和兼容规则
