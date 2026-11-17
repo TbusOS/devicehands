@@ -1,11 +1,11 @@
-# alb Web UI
+# DeviceHands Web UI
 
 React 19 + Vite + TypeScript source. Built output lands in
 `../docs/app/` which ships inside the pip wheel and is also what
 GitHub Pages serves.
 
-End users never touch this directory — they run `alb serve` and the
-pre-built bundle is ready.
+End users never touch this directory — they run `dhands-hub`, which
+serves the pre-built bundle at `/app/`.
 
 ## Local development
 
@@ -14,13 +14,13 @@ cd web
 npm install          # once
 npm run dev          # starts Vite on http://localhost:5173
                      # proxies /api, /chat*, /playground*, /metrics, /terminal
-                     # to a running alb-api on http://localhost:8765
+                     # to a running dhands-hub on http://localhost:8775
 ```
 
 In another terminal:
 
 ```sh
-alb-api              # or: uvicorn alb.api.server:app
+dhands-hub           # or: uvicorn devicehands.api.server:app --port 8775
 ```
 
 Open <http://localhost:5173> — any change hot-reloads.
