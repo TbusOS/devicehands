@@ -94,8 +94,28 @@ Issues = "https://github.com/TbusOS/devicehands/issues"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# Local config files that hold real tokens / hosts. Named here, for the
+# wheel and the sdist alike, because hatch did not apply .gitignore's
+# `**/bench.conf` when this was set up (a bench-py/bench.conf in the
+# working tree went into both).
+[tool.hatch.build]
+exclude = ["bench.conf", "agent.conf", ".dhands-bench", "hub.env", ".env.local", ".env.*.local"]
+
+# The wheel carries the built web UI and the bench agent files (design 5.11).
+# devicehands.infra.resources looks for them under devicehands/_resources/;
+# a checkout (and the editable install `uv sync` makes) has no _resources/
+# and falls back to docs/app and bench-py. tests/infra/test_resources.py
+# keeps this mapping and the lookup in step.
 [tool.hatch.build.targets.wheel]
-packages = ["src/devicehands"]
+only-include = ["src/devicehands", "docs/app", "bench-py"]
+# Editable installs: put src/ on sys.path. Needed because hatch cannot
+# build an editable install by itself when `sources` adds a prefix.
+dev-mode-dirs = ["src"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src" = ""
+"docs/app" = "devicehands/_resources/web"
+"bench-py" = "devicehands/_resources/bench"
 
 # ─────────────────────────────────────────────
 # uv dependency groups (PEP 735)

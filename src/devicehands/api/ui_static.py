@@ -3,13 +3,15 @@
 The source for this bundle lives under `web/` and is built via `vite
 build` into `docs/app/`. Both the source and the built output are
 committed so:
-  - End users who `pip install dhands` never need node to use the UI
+  - End users who `pip install devicehands` never need node to use the UI
   - GitHub Pages can serve the same `docs/app/` directly
-  - Offline installs ship a ready-to-serve UI in the wheel
+  - The wheel carries a copy as `devicehands/_resources/web/`, so an
+    installed hub serves the UI without any checkout around
 
-If `docs/app/` is missing (e.g. a fresh clone before the first build),
-the mount is skipped and /app returns 404 — the CLI and MCP paths are
-unaffected.
+Where the files are read from is decided by infra.resources: the
+installed copy first, then the checkout's `docs/app/`. If neither has an
+index.html, the mount is skipped and /app returns 404 — the CLI and MCP
+paths are unaffected.
 
 SPA fallback (DEBT-014, 2026-04-29): TanStack Router uses HTML5
 history mode, so direct hits to `/app/dashboard` / `/app/inspect` /
@@ -28,6 +30,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, Response
 from starlette.types import Scope
+
+from devicehands.infra.resources import WEB, resource_dir
 
 
 class SPAStaticFiles(StaticFiles):
@@ -76,23 +80,18 @@ class SPAStaticFiles(StaticFiles):
             return FileResponse(Path(str(self.directory)) / "index.html")
 
 
-def _repo_docs_app_dir() -> Path | None:
-    """Return docs/app relative to the installed dhands package, or None."""
-    # When installed via pip, __file__ is inside site-packages/devicehands/...
-    # docs/ is only in the source tree, so look upward for pyproject.toml.
-    here = Path(__file__).resolve()
-    for candidate in [here, *here.parents]:
-        if (candidate / "pyproject.toml").exists():
-            app_dir = candidate / "docs" / "app"
-            if app_dir.is_dir() and (app_dir / "index.html").is_file():
-                return app_dir
-            return None
-    return None
+def ui_dir() -> Path | None:
+    """The built web UI: the copy inside the installed package, else the
+    checkout's docs/app (infra.resources). None when it has no index.html."""
+    app_dir = resource_dir(WEB)
+    if app_dir is None or not (app_dir / "index.html").is_file():
+        return None
+    return app_dir
 
 
 def mount_ui(app: FastAPI, *, url_prefix: str = "/app") -> bool:
     """Mount the React bundle. Returns True if a bundle was found."""
-    app_dir = _repo_docs_app_dir()
+    app_dir = ui_dir()
     if app_dir is None:
         return False
     app.mount(

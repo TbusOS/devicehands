@@ -1,6 +1,7 @@
 """Push a new copy of the bench agent and confirm it came back (ADR-060).
 
-The bundle is this hub's own `bench-py/` folder — the agent
+The bundle is this hub's own copy of `bench-py/` (shipped inside the
+package as `_resources/bench/`; see infra.resources) — the agent
 mirrors wire constants of `devicehands.remote.protocol`, so the copy that matches the
 running hub is the right one to send. It travels as an image op
 (`agent-update`) over the same job channel as a flash: size + sha256 checked
@@ -32,6 +33,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from devicehands.infra.resources import BENCH, expected_dir, resource_dir
 from devicehands.remote.flash import EventSink, FlashEvent, FlashResult, FlashService
 
 # MUST stay in lockstep with the agent's _BUNDLE_* rules: a file this side
@@ -50,12 +52,17 @@ _ZIP_DATE = (1980, 1, 1, 0, 0, 0)
 
 
 def bundle_dir() -> Path:
-    """Where the agent files come from: DHANDS_AGENT_BUNDLE_DIR, else this
-    checkout's bench-py."""
+    """Where the agent files come from: DHANDS_AGENT_BUNDLE_DIR, else the
+    copy shipped with this hub (infra.resources: the installed package's
+    _resources/bench, or a checkout's bench-py).
+
+    With neither, the answer is the folder where the copy should have
+    been, so the caller's "no dhands_bench.py in <dir>" error names it.
+    """
     override = os.environ.get("DHANDS_AGENT_BUNDLE_DIR", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path(__file__).resolve().parents[3] / "bench-py"
+    return resource_dir(BENCH) or expected_dir(BENCH)
 
 
 def member_ok(name: str) -> bool:

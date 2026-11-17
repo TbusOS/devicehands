@@ -94,3 +94,35 @@ def test_spa_fallback_handles_trailing_slash_and_query() -> None:
         r2 = c.get("/app/inspect?tab=charts")
         assert r2.status_code == 200
         assert b"<html" in r2.content.lower() or b"<!doctype html" in r2.content.lower()
+
+
+def test_ui_served_from_installed_copy(monkeypatch, tmp_path) -> None:
+    """An installed wheel has no docs/app; the UI comes from the package's
+    _resources/web (infra.resources). mount_ui must use that lookup."""
+    from devicehands.api import ui_static
+
+    web = tmp_path / "_resources" / "web"
+    web.mkdir(parents=True)
+    (web / "index.html").write_text(
+        "<!doctype html><html><body>installed-copy-marker</body></html>", encoding="utf-8"
+    )
+    monkeypatch.setattr(ui_static, "resource_dir", lambda name: web)
+
+    assert ui_static.ui_dir() == web
+    app = create_app()
+    with TestClient(app) as c:
+        r = c.get("/app/")
+        assert r.status_code == 200
+        assert b"installed-copy-marker" in r.content
+        r = c.get("/app/dashboard")
+        assert r.status_code == 200
+        assert b"installed-copy-marker" in r.content
+
+
+def test_ui_not_mounted_without_index(monkeypatch, tmp_path) -> None:
+    from devicehands.api import ui_static
+
+    monkeypatch.setattr(ui_static, "resource_dir", lambda name: tmp_path)
+    assert ui_static.ui_dir() is None
+    monkeypatch.setattr(ui_static, "resource_dir", lambda name: None)
+    assert ui_static.ui_dir() is None
