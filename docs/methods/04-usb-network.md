@@ -88,7 +88,7 @@ class UsbNetworkTransport(Transport):
 
 ## 七、关联 TODO
 
-- `src/alb/transport/usb_network.py` —— 待实现
+- `src/devicehands/transport/usb_network.py` —— 待实现
 - `scripts/setup-method-usb-network.sh` —— 待实现
 - `registry.py` 里已登记 `status="planned"`
 

@@ -36,7 +36,7 @@ alb rsync <local> <remote> [options]           # 方案 C 独占
 
 ```python
 @mcp.tool()
-async def alb_push(local: str, remote: str, verify: bool = False) -> dict:
+async def dhands_push(local: str, remote: str, verify: bool = False) -> dict:
     """
     Push local file(s) to Android device.
 
@@ -45,8 +45,8 @@ async def alb_push(local: str, remote: str, verify: bool = False) -> dict:
       - Pushing test resources
 
     When NOT to use:
-      - Large directory with many small files → alb_rsync (much faster, ssh only)
-      - Streaming a long log back → alb_pull at end
+      - Large directory with many small files → dhands_rsync (much faster, ssh only)
+      - Streaming a long log back → dhands_pull at end
 
     LLM notes:
       - For /system/, /vendor/, /product/ the device must be mount rw (ask-level perm)
@@ -55,13 +55,13 @@ async def alb_push(local: str, remote: str, verify: bool = False) -> dict:
     """
 
 @mcp.tool()
-async def alb_pull(remote: str, local: str) -> dict:
+async def dhands_pull(remote: str, local: str) -> dict:
     """Pull file(s) from Android device."""
 
 @mcp.tool()
-async def alb_rsync(local_dir: str, remote_dir: str) -> dict:
+async def dhands_rsync(local_dir: str, remote_dir: str) -> dict:
     """Incremental sync using rsync. REQUIRES ssh transport (method C).
-       Much faster than alb_push for large dirs with few changes."""
+       Much faster than dhands_push for large dirs with few changes."""
 ```
 
 ---
@@ -93,7 +93,7 @@ async def rsync_sync(transport, local_dir: Path, remote_dir: str,
                      delete: bool = False) -> Result[RsyncResult]:
     if not isinstance(transport, SshTransport):
         return fail(code="TRANSPORT_NOT_SUPPORTED",
-                    suggestion="rsync requires ssh transport. Run: alb setup ssh")
+                    suggestion="rsync requires ssh transport. Run: dhands setup ssh")
     ...
 ```
 
@@ -156,9 +156,9 @@ M2 智能路由：
 
 ```bash
 alb push my-test.apk /data/local/tmp/
-alb shell "pm install /data/local/tmp/my-test.apk"
+dhands shell "pm install /data/local/tmp/my-test.apk"
 # 或更简洁:
-alb app install my-test.apk       # 内部自动 push + pm install
+dhands app install my-test.apk    # 内部自动 push + pm install
 ```
 
 ### 拉一个日志文件
@@ -185,13 +185,13 @@ alb pull /data/anr/ ~/my-anrs/
 
 ## 产物路径（pull 的缺省位置）
 
-如果 pull 没指定本地路径，alb 自动落到：
+如果 pull 没指定本地路径，dhands 自动落到：
 
 ```
 workspace/devices/<serial>/pulls/<remote-basename>-<ts>
 ```
 
-例如 `alb pull /data/tombstones/tombstone_00` → 
+例如 `alb pull /data/tombstones/tombstone_00` →
 `workspace/devices/abc/pulls/tombstone_00-2026-04-15T10-30-00`
 
 ---
@@ -233,7 +233,7 @@ class AdbTransport:
 
 ## 关联文件
 
-- `src/alb/capabilities/filesync.py`
-- `src/alb/cli/filesync_cli.py`
-- `src/alb/mcp/tools/filesync.py`
+- `src/devicehands/capabilities/filesync.py`
+- `src/devicehands/cli/filesync_cli.py`
+- `src/devicehands/mcp/tools/filesync.py`
 - `tests/capabilities/test_filesync.py`

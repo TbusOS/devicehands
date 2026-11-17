@@ -35,7 +35,7 @@ alb screen on / off            # 亮屏/灭屏（不是休眠，屏幕级）
 
 ```python
 @mcp.tool()
-async def alb_reboot(
+async def dhands_reboot(
     mode: str = "normal",
     wait_boot: bool = True,
     timeout: int = 180,
@@ -56,7 +56,7 @@ async def alb_reboot(
     """
 
 @mcp.tool()
-async def alb_sleep_wake_test(cycles: int = 1, hold_sec: int = 5) -> dict:
+async def dhands_sleep_wake_test(cycles: int = 1, hold_sec: int = 5) -> dict:
     """
     Trigger N sleep/wake cycles. Useful for power regression testing.
 
@@ -67,11 +67,11 @@ async def alb_sleep_wake_test(cycles: int = 1, hold_sec: int = 5) -> dict:
     """
 
 @mcp.tool()
-async def alb_battery() -> dict:
+async def dhands_battery() -> dict:
     """Return battery status: level, health, temperature, plugged, status."""
 
 @mcp.tool()
-async def alb_wait_boot(timeout: int = 180) -> dict:
+async def dhands_wait_boot(timeout: int = 180) -> dict:
     """Poll sys.boot_completed until True or timeout.
        Returns boot duration for regression analysis."""
 ```
@@ -81,7 +81,7 @@ async def alb_wait_boot(timeout: int = 180) -> dict:
 ## 业务函数
 
 ```python
-# src/alb/capabilities/power.py
+# src/devicehands/capabilities/power.py
 
 async def reboot(transport, mode: str = "normal",
                  wait_boot: bool = True,
@@ -154,7 +154,7 @@ async def wait_boot(transport, timeout: int = 180) -> Result[BootResult]:
 | `sideload` | ✅ | ❌ | ❌ | ❌ |
 
 \* B 重启后 TCP 模式会丢失，需要重 `adb tcpip`
-\*\* G 能发 u-boot 命令让板子重启进特定模式，但 alb 封装 M3
+\*\* G 能发 u-boot 命令让板子重启进特定模式，但 DeviceHands 封装 M3
 
 ---
 
@@ -168,8 +168,8 @@ async def wait_boot(transport, timeout: int = 180) -> Result[BootResult]:
 | recovery / bootloader / fastboot | `adb reboot <mode>` | 板子在 Linux shell 时可用 |
 | sideload | `adb reboot sideload` | 不支持（sideload 要 adbd 先设置 recovery） |
 
-**adb 找不到设备时自动改走串口**（2026-10-23）：`alb power reboot` 和 MCP `alb_reboot` 在
-没指定 `--transport`、没设 `ALB_TRANSPORT`、没给 `--device` 时，如果 adb 回 `DEVICE_NOT_FOUND`，
+**adb 找不到设备时自动改走串口**（2026-10-23）：`dhands power reboot` 和 MCP `dhands_reboot` 在
+没指定 `--transport`、没设 `DHANDS_TRANSPORT`、没给 `--device` 时，如果 adb 回 `DEVICE_NOT_FOUND`，
 就改从串口重启。adb 那次的错误不会被吞掉：
 
 - 成功时，结果里的 `data.fallback` 记着 adb 的错误码和原文；CLI 另外往 stderr 打一行
@@ -179,7 +179,7 @@ async def wait_boot(transport, timeout: int = 180) -> Result[BootResult]:
 - 给了 `--device` 就不回退：点名的 adb 设备不一定就是串口上接的那块板。
 
 串口重启的做法：发 `(sleep 1; reboot <mode>) </dev/null >/dev/null 2>&1 & echo __ALB_REBOOT_QUEUED__`，
-看到这个标记才算成功（`src/alb/transport/serial.py` `reboot()`）。原因：
+看到这个标记才算成功（`src/devicehands/transport/serial.py` `reboot()`）。原因：
 
 - 安卓的 `reboot` 命令发出后不会返回。放在前台执行，串口 shell 等不到结束标记，
   超时后还会补发一个 Ctrl-C。如果板子这时已经进了 U-Boot 的 fastboot，Ctrl-C 会把它打断。
@@ -215,7 +215,7 @@ while true; do
     alb battery --json >> battery.jsonl
     sleep 60
 done
-# 后续用 alb_log_search 或 pandas 分析
+# 后续用 dhands_log_search 或 pandas 分析
 ```
 
 ---
@@ -240,7 +240,7 @@ done
 
 ## 关联文件
 
-- `src/alb/capabilities/power.py`
-- `src/alb/cli/power_cli.py`
-- `src/alb/mcp/tools/power.py`
+- `src/devicehands/capabilities/power.py`
+- `src/devicehands/cli/power_cli.py`
+- `src/devicehands/mcp/tools/power.py`
 - `tests/capabilities/test_power.py`

@@ -54,7 +54,7 @@ tags: [architecture, design, transport, capability, agent]
 └──────────────────────────────────────────────────────────┘
 ```
 
-> L1.5 是**可选**层：外部 LLM 驱动（Claude Code + MCP / Claude Code + Bash）时不走 L1.5；只有 `alb chat` / Web `/chat` 这种"alb 内嵌 LLM 编排"场景才启用。详见 [`agent.md`](./agent.md) 和 ADR-016。
+> L1.5 是**可选**层：外部 LLM 驱动（Claude Code + MCP / Claude Code + Bash）时不走 L1.5；只有 `dhands chat` / Web `/chat` 这种"DeviceHands 内嵌 LLM 编排"场景才启用。详见 [`agent.md`](./agent.md) 和 ADR-016。
 
 ### 为啥这么分层
 
@@ -68,7 +68,7 @@ tags: [architecture, design, transport, capability, agent]
 
 ## 二、L3 传输抽象层（核心）
 
-### 接口定义（`src/alb/transport/base.py`）
+### 接口定义（`src/devicehands/transport/base.py`）
 
 ```python
 from abc import ABC, abstractmethod
@@ -76,8 +76,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import AsyncIterator
 
-from alb.infra.errors import ErrorCode
-from alb.infra.permissions import PermissionResult
+from devicehands.infra.errors import ErrorCode
+from devicehands.infra.permissions import PermissionResult
 
 
 @dataclass(frozen=True)
@@ -134,7 +134,7 @@ class Transport(ABC):
     # ── 权限 hook（tool 自检） ─────────────────────
     async def check_permissions(self, action: str, input: dict) -> PermissionResult:
         """能力层调用前会走这里。默认 allow，子类可覆盖危险操作规则。"""
-        from alb.infra.permissions import default_check
+        from devicehands.infra.permissions import default_check
         return await default_check(self.name, action, input)
 
     # ── 健康检查 ──────────────────────────────────
@@ -179,7 +179,7 @@ class HybridTransport(Transport):
 ### 数据流：logcat 流式读
 
 ```
-LLM 调用 alb_logcat(duration=60, filter="*:E")
+LLM 调用 dhands_logcat(duration=60, filter="*:E")
     ↓
 capabilities/logging.py:collect_logcat()
     ↓
@@ -199,7 +199,7 @@ LogcatResult(ok=True, artifacts=[Path("workspace/.../logcat.txt")])
 ### 能力模块结构
 
 ```
-src/alb/capabilities/
+src/devicehands/capabilities/
 ├── __init__.py          # 能力注册表（元数据驱动）
 ├── base.py              # Capability ABC（可选，M2 补）
 ├── shell.py
@@ -213,11 +213,11 @@ src/alb/capabilities/
 ### 典型能力函数（示例）
 
 ```python
-# src/alb/capabilities/logging.py
+# src/devicehands/capabilities/logging.py
 
-from alb.infra.result import Result, ok, fail
-from alb.infra.workspace import workspace_path
-from alb.transport import Transport
+from devicehands.infra.result import Result, ok, fail
+from devicehands.infra.workspace import workspace_path
+from devicehands.transport import Transport
 
 async def collect_logcat(
     transport: Transport,
@@ -265,9 +265,9 @@ async def collect_logcat(
 ### 三层壳如何装饰
 
 ```python
-# src/alb/cli/logging_cli.py
+# src/devicehands/cli/logging_cli.py
 import typer
-from alb.capabilities.logging import collect_logcat
+from devicehands.capabilities.logging import collect_logcat
 
 app = typer.Typer()
 
@@ -278,20 +278,20 @@ def cli_logcat(duration: int = 60, filter: str | None = None):
     print_result(result)          # --json 或 人类可读
 
 
-# src/alb/mcp/tools/logging.py
+# src/devicehands/mcp/tools/logging.py
 from mcp.server import tool
-from alb.capabilities.logging import collect_logcat
+from devicehands.capabilities.logging import collect_logcat
 
 @tool()
-async def alb_logcat(duration: int = 60, filter: str | None = None) -> dict:
+async def dhands_logcat(duration: int = 60, filter: str | None = None) -> dict:
     """Collect logcat to workspace. Use for investigating app crashes, ANRs, system errors."""
     result = await collect_logcat(get_transport(), duration, filter)
     return result.to_dict()
 
 
-# src/alb/api/routers/logging.py
+# src/devicehands/api/routers/logging.py
 from fastapi import APIRouter
-from alb.capabilities.logging import collect_logcat
+from devicehands.capabilities.logging import collect_logcat
 
 router = APIRouter()
 
@@ -351,10 +351,10 @@ workspace/
 
 两级：
 
-- **config**（`~/.config/alb/config.toml` 或 `$ALB_CONFIG`）：本机的全局默认（adb 程序、adb server、ssh、串口端点）
-- **profile**（`<workspace>/profiles/<name>.toml`，由 `ALB_PROFILE` 选）：默认传输和设备列表
+- **config**（`~/.config/devicehands/config.toml` 或 `$DHANDS_CONFIG`）：本机的全局默认（adb 程序、adb server、ssh、串口端点）
+- **profile**（`<workspace>/profiles/<name>.toml`，由 `DHANDS_PROFILE` 选）：默认传输和设备列表
 
-`infra/config.py` 的 `load_active()` 把两级合成一份 `ActiveSettings`。传输只在 `transport/factory.py` 一处构建，CLI / MCP / API 都走它，所以三个入口看到的配置一致；环境变量在这里覆盖文件里的值。`factory.py` 把 `ActiveSettings` 缓存在进程里，常驻的 `alb-mcp` / `alb-api` 改了配置要重启。
+`infra/config.py` 的 `load_active()` 把两级合成一份 `ActiveSettings`。传输只在 `transport/factory.py` 一处构建，CLI / MCP / API 都走它，所以三个入口看到的配置一致；环境变量在这里覆盖文件里的值。`factory.py` 把 `ActiveSettings` 缓存在进程里，常驻的 `dhands-mcp` / `dhands-hub` 改了配置要重启。
 
 每个键、每个环境变量的含义、默认值、谁读，以及哪些键写了也无效，见 [`configuration.md`](./configuration.md)。
 
@@ -379,12 +379,12 @@ workspace/
 详见 [`errors.md`](./errors.md)。
 
 ```python
-# src/alb/infra/result.py
+# src/devicehands/infra/result.py
 @dataclass(frozen=True)
 class ErrorInfo:
     code: str            # 错误码，如 "TRANSPORT_NOT_CONFIGURED"
     message: str         # 人类可读
-    suggestion: str      # LLM 可行动的建议，如 "run: alb setup adb"
+    suggestion: str      # LLM 可行动的建议，如 "run: dhands setup adb"
     category: str        # "transport" | "permission" | "timeout" | ...
 
 @dataclass(frozen=True)
@@ -401,7 +401,7 @@ class Result[T]:
 ### 事件总线（M2）
 
 ```python
-# src/alb/infra/events.py
+# src/devicehands/infra/events.py
 class EventBus:
     """进程内 pub/sub，用于流式数据同时推给多个订阅者。
 
@@ -424,23 +424,23 @@ class EventBus:
 借鉴 claude-code2：
 
 ```python
-# src/alb/infra/registry.py
+# src/devicehands/infra/registry.py
 @dataclass(frozen=True)
 class TransportSpec:
     name: str
-    impl_path: str              # "alb.transport.adb.AdbTransport"
+    impl_path: str              # "devicehands.transport.adb.AdbTransport"
     methods_supported: list[str]  # ["A", "B"]
     status: str                 # "stable" | "beta" | "planned"
     requires: list[str]         # ["adb binary"]
 
 TRANSPORTS = [
-    TransportSpec("adb", "alb.transport.adb.AdbTransport",
+    TransportSpec("adb", "devicehands.transport.adb.AdbTransport",
                   methods_supported=["A", "B"], status="stable",
                   requires=["adb binary"]),
-    TransportSpec("ssh", "alb.transport.ssh.SshTransport",
+    TransportSpec("ssh", "devicehands.transport.ssh.SshTransport",
                   methods_supported=["C", "D", "F"], status="stable",
                   requires=["ssh client"]),
-    TransportSpec("serial", "alb.transport.serial.SerialTransport",
+    TransportSpec("serial", "devicehands.transport.serial.SerialTransport",
                   methods_supported=["G"], status="stable",
                   requires=["pyserial"]),
 ]
@@ -450,7 +450,7 @@ CAPABILITIES = [...]
 ```
 
 效果：
-- `alb describe` 输出全部 schema 供 LLM 预读
+- `dhands describe` 输出全部 schema 供 LLM 预读
 - `alb workspace inspect` 自动生成实现进度表
 - 文档里的方案对照表 / 能力对照表从这生成，避免手工维护偏差
 
@@ -459,11 +459,11 @@ CAPABILITIES = [...]
 ## 五、启动流程
 
 ```
-uv run alb shell "ls /sdcard"
+uv run dhands shell "ls /sdcard"
     ↓
-1. entry point (pyproject.toml → alb = "alb.cli:main")
+1. entry point (pyproject.toml → dhands = "devicehands.cli.main:main")
 2. cli/main.py:
-   - 加载 config（~/.config/alb/config.toml）
+   - 加载 config（~/.config/devicehands/config.toml）
    - 加载 profile（默认 or --profile）
    - 解析 subcommand: shell
 3. 根据 profile 选择 transport:
@@ -480,9 +480,9 @@ uv run alb shell "ls /sdcard"
 MCP 启动：
 
 ```
-uv run alb-mcp
+uv run dhands-mcp
     ↓
-1. entry point (alb-mcp = "alb.mcp.server:main")
+1. entry point (dhands-mcp = "devicehands.mcp.server:main")
 2. mcp/server.py 注册所有 @tool() 装饰的函数
 3. stdio 模式监听请求
 4. 客户端（Claude Code）调用 → 执行同样的 capabilities/*.py
@@ -494,7 +494,7 @@ uv run alb-mcp
 
 ### 加一个新传输（例如 F · frp 云中转）
 
-1. 新建 `src/alb/transport/frp.py`，实现 `Transport` ABC
+1. 新建 `src/devicehands/transport/frp.py`，实现 `Transport` ABC
 2. 在 `registry.py` 的 `TRANSPORTS` 注册
 3. 写 `docs/methods/06-frp-cloud.md`（方案说明）
 4. 写 `scripts/setup-method-frp.sh`（引导式配置）
@@ -502,7 +502,7 @@ uv run alb-mcp
 
 ### 加一个新能力（例如 perf · 性能采集）
 
-1. 新建 `src/alb/capabilities/perf.py`，写业务函数
+1. 新建 `src/devicehands/capabilities/perf.py`，写业务函数
 2. 在 `cli/perf_cli.py` / `mcp/tools/perf.py` / `api/routers/perf.py` 各加一个薄壳
 3. 在 `CAPABILITIES` registry 注册
 4. 写 `docs/capabilities/perf.md`
@@ -510,7 +510,7 @@ uv run alb-mcp
 
 ### 加一个新接入层（例如 Slack Bot）
 
-1. 新建 `src/alb/bots/slack.py`
+1. 新建 `src/devicehands/bots/slack.py`
 2. 复用同一套 `capabilities/*.py`
 3. 业务代码零改动
 

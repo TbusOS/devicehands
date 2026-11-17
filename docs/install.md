@@ -20,10 +20,10 @@ tags: [install, uninstall, uv, python, isolation]
 
 | uv 在这里做什么 | 没有 uv 会怎样 |
 |---|---|
-| 不用 root 下载一份 Python 3.11 | alb 要求 Python 3.11 以上（`pyproject.toml` 的 `requires-python`）。很多服务器的系统 Python 更旧（Ubuntu 20.04 是 3.8），没有 root 装不了新版本，alb 就装不上 |
+| 不用 root 下载一份 Python 3.11 | DeviceHands 要求 Python 3.11 以上（`pyproject.toml` 的 `requires-python`）。很多服务器的系统 Python 更旧（Ubuntu 20.04 是 3.8），没有 root 装不了新版本，DeviceHands 就装不上 |
 | 建 `.venv/`，按 `uv.lock` 装依赖 | pip 也能装，但装的是满足最低版本要求的最新版，和 `uv.lock` 里测过的版本不一定一样 |
-| `uv run alb …` 直接用项目环境 | 要写 `.venv/bin/alb` 的路径，或者先 `source .venv/bin/activate` |
-| MCP 登记命令里的 `uv run --project … alb-mcp` | 改成登记 `.venv/bin/alb-mcp` 的绝对路径 |
+| `uv run dhands …` 直接用项目环境 | 要写 `.venv/bin/dhands` 的路径，或者先 `source .venv/bin/activate` |
+| MCP 登记命令里的 `uv run --project … dhands-mcp` | 改成登记 `.venv/bin/dhands-mcp` 的绝对路径 |
 
 **为什么选 uv**：不用 root 拿到新版 Python 是硬需求，几种做法对比：
 
@@ -85,7 +85,7 @@ tags: [install, uninstall, uv, python, isolation]
 ### 基本用法
 
 ```bash
-cd android-llm-bridge
+cd devicehands
 ./scripts/install.sh
 ```
 
@@ -98,7 +98,7 @@ cd android-llm-bridge
 | 2 | 找机器上现成的 Python 3.11，没有才让 uv 下载；下载失败打印原因和解决办法 | `~/.local/share/uv/python/cpython-3.11.*/` |
 | 3 | `uv sync` 建 venv + 装所有依赖；失败时打印原因和代理 / 镜像 / 超时的办法 | `<repo>/.venv/` |
 | 4 | 跑 smoke test（`pytest tests/test_smoke.py`） | 临时 |
-| 5 | 查 pip 装不了的外部工具（`alb setup deps --install`）：缺 adb / fastboot 就下载；要 sudo 的列出命令。见下面「外部工具」 | `~/.local/share/alb/`，链接在 `~/.local/bin/` |
+| 5 | 查 pip 装不了的外部工具（`dhands setup deps --install`）：缺 adb / fastboot 就下载；要 sudo 的列出命令。见下面「外部工具」 | `~/.local/share/alb/`，链接在 `~/.local/bin/` |
 | 6 | 打印下一步提示；有必需的工具没装上，退出码 1 | — |
 
 ### 选项
@@ -135,20 +135,20 @@ cd android-llm-bridge
 
 ### 外部工具：pip / uv 装不了的那些
 
-alb 和它的测试还要用到一些不是 Python 包的程序。pip / uv 安装 Python 包时不能顺带执行别的安装步骤，
-所以由 install.sh 的最后一步 `alb setup deps --install` 来查，不用 root 能装的就装上。
-用别的方式装了 alb 的人，自己跑一次 `alb setup deps`（加 `--install` 装，加 `--dev` 连测试工具一起查）。
-`alb doctor` 的 binaries 那一层查的是同一份清单（`src/alb/infra/host_deps.py`）。
+DeviceHands 和它的测试还要用到一些不是 Python 包的程序。pip / uv 安装 Python 包时不能顺带执行别的安装步骤，
+所以由 install.sh 的最后一步 `dhands setup deps --install` 来查，不用 root 能装的就装上。
+用别的方式装了 DeviceHands 的人，自己跑一次 `dhands setup deps`（加 `--install` 装，加 `--dev` 连测试工具一起查）。
+`dhands doctor` 的 binaries 那一层查的是同一份清单（`src/devicehands/infra/host_deps.py`）。
 
 | 名字 | 档 | 干什么用 | 自动装吗 | 自己装 |
 |---|---|---|---|---|
-| `adb` | 必需 | 经 adb 连板子，alb 的主要通道 | 是：下载 Android SDK Platform-Tools 到 `~/.local/share/alb/platform-tools`，链接进 `~/.local/bin`。下载前问一次（要同意 Google 的许可），`--yes` 不问 | 见下面「adb 下载失败」 |
+| `adb` | 必需 | 经 adb 连板子，DeviceHands 的主要通道 | 是：下载 Android SDK Platform-Tools 到 `~/.local/share/alb/platform-tools`，链接进 `~/.local/bin`。下载前问一次（要同意 Google 的许可），`--yes` 不问 | 见下面「adb 下载失败」 |
 | `fastboot` | 可选 | 本机直连板子时烧录（台架烧录在 Windows 那头做） | 是，和 adb 一起装 | 同 adb |
 | `ssh` | 可选 | ssh 通道（板子上跑 sshd），含 ssh 和 scp | 否，要 sudo | `sudo apt install openssh-client` |
-| `rsync` | 可选 | `alb fs rsync` | 否，要 sudo | `sudo apt install rsync` |
-| `picocom` | 可选 | alb 之外的交互串口终端，alb 本身不用它 | 否，要 sudo | `sudo apt install picocom` |
-| `socat` | 可选 | 手动把串口桥到 pty / TCP，alb 本身不用它 | 否，要 sudo | `sudo apt install socat` |
-| `ollama` | 可选 | 网页助手和 `alb chat` 的模型后端，可以装在另一台机器 | 否：官方安装要 root，而且常装在别的机器上 | <https://ollama.com/download>；在另一台机器就 `export ALB_OLLAMA_URL=http://<host>:11434` |
+| `rsync` | 可选 | `dhands fs rsync` | 否，要 sudo | `sudo apt install rsync` |
+| `picocom` | 可选 | DeviceHands 之外的交互串口终端，DeviceHands 本身不用它 | 否，要 sudo | `sudo apt install picocom` |
+| `socat` | 可选 | 手动把串口桥到 pty / TCP，DeviceHands 本身不用它 | 否，要 sudo | `sudo apt install socat` |
+| `ollama` | 可选 | 网页助手和 `dhands chat` 的模型后端，可以装在另一台机器 | 否：官方安装要 root，而且常装在别的机器上 | <https://ollama.com/download>；在另一台机器就 `export DHANDS_OLLAMA_URL=http://<host>:11434` |
 | `node` | 测试 | 跑网页测试、重新打包网页，版本要 `^20.19.0 \|\| ^22.12.0 \|\| >=24.0.0` | 否：开发者常用 nvm 等工具自己管 Node 版本 | 用 nvm（不要 root）：`nvm install 22`；或把官方压缩包解压到 `~/.local` |
 | `web-packages` | 测试 | `web/node_modules` 里的 vitest 和钉死版本的 `@playwright/test` | 是：`npm ci` | `cd web && npm ci` |
 | `playwright-browsers` | 测试 | Playwright 的 Chromium，完整版和精简版（headless shell）各一份 | 是：`npx playwright install chromium` | 见下面「浏览器下载失败」 |
@@ -157,22 +157,22 @@ alb 和它的测试还要用到一些不是 Python 包的程序。pip / uv 安�
 | `mksh` | 测试·可缺 | 一条 pytest 要用 Android 的 shell，没有就跳过 | 是，只在 Debian / Ubuntu 上：`apt-get download` 加 `dpkg-deb -x`，不要 root | `sudo apt install mksh` |
 | `playwright-cli` | 测试·可缺 | 让 AI 编程助手操作浏览器 | 否 | `npm install -g @playwright/cli`；`playwright-cli install --skills` 要在家目录跑，它会往当前目录写 `.claude/skills/` |
 
-「必需」缺了，`alb setup deps` 退出码 1；加 `--dev` 时，「测试」档缺了也是 1；
+「必需」缺了，`dhands setup deps` 退出码 1；加 `--dev` 时，「测试」档缺了也是 1；
 「可选」和「测试·可缺」只列出来，不影响退出码。每一项缺了，命令都会打印上表最后一列那样的安装办法。
 
 #### adb 下载失败怎么办
 
 ```bash
-# 1. 自己下载 zip（用浏览器下也行），交给 alb 解压和链接
+# 1. 自己下载 zip（用浏览器下也行），交给 dhands 解压和链接
 #    https://dl.google.com/android/repository/platform-tools-latest-linux.zip   （macOS 把 linux 换成 darwin）
-alb setup deps --install --platform-tools-zip ~/Downloads/platform-tools-latest-linux.zip
+dhands setup deps --install --platform-tools-zip ~/Downloads/platform-tools-latest-linux.zip
 
 # 2. 走代理，或者从镜像下载
-export HTTPS_PROXY=http://<proxy>:<port>             # 然后再跑 alb setup deps --install
-export ALB_PLATFORM_TOOLS_URL=<镜像上那个 zip 的地址>
+export HTTPS_PROXY=http://<proxy>:<port>             # 然后再跑 dhands setup deps --install
+export DHANDS_PLATFORM_TOOLS_URL=<镜像上那个 zip 的地址>
 
-# 3. 解压到任意位置，告诉 alb 用哪个 adb
-export ALB_ADB_PATH=/path/to/platform-tools/adb
+# 3. 解压到任意位置，告诉 dhands 用哪个 adb
+export DHANDS_ADB_PATH=/path/to/platform-tools/adb
 
 # 4. 发行版自带的包（版本常常偏旧）
 sudo apt install adb fastboot
@@ -196,10 +196,10 @@ PATH 里已经有 adb 时，不会在它前面再放一个：版本不同的 adb
 # 确保 ~/.local/bin 在 PATH
 export PATH="$HOME/.local/bin:$PATH"
 
-cd android-llm-bridge
-uv run alb describe            # 看看都有哪些 transport/capability
-uv run alb status              # 健康检查
-uv run alb version             # 0.0.1
+cd devicehands
+uv run dhands describe         # 看看都有哪些 transport/capability
+uv run dhands status           # 健康检查
+uv run dhands version          # 0.0.1
 uv run pytest -q               # 跑完整测试
 ```
 
@@ -208,36 +208,36 @@ uv run pytest -q               # 跑完整测试
 在仓库目录里登记一次：
 
 ```bash
-claude mcp add alb -- uv run --project "$PWD" alb-mcp   # Claude Code
-codex mcp add alb -- uv run --project "$PWD" alb-mcp    # Codex CLI
+claude mcp add devicehands -- uv run --project "$PWD" dhands-mcp # Claude Code
+codex mcp add devicehands -- uv run --project "$PWD" dhands-mcp # Codex CLI
 ```
 
 Claude Code 加 `-s project` 会写进项目根的 `.mcp.json`;Codex 写进 `~/.codex/config.toml`。
-重启客户端后，它会启动 `alb-mcp` 子进程，拿到全部 MCP 工具(`alb describe` 可列出)。
+重启客户端后，它会启动 `dhands-mcp` 子进程，拿到全部 MCP 工具(`dhands describe` 可列出)。
 
 ### 不用 uv 安装（已经有 Python 3.11 以上）
 
 装不上 uv，或者不想用，而机器上已经有 Python 3.11 以上时：
 
 ```bash
-cd android-llm-bridge
+cd devicehands
 python3.11 -m venv .venv                 # 用你机器上的 Python 3.11+
-.venv/bin/pip install -e .               # 装 alb 和依赖；PyPI 镜像用 PIP_INDEX_URL 或 -i <镜像地址>
-.venv/bin/alb setup deps --install       # 查 / 装 adb 等外部工具
-.venv/bin/alb --help
+.venv/bin/pip install -e .               # 装 DeviceHands 和依赖；PyPI 镜像用 PIP_INDEX_URL 或 -i <镜像地址>
+.venv/bin/dhands setup deps --install    # 查 / 装 adb 等外部工具
+.venv/bin/dhands --help
 ```
 
-MCP 登记写 `alb-mcp` 的绝对路径：
+MCP 登记写 `dhands-mcp` 的绝对路径：
 
 ```bash
-claude mcp add alb -- "$PWD/.venv/bin/alb-mcp"   # Claude Code
-codex mcp add alb -- "$PWD/.venv/bin/alb-mcp"    # Codex CLI
+claude mcp add devicehands -- "$PWD/.venv/bin/dhands-mcp" # Claude Code
+codex mcp add devicehands -- "$PWD/.venv/bin/dhands-mcp" # Codex CLI
 ```
 
 要知道的：
 
 - **要用 `-e`（可编辑安装）**。网页界面文件和台架 agent 的更新包是按仓库目录找的；
-  不加 `-e` 时 alb 被复制进 `.venv` 的 site-packages，找不到仓库，网页打不开（2026-11-10 实测：
+  不加 `-e` 时 DeviceHands 被复制进 `.venv` 的 site-packages，找不到仓库，网页打不开（2026-11-10 实测：
   不加 `-e` 跑全量测试，网页界面 3 条、agent 更新包 2 条失败；加 `-e` 后这两个测试文件 33 条全过）。
 - 依赖是 pip 当时解析出的版本，不是 `uv.lock` 里的。2026-11-10 用这种方式（Python 3.11、pip 24.0、`-e`）装出来跑全量测试：2806 过、1 跳过。
   以后遇到依赖版本引起的问题，改用 `./scripts/install.sh`。
@@ -286,7 +286,7 @@ codex mcp add alb -- "$PWD/.venv/bin/alb-mcp"    # Codex CLI
 
 ```bash
 ./scripts/uninstall.sh --remove-host-tools
-# 删 alb setup deps --install 放进家目录的东西：~/.local/share/alb/（Platform-Tools、mksh）
+# 删 dhands setup deps --install 放进家目录的东西：~/.local/share/alb/（Platform-Tools、mksh）
 # 和 ~/.local/bin 里指向它的链接。web/node_modules 和 Playwright 的浏览器
 # （~/.cache/ms-playwright，别的项目也可能在用）不动
 ```
@@ -300,8 +300,8 @@ codex mcp add alb -- "$PWD/.venv/bin/alb-mcp"    # Codex CLI
 
 ```bash
 ./scripts/uninstall.sh --force --purge-workspace --remove-uv --remove-uv-python --remove-host-tools
-rm -rf android-llm-bridge
-# 现在你的账户上完全没有 alb / uv / uv-managed Python 的痕迹
+rm -rf devicehands
+# 现在你的账户上完全没有 DeviceHands / uv / uv-managed Python 的痕迹
 ```
 
 ---
@@ -379,14 +379,14 @@ export UV_HTTP_TIMEOUT=120
 # 已经下载完的包在 uv 缓存里，重跑会接着装，不会从头下载
 ```
 
-### 问题 5 · 装完 `uv run alb` 报 command not found
+### 问题 5 · 装完 `uv run dhands` 报 command not found
 
 说明 `~/.local/bin` 不在 PATH。两个办法：
 
 ```bash
 # 临时
 export PATH="$HOME/.local/bin:$PATH"
-uv run alb --help
+uv run dhands --help
 
 # 永久
 ./scripts/install.sh --with-uv-in-path   # 自动加进 ~/.bashrc
@@ -399,7 +399,7 @@ uv run alb --help
 
 **只有** `uv run` 命令知道怎么定位这个 Python。
 
-### 问题 7 · 别的用户能用我的 alb 吗？
+### 问题 7 · 别的用户能用我的 DeviceHands 吗？
 
 不能，也不应该：
 - `~/.local/` 只你有权限
@@ -427,7 +427,7 @@ ls ./.venv/                            # 项目 venv
 如果你还有别的 Python 项目也用 uv，`install.sh` 会自动检测到已装的 uv 并复用：
 
 ```
-~/project-a/  ← 用 uv sync （alb 项目）
+~/project-a/  ← 用 uv sync （DeviceHands 项目）
 ~/project-b/  ← 用 uv sync （另一个项目）
 ```
 

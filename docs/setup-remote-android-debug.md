@@ -1,5 +1,5 @@
 ---
-title: 远程板子调试打通指南（Windows → Xshell 隧道 → Linux 上的 alb）
+title: 远程板子调试打通指南（Windows → Xshell 隧道 → Linux 上的 DeviceHands）
 type: setup-guide
 audience: dev
 created: 2026-04-17
@@ -9,7 +9,7 @@ tags: [setup, board, adb, uart, xshell, ssh-tunnel]
 
 # 远程板子调试打通指南
 
-> **场景**：Android 板子用 USB + UART 连在 Windows 上，你想在一台 Linux 服务器（通过 xshell/ssh 登录）上跑 `alb` / Claude Code / 其他 MCP 客户端来操作它。板子**完全无需联网**。
+> **场景**：Android 板子用 USB + UART 连在 Windows 上，你想在一台 Linux 服务器（通过 xshell/ssh 登录）上跑 `dhands` / Claude Code / 其他 MCP 客户端来操作它。板子**完全无需联网**。
 
 本文覆盖 **ADB + UART 两条路径同时打通**，架构统一为 **Xshell 反向隧道 + Windows 端桥**。2026-04-17 首次端到端打通一块高速 UART (1500000 baud) 的 Android 板子。
 
@@ -20,14 +20,14 @@ tags: [setup, board, adb, uart, xshell, ssh-tunnel]
 ```
 ┌──────────────────────┐   Xshell SSH + 2 条反向隧道    ┌──────────────────┐        USB          ┌─────────────┐
 │   Linux 服务器        │ ◄────────────────────────────► │  Windows 电脑    │ ◄───── USB ───────► │             │
-│  (alb / Claude Code) │   -R 5037   (adb server)      │                 │        USB 转串口    │ Android 板子 │
+│ dhands / Claude Code │   -R 5037   (adb server)      │                 │        USB 转串口    │ Android 板子 │
 │                      │   -R 19001  (serial bridge)   │  adb server     │ ◄───── UART ──────► │             │
 │                      │                               │  bridge.py      │                      │             │
 └──────────────────────┘                               └──────────────────┘                      └─────────────┘
 
-Linux 上 alb 的实际数据流：
-  alb shell …    → tcp:localhost:5037  → SSH -R → Windows:5037  → adb server → USB → 板子
-  alb serial …   → tcp:localhost:19001 → SSH -R → Windows:19001 → bridge.py  → COMxx → 板子 UART
+Linux 上 dhands 的实际数据流：
+  dhands shell …  → tcp:localhost:5037  → SSH -R → Windows:5037  → adb server → USB → 板子
+  dhands serial … → tcp:localhost:19001 → SSH -R → Windows:19001 → bridge.py  → COMxx → 板子 UART
 ```
 
 **关键点**：两条隧道在同一个 Xshell 会话里并存。会话断开两条都断，重连都恢复。
@@ -68,7 +68,7 @@ python --version
 pip install pyserial
 ```
 
-> **pyserial 装在 Windows，不在 Linux**。Linux 上 alb 用的是 pyserial-asyncio，项目依赖里已经有，不需要你手动装。
+> **pyserial 装在 Windows，不在 Linux**。Linux 上 DeviceHands 用的是 pyserial-asyncio，项目依赖里已经有，不需要你手动装。
 
 #### 步骤 2：下载桥脚本
 
@@ -101,7 +101,7 @@ python windows_serial_bridge.py --com COM27 --baud 1500000
 
 #### 步骤 4（重要）：Xshell 串口控制台和 Python 桥不能同时开
 
-Windows 串口是**严格独占**：一个 COM 口同时只能被一个程序打开。要么 Xshell 串口控制台 tab 开着（人眼直接看板子日志），要么 Python 桥开着（Linux 上 alb 控制），**二选一**。
+Windows 串口是**严格独占**：一个 COM 口同时只能被一个程序打开。要么 Xshell 串口控制台 tab 开着（人眼直接看板子日志），要么 Python 桥开着（Linux 上 dhands 控制），**二选一**。
 
 要从 A 切到 B：关掉当前那边 → 等 3 秒让 Windows 驱动释放 COM 口 → 开另一边。
 
@@ -164,7 +164,7 @@ ss -tln | grep -E ":5037|:19001"
 ### 4.1 装依赖（仅首次）
 
 ```bash
-# picocom + socat：alb serial 交互终端需要的工具（capture 和 shell 不强制要，但装上没坏处）
+# picocom + socat：dhands serial 交互终端需要的工具（capture 和 shell 不强制要，但装上没坏处）
 sudo apt install -y picocom socat
 ```
 
@@ -186,39 +186,39 @@ export ADB_SERVER_SOCKET=tcp:localhost:5037
 
 `source ~/.bashrc` 或重开终端生效。
 
-### 4.4 全局安装 alb（推荐）
+### 4.4 全局安装 DeviceHands（推荐）
 
-项目已支持 `uv tool install --editable`，装完 `alb` / `alb-mcp` / `alb-api` 全局可用：
+项目已支持 `uv tool install --editable`，装完 `dhands` / `dhands-mcp` / `dhands-hub` 全局可用：
 
 ```bash
-# 假设 alb 项目 clone 到 ~/android-llm-bridge
+# 假设 DeviceHands 项目 clone 到 ~/android-llm-bridge
 uv tool install --editable ~/android-llm-bridge
 
 # 验证
-which alb             # 应输出 ~/.local/bin/alb
-alb --help
-which alb-mcp alb-api
+which dhands          # 应输出 ~/.local/bin/dhands
+dhands --help
+which dhands-mcp dhands-hub
 ```
 
-`--editable` 的好处：你修改 alb 源码后，全局命令立即反映新改动，不用重装。
+`--editable` 的好处：你修改 DeviceHands 源码后，全局命令立即反映新改动，不用重装。
 
 > 如果没有 uv，也可以 `pip install --user -e ~/android-llm-bridge`，同效果。
 
-### 4.5 配 `~/.config/alb/config.toml`（UART 端口持久化）
+### 4.5 配 `~/.config/devicehands/config.toml`（UART 端口持久化）
 
-让后续所有 `alb serial capture / shell / send / health` 命令默认用 19001 / 1500000。**推荐**用 `--save` 让 alb 自己写：
+让后续所有 `dhands serial capture / shell / send / health` 命令默认用 19001 / 1500000。**推荐**用 `--save` 让 dhands 自己写：
 
 ```bash
-alb setup serial --tcp-host localhost --tcp-port 19001 --baud 1500000 --save
-# probe 通过后自动写到 ~/.config/alb/config.toml 的 [transport.serial] 段；
+dhands setup serial --tcp-host localhost --tcp-port 19001 --baud 1500000 --save
+# probe 通过后自动写到 ~/.config/devicehands/config.toml 的 [transport.serial] 段；
 # 已存在的其他 section（[transport.adb] / [permissions]）原样保留
 ```
 
 如果想手写也可以：
 
 ```bash
-mkdir -p ~/.config/alb
-cat > ~/.config/alb/config.toml <<'EOF'
+mkdir -p ~/.config/devicehands
+cat > ~/.config/devicehands/config.toml <<'EOF'
 default_profile = "default"
 
 [transport.serial]
@@ -227,12 +227,12 @@ default_tcp_port = 19001
 default_baud = 1500000
 EOF
 
-# 验证 alb 读到了
-python3 -c "from alb.infra.config import load_config; print(load_config().serial)"
+# 验证 dhands 读到了
+python3 -c "from devicehands.infra.config import load_config; print(load_config().serial)"
 # 期望: SerialConfig(default_baud=1500000, default_tcp_host='localhost', default_tcp_port=19001, ...)
 ```
 
-> **TOML schema 注意**：section 名是 `[transport.serial]`（嵌套在 `transport` 下），**不是**顶层 `[serial]`。写错了 alb 会静默用默认值。
+> **TOML schema 注意**：section 名是 `[transport.serial]`（嵌套在 `transport` 下），**不是**顶层 `[serial]`。写错了 dhands 会静默用默认值。
 
 ### 4.6 验证两条隧道
 
@@ -248,21 +248,21 @@ ss -tln | grep -E '5037|19001'
 **只有 5037 没 19001**：Windows 桥没启动或端口填错。
 **有 19001 但 `nc localhost 19001` 连不上**：Windows 桥连不上 COM 口（见 §七 常见问题 5）。
 
-### 4.7 alb setup 检查
+### 4.7 dhands setup 检查
 
 ```bash
-alb setup adb
+dhands setup adb
 # 应看到板子 serial number
 
-alb setup serial --tcp-host localhost --tcp-port 19001 --baud 1500000
+dhands setup serial --tcp-host localhost --tcp-port 19001 --baud 1500000
 # 应看到 "serial / method G setup: Serial ready"
 # picocom / socat 缺失是 optional，不影响核心功能
 ```
 
-或者一行 `alb doctor` 一次性查 6 层（env / binaries / config / adb / serial / ssh）：
+或者一行 `dhands doctor` 一次性查 6 层（env / binaries / config / adb / serial / ssh）：
 
 ```bash
-alb doctor
+dhands doctor
 # 6 层全 ✓ → 设置完成；某层 ✗/! → 看建议修复
 # 退出码 0=无 err，1=至少一 err（CI / oncall 脚本可消费）
 ```
@@ -273,19 +273,19 @@ alb doctor
 
 ```bash
 # === ADB 路径 ===
-alb shell 'getprop ro.product.model'         # 打印板子型号
-alb shell 'getprop ro.build.version.release' # Android 版本
-alb logcat --duration 10                     # 抓 10 秒日志到 workspace/.../logs/<ts>-logcat.txt
-alb logcat --duration 10 --output ./logs/    # 或落到指定目录
+dhands shell 'getprop ro.product.model'      # 打印板子型号
+dhands shell 'getprop ro.build.version.release' # Android 版本
+dhands logcat --duration 10                  # 抓 10 秒日志到 workspace/.../logs/<ts>-logcat.txt
+dhands logcat --duration 10 --output ./logs/ # 或落到指定目录
 
 # === UART 路径 ===
-alb serial health                            # 看连接状态 + endpoint + baud
-alb serial capture --duration 30             # 抓 30 秒 UART 字节流到 workspace/
+dhands serial health                         # 看连接状态 + endpoint + baud
+dhands serial capture --duration 30          # 抓 30 秒 UART 字节流到 workspace/
 # 板子此刻静默？按一下 reset → capture 瞬间能抓到完整 u-boot → kernel → init 日志
 
 # === 救砖组合 ===
-alb shell 'reboot' &                         # 走 ADB 触发重启
-alb serial capture --duration 30             # 立即切 UART 抓完整启动过程
+dhands shell 'reboot' &                      # 走 ADB 触发重启
+dhands serial capture --duration 30          # 立即切 UART 抓完整启动过程
 ```
 
 ### 预期捕获样例（某 ARM 安卓板启动日志片段）
@@ -323,8 +323,8 @@ Jumping to U-Boot(0x40200000) via ARM Trust...
 ### 方案 B：NSSM 做成 Windows 服务
 
 ```cmd
-nssm install alb-serial-bridge C:\Python3xx\python.exe "C:\tools\windows_serial_bridge.py --com COM27 --baud 1500000"
-nssm start alb-serial-bridge
+nssm install dhands-serial-bridge C:\Python3xx\python.exe "C:\tools\windows_serial_bridge.py --com COM27 --baud 1500000"
+nssm start dhands-serial-bridge
 ```
 
 ---
@@ -372,23 +372,23 @@ netsh interface ipv4 show excludedportrange protocol=tcp  :: 查 Windows 保留�
 - 板子此刻挂了 / 板子 UART RX 未接 / TX RX 接反
 - Android 起来后 UART console **默认静默** —— 这是正常现象。按板子 reset 键 / 断电上电再 capture，启动日志会刷屏
 
-### 问题 5：`alb serial capture --duration 30` 跑完 0 字节 0 errors
+### 问题 5：`dhands serial capture --duration 30` 跑完 0 字节 0 errors
 
 看问题 4 最后一条。**板子 Android 正常运行时 UART 默认不说话**，要触发（reboot / kernel log / 输入命令敲到 shell）才有输出。
 
 这**不是桥 bug，不是隧道 bug** —— 先验证：让板子 reset，30s capture 抓到几 KB 启动日志就证明通路 OK。
 
-### 问题 6：`alb serial send` 后立刻 `alb serial capture` 报 `Connection reset by peer`
+### 问题 6：`dhands serial send` 后立刻 `dhands serial capture` 报 `Connection reset by peer`
 
 **已修**（part 131 起 `SerialTransport._open_tcp_with_retry`）：连续两次命令之间 ser2net 桥 fd-release race 现在自动 bounded retry（3 次 backoff 0.1/0.3/0.6s 内自愈），不需要手动 `sleep 1`。
 
 如果仍持续报 `kept resetting after 3 attempts`，那说明桥真有问题（COM 口被独占 / 桥 hang），重启 Windows 桥脚本即可。
 
-### 问题 7：`alb: command not found`
+### 问题 7：`dhands: command not found`
 
-没全局安装。见 §4.4，或者 `cd ~/android-llm-bridge && uv run alb ...`。
+没全局安装。见 §4.4，或者 `cd ~/android-llm-bridge && uv run dhands ...`。
 
-### 问题 8：`alb shell` 报 `device not found`
+### 问题 8：`dhands shell` 报 `device not found`
 
 ```bash
 echo $ADB_SERVER_SOCKET          # 必须输出 tcp:localhost:5037
@@ -427,7 +427,7 @@ python windows_serial_bridge.py --com COM28 --baud 1500000 --port 19002
 
 Xshell 隧道 -R 19001 + -R 19002。
 
-Linux alb profile 里两套 device 各写自己的 `serial_tcp_port`。
+Linux dhands profile 里两套 device 各写自己的 `serial_tcp_port`。
 
 ---
 
@@ -435,12 +435,12 @@ Linux alb profile 里两套 device 各写自己的 `serial_tcp_port`。
 
 > 待板子 ADB 路径联调完毕后补写本节。届时步骤大致：
 >
-> 1. `alb-mcp` 全局命令已可直接作为 MCP server 启动（stdio 传输）
-> 2. Claude Code: `claude mcp add alb /home/<you>/.local/bin/alb-mcp`
->    或编辑 Claude Code settings.json 的 `mcpServers.alb`
-> 3. Cursor: settings → MCP → 添加 `alb-mcp` 命令
-> 4. 在 Claude 里输入 "帮我看一下板子的 Android 版本" → 自动调 `alb_shell getprop ro.build.version.release`
-> 5. 串口相关 tool：`alb_uart_capture` / `alb_uart_send` / `alb_uart_watch_panic`
+> 1. `dhands-mcp` 全局命令已可直接作为 MCP server 启动（stdio 传输）
+> 2. Claude Code: `claude mcp add devicehands /home/<you>/.local/bin/dhands-mcp`
+>    或编辑 Claude Code settings.json 的 `mcpServers.devicehands`
+> 3. Cursor: settings → MCP → 添加 `dhands-mcp` 命令
+> 4. 在 Claude 里输入 "帮我看一下板子的 Android 版本" → 自动调 `dhands_shell getprop ro.build.version.release`
+> 5. 串口相关 tool：`dhands_uart_capture` / `dhands_uart_send` / `dhands_uart_watch_panic`
 
 ---
 

@@ -49,7 +49,7 @@ tags: [scrcpy, screen-mirror, method-e, planned]
 不作为 `Transport`，而是独立 capability：
 
 ```python
-# src/alb/capabilities/screen.py
+# src/devicehands/capabilities/screen.py
 
 async def screen_snapshot(transport: Transport) -> Result[ScreenshotResult]:
     """截取当前屏幕。返回 PNG 路径。
@@ -93,6 +93,6 @@ async def screen_swipe(x1, y1, x2, y2, duration_ms) -> Result:
 
 ## 七、关联 TODO
 
-- `src/alb/capabilities/screen.py` —— 待实现
+- `src/devicehands/capabilities/screen.py` —— 待实现
 - `scripts/setup-method-scrcpy.sh` —— 安装 scrcpy 依赖
 - `registry.py` 里已登记 `status="planned"`

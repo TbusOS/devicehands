@@ -29,26 +29,26 @@ tags: [capability, logging, logcat, dmesg, uart]
 
 ```bash
 # logcat 采集
-alb logcat [--duration N] [--filter FILTER] [--tag TAG]... [--buffer NAME]... [--clear] [--output PATH]
+dhands logcat [--duration N] [--filter FILTER] [--tag TAG]... [--buffer NAME]... [--clear] [--output PATH]
 
 # dmesg
-alb dmesg [--duration N] [--output PATH]
+dhands dmesg [--duration N] [--output PATH]
 
 # uart（方案 G）
 alb uart-capture [--duration N] [--baud 115200] [--output PATH]
 
 # 检索已采集的日志
-alb log search <pattern> [--device D] [--path P] [--max N] [--since 30m|2h|7d|ISO]
+dhands log search <pattern> [--device D] [--path P] [--max N] [--since 30m|2h|7d|ISO]
 
 # 分页读日志文件
-alb log tail <path> [--lines N]
+dhands log tail <path> [--lines N]
 alb log head <path> [--lines N]
 
 # 列已收集的日志
 alb log list [--device D]
 ```
 
-`--output / -o` 行为（logcat / dmesg / uart-capture / `alb diag bugreport` 共用语义）：
+`--output / -o` 行为（logcat / dmesg / uart-capture / `dhands diag bugreport` 共用语义）：
 
 - 不传 → 落 `workspace/.../logs/<ts>-<name>.txt`（兼容老行为）
 - 末尾 `/` 或现有目录 → 当作目录，文件落里面，自动 mkdir
@@ -56,18 +56,18 @@ alb log list [--device D]
 
 例子：
 ```bash
-alb logcat --duration 30 --filter "*:E"                     # 仅 Error 级别
-alb logcat --duration 60 --tag ActivityManager --tag WindowManager
-alb logcat --clear --duration 120                           # 先清缓冲再采集
-alb logcat --duration 30 --buffer events                    # 只读 events 缓冲区(logcat -b events)
-alb logcat --duration 30 --output ./logs/                   # 落到当前目录的 logs/
-alb logcat --duration 30 --output ./run-A.txt               # 落到指定文件
-alb dmesg --duration 10
+dhands logcat --duration 30 --filter "*:E"                  # 仅 Error 级别
+dhands logcat --duration 60 --tag ActivityManager --tag WindowManager
+dhands logcat --clear --duration 120                        # 先清缓冲再采集
+dhands logcat --duration 30 --buffer events                 # 只读 events 缓冲区(logcat -b events)
+dhands logcat --duration 30 --output ./logs/                # 落到当前目录的 logs/
+dhands logcat --duration 30 --output ./run-A.txt            # 落到指定文件
+dhands dmesg --duration 10
 alb uart-capture --duration 30 --baud 1500000
-alb diag bugreport --output ./reports/                      # zip 落到 reports/
-alb log search "FATAL" --since 2h                          # 只搜最近 2 小时里还在写的文件
-alb log search "FATAL" --since 2026-04-15T10:00
-alb log tail workspace/devices/abc/logs/xxx.txt --lines 50
+dhands diag bugreport --output ./reports/                   # zip 落到 reports/
+dhands log search "FATAL" --since 2h                       # 只搜最近 2 小时里还在写的文件
+dhands log search "FATAL" --since 2026-04-15T10:00
+dhands log tail workspace/devices/abc/logs/xxx.txt --lines 50
 ```
 
 ---
@@ -76,7 +76,7 @@ alb log tail workspace/devices/abc/logs/xxx.txt --lines 50
 
 ```python
 @mcp.tool()
-async def alb_logcat(
+async def dhands_logcat(
     duration: int = 60,
     filter: str | None = None,
     tags: list[str] = [],
@@ -93,11 +93,11 @@ async def alb_logcat(
 
     When NOT to use:
       - Continuous background monitoring → not available yet (planned `alb_logcat_watch`, M2)
-      - Need specific log file (e.g., /data/tombstones/) → use alb_tombstone_pull
+      - Need specific log file (e.g., /data/tombstones/) → use dhands_tombstone_pull
 
     LLM notes:
       - Returns SUMMARY only (lines/errors/warnings counts).
-      - Full log is at result.artifacts[0]. Use alb_log_search or alb_log_tail to read.
+      - Full log is at result.artifacts[0]. Use dhands_log_search or dhands_log_tail to read.
       - For duration > 300s split into several calls (background watch is planned for M2, not implemented).
       - filter syntax: "*:E" (only Error), "Tag:I *:S" (only Tag at Info, silence rest)
 
@@ -111,17 +111,17 @@ async def alb_logcat(
     """
 
 @mcp.tool()
-async def alb_dmesg(duration: int = 10, ...) -> dict:
+async def dhands_dmesg(duration: int = 10, ...) -> dict:
     """Collect kernel dmesg to workspace. Use for kernel-level issues,
        driver messages, OOM kills, low-level errors."""
 
 @mcp.tool()
-async def alb_uart_capture(duration: int = 30, baud: int = 115200, ...) -> dict:
+async def dhands_uart_capture(duration: int = 30, baud: int = 115200, ...) -> dict:
     """Capture UART serial output. REQUIRES serial transport (method G).
     Use for: boot log, u-boot stage, kernel panic rescue."""
 
 @mcp.tool()
-async def alb_log_search(pattern: str, path: str | None = None,
+async def dhands_log_search(pattern: str, path: str | None = None,
                          device: str | None = None, max_matches: int = 200,
                          since: str | None = None) -> dict:
     """Search across all collected logs for a pattern.
@@ -131,7 +131,7 @@ async def alb_log_search(pattern: str, path: str | None = None,
        然后用 search 按需读取相关片段."""
 
 @mcp.tool()
-async def alb_log_tail(path: str, lines: int = 50) -> dict:
+async def dhands_log_tail(path: str, lines: int = 50) -> dict:
     """Read last N lines of a log file (from workspace)."""
 ```
 
@@ -140,7 +140,7 @@ async def alb_log_tail(path: str, lines: int = 50) -> dict:
 ## 业务函数（精选）
 
 ```python
-# src/alb/capabilities/logging.py
+# src/devicehands/capabilities/logging.py
 
 async def collect_logcat(transport, duration=60, filter=None, tags=[],
                          clear_before=False, buffers=None) -> Result[LogcatSummary]: ...
@@ -151,7 +151,7 @@ async def capture_uart(transport, duration=30) -> Result[UartCapture]:
     """只支持 SerialTransport. 其他 transport 返回 TRANSPORT_NOT_SUPPORTED."""
     if not isinstance(transport, SerialTransport):
         return fail(code="TRANSPORT_NOT_SUPPORTED",
-                    suggestion="Switch to serial transport: alb setup serial")
+                    suggestion="Switch to serial transport: dhands setup serial")
     ...
 
 async def search_logs(pattern: str, *, path=None, device=None, max_matches=200,
@@ -185,7 +185,7 @@ class LogcatSummary:
     full_log_path: Path     # 相对 workspace 的产物路径
 ```
 
-**关键设计**：不把全文塞 data，避免 context 爆炸。LLM 通过 `alb_log_search` 或 `alb_log_tail` 按需读 `full_log_path`。
+**关键设计**：不把全文塞 data，避免 context 爆炸。LLM 通过 `dhands_log_search` 或 `dhands_log_tail` 按需读 `full_log_path`。
 
 ---
 
@@ -207,24 +207,24 @@ workspace/devices/<serial>/logs/
 ### 工作流 1 · 调查 crash
 
 ```
-1. alb_logcat(duration=30, filter="*:E")
+1. dhands_logcat(duration=30, filter="*:E")
    → returns { errors: 5, artifacts: ["/workspace/.../logcat.txt"] }
 
-2. alb_log_search(pattern="FATAL", path=<artifact>)
+2. dhands_log_search(pattern="FATAL", path=<artifact>)
    → returns { matches: [
        { line: 234, content: "FATAL EXCEPTION: main ..." }
      ]}
 
-3. alb_log_tail(path=<artifact>, from_line=230, to_line=280)
+3. dhands_log_tail(path=<artifact>, from_line=230, to_line=280)
    → 精确读那段堆栈
 ```
 
 ### 工作流 2 · 看 kernel panic
 
 ```
-1. alb_uart_capture(duration=60)
+1. dhands_uart_capture(duration=60)
    → 触发重启 panic
-2. alb_log_search(pattern="panic|oops|BUG:", path=<artifact>)
+2. dhands_log_search(pattern="panic|oops|BUG:", path=<artifact>)
 3. 分析 panic 栈
 ```
 
@@ -325,8 +325,8 @@ Foo:I Bar:D *:S        # 多个白名单
 
 ## 关联文件
 
-- `src/alb/capabilities/logging.py`
-- `src/alb/cli/logging_cli.py`
-- `src/alb/mcp/tools/logging.py`
-- `src/alb/api/routers/logging.py`
+- `src/devicehands/capabilities/logging.py`
+- `src/devicehands/cli/logging_cli.py`
+- `src/devicehands/mcp/tools/logging.py`
+- `src/devicehands/api/routers/logging.py`
 - `tests/capabilities/test_logging.py`

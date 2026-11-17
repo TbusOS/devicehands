@@ -157,7 +157,7 @@ tags: [methods, comparison, selection]
 加方案 X 的步骤：
 
 1. 写 `docs/methods/XX-<name>.md` 说明方案
-2. 实现 `src/alb/transport/<name>.py` （继承 `Transport` ABC）
+2. 实现 `src/devicehands/transport/<name>.py` （继承 `Transport` ABC）
 3. 在 `registry.py` 注册
 4. 写 `scripts/setup-method-<name>.sh` 引导脚本
 5. 本页对比表更新

@@ -16,7 +16,7 @@ tags: [capability, shell]
 ## CLI
 
 ```bash
-alb shell "<cmd>" [options]
+dhands shell "<cmd>" [options]
 ```
 
 选项：
@@ -28,19 +28,19 @@ alb shell "<cmd>" [options]
 
 输出（不加 `--json` 时，跟 `adb shell` 一样）：
 - 设备上命令的 stdout 原样写到 stdout，stderr 原样写到 stderr —— 不加 `stdout:` 之类的标签，不解析 `[...]`，不按终端宽度折行
-- 退出码就是设备上命令的退出码；alb 自己没能把命令跑起来（超时、找不到设备、被权限规则拦下……）时退出码是 1，原因写一行到 stderr
+- 退出码就是设备上命令的退出码；dhands 自己没能把命令跑起来（超时、找不到设备、被权限规则拦下……）时退出码是 1，原因写一行到 stderr
 - 超时的时候，已经收到的那部分 stdout 照样写出来
-- `alb serial shell` 走串口：回显和提示符要剥掉、内核打印分到 stderr，stdout 是按行重新拼出来的，alb 会补上最后一行的换行；`alb shell`（adb）不补，设备上 `printf x` 没换行，这里也没有
+- `dhands serial shell` 走串口：回显和提示符要剥掉、内核打印分到 stderr，stdout 是按行重新拼出来的，dhands 会补上最后一行的换行；`dhands shell`（adb）不补，设备上 `printf x` 没换行，这里也没有
 - 要耗时等元数据，用 `--json`
 
 > 2026-10-07 之前这里走的是通用的美化打印：`[false]` 这类文本被当成 rich 的样式标签吞掉，不接终端时长行按 80 列插换行，命令退出码非 0 时 stdout 不显示。回归测试在 `tests/cli/test_shell_output.py`。
 
 例子：
 ```bash
-alb shell "getprop ro.build.version.sdk"
-alb shell "ls /data/local/tmp" --device abc123
-alb shell "reboot"
-alb --json shell "dumpsys battery | grep level"
+dhands shell "getprop ro.build.version.sdk"
+dhands shell "ls /data/local/tmp" --device abc123
+dhands shell "reboot"
+dhands --json shell "dumpsys battery | grep level"
 ```
 
 ---
@@ -49,7 +49,7 @@ alb --json shell "dumpsys battery | grep level"
 
 ```python
 @mcp.tool()
-async def alb_shell(
+async def dhands_shell(
     cmd: str,
     timeout: int = 30,
     device: str | None = None,
@@ -66,12 +66,12 @@ async def alb_shell(
     When NOT to use:
       - Long-running commands (> timeout) → use alb_shell_stream
       - Need stdout streamed line-by-line → use alb_shell_stream
-      - File transfer → use alb_push / alb_pull
+      - File transfer → use dhands_push / dhands_pull
 
     LLM notes:
       - Default timeout is 30s. Increase for slow commands.
       - Board-side commands are not blocked or confirmed; nothing asks first.
-      - The output IS included in data.stdout, BUT for long output use alb_logcat etc.
+      - The output IS included in data.stdout, BUT for long output use dhands_logcat etc.
 
     Returns:
       { ok, data: { stdout, stderr, exit_code, duration_ms }, error, timing_ms }
@@ -83,7 +83,7 @@ async def alb_shell(
 ## 业务函数
 
 ```python
-# src/alb/capabilities/shell.py
+# src/devicehands/capabilities/shell.py
 
 async def execute(
     transport: Transport,
@@ -109,26 +109,26 @@ async def execute(
 
 ### 查询设备信息
 ```bash
-alb shell "getprop ro.product.model"
-alb shell "getprop ro.build.fingerprint"
-alb shell "uname -a"
-alb shell "df -h"
-alb shell "cat /proc/meminfo | head -5"
+dhands shell "getprop ro.product.model"
+dhands shell "getprop ro.build.fingerprint"
+dhands shell "uname -a"
+dhands shell "df -h"
+dhands shell "cat /proc/meminfo | head -5"
 ```
 
 ### 使用 Android 工具
 ```bash
-alb shell "pm list packages | grep example"
-alb shell "am start -n com.example/.MainActivity"
-alb shell "service call SurfaceFlinger 1008 i32 0"
-alb shell "input tap 500 500"
-alb shell "dumpsys activity activities | head -50"
+dhands shell "pm list packages | grep example"
+dhands shell "am start -n com.example/.MainActivity"
+dhands shell "service call SurfaceFlinger 1008 i32 0"
+dhands shell "input tap 500 500"
+dhands shell "dumpsys activity activities | head -50"
 ```
 
 ### 组合命令
 ```bash
-alb shell "cat /proc/cpuinfo | grep Processor | wc -l"
-alb shell "ls /sdcard/Download/ | tail -10"
+dhands shell "cat /proc/cpuinfo | grep Processor | wc -l"
+dhands shell "ls /sdcard/Download/ | tail -10"
 ```
 
 ---
@@ -154,13 +154,13 @@ alb shell "ls /sdcard/Download/ | tail -10"
 板子上的命令不拦截（2026-10-23 起，见 [`permissions.md`](../permissions.md)）。下面这些都直接执行，不会先问：
 
 ```bash
-alb shell "reboot bootloader"
-alb shell "setprop persist.sys.x 1"
-alb shell "rm -rf /sdcard/tmp"
-alb shell "dd if=/dev/zero of=/dev/..."
+dhands shell "reboot bootloader"
+dhands shell "setprop persist.sys.x 1"
+dhands shell "rm -rf /sdcard/tmp"
+dhands shell "dd if=/dev/zero of=/dev/..."
 ```
 
-要从串口重启到 bootloader，用 `alb power reboot bootloader` 比 `alb serial shell "reboot bootloader"` 好：
+要从串口重启到 bootloader，用 `dhands power reboot bootloader` 比 `dhands serial shell "reboot bootloader"` 好：
 前者让板子在后台延迟 1 秒重启、命令立刻返回；后者等不到 shell 的结束标记，会超时并补发 Ctrl-C。
 
 ---
@@ -181,7 +181,7 @@ alb shell "dd if=/dev/zero of=/dev/..."
 ### 模式 1 · 做简单查询
 
 ```python
-r = await alb_shell("getprop ro.build.version.sdk")
+r = await dhands_shell("getprop ro.build.version.sdk")
 if r["ok"]:
     sdk = r["data"]["stdout"].strip()
 ```
@@ -189,7 +189,7 @@ if r["ok"]:
 ### 模式 2 · 出错就读 suggestion
 
 ```python
-r = await alb_shell("unknown-binary")
+r = await dhands_shell("unknown-binary")
 if not r["ok"]:
     # error.suggestion 会说明下一步
     print(r["error"]["suggestion"])
@@ -199,19 +199,19 @@ if not r["ok"]:
 
 ```python
 # ❌ 不好
-r = await alb_shell("dumpsys")   # 输出 MB 级
+r = await dhands_shell("dumpsys") # 输出 MB 级
 
 # ✅ 好
-r = await alb_shell("dumpsys activity | head -100")
-# 或用 alb_bugreport（走 workspace）
+r = await dhands_shell("dumpsys activity | head -100")
+# 或用 dhands_bugreport（走 workspace）
 ```
 
 ---
 
 ## 关联文件
 
-- `src/alb/capabilities/shell.py`（实现）
-- `src/alb/cli/shell_cli.py`（CLI 壳）
-- `src/alb/mcp/tools/shell.py`（MCP 壳）
-- `src/alb/api/routers/shell.py`（API 壳）
+- `src/devicehands/capabilities/shell.py`（实现）
+- `src/devicehands/cli/shell_cli.py`（CLI 壳）
+- `src/devicehands/mcp/tools/shell.py`（MCP 壳）
+- `src/devicehands/api/routers/shell.py`（API 壳）
 - `tests/capabilities/test_shell.py`（测试）
