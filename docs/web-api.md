@@ -39,7 +39,7 @@ disables any tab whose backing endpoint is missing.
 ```json
 {
   "version": "1",
-  "alb_version": "0.5.2",
+  "dhands_version": "0.0.1",
   "rest": [
     {"method": "GET", "path": "/health", "description": "..."},
     ...
