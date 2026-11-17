@@ -604,7 +604,7 @@ async def test_artifact_lands_under_the_device_logs(monkeypatch, tmp_path: Path)
     r = await _run(t, device="dev1")
     assert r.ok, r.error
     art = r.artifacts[0]
-    assert "devices/dev1/logs" in str(art)
+    assert art.parent.parts[-3:] == ("devices", "dev1", "logs")
     assert art.name.endswith("-breakin-uart.log")
     assert art.exists()
 

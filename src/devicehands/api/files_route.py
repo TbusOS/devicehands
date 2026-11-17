@@ -342,7 +342,7 @@ async def workspace_files(
                 "error": "path is not a directory"}
 
     root = workspace_root().resolve()
-    rel_to_root = str(target.relative_to(root)) if target != root else ""
+    rel_to_root = target.relative_to(root).as_posix() if target != root else ""
     return {
         "ok": True,
         "path": rel_to_root,
@@ -404,7 +404,7 @@ async def device_pull(
     root = workspace_root().resolve()
     pulled = Path(r.data.local).resolve() if r.data else None
     pulled_rel = (
-        str(pulled.relative_to(root)) if pulled and pulled.is_relative_to(root)
+        pulled.relative_to(root).as_posix() if pulled and pulled.is_relative_to(root)
         else (str(pulled) if pulled else None)
     )
     return {
@@ -593,7 +593,8 @@ async def workspace_upload(
     return {
         "ok": True,
         "name": safe_name,
-        "path": str(dest.relative_to(root)),
+        # "/" on every host: the page sends workspace paths back in that form
+        "path": dest.relative_to(root).as_posix(),
         "size": size,
     }
 

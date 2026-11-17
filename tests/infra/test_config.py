@@ -175,8 +175,10 @@ def test_adb_path_env_wins_over_config_file(monkeypatch: pytest.MonkeyPatch, tmp
 def test_adb_path_env_applies_without_config_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DHANDS_CONFIG", str(tmp_path / "does_not_exist.toml"))
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # what expanduser reads on Windows
     monkeypatch.setenv("DHANDS_ADB_PATH", "~/platform-tools/adb")
-    assert load_config().adb.bin_path == str(tmp_path / "platform-tools" / "adb")
+    # Path(): on Windows expanduser keeps the "/" written after "~"
+    assert Path(load_config().adb.bin_path) == tmp_path / "platform-tools" / "adb"
 
 
 def test_adb_path_env_empty_is_unset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

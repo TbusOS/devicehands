@@ -160,11 +160,25 @@ async def test_kill_conflicts_only_when_asked(monkeypatch):
 
 def test_kill_adb_conflicts_posix_path(monkeypatch):
     sent: list[tuple[int, int]] = []
+    # The branch is chosen by sys.platform: pinned, or on a Windows runner
+    # this ran a real `taskkill /f /pid 4242` and checked nothing.
+    monkeypatch.setattr(agent.sys, "platform", "linux")
     monkeypatch.setattr(agent, "_find_adb_conflicts", lambda: ["vendor_adb pid=4242", "bad pid=x"])
     monkeypatch.setattr(agent.os, "kill", lambda pid, sig: sent.append((pid, sig)))
     killed = agent._kill_adb_conflicts()
     assert killed == ["vendor_adb pid=4242"]  # unparsable pid skipped
     assert sent == [(4242, agent.signal.SIGTERM)]
+
+
+def test_kill_adb_conflicts_windows_path(monkeypatch):
+    ran: list[list[str]] = []
+    monkeypatch.setattr(agent.sys, "platform", "win32")
+    monkeypatch.setattr(agent, "_find_adb_conflicts", lambda: ["vendor_adb pid=4242", "bad pid=x"])
+    monkeypatch.setattr(agent.subprocess, "run", lambda argv, **_kw: ran.append(argv))
+    monkeypatch.setattr(agent.os, "kill", lambda *_a: pytest.fail("os.kill on Windows"))
+    killed = agent._kill_adb_conflicts()
+    assert killed == ["vendor_adb pid=4242"]
+    assert ran == [["taskkill", "/f", "/pid", "4242"]]
 
 
 def test_list_processes_survives_bytes_the_locale_cannot_decode(monkeypatch):

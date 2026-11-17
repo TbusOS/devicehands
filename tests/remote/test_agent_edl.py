@@ -164,6 +164,27 @@ class _Bench:
         self.monkeypatch.setenv("FAKE_EDL_RC", str(rc))
 
 
+def _fake_tool(tools: Path, name: str) -> Path:
+    """An executable named like the vendor tool that runs _FAKE_TOOL.
+
+    POSIX starts a script through its #! line. Windows starts only .exe
+    files that way ([WinError 193] for the script); it runs a .cmd through
+    cmd.exe, which here starts Python on the same script with the same
+    arguments and hands back its exit code."""
+    if sys.platform != "win32":
+        path = tools / name
+        path.write_text(f"#!{sys.executable}\n{_FAKE_TOOL}", encoding="utf-8")
+        path.chmod(path.stat().st_mode | stat.S_IXUSR)
+        return path
+    script = tools / "fake_edl_tool.py"
+    script.write_text(_FAKE_TOOL, encoding="utf-8")
+    path = tools / f"{name}.cmd"
+    path.write_text(
+        f'@"{sys.executable}" "{script}" %*\n@exit /b %ERRORLEVEL%\n', encoding="utf-8"
+    )
+    return path
+
+
 @pytest.fixture
 def bench(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Bench:
     """An edl_root with one unpacked package, the fake tools, a 9008 board on COM53."""
@@ -176,10 +197,7 @@ def bench(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Bench:
     tools.mkdir()
     exe: dict[str, Path] = {}
     for name in ("QSaharaServer", "fh_loader"):
-        path = tools / name
-        path.write_text(f"#!{sys.executable}\n{_FAKE_TOOL}", encoding="utf-8")
-        path.chmod(path.stat().st_mode | stat.S_IXUSR)
-        exe[name] = path
+        exe[name] = _fake_tool(tools, name)
     log = tmp_path / "calls.jsonl"
     monkeypatch.setenv("FAKE_EDL_LOG", str(log))
     for var in ("FAKE_EDL_OUTPUT", "FAKE_EDL_RC", "FAKE_EDL_SLEEP", "FAKE_EDL_EXTRA_HEX"):
@@ -487,6 +505,11 @@ async def test_tool_output_in_the_console_code_page_is_decoded(
     assert "ERROR: 找不到" in ws.done()["error"]
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="on Windows the stand-in is a .cmd: the kill ends cmd.exe, not the Python it "
+    "started, and os.kill(pid, 0) ends a process instead of probing it",
+)
 async def test_a_hung_tool_is_killed_at_the_timeout(
     bench: _Bench, monkeypatch: pytest.MonkeyPatch
 ) -> None:
