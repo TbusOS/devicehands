@@ -302,6 +302,22 @@ async def _wait_refs(fwd: SerialForwarder, want: int, budget_s: float = 5.0) -> 
         await asyncio.sleep(0.01)
 
 
+async def _wait_closed(agent: _ExclusiveSerialAgent, want: int, budget_s: float = 5.0) -> None:
+    """Wait until the agent has seen `want` channel closes.
+
+    session_refs drops to 0 BEFORE the channel is closed: the forwarder
+    decrements the count, then awaits the session's close (still under its
+    lock, so no new open can race it). A test that reads closed_channels the
+    moment refs reach 0 can land in between. The Windows CI run did (0 == 1);
+    on Linux the same happens when _wait_refs polls every loop iteration."""
+    deadline = asyncio.get_running_loop().time() + budget_s
+    while agent.closed_channels != want:
+        assert asyncio.get_running_loop().time() < deadline, (
+            f"closed_channels stuck at {agent.closed_channels}, wanted {want}"
+        )
+        await asyncio.sleep(0.01)
+
+
 async def test_serial_readers_share_one_channel_and_all_see_the_stream():
     """The core of issue #4: `serial capture` + `serial shell` at the same time.
 
@@ -368,7 +384,7 @@ async def test_serial_channel_survives_until_the_last_reader_leaves():
         with contextlib.suppress(Exception):
             await w_cap.wait_closed()
         await _wait_refs(fwd, 0)
-        assert agent.closed_channels == 1  # last one out closed the COM
+        await _wait_closed(agent, 1)  # last one out closed the COM
         assert agent.open_calls == 1
     finally:
         await fwd.detach()
@@ -395,8 +411,8 @@ async def test_serial_reopens_after_everyone_left():
             with contextlib.suppress(Exception):
                 await writer.wait_closed()
             await _wait_refs(fwd, 0)
+        await _wait_closed(agent, 2)
         assert agent.open_calls == 2
-        assert agent.closed_channels == 2
     finally:
         await fwd.detach()
         server.close()
