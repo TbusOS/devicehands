@@ -107,6 +107,45 @@ async def test_run_custom_env() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="execute permission is a POSIX file mode")
+async def test_run_file_without_execute_permission_is_binary_missing(tmp_path) -> None:
+    """A DHANDS_ADB_PATH pointing at a file that is not executable raised
+    PermissionError out of run(); it is a binary that cannot be run."""
+    f = tmp_path / "adb"
+    f.write_bytes(b"#!/bin/sh\necho hi\n")
+    f.chmod(0o644)
+    r = await run(str(f))
+    assert r.binary_missing and r.exit_code == -1
+    assert "not executable" in r.stderr
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX exec of a file with no #! line")
+async def test_run_file_the_system_cannot_start_is_binary_missing(tmp_path) -> None:
+    """ENOEXEC: executable bit set but not a program (no #! line). On
+    Windows the same errno comes back for a non-.exe ([WinError 193])."""
+    f = tmp_path / "adb"
+    f.write_bytes(b"not a program\n")
+    f.chmod(0o755)
+    r = await run(str(f))
+    assert r.binary_missing and r.exit_code == -1
+
+
+@pytest.mark.asyncio
+async def test_run_other_os_errors_still_raise(monkeypatch) -> None:
+    """Only "this binary cannot be run" becomes binary_missing; running out
+    of file descriptors is not about the binary and must not be hidden."""
+    import errno
+
+    async def _emfile(*_a, **_kw):
+        raise OSError(errno.EMFILE, "Too many open files")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _emfile)
+    with pytest.raises(OSError, match="Too many open files"):
+        await run("anything")
+
+
+@pytest.mark.asyncio
 async def test_run_missing_binary_sets_flag() -> None:
     """Missing binary → binary_missing=True, no exception."""
     r = await run("/nonexistent/binary/path-xyz-12345")
