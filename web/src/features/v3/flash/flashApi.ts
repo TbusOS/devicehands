@@ -1,9 +1,9 @@
 /**
  * Flash page helpers that api3.ts does not carry: one job's record, the
  * recorded timeline of a job, a workspace walk for manifests / images, and
- * small formatters. Shapes follow src/alb/api/flash_route.py.
+ * small formatters. Shapes follow src/devicehands/api/flash_route.py.
  */
-import { AlbApiError } from "../../../lib/api";
+import { HubApiError } from "../../../lib/api";
 import { type FlashJobSummary, type NdjsonEvent, type PlanRow, fetchWorkspace } from "../../../lib/api3";
 
 /** GET /api/flash/jobs/{id}: the summary plus job.json and the timeline path. */
@@ -29,7 +29,7 @@ export interface FlashJobDetail extends FlashJobSummary {
 
 export async function fetchFlashJob(id: string, signal?: AbortSignal): Promise<FlashJobDetail> {
   const r = await fetch(`/api/flash/jobs/${encodeURIComponent(id)}`, { signal });
-  if (!r.ok) throw new AlbApiError(`GET /api/flash/jobs/{id} returned ${r.status}`, r.status, `HTTP_${r.status}`);
+  if (!r.ok) throw new HubApiError(`GET /api/flash/jobs/{id} returned ${r.status}`, r.status, `HTTP_${r.status}`);
   return (await r.json()) as FlashJobDetail;
 }
 
@@ -83,7 +83,7 @@ export interface TimelineRead {
 export async function fetchTimelineLines(path: string, signal?: AbortSignal): Promise<TimelineRead> {
   const url = `/workspace/files/preview/${path.split("/").map(encodeURIComponent).join("/")}?max_bytes=${TIMELINE_READ_BYTES}`;
   const r = await fetch(url, { signal });
-  if (!r.ok) throw new AlbApiError(`preview returned ${r.status}`, r.status, `HTTP_${r.status}`);
+  if (!r.ok) throw new HubApiError(`preview returned ${r.status}`, r.status, `HTTP_${r.status}`);
   const b = (await r.json()) as { ok?: boolean; text?: string; truncated?: boolean; size_bytes?: number };
   if (!b.ok) return { lines: [], truncated: false, size: 0 };
   return { lines: parseTimeline(b.text ?? ""), truncated: !!b.truncated, size: Number(b.size_bytes ?? 0) };

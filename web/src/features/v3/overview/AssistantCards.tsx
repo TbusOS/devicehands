@@ -1,7 +1,7 @@
 /**
  * The assistant side of the overview: the agent session running right
  * now, the LLM backends and whether they answer, and four counts for
- * the whole alb service (devices online, sessions, MCP tools, tokens per
+ * the whole DeviceHands service (devices online, sessions, MCP tools, tokens per
  * second over the last 5 minutes).
  */
 import { Link } from "@tanstack/react-router";

@@ -1,6 +1,6 @@
 /**
  * Data for the overview cards and the top-bar model chip: LLM backends
- * with live health, the alb-wide counts behind the summary tiles, and
+ * with live health, the hub-wide counts behind the summary tiles, and
  * helpers that turn the device list (and why it may be empty) into words.
  *
  * Query keys match the other readers of the same endpoints (`backends`,
@@ -168,7 +168,7 @@ export function transportLabel(name: string | null | undefined): string {
 
 export type DeviceListState =
   | { kind: "loading" }
-  /** GET /devices itself failed: the alb service is down or unreachable. */
+  /** GET /devices itself failed: the DeviceHands service is down or unreachable. */
   | { kind: "fetch"; message: string }
   /** The service answered ok=false: the transport (adb server, tunnel) is broken. */
   | { kind: "transport"; message: string }

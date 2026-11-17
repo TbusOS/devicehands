@@ -1,8 +1,8 @@
 /**
  * DoctorPage — six-layer environment health snapshot.
  *
- * Mirror of the CLI's `alb doctor` output (one source of truth at
- * `src/alb/capabilities/doctor.py`) rendered as a web panel. Layers
+ * Mirror of the CLI's `dhands doctor` output (one source of truth at
+ * `src/devicehands/capabilities/doctor.py`) rendered as a web panel. Layers
  * render as cards in an auto-fit grid; each check is a row with a
  * status icon, name, and detail. The visual baseline is
  * `docs/webui-preview-v2-doctor.html` — class names here must match

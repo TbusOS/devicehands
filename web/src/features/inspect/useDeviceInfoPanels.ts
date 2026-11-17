@@ -1,7 +1,7 @@
 /**
  * Per-device info panels hook (ARCH-2) — security / gpu / processes.
  *
- * These panels back the CLI `alb info <panel>` / MCP `alb_info` but had
+ * These panels back the CLI `dhands info <panel>` / MCP `dhands_info` but had
  * no web entry, so high-value fields (verified boot / AVB / SELinux, GPU
  * governor, top processes) were CLI-only. SystemInfoTab pulls them
  * alongside the `/devices/{serial}/system` aggregate. On-demand, no

@@ -58,7 +58,7 @@ const BUSINESS_CAP = 200;
 const METRIC_CAP = 60;
 
 /** Server-side authoritative set is `audit_route.METRIC_KINDS`
- *  (src/alb/api/audit_route.py — verified 2026-05-25). When ADR-021
+ *  (src/devicehands/api/audit_route.py — verified 2026-05-25). When ADR-021
  *  grows to add cmd_rate / push_rate, **double-write here** — missing
  *  it makes server treat the new kind as metric (filtered) while client
  *  treats it as business (eats into business cap, evicting real

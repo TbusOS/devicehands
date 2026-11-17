@@ -1,12 +1,12 @@
 /**
- * alb REST / WS client helpers.
+ * DeviceHands REST / WS client helpers.
  *
  * Uses a single base URL — Vite dev proxies /api / /chat etc. to the
- * running alb-api; the production build hits the FastAPI mount on the
+ * running dhands-hub; the production build hits the FastAPI mount on the
  * same origin, so relative URLs work.
  */
 
-export class AlbApiError extends Error {
+export class HubApiError extends Error {
   status?: number;
   code?: string;
   constructor(message: string, status?: number, code?: string) {
@@ -65,7 +65,7 @@ export interface ApiVersion {
 export async function fetchApiVersion(signal?: AbortSignal): Promise<ApiVersion> {
   const r = await fetch("/api/version", { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/version returned ${r.status}`,
       r.status,
       "API_VERSION_FAILED",
@@ -78,7 +78,7 @@ export interface SessionSummary {
   session_id: string;
   /** First line of the first user message ("" = none yet). */
   title?: string;
-  /** "web" (chat page / assistant panel) or "cli" (`alb chat`); "" = older session. */
+  /** "web" (chat page / assistant panel) or "cli" (`dhands chat`); "" = older session. */
   source?: string;
   created: string | null;
   backend: string;
@@ -123,7 +123,7 @@ export async function fetchSessionDetail(
 ): Promise<SessionDetailResponse> {
   const r = await fetch(`/sessions/${encodeURIComponent(sessionId)}`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /sessions/${sessionId} returned ${r.status}`,
       r.status,
       r.status === 404 ? "SESSION_NOT_FOUND" : "SESSION_FETCH_FAILED",
@@ -138,7 +138,7 @@ export async function fetchSessions(
 ): Promise<SessionsResponse> {
   const r = await fetch(`/sessions?limit=${limit}`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /sessions returned ${r.status}`,
       r.status,
       "SESSIONS_FETCH_FAILED",
@@ -165,7 +165,7 @@ export interface DevicesResponse {
 export async function fetchDevices(signal?: AbortSignal): Promise<DevicesResponse> {
   const r = await fetch(`/devices`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /devices returned ${r.status}`,
       r.status,
       "DEVICES_FETCH_FAILED",
@@ -234,7 +234,7 @@ export async function fetchDeviceDetails(
 ): Promise<DeviceDetailsResponse> {
   const r = await fetch(`/devices/${encodeURIComponent(serial)}/details`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /devices/${serial}/details returned ${r.status}`,
       r.status,
       "DEVICE_DETAILS_FETCH_FAILED",
@@ -281,7 +281,7 @@ export async function fetchUartCaptures(
   const qs = device ? `?device=${encodeURIComponent(device)}` : "";
   const r = await fetch(`/uart/captures${qs}`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /uart/captures returned ${r.status}`,
       r.status,
       "UART_CAPTURES_FETCH_FAILED",
@@ -298,7 +298,7 @@ export async function readUartCapture(
   const qs = device ? `?device=${encodeURIComponent(device)}` : "";
   const r = await fetch(`/uart/captures/${encodeURIComponent(name)}${qs}`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /uart/captures/${name} returned ${r.status}`,
       r.status,
       "UART_CAPTURE_READ_FAILED",
@@ -319,7 +319,7 @@ export async function triggerUartCapture(
     signal,
   });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /uart/capture returned ${r.status}`,
       r.status,
       "UART_CAPTURE_TRIGGER_FAILED",
@@ -341,7 +341,7 @@ export async function deleteUartCapture(
     { method: "DELETE", signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `DELETE /uart/captures/${name} returned ${r.status}`,
       r.status,
       "UART_CAPTURE_DELETE_FAILED",
@@ -378,7 +378,7 @@ export async function fetchDeviceSystem(
 ): Promise<DeviceSystemResponse> {
   const r = await fetch(`/devices/${encodeURIComponent(serial)}/system`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /devices/${serial}/system returned ${r.status}`,
       r.status,
       "DEVICE_SYSTEM_FETCH_FAILED",
@@ -416,7 +416,7 @@ export async function captureScreenshot(
     signal,
   });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /devices/${serial}/screenshot returned ${r.status}`,
       r.status,
       "SCREENSHOT_FAILED",
@@ -447,7 +447,7 @@ export async function fetchScreenshots(
     signal,
   });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /devices/${serial}/screenshots returned ${r.status}`,
       r.status,
       "SCREENSHOTS_LIST_FAILED",
@@ -480,7 +480,7 @@ export async function deleteScreenshot(
     { method: "DELETE", signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `DELETE /devices/${serial}/screenshots/${name} returned ${r.status}`,
       r.status,
       "SCREENSHOT_DELETE_FAILED",
@@ -532,7 +532,7 @@ export async function captureUiDump(
     signal,
   });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /devices/${serial}/ui-dump returned ${r.status}`,
       r.status,
       "UI_DUMP_FAILED",
@@ -571,7 +571,7 @@ export async function fetchAudit(
 ): Promise<AuditResponse> {
   const r = await fetch(`/audit?minutes=${minutes}&limit=${limit}`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /audit returned ${r.status}`,
       r.status,
       "AUDIT_FETCH_FAILED",
@@ -599,7 +599,7 @@ export interface ToolsResponse {
 export async function fetchTools(signal?: AbortSignal): Promise<ToolsResponse> {
   const r = await fetch(`/tools`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /tools returned ${r.status}`,
       r.status,
       "TOOLS_FETCH_FAILED",
@@ -635,7 +635,7 @@ export async function fetchMetricsSummary(
     signal,
   });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /metrics/summary returned ${r.status}`,
       r.status,
       "METRICS_SUMMARY_FETCH_FAILED",
@@ -644,9 +644,9 @@ export async function fetchMetricsSummary(
   return (await r.json()) as MetricsSummaryResponse;
 }
 
-/** Static manifest entry for an LLM backend (alb.infra.registry). The
+/** Static manifest entry for an LLM backend (devicehands.infra.registry). The
  * server returns the *registered shape*, not runtime health — see
- * `BackendSpec` in `src/alb/infra/registry.py`. Runtime health (latency,
+ * `BackendSpec` in `src/devicehands/infra/registry.py`. Runtime health (latency,
  * throughput, error rate) requires a separate metric source not yet
  * wired up; for now the LlmBackendCards UI only knows whether each
  * backend is implemented (status="beta") or planned. */
@@ -655,9 +655,9 @@ export interface ApiBackend {
   status: "beta" | "planned" | string;
   /**
    * ADR-027 (formal 2026-05-02): host-side compute requirement.
-   *   "cpu"    — alb-host runs the inference locally on CPU
-   *   "gpu"    — alb-host requires a local GPU
-   *   "remote" — alb-host only sends HTTP; model runs elsewhere
+   *   "cpu"    — the hub host runs the inference locally on CPU
+   *   "gpu"    — the hub host requires a local GPU
+   *   "remote" — the hub host only sends HTTP; model runs elsewhere
    * Replaces the old `runs_on_cpu: boolean` whose name lied for
    * HTTP-only backends (was true for openai-compat though the model
    * ran on the upstream server). UI may render as a 3-state badge.
@@ -677,7 +677,7 @@ export async function fetchBackends(
 ): Promise<BackendsResponse> {
   const r = await fetch(`/playground/backends`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /playground/backends returned ${r.status}`,
       r.status,
       "BACKENDS_FETCH_FAILED",
@@ -733,7 +733,7 @@ export async function fetchBackendModels(
     { signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /playground/backends/${backend}/models returned ${r.status}`,
       r.status,
       "BACKEND_MODELS_FAILED",
@@ -758,7 +758,7 @@ export async function fetchBackendHealth(
     { signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /playground/backends/${name}/health returned ${r.status}`,
       r.status,
       "BACKEND_HEALTH_FETCH_FAILED",
@@ -801,7 +801,7 @@ export async function fetchBackendThroughput(
     { signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /metrics/summary?group_by=backend returned ${r.status}`,
       r.status,
       "BACKEND_THROUGHPUT_FAILED",
@@ -843,7 +843,7 @@ export async function listDeviceFiles(
     { signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /devices/${serial}/files returned ${r.status}`,
       r.status,
       "DEVICE_FILES_FAILED",
@@ -878,7 +878,7 @@ export async function listWorkspaceFiles(
     { signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /workspace/files returned ${r.status}`,
       r.status,
       "WORKSPACE_FILES_FAILED",
@@ -908,7 +908,7 @@ export async function pullDeviceFile(
     body: JSON.stringify(local ? { remote, local } : { remote }),
   });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /devices/${serial}/files/pull returned ${r.status}`,
       r.status,
       "DEVICE_PULL_FAILED",
@@ -946,7 +946,7 @@ export async function pushDeviceFile(
     }),
   });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /devices/${serial}/files/push returned ${r.status}`,
       r.status,
       "DEVICE_PUSH_FAILED",
@@ -987,7 +987,7 @@ export async function previewWorkspaceFile(
     .join("/");
   const r = await fetch(`/workspace/files/preview/${safe}`, { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /workspace/files/preview/${workspaceRelPath} returned ${r.status}`,
       r.status,
       "WORKSPACE_PREVIEW_FAILED",
@@ -1029,7 +1029,7 @@ export async function uploadWorkspaceFile(
     return { ok: false, error: "invalid upload" };
   }
   if (!r.ok && r.status !== 400 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /workspace/files/upload returned ${r.status}`,
       r.status,
       "WORKSPACE_UPLOAD_FAILED",
@@ -1072,7 +1072,7 @@ export async function fetchAppList(
   if (opts.include_system) p.set("include_system", "true");
   const r = await fetch(`/api/app/list?${p.toString()}`, { signal });
   if (!r.ok && r.status !== 503 && r.status !== 400) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/app/list returned ${r.status}`,
       r.status,
       "APP_LIST_FAILED",
@@ -1090,7 +1090,7 @@ export async function fetchAppInfo(
   if (device) p.set("device", device);
   const r = await fetch(`/api/app/info?${p.toString()}`, { signal });
   if (!r.ok && r.status !== 503 && r.status !== 400) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/app/info returned ${r.status}`,
       r.status,
       "APP_INFO_FAILED",
@@ -1110,7 +1110,7 @@ async function _postApp(
     body: JSON.stringify(body),
   });
   if (!r.ok && r.status !== 422 && r.status !== 400 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/app/${endpoint} returned ${r.status}`,
       r.status,
       "APP_OP_FAILED",
@@ -1167,7 +1167,7 @@ export async function postAppInstall(
     body: fd,
   });
   if (!r.ok && r.status !== 422 && r.status !== 400 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/app/install returned ${r.status}`,
       r.status,
       "APP_INSTALL_FAILED",
@@ -1227,7 +1227,7 @@ export async function postDiagBugreport(
     method: "POST",
   });
   if (!r.ok && r.status !== 422 && r.status !== 400 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/diag/bugreport returned ${r.status}`,
       r.status,
       "BUGREPORT_FAILED",
@@ -1246,7 +1246,7 @@ export async function postDiagAnr(
     body: JSON.stringify(body),
   });
   if (!r.ok && r.status !== 422 && r.status !== 400 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/diag/anr returned ${r.status}`,
       r.status,
       "ANR_FAILED",
@@ -1265,7 +1265,7 @@ export async function postDiagTombstone(
     body: JSON.stringify(body),
   });
   if (!r.ok && r.status !== 422 && r.status !== 400 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/diag/tombstone returned ${r.status}`,
       r.status,
       "TOMBSTONE_FAILED",
@@ -1283,7 +1283,7 @@ export async function fetchDiagArtifacts(
     { signal },
   );
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/diag/artifacts returned ${r.status}`,
       r.status,
       "DIAG_ARTIFACTS_FAILED",
@@ -1330,7 +1330,7 @@ export async function fetchLogSearch(
   if (opts.since) params.set("since", opts.since);
   const r = await fetch(`/api/log/search?${params.toString()}`, { signal });
   if (!r.ok && r.status !== 422 && r.status !== 400) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/log/search returned ${r.status}`,
       r.status,
       "LOG_SEARCH_FAILED",
@@ -1354,7 +1354,7 @@ export interface DmesgResponse {
 }
 
 /** Collect a fresh kernel dmesg snapshot into the workspace (ARCH-1), so
- *  the Log Search tab has a dmesg artifact to search. Mirrors `alb dmesg`. */
+ *  the Log Search tab has a dmesg artifact to search. Mirrors `dhands dmesg`. */
 export async function postDmesg(
   device: string | null | undefined,
   duration = 10,
@@ -1365,7 +1365,7 @@ export async function postDmesg(
     body: JSON.stringify({ duration }),
   });
   if (!r.ok && r.status !== 422 && r.status !== 400 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/log/dmesg returned ${r.status}`,
       r.status,
       "DMESG_FAILED",
@@ -1433,7 +1433,7 @@ export async function fetchInfoPanel<T>(
     signal,
   });
   if (!r.ok && r.status !== 422 && r.status !== 400 && r.status !== 404 && r.status !== 503) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/info/${panel} returned ${r.status}`,
       r.status,
       "INFO_PANEL_FAILED",
@@ -1471,7 +1471,7 @@ export async function fetchBattery(
 ): Promise<PowerEnvelope<BatteryData>> {
   const r = await fetch(`/api/power/battery${_qDevice(device)}`, { signal });
   if (!r.ok && r.status !== 400) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/power/battery returned ${r.status}`,
       r.status,
       "BATTERY_FETCH_FAILED",
@@ -1502,7 +1502,7 @@ export async function postReboot(
     body: JSON.stringify(body),
   });
   if (!r.ok && r.status !== 422 && r.status !== 400) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/power/reboot returned ${r.status}`,
       r.status,
       "REBOOT_FAILED",
@@ -1532,7 +1532,7 @@ export async function postSleepWake(
     body: JSON.stringify(body),
   });
   if (!r.ok && r.status !== 422 && r.status !== 400) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `POST /api/power/sleep-wake returned ${r.status}`,
       r.status,
       "SLEEP_WAKE_FAILED",
@@ -1565,7 +1565,7 @@ export interface DoctorPayload {
 export async function fetchDoctor(signal?: AbortSignal): Promise<DoctorPayload> {
   const r = await fetch("/api/doctor", { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /api/doctor returned ${r.status}`,
       r.status,
       "DOCTOR_FETCH_FAILED",
@@ -1630,7 +1630,7 @@ export async function fetchAgentStatus(
 ): Promise<AgentStatus> {
   const r = await fetch("/agent/status", { signal });
   if (!r.ok) {
-    throw new AlbApiError(
+    throw new HubApiError(
       `GET /agent/status returned ${r.status}`,
       r.status,
       "AGENT_STATUS_FETCH_FAILED",

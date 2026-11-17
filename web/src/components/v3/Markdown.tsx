@@ -8,7 +8,7 @@
  * headings, bullet / numbered lists with nesting, fenced code, tables,
  * quotes and rules; inline **bold**, *italic*, `code`, ~~strike~~ and
  * links. Underscores are left alone on purpose: tool names such as
- * alb_status must not turn italic.
+ * dhands_status must not turn italic.
  *
  * Before 2026-11-03 answers were shown as plain text: "**Device**" kept
  * its asterisks and a list ran into one line.
