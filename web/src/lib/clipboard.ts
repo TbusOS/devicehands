@@ -3,7 +3,7 @@
  *
  * `navigator.clipboard` exists only in a secure context (https, or
  * localhost). The hub is normally opened as plain http on the LAN
- * (`http://<hub-host>:8765/app/`), where it is undefined, so every copy
+ * (`http://<hub-host>:8775/app/`), where it is undefined, so every copy
  * button would fail there while working fine on the hub machine itself.
  * The fallback is the old selection + `execCommand("copy")` path, which
  * browsers still honour inside a user gesture.

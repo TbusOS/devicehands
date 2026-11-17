@@ -12,36 +12,37 @@
 // board or the bench (flash / erase / reboot, root / remount, break-in, app
 // install / uninstall / clear, file push, agent update / start, switching
 // the active board, any DELETE) is aborted in the browser before it leaves
-// and is itself a FAIL. What it does send to a board: `echo "alb-func-<n>"`
+// and is itself a FAIL. What it does send to a board: `echo "dhands-func-<n>"`
 // lines on the serial console (FUNC_SERIAL=0 turns them off), an `echo` in
 // an adb shell when a device is online, and a 30 s timeline recording.
 //
 // usage:
 //   node web/scripts/func_e2e.mjs
 // env:
-//   ALB_BASE       default http://127.0.0.1:8765/app
-//   ALB_LAN_BASE   the address other machines open (plain http, e.g.
-//                  http://<hub-host>:8765/app). Copy buttons are checked
-//                  there, where the page is not a secure context.
-//   FUNC_SERIAL    1 (default) send echo lines on the serial console; 0 skips
-//   FUNC_CHAT      1 (default) send one chat message to the model backend
-//   ALB_CDP_URL    drive a browser that is already running instead of
-//                  launching one, e.g. Chrome on the bench Windows machine
-//                  started with --remote-debugging-port and reached through
-//                  `ssh -L` (see web/scripts/win_browser.sh). ALB_BASE must
-//                  then be an address that machine can open, not 127.0.0.1.
-//   E2E_OUT_DIR    screenshots + report.json (default .claude/reports/func-e2e)
+//   DHANDS_BASE      default http://127.0.0.1:8775/app
+//   DHANDS_LAN_BASE  the address other machines open (plain http, e.g.
+//                    http://<hub-host>:8775/app). Copy buttons are checked
+//                    there, where the page is not a secure context.
+//   FUNC_SERIAL      1 (default) send echo lines on the serial console; 0 skips
+//   FUNC_CHAT        1 (default) send one chat message to the model backend
+//   DHANDS_CDP_URL   drive a browser that is already running instead of
+//                    launching one, e.g. Chrome on the bench Windows machine
+//                    started with --remote-debugging-port and reached through
+//                    `ssh -L` (see web/scripts/win_browser.sh). DHANDS_BASE
+//                    must then be an address that machine can open, not
+//                    127.0.0.1.
+//   E2E_OUT_DIR      screenshots + report.json (default .claude/reports/func-e2e)
 import { chromium } from "playwright";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-const BASE = (process.env.ALB_BASE || "http://127.0.0.1:8765/app").replace(/\/$/, "");
-const LAN_BASE = (process.env.ALB_LAN_BASE || "").replace(/\/$/, "");
+const BASE = (process.env.DHANDS_BASE || "http://127.0.0.1:8775/app").replace(/\/$/, "");
+const LAN_BASE = (process.env.DHANDS_LAN_BASE || "").replace(/\/$/, "");
 const ORIGIN = new URL(BASE).origin;
 const OUT = resolve(process.env.E2E_OUT_DIR || ".claude/reports/func-e2e");
 const SERIAL_OK = process.env.FUNC_SERIAL !== "0";
 const CHAT_OK = process.env.FUNC_CHAT !== "0";
-const MARK = `alb-func-${Date.now().toString(36)}`;
+const MARK = `dhands-func-${Date.now().toString(36)}`;
 
 /* ---------------- result bookkeeping ---------------- */
 
@@ -136,7 +137,7 @@ async function connectRemote(url) {
 }
 
 await mkdir(OUT, { recursive: true });
-const CDP = process.env.ALB_CDP_URL || "";
+const CDP = process.env.DHANDS_CDP_URL || "";
 const browser = CDP ? await connectRemote(CDP) : await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "en-US", acceptDownloads: true });
 const probe = await ctx.newPage();
@@ -451,7 +452,7 @@ if (!agentUp) {
 }
 
 // 10. copy works where people actually open the hub: plain http on the LAN
-if (!LAN_BASE) skip("copy works over plain http", "set ALB_LAN_BASE to the address other machines open");
+if (!LAN_BASE) skip("copy works over plain http", "set DHANDS_LAN_BASE to the address other machines open");
 else if (!agentUp) skip("copy works over plain http", "bench agent not connected (uses the bench log)");
 else
   await step("copy works over plain http", async () => {

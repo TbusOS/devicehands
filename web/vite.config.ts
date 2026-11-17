@@ -2,9 +2,10 @@ import { defineConfig } from "vite";
 
 import { sharedAlias, sharedPlugins } from "./vite.shared";
 
-// alb Web build → `../docs/app/` (committed, served by FastAPI StaticFiles
-// and by GitHub Pages). During dev, Vite proxies /chat, /playground,
-// /metrics, /terminal, /api, /health to a running `alb-api` on localhost.
+// DeviceHands Web build → `../docs/app/` (committed, served by FastAPI
+// StaticFiles and by GitHub Pages). During dev, Vite proxies /chat,
+// /playground, /metrics, /terminal, /api, /health to a running `dhands-hub`
+// on localhost (HUB below; 8775 is the hub's default port).
 //
 // Vitest config lives in `vitest.config.ts` (deliberately split). The
 // reason — verified 2026-05-25 (AH-5):
@@ -31,6 +32,8 @@ import { sharedAlias, sharedPlugins } from "./vite.shared";
 // (AM-3 fix for ADR-040 maintenance contract). Add new shared config
 // to `vite.shared.ts`; vite-only options stay here, test-only options
 // stay in vitest.config.ts.
+const HUB = "http://localhost:8775";
+
 export default defineConfig({
   plugins: sharedPlugins,
   resolve: {
@@ -39,44 +42,44 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/health": "http://localhost:8765",
-      "/api": "http://localhost:8765",
+      "/health": HUB,
+      "/api": HUB,
       // /devices/{s}/files/push/stream and /pull/stream are WS endpoints
       // (MID-6, 2026-05-05). ws:true tells vite to proxy the upgrade
       // handshake too. Plain GET/POST under /devices keep working.
       "/devices": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
-      "/workspace": "http://localhost:8765",
-      "/sessions": "http://localhost:8765",
-      "/tools": "http://localhost:8765",
+      "/workspace": HUB,
+      "/sessions": HUB,
+      "/tools": HUB,
       "/uart": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
       "/logcat": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
       "/audit": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
       "/chat": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
       "/playground": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
       "/metrics": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
       "/terminal": {
-        target: "http://localhost:8765",
+        target: HUB,
         ws: true,
       },
     },
@@ -102,7 +105,7 @@ export default defineConfig({
       },
     },
   },
-  // Pin a deterministic base path — alb-api mounts the bundle at /app/,
+  // Pin a deterministic base path — dhands-hub mounts the bundle at /app/,
   // and the GitHub Pages preview lives at /android-llm-bridge/app/. The
   // served path is set per-deployment via `VITE_BASE`.
   base: process.env.VITE_BASE ?? "/app/",

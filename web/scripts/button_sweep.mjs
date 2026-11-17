@@ -29,18 +29,18 @@
 //   node web/scripts/button_sweep.mjs            # click everything allowed
 //   node web/scripts/button_sweep.mjs --list     # only list what it would click
 // env:
-//   ALB_BASE     default http://127.0.0.1:8765/app
-//   ALB_CDP_URL  drive an already-running browser (e.g. Chrome on the bench
-//                Windows machine via web/scripts/win_browser.sh)
-//   SWEEP_PAGES  comma list of paths to limit the run, e.g. /bench,/logs
-//   E2E_OUT_DIR  report.json + screenshots (default .claude/reports/button-sweep)
+//   DHANDS_BASE     default http://127.0.0.1:8775/app
+//   DHANDS_CDP_URL  drive an already-running browser (e.g. Chrome on the bench
+//                   Windows machine via web/scripts/win_browser.sh)
+//   SWEEP_PAGES     comma list of paths to limit the run, e.g. /bench,/logs
+//   E2E_OUT_DIR     report.json + screenshots (default .claude/reports/button-sweep)
 import { chromium } from "playwright";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-const BASE = (process.env.ALB_BASE || "http://127.0.0.1:8765/app").replace(/\/$/, "");
+const BASE = (process.env.DHANDS_BASE || "http://127.0.0.1:8775/app").replace(/\/$/, "");
 const OUT = resolve(process.env.E2E_OUT_DIR || ".claude/reports/button-sweep");
-const CDP = process.env.ALB_CDP_URL || "";
+const CDP = process.env.DHANDS_CDP_URL || "";
 const LIST_ONLY = process.argv.includes("--list");
 const ALL_PAGES = [
   "/dashboard", "/console", "/logs", "/timeline", "/perf", "/files", "/apps", "/screen", "/problems",
@@ -109,9 +109,9 @@ await ctx.addInitScript(() => {
     }
   } catch {}
   // count DOM changes so a click's effect can be measured
-  window.__albMut = 0;
+  window.__dhandsMut = 0;
   new MutationObserver((m) => {
-    window.__albMut += m.length;
+    window.__dhandsMut += m.length;
   }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
 });
 await ctx.route("**/*", (route) => {
@@ -223,7 +223,7 @@ async function clickOne(path, c0) {
   await page.waitForFunction(() => !document.querySelector(".snackbar"), null, { timeout: 5000 }).catch(() => {});
   const loc = nameLocator(now);
   const urlBefore = page.url();
-  const mutBefore = await page.evaluate(() => window.__albMut);
+  const mutBefore = await page.evaluate(() => window.__dhandsMut);
   const reqBefore = requests;
   const dlBefore = downloads;
   const errBefore = errors.length;
@@ -263,7 +263,7 @@ async function clickOne(path, c0) {
     return "done";
   }
   await page.waitForTimeout(900);
-  const mut = (await page.evaluate(() => window.__albMut).catch(() => mutBefore)) - mutBefore;
+  const mut = (await page.evaluate(() => window.__dhandsMut).catch(() => mutBefore)) - mutBefore;
   const effects = [];
   if (page.url() !== urlBefore) effects.push(`→ ${new URL(page.url()).pathname.replace(/^\/app/, "")}`);
   if (requests > reqBefore) effects.push(`${requests - reqBefore} req`);

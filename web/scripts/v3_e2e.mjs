@@ -12,13 +12,13 @@
 // usage:
 //   node web/scripts/v3_e2e.mjs
 // env:
-//   ALB_BASE      default http://127.0.0.1:8765/app
+//   DHANDS_BASE   default http://127.0.0.1:8775/app
 //   E2E_OUT_DIR   screenshot dir (default .claude/reports/v3-e2e, gitignored)
 import { chromium } from "playwright";
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-const BASE = (process.env.ALB_BASE || "http://127.0.0.1:8765/app").replace(/\/$/, "");
+const BASE = (process.env.DHANDS_BASE || "http://127.0.0.1:8775/app").replace(/\/$/, "");
 const OUT = resolve(process.env.E2E_OUT_DIR || ".claude/reports/v3-e2e");
 
 const PAGES = [
