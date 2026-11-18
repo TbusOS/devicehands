@@ -60,34 +60,48 @@ def _bench(partitions: list[str]) -> SimpleNamespace:
     )
 
 
-# ── the agent side: the allowlist must leave the machine that owns it ──
+# ── the agent side: the rule must leave the machine that owns it ──
+# Protocol v2 (DESIGN.md 3.6 / 3.7): no list rides the hello; the partition
+# rule rides the wire as the flash op's parameter rule, which the hub and
+# the web page read from the op table.
+
+
+def _partition_rules(monkeypatch) -> list[dict]:
+    monkeypatch.setattr(agent_mod, "_OPS", agent_mod._build_ops("/opt/example/fastboot", {}))
+    hello = json.loads(agent_mod._hello("a", "n"))
+    assert "flash_partitions" not in hello
+    rules = [p for op in hello["ops"] for p in op["params"] if p["kind"] == "partition"]
+    assert rules, "no partition parameter in the table: these checks would be vacuous"
+    return rules
 
 
 def test_hello_reports_no_list_even_with_one_left_in_agent_conf(monkeypatch):
     """ADR-070: no list limits partition names any more, so none is offered
     — a picker built from a leftover line would hide partitions the agent
-    accepts."""
+    accepts. The rule on the wire is the shape rule, not the leftover list."""
     monkeypatch.setattr(agent_mod, "_FLASH_PARTITIONS", frozenset({"cfg", "boot"}))
-    hello = json.loads(agent_mod._hello("a", "n", None))
-    assert hello["flash_partitions"] == []
+    for rule in _partition_rules(monkeypatch):
+        assert rule["pattern"] == agent_mod._PARTITION_PATTERN
+        assert agent_mod._rule_fullmatch(rule["pattern"], "vendor_x")
 
 
-def test_hello_reports_empty_when_no_allowlist_is_configured(monkeypatch):
-    """Empty is a real answer ("any well-formed"), not a missing one — the
-    field must still be present so the hub can tell it from an old agent."""
+def test_every_partition_parameter_carries_the_rule(monkeypatch):
+    """The hub checks names before it opens a channel, with the rule the
+    bench sent: every partition parameter has one."""
     monkeypatch.setattr(agent_mod, "_FLASH_PARTITIONS", frozenset())
-    hello = json.loads(agent_mod._hello("a", "n", None))
-    assert hello["flash_partitions"] == []
+    for rule in _partition_rules(monkeypatch):
+        assert rule["pattern"] and rule["max_len"] >= 1
 
 
-def test_allowlist_and_hello_cannot_drift(monkeypatch):
+@pytest.mark.parametrize("name", ["cfg", "boot", "vendor_x", "boot_a", "-w", "a/b", "a b", ""])
+def test_allowlist_and_hello_cannot_drift(monkeypatch, name):
     """Whatever the agent advertises, it must actually accept — otherwise the
-    picker offers a name the very same process will refuse."""
+    picker offers a name the very same process will refuse — and what it
+    refuses, the advertised rule must refuse too."""
     monkeypatch.setattr(agent_mod, "_FLASH_PARTITIONS", frozenset({"cfg"}))
-    advertised = json.loads(agent_mod._hello("a", "n", None))["flash_partitions"]
-    assert advertised == [], "empty = any well-formed name"
-    for name in ("cfg", "boot", "vendor_x"):
-        assert agent_mod._partition_allowed(name), name
+    (rule, *_) = _partition_rules(monkeypatch)
+    advertised = len(name) <= rule["max_len"] and agent_mod._rule_fullmatch(rule["pattern"], name)
+    assert advertised == agent_mod._partition_allowed(name)
 
 
 # ── the hub side: carry it, don't invent it ────────────────────────

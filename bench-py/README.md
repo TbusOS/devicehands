@@ -107,7 +107,7 @@ agent 启动后在本机开一个状态页：**http://127.0.0.1:8741**（只有�
 
 | 键 | 含义 |
 |---|---|
-| `hub_url` | hub 的地址，`ws://<Linux的IP>:8775/agent/connect` |
+| `hub_url` | hub 的地址，`ws://<Linux的IP>:8775/bench/connect` |
 | `token` | 和 hub 端 `hub.env` 里 `DHANDS_AGENT_TOKEN` 一致的口令 |
 | `name` | 在 hub 网页上显示的名字，随意 |
 | `agent_id` | 固定身份号，别改；删了的话每次重启 hub 会当成新设备 |

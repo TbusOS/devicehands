@@ -8,9 +8,9 @@
 
 # The hub's signaling endpoint. ws:// on a trusted LAN; wss:// when TLS is
 # terminated at a reverse proxy in front of the hub.
-#   ws://<hub-ip>:8775/agent/connect
-#   wss://hub.example.com/agent/connect
-hub_url=ws://<hub-ip>:8775/agent/connect
+#   ws://<hub-ip>:8775/bench/connect
+#   wss://hub.example.com/bench/connect
+hub_url=ws://<hub-ip>:8775/bench/connect
 
 # Must match DHANDS_AGENT_TOKEN on the hub. Stick to letters/digits/_/- so the
 # same value pastes cleanly into the hub's hub.env too.

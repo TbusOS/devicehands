@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable, Generator, Iterator
+from collections.abc import AsyncIterator, Callable, Generator
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +24,7 @@ async def hub() -> AsyncIterator[HubDouble]:
 
 
 @pytest.fixture
-def bench(tmp_path: Path, hub: HubDouble) -> Iterator[Callable[..., Bench]]:
+async def bench(tmp_path: Path, hub: HubDouble) -> AsyncIterator[Callable[..., Bench]]:
     """Start the bench under test against `hub`; every bench started is
     stopped at the end, and its output is shown when the test failed."""
     started: list[Bench] = []
@@ -36,7 +36,7 @@ def bench(tmp_path: Path, hub: HubDouble) -> Iterator[Callable[..., Bench]]:
 
     yield launch
     for b in started:
-        b.stop()
+        await b.stop()
 
 
 @pytest.hookimpl(hookwrapper=True)

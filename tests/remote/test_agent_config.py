@@ -44,9 +44,9 @@ def _write(tmp_path: Path, text: str, *, encoding: str = "utf-8") -> Path:
 
 
 def test_basic_key_values(tmp_path):
-    p = _write(tmp_path, "hub_url=ws://hub:8765/agent/connect\ntoken=abc\nname=bench-01\n")
+    p = _write(tmp_path, "hub_url=ws://hub:8765/bench/connect\ntoken=abc\nname=bench-01\n")
     assert agent._load_config(p) == {
-        "hub_url": "ws://hub:8765/agent/connect",
+        "hub_url": "ws://hub:8765/bench/connect",
         "token": "abc",
         "name": "bench-01",
     }
@@ -55,8 +55,8 @@ def test_basic_key_values(tmp_path):
 def test_notepad_bom_and_crlf(tmp_path):
     # Notepad saves UTF-8 with BOM and CRLF — the first key must not become
     # '<BOM>hub_url'.
-    p = _write(tmp_path, "\ufeffhub_url=ws://h/agent/connect\r\ntoken=t\r\n")
-    assert agent._load_config(p) == {"hub_url": "ws://h/agent/connect", "token": "t"}
+    p = _write(tmp_path, "\ufeffhub_url=ws://h/bench/connect\r\ntoken=t\r\n")
+    assert agent._load_config(p) == {"hub_url": "ws://h/bench/connect", "token": "t"}
 
 
 def test_comments_and_blank_lines_skipped(tmp_path):
@@ -142,10 +142,10 @@ def test_line_without_equals_is_fatal(tmp_path):
 def test_cli_beats_config_beats_default(tmp_path):
     p = _write(
         tmp_path,
-        "hub_url=ws://from-config/agent/connect\nname=config-name\nstatus_port=9000\n",
+        "hub_url=ws://from-config/bench/connect\nname=config-name\nstatus_port=9000\n",
     )
     args = agent._parse_args(["--config", str(p), "--name", "cli-name"])
-    assert args.hub_url == "ws://from-config/agent/connect"  # config > built-in
+    assert args.hub_url == "ws://from-config/bench/connect"  # config > built-in
     assert args.name == "cli-name"  # CLI > config
     assert args.status_port == 9000  # config, converted
     assert isinstance(args.status_port, int)
@@ -172,10 +172,10 @@ def test_explicit_config_must_exist(tmp_path):
 
 
 def test_default_config_next_to_script_is_picked_up(tmp_path, monkeypatch):
-    p = _write(tmp_path, "hub_url=ws://default-conf/agent/connect\nagent_id=bench-fixed\n")
+    p = _write(tmp_path, "hub_url=ws://default-conf/bench/connect\nagent_id=bench-fixed\n")
     monkeypatch.setattr(agent, "_default_config_path", lambda: p)
     args = agent._parse_args([])
-    assert args.hub_url == "ws://default-conf/agent/connect"
+    assert args.hub_url == "ws://default-conf/bench/connect"
     assert args.agent_id == "bench-fixed"  # stable identity from the file
 
 
@@ -359,7 +359,7 @@ _CLI_ONLY_DESTS = {
 
 def test_every_flag_is_settable_from_the_config_file(tmp_path):
     cfg = tmp_path / "bench.conf"
-    cfg.write_text("hub_url=ws://h/agent/connect\n", encoding="utf-8")
+    cfg.write_text("hub_url=ws://h/bench/connect\n", encoding="utf-8")
     args = agent._parse_args(["--config", str(cfg)])
     dests = {k for k in vars(args) if not k.startswith("_")}
     missing = dests - _CLI_ONLY_DESTS - set(agent._CONFIG_KEYS)
@@ -373,7 +373,7 @@ def test_every_config_key_reaches_a_real_flag(tmp_path):
     """The other direction: a key in _CONFIG_KEYS with no matching argparse
     dest would be silently accepted and then ignored."""
     cfg = tmp_path / "bench.conf"
-    cfg.write_text("hub_url=ws://h/agent/connect\n", encoding="utf-8")
+    cfg.write_text("hub_url=ws://h/bench/connect\n", encoding="utf-8")
     args = agent._parse_args(["--config", str(cfg)])
     orphans = set(agent._CONFIG_KEYS) - set(vars(args))
     assert not orphans, f"config keys that go nowhere: {sorted(orphans)}"
@@ -382,7 +382,7 @@ def test_every_config_key_reaches_a_real_flag(tmp_path):
 def test_flash_keys_load_from_the_config_file(tmp_path):
     cfg = tmp_path / "bench.conf"
     cfg.write_text(
-        "hub_url=ws://h/agent/connect\n"
+        "hub_url=ws://h/bench/connect\n"
         "fastboot_path=D:\\platform-tools\\fastboot.exe\n"
         "flash_partitions=vendor_cfg,boot\n",
         encoding="utf-8",
@@ -399,7 +399,7 @@ def test_flash_config_reaches_the_module_globals(tmp_path, monkeypatch):
     exe.write_text("#!/bin/sh\n")
     cfg = tmp_path / "bench.conf"
     cfg.write_text(
-        f"hub_url=ws://h/agent/connect\nfastboot_path={exe}\nflash_partitions=boot, dtbo\n",
+        f"hub_url=ws://h/bench/connect\nfastboot_path={exe}\nflash_partitions=boot, dtbo\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(agent, "_FASTBOOT_PATH", "")

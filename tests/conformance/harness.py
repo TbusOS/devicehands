@@ -16,6 +16,11 @@ state next to its own file. The config keys the harness writes:
     hub_url  token  agent_id  name  status_port=0  log_file=none
     adb_path  adb_port  heartbeat_s  fastboot_path
 
+`fastboot_path` defaults to a file that does not exist, which the bench must
+read as "no fastboot on this host": otherwise a bench would fall back to a
+fastboot it finds on the test machine's PATH, and what the hello offers
+would depend on the machine the tests run on.
+
 Every frame the hub double receives is checked against protocol/v2/schema;
 a frame that fails the schema fails the test that received it.
 """
@@ -282,14 +287,19 @@ class Bench:
     def running(self) -> bool:
         return self.proc.poll() is None
 
-    def stop(self) -> None:
+    async def stop(self, wait_s: float = 10.0) -> None:
+        """Ask the bench to stop, then kill it if it has not within `wait_s`.
+
+        Waits without blocking the event loop: the hub double runs on the
+        same loop, and a bench that is stopping closes its connections and
+        waits for the hub's close frame. A blocking wait here would leave
+        that frame unsent and turn every stop into the bench's full close
+        timeout."""
         if self.proc.poll() is None:
             self.proc.terminate()
-            try:
-                self.proc.wait(10)
-            except subprocess.TimeoutExpired:
+            if not await wait_exit(self, wait_s):
                 self.proc.kill()
-                self.proc.wait(10)
+                await wait_exit(self, wait_s)
 
 
 def start_bench(workdir: Path, hub_url: str, **config: Any) -> Bench:
@@ -306,6 +316,8 @@ def start_bench(workdir: Path, hub_url: str, **config: Any) -> Bench:
         # listens on, unless a test passes its own.
         "adb_path": fake_tool(workdir / "tools", "adb"),
         "adb_port": closed_port(),
+        # Never the host's fastboot either: a path with nothing behind it.
+        "fastboot_path": workdir / "tools" / "no-fastboot-here",
     }
     conf.update(config)
     path = workdir / "bench.conf"

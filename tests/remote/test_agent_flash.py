@@ -135,13 +135,19 @@ def test_empty_allowlist_means_any_well_formed(monkeypatch):
 
 
 def test_hello_advertises_fastboot_only_when_present(monkeypatch):
-    """The hub answers "can this bench flash?" from caps, so claiming the
-    capability without the tool would trade an instant answer for a timeout."""
+    """The hub answers "can this bench flash?" from the op table (v2 has no
+    caps list), so offering fastboot rows without the tool would trade an
+    instant answer for a timeout."""
+
+    def groups() -> set[str]:
+        return {op["group"] for op in json.loads(agent._hello("a", "n"))["ops"]}
+
     monkeypatch.setattr(agent, "_FASTBOOT_PATH", "/usr/bin/fastboot")
-    assert "fastboot" in json.loads(agent._hello("a", "n", None))["caps"]
+    monkeypatch.setattr(agent, "_OPS", _ops("/usr/bin/fastboot"))
+    assert "fastboot" in groups()
     monkeypatch.setattr(agent, "_FASTBOOT_PATH", "")
-    caps = json.loads(agent._hello("a", "n", None))["caps"]
-    assert caps == ["adb"]
+    monkeypatch.setattr(agent, "_OPS", _ops(""))
+    assert "fastboot" not in groups()
 
 
 def test_resolve_fastboot_rejects_a_configured_path_that_is_absent(tmp_path):
@@ -783,13 +789,12 @@ def test_hello_reports_the_op_table_instead_of_ability_strings(monkeypatch):
     tool."""
     monkeypatch.setattr(agent, "_FASTBOOT_PATH", "/usr/bin/fastboot")
     monkeypatch.setattr(agent, "_OPS", _ops("/usr/bin/fastboot"))
-    hello = json.loads(agent._hello("a", "n", None))
-    assert hello["caps"] == ["adb", "fastboot"]
+    hello = json.loads(agent._hello("a", "n"))
+    assert "caps" not in hello  # v2: the table is the only answer
     names = [op["name"] for op in hello["ops"]]
     assert {"flash", "erase", "set-active", "boot", "usb-list"} <= set(names)
     assert hello["ops"][names.index("flash")]["max_image_bytes"] == 0  # temp space is the limit
     monkeypatch.setattr(agent, "_FASTBOOT_PATH", "")
     monkeypatch.setattr(agent, "_OPS", _ops(""))
-    hello = json.loads(agent._hello("a", "n", None))
-    assert hello["caps"] == ["adb"]
+    hello = json.loads(agent._hello("a", "n"))
     assert [op["name"] for op in hello["ops"]] == ["usb-list", "agent-update"]

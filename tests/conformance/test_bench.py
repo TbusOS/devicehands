@@ -38,11 +38,6 @@ from tests.protocol import schema_v2 as S
 
 Launch = Callable[..., Bench]
 
-# Until the Python bench speaks v2 (protocol/v2/DESIGN.md section 5 step 4)
-# every test here fails at the hello; not running them saves a 30 s
-# connect timeout each. Removed by the commit that moves the bench to v2.
-pytestmark = pytest.mark.xfail(run=False, reason="bench-py still speaks protocol v1")
-
 # A bench that reconnects after a refusal does so within its first backoff
 # step (1 s); waiting a few of those shows it does not.
 NO_RECONNECT_WAIT_S = 3.5
@@ -437,7 +432,9 @@ def test_the_fake_tools_never_reach_a_real_adb_server() -> None:
 
 
 async def test_the_bench_exits_cleanly_when_stopped(hub: HubDouble, bench: Launch) -> None:
-    """Not a protocol rule; keeps the suite from leaving processes behind."""
+    """Not a protocol rule; keeps the suite from leaving processes behind.
+    Terminate only: Bench.stop() would fall back to kill, and then this test
+    would pass for a bench that ignores the request."""
     b, _ = await _connected(hub, bench)
-    b.stop()
-    assert await wait_exit(b, 15)
+    b.proc.terminate()
+    assert await wait_exit(b, 15), b.output()

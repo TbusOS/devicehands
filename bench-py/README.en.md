@@ -45,13 +45,13 @@ tool's adb mid-flash would interrupt it.
 
 ```
 pip install -r requirements.txt
-python dhands_bench.py --hub-url wss://<hub>/agent/connect --token <token>
+python dhands_bench.py --hub-url wss://<hub>/bench/connect --token <token>
 ```
 
 Precedence: command line > `bench.conf` > built-in defaults.
 
 - `--config`  — config file path (default: `bench.conf` next to the script).
-- `--hub-url` — the hub's signaling endpoint (`/agent/connect`).
+- `--hub-url` — the hub's signaling endpoint (`/bench/connect`).
 - `--token`   — must match `DHANDS_AGENT_TOKEN` configured on the hub. Omit only
   for a fully local, no-auth dev setup.
 - `--name`    — a human-readable label shown in the hub's device list.

@@ -230,7 +230,7 @@ class _QuietWs:
         pass
 
     async def recv(self) -> str:
-        return json.dumps({"v": 1, "verb": "hello_ok", "server_version": 1})
+        return json.dumps({"verb": "hello_ok", "proto": 2})
 
     async def close(self) -> None:
         self.closed.set()
@@ -284,7 +284,7 @@ async def test_the_block_and_the_title_when_the_hub_answers(
     ws = _QuietWs()
     monkeypatch.setattr(agent, "ws_connect", lambda *_a, **_k: _Dial(ws))
     args = argparse.Namespace(
-        hub_url="ws://hub.example:8765/agent/connect", agent_id="a", name="bench-01", token=None
+        hub_url="ws://hub.example:8765/bench/connect", agent_id="a", name="bench-01", token=None
     )
     agent._shutdown.clear()
     try:
@@ -313,7 +313,7 @@ async def test_the_title_says_when_the_hub_is_gone(
 
     monkeypatch.setattr(agent, "_run_session", unreachable)
     monkeypatch.setattr(agent, "RECONNECT_BACKOFF_S", (0.01,))
-    args = argparse.Namespace(hub_url="ws://hub.example:8765/agent/connect", name="bench-01")
+    args = argparse.Namespace(hub_url="ws://hub.example:8765/bench/connect", name="bench-01")
     agent._shutdown.clear()
     try:
         await agent._main_loop(args)

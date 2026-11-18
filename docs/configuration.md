@@ -285,14 +285,14 @@ agent 是 `bench-py/` 里的 `dhands_bench.py`,跑在插着板子的 Windows 主
 
 | 键 | 作用 | 默认值 |
 |---|---|---|
-| `hub_url` | hub 的地址,`ws://<hub-host>:8775/agent/connect`;hub 前面有 TLS 反向代理时用 `wss://` | 无,必填 |
+| `hub_url` | hub 的地址,`ws://<hub-host>:8775/bench/connect`;hub 前面有 TLS 反向代理时用 `wss://`。路径固定是 `/bench/connect`(协议 v2;旧的 `/agent/connect` 连不上,启动日志会提示) | 无,必填 |
 | `token` | 和 hub 的 `DHANDS_AGENT_TOKEN` 一致 | 不设 |
 | `name` | hub 连接页上显示的名字 | `device-agent` |
 | `agent_id` | 固定的 agent 身份。不设时每次启动随机生成,hub 会当成一个新 agent;远程更新也要求设了它 | 每次随机 |
 | `status_port` | 本机状态页端口,`0` 关掉 | 8741 |
 | `status_host` | 状态页绑定的地址。改成别的会让状态页暴露到本机以外 | `127.0.0.1` |
 | `log_file` | 运行日志文件,相对路径相对脚本所在目录;写 `none` 关掉 | 不写日志文件(模板里写的是 `logs/bench.log`) |
-| `fastboot_path` | fastboot 程序路径 | PATH 上的 fastboot;找不到就不提供烧录能力 |
+| `fastboot_path` | fastboot 程序路径。配了但文件不存在,当作本机没有 fastboot,不会退回去用 PATH 上的 | PATH 上的 fastboot;找不到就不提供烧录能力 |
 | `adb_path` | adb 程序路径 | PATH 上的 adb |
 | `adb_port` | 台架主机上 adb server 的端口。hub 开 adb 通道时 agent 连 `127.0.0.1:<这个端口>`,跑 `adb` 时也带上 `-P <这个端口>` | 5037 |
 | `heartbeat_s` | 心跳间隔(秒)。给测试用的口子,正式部署不改 | 20 |
