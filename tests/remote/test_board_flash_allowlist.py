@@ -396,7 +396,12 @@ PER_BOARD = {
         (_Conn(PER_BOARD), "board-z", [], "no fastboot_product for board 'board-z'"),
         # a current agent (ADR-070): products only, no lists → any name
         (_Conn({"board-a": {"partitions": None, "product": "prod_a"}}), "board-a", [], ""),
-        (_Conn({"board-a": {"partitions": None, "product": "prod_a"}}), "board-b", [], "it has: board-a"),
+        (
+            _Conn({"board-a": {"partitions": None, "product": "prod_a"}}),
+            "board-b",
+            [],
+            "it has: board-a",
+        ),
         (_Conn({"board-a": {"partitions": [], "product": None}}), "board-a", [], "is empty"),
         (None, "board-a", [], ""),
     ],
@@ -532,6 +537,9 @@ def test_partition_list_dataclass_defaults_are_the_old_meaning():
 # ── across the wire: the real agent's hello, through the real route ─────
 
 
+@pytest.mark.xfail(
+    strict=True, reason="bench-py still speaks protocol v1; the hub speaks v2 (DESIGN.md §5 step 4)"
+)
 def test_the_real_hello_lands_as_the_hubs_lists(monkeypatch):
     from devicehands.api.server import create_app
     from devicehands.remote import protocol as p

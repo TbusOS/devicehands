@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from devicehands.remote.bench_ops import LEGACY_FLASH_MAX_BYTES
 from devicehands.remote.flash_plan import (
     AgentView,
     PlanRow,
@@ -22,7 +23,6 @@ from devicehands.remote.flash_plan import (
     fingerprint,
     parse_manifest,
 )
-from devicehands.remote.protocol import LEGACY_FLASH_MAX_BYTES
 from tests.remote.bench_tables import new_agent_ops
 
 MANIFEST = """\
@@ -158,7 +158,9 @@ def test_malformed_getvar_and_oem_rows_are_problems():
 def test_oem_rows_take_any_command_the_board_may_take() -> None:
     """2026-11-05: no list of allowed oem commands; only a token fastboot would
     not send as-is (a leading '-' is its own option) is a problem."""
-    rows, problems = parse_manifest("tool oem reboot-to-download\ntool oem a;b\ntool oem AT-LOCK-VBOOT\n")
+    rows, problems = parse_manifest(
+        "tool oem reboot-to-download\ntool oem a;b\ntool oem AT-LOCK-VBOOT\n"
+    )
     assert problems == []
     assert [r.command for r in rows] == ["reboot-to-download", "a;b", "AT-LOCK-VBOOT"]
 

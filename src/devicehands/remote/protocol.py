@@ -1,270 +1,263 @@
-"""Wire protocol for the remote device agent (ADR-050/051/052).
+"""Wire protocol between the hub and a bench, version 2 (protocol/v2).
 
-Single source of truth shared by the hub (dhands-hub) and the agent. The
-SIGNALING connection carries only these control frames (JSON text). Each
-DATA channel is its own connection carrying raw bytes (no per-frame header);
-the channel id (cid) is correlated once at dial-back, not per frame, and the
-dial-back is authenticated by a per-channel secret minted with the cid (DEBT-084).
+Two kinds of connection, both dialled by the bench:
 
-Control frame shape:
-    {"v": <PROTOCOL_VERSION>, "verb": "<verb>", ...fields}
+    /bench/connect           signaling: JSON control frames (this module)
+    /bench/channel?cid=...   one data connection per open_channel: raw bytes
+                             for tcp / serial, job frames (jobframe) for job
 
-Channel roles (ADR-052) are the crux: an adb channel proxies a listen-socket
-daemon (the local adb server) and must FAIL FAST with NO retry — a reset is a
-real error (USB reauth / device drop / server crash). A serial channel proxies
-a per-connection exclusive gateway (ser2net-style) and MAY use bounded retry.
-Conflating the two is the L-034 anti-pattern.
+The language-neutral description is protocol/v2 (schema, sample frames,
+framing.md, sequences.md); tests/protocol checks this module against it.
+What lives here:
+
+- names: paths, credential headers, verbs, error codes, channel types;
+- builders for every control frame the hub sends (and, for tests, the ones
+  the bench sends);
+- `decode_control`: parse and check one incoming frame against the v2
+  rules, raising `FrameError` with the code the answer must carry;
+- `negotiate`: pick the session's version from the bench's range;
+- `check_job_event`: the same for job-channel events.
+
+There is no compatibility with v1: the hub speaks v2 only
+(protocol/v2/DESIGN.md section 2).
 """
 
 from __future__ import annotations
 
 import enum
 import json
+import math
+import re
 import secrets
 import uuid
 from typing import Any
 
-PROTOCOL_VERSION = 1
+from devicehands.remote import rule_pattern
 
-# tcp channel target allowlist (ADR-050 §6): the agent must only proxy the
-# local adb server, NEVER an arbitrary host:port, or it becomes an open proxy
-# on the remote machine's LAN. Enforced on BOTH the hub and the agent.
+# Versions this hub speaks (sequences.md section 2). The hub keeps the
+# previous version as well once there is one; v2 is the first with a range.
+PROTO_MIN = 2
+PROTO_MAX = 2
+
+CONNECT_PATH = "/bench/connect"
+CHANNEL_PATH = "/bench/channel"
+# Credentials ride headers only — never a frame, never the query string — so
+# frames can be logged whole and request lines leak nothing (ADR-055).
+TOKEN_HEADER = "x-dhands-token"
+CSECRET_HEADER = "x-dhands-csecret"
+
+# The tcp channel target: names "the bench host's adb server". The bench
+# maps it to its configured port and refuses anything else, as does the
+# hub, so a bench never becomes an open proxy (ADR-050 §6).
 ADB_TARGET = "127.0.0.1:5037"
 
-# Dial-back credential headers (ADR-055). The data-plane dial-back has to
-# present the agent token AND the per-channel secret; carrying them as HTTP
-# headers instead of query params keeps them out of the request line, which
-# every access log, proxy log and connection-error message reproduces
-# verbatim. Mirrored as string literals in bench-py/dhands_bench.py
-# (the agent is standalone and cannot import devicehands).
-TOKEN_HEADER = "x-alb-token"
-CSECRET_HEADER = "x-alb-csecret"
+# Protocol-level error codes; they appear only in `error` frames.
+PROTO_VERSION_UNSUPPORTED = "PROTO_VERSION_UNSUPPORTED"
+UNKNOWN_VERB = "UNKNOWN_VERB"
+BAD_FRAME = "BAD_FRAME"
+
+# Limits (sequences.md section 9).
+HELLO_TIMEOUT_S = 10.0
+HEARTBEAT_INTERVAL_S = 20.0
+HEARTBEAT_TIMEOUT_S = 60.0
+MAX_ERROR_TEXT = 4096
+MAX_OUTPUT_TEXT = 65536
 
 
 class ProtocolError(Exception):
-    """A control frame is malformed or carries an unknown verb."""
+    """A control frame cannot be acted on."""
+
+
+class FrameError(ProtocolError):
+    """An incoming frame broke a v2 rule. `code` is what the `error` answer
+    carries; `re` is the frame's id when it had a readable one."""
+
+    def __init__(self, code: str, message: str, re_id: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.re_id = re_id
 
 
 class ChannelType(str, enum.Enum):
+    # The retry rule follows from the type (sequences.md section 6): tcp
+    # proxies a daemon and fails fast; serial proxies an exclusive port and
+    # may retry a busy one; a job may already have changed the device, so a
+    # second attempt would be a second write.
     TCP = "tcp"
     SERIAL = "serial"
-    # ADR-056: not a byte-stream proxy at all — it carries one request/reply
-    # job (send an image, run fastboot on the agent host, stream progress
-    # back). There is no endpoint on the agent side to "connect" to.
     JOB = "job"
-
-
-class ChannelRole(str, enum.Enum):
-    # ADR-052:
-    #   DAEMON  — proxied endpoint is a listen-socket daemon (adb server).
-    #             Fail fast, NO retry.
-    #   GATEWAY — proxied endpoint is a per-connection exclusive gateway
-    #             (ser2net-style serial bridge). Bounded retry allowed.
-    #   JOB     — one-shot unit of work (ADR-056). Same no-retry policy as
-    #             DAEMON, kept distinct so nobody reads a fastboot channel as
-    #             "proxies a daemon": retrying is wrong here for a different
-    #             reason — the work may have already had a side effect on the
-    #             device, so a silent second attempt is not a repeat, it is a
-    #             second write.
-    DAEMON = "daemon"
-    GATEWAY = "gateway"
-    JOB = "job"
-
-
-_DEFAULT_ROLE: dict[ChannelType, ChannelRole] = {
-    ChannelType.TCP: ChannelRole.DAEMON,
-    ChannelType.SERIAL: ChannelRole.GATEWAY,
-    ChannelType.JOB: ChannelRole.JOB,
-}
-
-# Agent capabilities advertised in `hello`. The hub uses these to answer
-# "can this bench flash?" immediately instead of discovering it by timeout
-# (ADR-056 §决定 7).
-CAP_ADB = "adb"
-CAP_FASTBOOT = "fastboot"
-# What exactly an agent can do beyond "it has fastboot" is no longer a cap
-# string per ability: agents report an op table in their hello (ADR-059,
-# devicehands.remote.bench_ops). Agents from before the table get a synthesised
-# one, whose `flash` row carries the fixed image ceiling they applied.
-LEGACY_FLASH_MAX_BYTES = 2 * 1024 * 1024 * 1024
-
-
-# The three job enums below use enum.StrEnum while their older neighbours
-# use (str, enum.Enum). Not an oversight: StrEnum is the correct form on
-# this target (py311) and new code should not repeat a lint the linter
-# already flags. Converting the older three is a separate change — their
-# str() rendering differs, and they are compared in tests.
-class JobOp(enum.StrEnum):
-    """What a job channel was opened to do. Sent in the opening control
-    frame; the agent builds the actual argv itself (ADR-056 §决定 5) — the
-    hub never sends a command line."""
-
-    FLASH = "flash"
-    REBOOT = "reboot"
-    DEVICES = "devices"
-    GETVAR = "getvar"
-    OEM = "oem"
-    ERASE = "erase"
-
-
-class JobEvent(enum.StrEnum):
-    """Agent → hub frames on a job channel."""
-
-    ACCEPTED = "accepted"  # request understood; work is starting
-    PROGRESS = "progress"
-    DONE = "done"
-
-
-class JobPhase(enum.StrEnum):
-    """Which half of a flash the progress refers to. Two phases, not one
-    percentage: transferring 1 KB over the tunnel and writing it to a
-    partition fail for completely different reasons, and a caller staring at
-    a stalled bar needs to know which one it is stuck in."""
-
-    TRANSFER = "transfer"
-    FLASH = "flash"
-
-
-def default_role(ctype: ChannelType) -> ChannelRole:
-    """The retry-role a channel type defaults to (ADR-052)."""
-    return _DEFAULT_ROLE[ctype]
 
 
 class Verb(str, enum.Enum):
     HELLO = "hello"
     HELLO_OK = "hello_ok"
+    ERROR = "error"
     HEARTBEAT = "heartbeat"
-    LIST_COM = "list_com"
-    COM_LIST = "com_list"
     LIST_ADB = "list_adb"
     ADB_LIST = "adb_list"
+    LIST_COM = "list_com"
+    COM_LIST = "com_list"
     RESTART_ADB = "restart_adb"
     OPEN_CHANNEL = "open_channel"
-    CHANNEL_OPENED = "channel_opened"
     CHANNEL_ERROR = "channel_error"
-    CLOSE_CHANNEL = "close_channel"
-    CHANNEL_CLOSED = "channel_closed"
 
 
-_VERB_VALUES = {v.value for v in Verb}
+# Which verbs each side may receive. Anything else — unknown, or a verb that
+# only travels the other way — is UNKNOWN_VERB (framing.md section 2).
+HUB_RECEIVES = frozenset(
+    {Verb.HELLO, Verb.ERROR, Verb.HEARTBEAT, Verb.ADB_LIST, Verb.COM_LIST, Verb.CHANNEL_ERROR}
+)
+BENCH_RECEIVES = frozenset(
+    {
+        Verb.HELLO_OK,
+        Verb.ERROR,
+        Verb.LIST_ADB,
+        Verb.LIST_COM,
+        Verb.RESTART_ADB,
+        Verb.OPEN_CHANNEL,
+    }
+)
+
+
+class JobEvent(enum.StrEnum):
+    """Bench -> hub events on a job channel. A closed set: any other `ev`
+    is a broken channel. Progress phases are open (`phase` is any short
+    lowercase name), so there is no phase enum."""
+
+    ACCEPTED = "accepted"
+    PROGRESS = "progress"
+    FILE = "file"
+    DONE = "done"
 
 
 def new_cid() -> str:
-    """A hub-generated channel id used to correlate the dial-back to its pending
-    forwarder request.
-
-    The cid is the routing key only; the per-channel SECRET that authenticates
-    the dial-back is minted separately by new_csecret() (DEBT-084). Binding the
-    channel to a specific agent_id / device (multi-agent addressing) is still
-    future work — see DEBT-083.
-    """
+    """The routing key of one data channel: 32 lowercase hex digits."""
     return uuid.uuid4().hex
 
 
 def new_csecret() -> str:
-    """A hub-minted, per-channel secret (DEBT-084).
-
-    Minted at open_channel and delivered ONLY on the owning agent's signaling
-    WS; the agent must present it on the data-plane dial-back, which the hub
-    verifies with a constant-time compare (registry.resolve_pending). This binds
-    the data channel to the agent that actually received the open_channel: a
-    process that merely holds the shared agent token AND a live cid still cannot
-    claim the channel without this secret. 256-bit and URL-safe; it rides the
-    dial-back as a header (CSECRET_HEADER), not as a query param — see
-    ADR-055 for why the query string was the wrong place for it.
-    """
+    """The per-channel secret (DEBT-084): sent only on the owning bench's
+    signaling connection, presented back in CSECRET_HEADER on the dial-back,
+    compared in constant time. 43 base64url characters."""
     return secrets.token_urlsafe(32)
+
+
+def negotiate(bench_min: int, bench_max: int) -> int | None:
+    """The largest version both sides speak, or None."""
+    top = min(PROTO_MAX, bench_max)
+    return top if top >= max(PROTO_MIN, bench_min) else None
 
 
 # ── builders ─────────────────────────────────────────────────────────
 
 
 def _frame(verb: Verb, **fields: Any) -> dict[str, Any]:
-    return {"v": PROTOCOL_VERSION, "verb": verb.value, **fields}
+    return {"verb": verb.value, **fields}
 
 
 def hello(
-    *, agent_id: str, name: str, version: int, caps: list[str], token: str | None
+    *,
+    bench_id: str,
+    name: str,
+    lang: str,
+    build: str,
+    os: str,
+    ops: list[dict[str, Any]],
+    boards: dict[str, Any],
+    update: dict[str, Any] | None = None,
+    proto_min: int = PROTO_MIN,
+    proto_max: int = PROTO_MAX,
 ) -> dict[str, Any]:
-    return _frame(
+    """What a bench sends first. The hub never sends one; tests build it."""
+    msg = _frame(
         Verb.HELLO,
-        agent_id=agent_id,
+        proto={"min": proto_min, "max": proto_max},
+        bench_id=bench_id,
         name=name,
-        agent_version=version,
-        caps=caps,
-        token=token,
+        impl={"lang": lang, "build": build},
+        os=os,
+        ops=ops,
+        boards=boards,
     )
+    if update is not None:
+        msg["update"] = update
+    return msg
 
 
-def hello_ok(*, server_version: int) -> dict[str, Any]:
-    return _frame(Verb.HELLO_OK, server_version=server_version)
+def hello_ok(*, proto: int) -> dict[str, Any]:
+    return _frame(Verb.HELLO_OK, proto=proto)
+
+
+def error(
+    code: str,
+    message: str,
+    *,
+    re_id: int | None = None,
+    supported: tuple[int, int] | None = None,
+) -> dict[str, Any]:
+    msg = _frame(Verb.ERROR, code=code, message=message[:MAX_ERROR_TEXT])
+    if re_id is not None:
+        msg["re"] = re_id
+    if supported is not None:
+        msg["supported"] = {"min": supported[0], "max": supported[1]}
+    return msg
+
+
+def version_refusal(bench_min: int, bench_max: int) -> dict[str, Any]:
+    """The answer to a hello whose range misses ours, saying which side is behind."""
+    if bench_max < PROTO_MIN:
+        who = "the bench is older than this hub — upgrade the bench program"
+    else:
+        who = "the bench is newer than this hub — upgrade the hub"
+    return error(
+        PROTO_VERSION_UNSUPPORTED,
+        f"this hub speaks protocol {PROTO_MIN}..{PROTO_MAX}, the bench "
+        f"{bench_min}..{bench_max}: {who}",
+        supported=(PROTO_MIN, PROTO_MAX),
+    )
 
 
 def heartbeat() -> dict[str, Any]:
     return _frame(Verb.HEARTBEAT)
 
 
-def list_adb() -> dict[str, Any]:
-    return _frame(Verb.LIST_ADB)
+def list_adb(*, req_id: int) -> dict[str, Any]:
+    return _frame(Verb.LIST_ADB, id=req_id)
 
 
-def adb_list(devices: list[str]) -> dict[str, Any]:
-    return _frame(Verb.ADB_LIST, devices=devices)
+def adb_list(*, re_id: int, devices: list[str], conflicts: list[str]) -> dict[str, Any]:
+    return _frame(Verb.ADB_LIST, re=re_id, devices=devices, conflicts=conflicts)
 
 
-def restart_adb(*, kill_conflicts: bool = False) -> dict[str, Any]:
-    """Ask the agent to restart ITS local adb server, then re-report devices.
-    The restart runs on the agent host by design — killing an adb server from
-    the hub side is never allowed; agents that predate this verb ignore it.
+def restart_adb(*, req_id: int, kill_conflicts: bool = False) -> dict[str, Any]:
+    """Ask the bench to restart ITS local adb server, then re-report devices.
 
-    kill_conflicts asks the agent to first terminate adb-flavoured foreign
-    processes (renamed vendor adb builds hold the exclusive USB interface, so
-    a plain server restart just loses the race again). Deliberately a bool:
-    WHAT matches is the agent's own heuristic — the hub can never name an
-    arbitrary process to kill."""
-    return _frame(Verb.RESTART_ADB, kill_conflicts=kill_conflicts)
+    kill_conflicts asks the bench to first terminate adb-flavoured foreign
+    processes (renamed vendor adb builds hold the exclusive USB interface).
+    Deliberately a bool: WHAT matches is the bench's own heuristic — the hub
+    can never name a process to kill."""
+    return _frame(Verb.RESTART_ADB, id=req_id, kill_conflicts=kill_conflicts)
 
 
-def list_com() -> dict[str, Any]:
-    return _frame(Verb.LIST_COM)
+def list_com(*, req_id: int) -> dict[str, Any]:
+    return _frame(Verb.LIST_COM, id=req_id)
 
 
-def com_list(ports: list[dict[str, Any]]) -> dict[str, Any]:
-    return _frame(Verb.COM_LIST, ports=ports)
+def com_list(*, re_id: int, ports: list[dict[str, str]]) -> dict[str, Any]:
+    return _frame(Verb.COM_LIST, re=re_id, ports=ports)
 
 
 def open_channel(
-    *,
-    cid: str,
-    csecret: str,
-    ctype: ChannelType,
-    role: ChannelRole,
-    params: dict[str, Any],
+    *, cid: str, csecret: str, ctype: ChannelType, params: dict[str, Any]
 ) -> dict[str, Any]:
     return _frame(
-        Verb.OPEN_CHANNEL,
-        cid=cid,
-        csecret=csecret,
-        channel_type=ctype.value,
-        role=role.value,
-        params=params,
+        Verb.OPEN_CHANNEL, cid=cid, csecret=csecret, channel_type=ctype.value, params=params
     )
 
 
-def channel_opened(*, cid: str) -> dict[str, Any]:
-    return _frame(Verb.CHANNEL_OPENED, cid=cid)
-
-
-def channel_error(*, cid: str, reason: str) -> dict[str, Any]:
-    return _frame(Verb.CHANNEL_ERROR, cid=cid, reason=reason)
-
-
-def close_channel(*, cid: str) -> dict[str, Any]:
-    return _frame(Verb.CLOSE_CHANNEL, cid=cid)
-
-
-def channel_closed(*, cid: str) -> dict[str, Any]:
-    return _frame(Verb.CHANNEL_CLOSED, cid=cid)
+def channel_error(*, cid: str, code: str, reason: str) -> dict[str, Any]:
+    return _frame(Verb.CHANNEL_ERROR, cid=cid, code=code, reason=reason)
 
 
 # ── codec ────────────────────────────────────────────────────────────
@@ -275,98 +268,315 @@ def encode_control(msg: dict[str, Any]) -> str:
     return json.dumps(msg, ensure_ascii=False)
 
 
-def decode_control(text: str) -> dict[str, Any]:
-    """Parse + validate a control frame. Raises ProtocolError on anything
-    that is not a JSON object carrying a known verb."""
+# Fixed sets in the op table (op-table.json). Adding a value is a version
+# change; op names and progress phases are the open sets.
+OP_GROUPS = ("fastboot", "host", "edl", "tool")
+OP_NEEDS = ("", "fastboot-device", "edl-device")
+PARAM_KINDS = ("partition", "enum", "int", "text", "argv")
+RECORD_TIERS = ("none", "events", "uart")
+
+_CID_RE = re.compile(r"[0-9a-f]{32}")
+_CSECRET_RE = re.compile(r"[A-Za-z0-9_-]{43}")
+_CODE_RE = re.compile(r"[A-Z][A-Z0-9_]*")
+_OP_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+_BUILD_RE = re.compile(r"[0-9A-Za-z._+-]{0,64}")
+BOARD_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,31}")
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+_PHASE_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
+_B64_RE = re.compile(r"[A-Za-z0-9+/]*={0,2}")
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _id_of(obj: dict[str, Any]) -> int | None:
+    value = obj.get("id")
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+class _Check:
+    """Field checks for one frame; the first failure raises BAD_FRAME."""
+
+    def __init__(self, obj: dict[str, Any], where: str, re_id: int | None) -> None:
+        self.obj = obj
+        self.where = where
+        self.re_id = re_id
+
+    def fail(self, why: str) -> FrameError:
+        return FrameError(BAD_FRAME, f"{self.where}: {why}", self.re_id)
+
+    def need(self, key: str) -> Any:
+        if key not in self.obj:
+            raise self.fail(f"missing {key!r}")
+        return self.obj[key]
+
+    def string(self, key: str, *, pattern: re.Pattern[str] | None = None, max_len: int = 0) -> str:
+        value = self.need(key)
+        if not isinstance(value, str):
+            raise self.fail(f"{key!r} must be a string")
+        if max_len and len(value) > max_len:
+            raise self.fail(f"{key!r} is longer than {max_len} characters")
+        if pattern is not None and not pattern.fullmatch(value):
+            raise self.fail(f"{key!r} has the wrong shape")
+        return value
+
+    def integer(self, key: str, *, minimum: int | None = None) -> int:
+        value = self.need(key)
+        if not _is_int(value) or (minimum is not None and value < minimum):
+            raise self.fail(f"{key!r} must be an integer" + (f" >= {minimum}" if minimum else ""))
+        return int(value)
+
+    def boolean(self, key: str) -> bool:
+        value = self.need(key)
+        if not isinstance(value, bool):
+            raise self.fail(f"{key!r} must be true or false")
+        return value
+
+    def obj_of(self, key: str) -> dict[str, Any]:
+        value = self.need(key)
+        if not isinstance(value, dict):
+            raise self.fail(f"{key!r} must be an object")
+        return value
+
+    def strings(self, key: str) -> list[str]:
+        value = self.need(key)
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise self.fail(f"{key!r} must be a list of strings")
+        return value
+
+    def sub(self, key: str) -> _Check:
+        return _Check(self.obj_of(key), f"{self.where}.{key}", self.re_id)
+
+
+def _check_range(c: _Check) -> tuple[int, int]:
+    lo, hi = c.integer("min", minimum=1), c.integer("max", minimum=1)
+    if lo > hi:
+        raise c.fail("min is greater than max")
+    return lo, hi
+
+
+def _check_hello(c: _Check) -> None:
+    _check_range(c.sub("proto"))
+    bench_id = c.string("bench_id", max_len=128)
+    if not bench_id.strip():
+        raise c.fail("'bench_id' is blank")
+    c.string("name", max_len=128)
+    impl = c.sub("impl")
+    if impl.string("lang") not in ("python", "rust"):
+        raise impl.fail("'lang' must be python or rust")
+    impl.string("build", pattern=_BUILD_RE)
+    if c.string("os") not in ("windows", "macos", "linux"):
+        raise c.fail("'os' must be windows, macos or linux")
+    ops = c.need("ops")
+    if not isinstance(ops, list):
+        raise c.fail("'ops' must be a list")
+    seen: set[str] = set()
+    for i, row in enumerate(ops):
+        problem = op_desc_problem(row)
+        if problem:
+            raise c.fail(f"ops[{i}]: {problem}")
+        if row["name"] in seen:
+            raise c.fail(f"ops[{i}]: op {row['name']!r} listed twice")
+        seen.add(row["name"])
+    boards = c.obj_of("boards")
+    for board, entry in boards.items():
+        if not BOARD_NAME_RE.fullmatch(board):
+            raise c.fail(f"board name {board!r} has the wrong shape")
+        b = _Check(entry if isinstance(entry, dict) else {}, f"boards.{board}", c.re_id)
+        if not isinstance(entry, dict):
+            raise b.fail("must be an object")
+        parts = b.need("partitions")
+        if parts is not None and (
+            not isinstance(parts, list) or not all(isinstance(p, str) for p in parts)
+        ):
+            raise b.fail("'partitions' must be null or a list of strings")
+        product = b.need("product")
+        if product is not None and not isinstance(product, str):
+            raise b.fail("'product' must be null or a string")
+    if "update" in c.obj:
+        u = c.sub("update")
+        u.string("id")
+        if u.string("outcome") not in ("pending", "updated", "rolled_back", "aborted"):
+            raise u.fail("unknown 'outcome'")
+        u.string("from_build", pattern=_BUILD_RE)
+        u.string("to_build", pattern=_BUILD_RE)
+        if not _is_number(u.need("at")):
+            raise u.fail("'at' must be a number")
+
+
+def _check_error(c: _Check) -> None:
+    code = c.string("code", pattern=_CODE_RE)
+    c.string("message", max_len=MAX_ERROR_TEXT)
+    if "re" in c.obj:
+        c.integer("re", minimum=0)
+    if code == PROTO_VERSION_UNSUPPORTED or "supported" in c.obj:
+        _check_range(c.sub("supported"))
+
+
+def _check_param_desc(c: _Check) -> None:
+    name = c.string("name", pattern=_OP_NAME_RE)
+    if name == "image":
+        raise c.fail("'image' is a reserved parameter name")
+    kind = c.string("kind")
+    if kind not in PARAM_KINDS:
+        raise c.fail(f"unknown kind {kind!r}")
+    c.boolean("required")
+    c.need("default")
+    if (kind == "enum" or "choices" in c.obj) and not c.strings("choices"):
+        raise c.fail("'choices' is empty")
+    if kind == "int" or "min" in c.obj or "max" in c.obj:
+        c.integer("min")
+        c.integer("max")
+    if kind in ("text", "partition") or "pattern" in c.obj:
+        problem = rule_pattern.problem(c.string("pattern"))
+        if problem:
+            raise c.fail(f"'pattern' is outside the portable subset: {problem}")
+    if kind in ("text", "partition", "argv") or "max_len" in c.obj:
+        c.integer("max_len", minimum=1)
+    if kind == "argv" or "max_items" in c.obj:
+        c.integer("max_items", minimum=1)
+
+
+def op_desc_problem(row: Any) -> str:
+    """Why one op-table row breaks op-table.json, or "" when it is fine."""
+    if not isinstance(row, dict):
+        return "an op must be an object"
+    c = _Check(row, f"op {str(row.get('name'))[:64]!r}", None)
+    try:
+        c.string("name", pattern=_OP_NAME_RE)
+        if c.string("group") not in OP_GROUPS:
+            raise c.fail("unknown 'group'")
+        c.string("summary")
+        params = c.need("params")
+        if not isinstance(params, list):
+            raise c.fail("'params' must be a list")
+        names: set[str] = set()
+        for i, p in enumerate(params):
+            if not isinstance(p, dict):
+                raise c.fail(f"params[{i}] must be an object")
+            _check_param_desc(_Check(p, f"{c.where}.params[{i}]", None))
+            if p["name"] in names:
+                raise c.fail(f"parameter {p['name']!r} listed twice")
+            names.add(p["name"])
+        if c.string("needs") not in OP_NEEDS:
+            raise c.fail("unknown 'needs'")
+        c.boolean("image")
+        c.integer("max_image_bytes", minimum=0)
+        c.boolean("mutates")
+        c.boolean("exclusive")
+        if c.string("record") not in RECORD_TIERS:
+            raise c.fail("unknown 'record'")
+        timeout = c.need("timeout_s")
+        if not _is_number(timeout) or not math.isfinite(timeout) or timeout < 0:
+            raise c.fail("'timeout_s' must be a number >= 0")
+    except FrameError as e:
+        return e.message
+    return ""
+
+
+def _check_open_channel(c: _Check) -> None:
+    c.string("cid", pattern=_CID_RE)
+    c.string("csecret", pattern=_CSECRET_RE)
+    ctype = c.string("channel_type")
+    p = c.sub("params")
+    if ctype == ChannelType.TCP.value:
+        if p.string("target") != ADB_TARGET:
+            raise p.fail(f"'target' must be {ADB_TARGET}")
+    elif ctype == ChannelType.SERIAL.value:
+        if not p.string("com"):
+            raise p.fail("'com' is empty")
+        p.integer("baud", minimum=1)
+    elif ctype == ChannelType.JOB.value:
+        p.string("op", pattern=_OP_NAME_RE)
+    else:
+        raise c.fail(f"unknown channel_type {ctype!r}")
+
+
+def _check_fields(verb: Verb, c: _Check) -> None:
+    if verb is Verb.HELLO:
+        _check_hello(c)
+    elif verb is Verb.HELLO_OK:
+        c.integer("proto", minimum=1)
+    elif verb is Verb.ERROR:
+        _check_error(c)
+    elif verb in (Verb.LIST_ADB, Verb.LIST_COM):
+        c.integer("id", minimum=0)
+    elif verb is Verb.RESTART_ADB:
+        c.integer("id", minimum=0)
+        c.boolean("kill_conflicts")
+    elif verb is Verb.ADB_LIST:
+        c.integer("re", minimum=0)
+        c.strings("devices")
+        c.strings("conflicts")
+    elif verb is Verb.COM_LIST:
+        c.integer("re", minimum=0)
+        ports = c.need("ports")
+        if not isinstance(ports, list):
+            raise c.fail("'ports' must be a list")
+        for i, port in enumerate(ports):
+            if not isinstance(port, dict):
+                raise c.fail(f"ports[{i}] must be an object")
+            pc = _Check(port, f"{c.where}.ports[{i}]", c.re_id)
+            pc.string("port")
+            pc.string("desc")
+    elif verb is Verb.OPEN_CHANNEL:
+        _check_open_channel(c)
+    elif verb is Verb.CHANNEL_ERROR:
+        c.string("cid", pattern=_CID_RE)
+        c.string("code", pattern=_CODE_RE)
+        c.string("reason")
+    # HEARTBEAT has no fields.
+
+
+def decode_control(text: str | bytes, *, accept: frozenset[Verb] | None = None) -> dict[str, Any]:
+    """Parse and check one signaling message against the v2 rules.
+
+    Raises FrameError carrying the code the answer must use: BAD_FRAME for a
+    binary message, a non-object, a missing or mistyped field; UNKNOWN_VERB
+    for a verb that is not in `accept` (default: every v2 verb). Unknown
+    fields are left in place and ignored by the callers."""
+    if not isinstance(text, str):
+        raise FrameError(BAD_FRAME, "binary message on the signaling connection")
     try:
         obj = json.loads(text)
-    except (json.JSONDecodeError, TypeError) as e:
-        raise ProtocolError(f"not valid JSON: {e}") from e
+    except ValueError as e:
+        raise FrameError(BAD_FRAME, f"not valid JSON: {e}") from e
     if not isinstance(obj, dict):
-        raise ProtocolError("control frame must be a JSON object")
-    verb = obj.get("verb")
-    if verb not in _VERB_VALUES:
-        raise ProtocolError(f"unknown verb: {verb!r}")
+        raise FrameError(BAD_FRAME, "a control frame must be a JSON object")
+    re_id = _id_of(obj)
+    raw_verb = obj.get("verb")
+    if not isinstance(raw_verb, str):
+        raise FrameError(BAD_FRAME, "missing 'verb'", re_id)
+    try:
+        verb = Verb(raw_verb)
+    except ValueError:
+        raise FrameError(UNKNOWN_VERB, f"unknown verb {raw_verb[:64]!r}", re_id) from None
+    if accept is not None and verb not in accept:
+        raise FrameError(UNKNOWN_VERB, f"verb {verb.value!r} is not sent to this side", re_id)
+    _check_fields(verb, _Check(obj, verb.value, re_id))
     return obj
 
 
-# ── job channel messages (ADR-056) ───────────────────────────────────
+# ── job channel messages ─────────────────────────────────────────────
 #
-# These ride the job channel's frames (devicehands.remote.jobframe), NOT the
-# signaling WS, so they carry no `verb` and are not validated by
-# decode_control. Builders live here anyway so the hub and the agent share
-# one definition of the vocabulary.
-
-
-def job_flash(*, partition: str, size: int, sha256: str) -> dict[str, Any]:
-    """Opening frame of a flash job.
-
-    Carries the digest UP FRONT so the agent can refuse a corrupt transfer
-    before it touches the device (ADR-056 §决定 6) — the one moment when
-    "is this image intact" is still a cheap question. Note what is absent:
-    no file name, no path, no command line. The agent names its own temp
-    file and assembles its own argv."""
-    return {"op": JobOp.FLASH.value, "partition": partition, "size": size, "sha256": sha256}
-
-
-def job_reboot(*, target: str) -> dict[str, Any]:
-    """Ask the agent to run `fastboot reboot [target]`. The remedy for a
-    board that dhands itself pushed into fastboot and cannot get out of."""
-    return {"op": JobOp.REBOOT.value, "target": target}
-
-
-def job_devices() -> dict[str, Any]:
-    """`fastboot devices` on the agent host — the only way to learn whether
-    the board is actually in fastboot, since it vanishes from adb there."""
-    return {"op": JobOp.DEVICES.value}
-
-
-def job_getvar(*, name: str) -> dict[str, Any]:
-    """Ask the agent to run `fastboot getvar <name>` and hand back what the
-    device said, verbatim.
-
-    Deliberately a transport, not a reading. The `getvar` verb is protocol
-    level and survives a platform change; **what the values mean does not**.
-    This bench answers `partition-size:cfg` with `0` on flashes that succeed —
-    a UI that turned that into "partition not found" would be shipping the
-    misreading that cost a day on 2026-08-10. So the hub carries the question
-    and the raw answer, and declines to interpret either.
-
-    `name` is empty for `getvar all`.
-    """
-    return {"op": JobOp.GETVAR.value, "name": name}
-
-
-def job_oem(*, command: str) -> dict[str, Any]:
-    """Ask the agent to run `fastboot oem <command>`.
-
-    Only the command NAME crosses the wire. Which oem commands are allowed is
-    the agent's decision, not the hub's: an oem command changes the device and
-    what it does is vendor-defined (some are one-way), so the allowlist lives
-    next to the code that builds the argv (ADR-056).
-    """
-    return {"op": JobOp.OEM.value, "command": command}
-
-
-def job_erase(*, partition: str) -> dict[str, Any]:
-    """Ask the agent to run `fastboot erase <partition>`.
-
-    Governed by the same partition allowlist as `flash`, on purpose: erasing
-    a partition takes no more authority than writing it — a flash already
-    replaces every byte. A separate erase allowlist would be a second list to
-    keep in step with the first, for no difference in what it protects."""
-    return {"op": JobOp.ERASE.value, "partition": partition}
+# These ride the job channel's frames (devicehands.remote.jobframe), not the
+# signaling connection.
 
 
 def job_op(
     name: str, params: dict[str, Any], *, size: int | None = None, sha256: str = ""
 ) -> dict[str, Any]:
-    """Opening frame for any op in the agent's table (ADR-059).
-
-    Flat, `{op, <param>: value, ...}` — the same shape the per-op builders
-    above produce, so an agent from before the table still understands the
-    five ops it has. Image ops add `size` / `sha256` up front, as `flash`
-    always has (ADR-056 §决定 6). Still no path and no command line."""
+    """Opening frame of a job: flat `{op, <param>: value, ...}`. Image ops
+    add `size` / `sha256` up front so the bench can refuse a corrupt transfer
+    before it touches the device (ADR-056 §决定 6). No path and no command
+    line ever rides it: the bench builds its own argv (ADR-056 §决定 5)."""
     msg: dict[str, Any] = {"op": name, **params}
     if size is not None:
         msg["size"] = size
@@ -379,9 +589,8 @@ def job_accepted(*, detail: str = "") -> dict[str, Any]:
 
 
 def job_progress(*, phase: str, done: int, total: int, text: str = "") -> dict[str, Any]:
-    """`total` may be 0 when the agent cannot know it (fastboot's own output
-    is not always quantified) — renderers must treat 0 as "indeterminate"
-    rather than dividing by it."""
+    """`total` may be 0 when the bench cannot know it — renderers must treat
+    0 as "indeterminate" rather than dividing by it."""
     return {
         "ev": JobEvent.PROGRESS.value,
         "phase": phase,
@@ -401,20 +610,55 @@ def job_done(
     code: str = "",
     data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Terminal frame. `code` is an dhands error code (infra.errors) when the
-    agent can name the failure precisely; `error` is the human sentence.
-    Both are present on failure so the caller can branch on the code without
-    parsing prose. `data` carries a structured answer (the USB listing) for
-    ops whose result is not tool output."""
-    msg = {
+    """Terminal frame. A failure always names its code (sequences.md §7)."""
+    msg: dict[str, Any] = {
         "ev": JobEvent.DONE.value,
         "ok": ok,
         "rc": rc,
-        "stdout": stdout,
-        "stderr": stderr,
-        "error": error,
+        "stdout": stdout[-MAX_OUTPUT_TEXT:],
+        "stderr": stderr[-MAX_OUTPUT_TEXT:],
+        "error": error[:MAX_ERROR_TEXT],
         "code": code,
     }
     if data is not None:
         msg["data"] = data
     return msg
+
+
+def check_job_event(msg: dict[str, Any]) -> str:
+    """Why a job event breaks the v2 rules, or "" when it is fine."""
+    ev = msg.get("ev")
+    c = _Check(msg, f"job event {ev!r}", None)
+    try:
+        if ev == JobEvent.ACCEPTED.value:
+            c.string("detail")
+        elif ev == JobEvent.PROGRESS.value:
+            c.string("phase", pattern=_PHASE_RE)
+            c.integer("done", minimum=0)
+            c.integer("total", minimum=0)
+            c.string("text")
+        elif ev == JobEvent.FILE.value:
+            if not c.string("name"):
+                raise c.fail("'name' is empty")
+            c.integer("size", minimum=0)
+            c.integer("offset", minimum=0)
+            c.string("b64", pattern=_B64_RE)
+            c.boolean("end")
+        elif ev == JobEvent.DONE.value:
+            ok = c.boolean("ok")
+            c.integer("rc")
+            c.string("stdout", max_len=MAX_OUTPUT_TEXT)
+            c.string("stderr", max_len=MAX_OUTPUT_TEXT)
+            err = c.string("error", max_len=MAX_ERROR_TEXT)
+            code = c.string("code")
+            if ok and (code or err):
+                raise c.fail("a successful done carries no code and no error")
+            if not ok and not _CODE_RE.fullmatch(code):
+                raise c.fail("a failed done must name its error code")
+            if "data" in msg and not isinstance(msg["data"], dict):
+                raise c.fail("'data' must be an object")
+        else:
+            return f"unknown job event {str(ev)[:64]!r}"
+    except FrameError as e:
+        return e.message
+    return ""

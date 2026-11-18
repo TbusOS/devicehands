@@ -777,6 +777,44 @@ ERROR_CODES: dict[str, ErrorSpec] = {
         "Someone is reading the serial console; the board was not switched",
         "End the capture / shell / web console first, or pass --force to cut them off",
     ),
+    # ─── hub <-> bench protocol v2 (protocol/v2/sequences.md §5, §10) ──
+    # The first three only travel in `error` frames between hub and bench;
+    # each side logs them and the bench shows them on its status page.
+    "PROTO_VERSION_UNSUPPORTED": ErrorSpec(
+        "PROTO_VERSION_UNSUPPORTED",
+        "transport",
+        "The hub and the bench program speak no common protocol version",
+        "Upgrade the side the message names — the hub, or bench-py/dhands_bench.py "
+        "on the bench host; the bench stops dialling until then",
+    ),
+    "UNKNOWN_VERB": ErrorSpec(
+        "UNKNOWN_VERB",
+        "transport",
+        "A signaling frame of a type the receiver does not know",
+        "The hub and the bench program are from different builds — update the older one",
+    ),
+    "BAD_FRAME": ErrorSpec(
+        "BAD_FRAME",
+        "transport",
+        "A signaling frame was malformed (not a JSON object, a field missing or of "
+        "the wrong type)",
+        "The hub and the bench program are from different builds, or something "
+        "between them changes frames — update the older one, check any proxy",
+    ),
+    "BENCH_STOPPING": ErrorSpec(
+        "BENCH_STOPPING",
+        "transport",
+        "The bench program is stopping (replaced by a newer instance or an update) "
+        "and opens no more channels",
+        "Wait for it to reconnect (`dhands bench status`), then retry",
+    ),
+    "BENCH_DIAL_BACK_FAILED": ErrorSpec(
+        "BENCH_DIAL_BACK_FAILED",
+        "transport",
+        "The bench opened the device side but could not connect the channel back to the hub",
+        "Check that the bench host reaches the hub's address and that the hub was "
+        "not restarted in between; the bench log has the reason",
+    ),
 }
 
 

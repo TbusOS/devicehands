@@ -275,18 +275,41 @@ async def test_a_job_failure_that_is_not_a_lost_answer_passes_through(tmp_path):
 # ── hello carries build and the last update ──────────────────────────
 
 
-def test_status_shows_the_build_and_the_last_update(monkeypatch):
-    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
-    hello = p.hello(agent_id="agent-1", name="t", version=1, caps=["adb"], token=None)
-    hello["build"] = "abc123def456"
-    hello["update"] = {"id": "u1", "outcome": "updated"}
+def _v2_hello(build: str, update: dict[str, Any] | None = None) -> dict[str, Any]:
+    return p.hello(
+        bench_id="agent-1",
+        name="t",
+        lang="python",
+        build=build,
+        os="windows",
+        ops=[],
+        boards={},
+        update=update,
+    )
+
+
+def _status_after(hello: dict[str, Any]) -> dict[str, Any]:
     with TestClient(create_app()) as c:
-        with c.websocket_connect("/agent/connect") as ws:
+        with c.websocket_connect(p.CONNECT_PATH) as ws:
             ws.send_text(p.encode_control(hello))
-            assert p.decode_control(ws.receive_text())["verb"] == p.Verb.HELLO_OK.value
-            agent = c.get("/agent/status").json()["agents"][0]
+            assert json.loads(ws.receive_text())["verb"] == p.Verb.HELLO_OK.value
+            agent: dict[str, Any] = c.get("/agent/status").json()["agents"][0]
+            return agent
+
+
+def test_status_shows_the_build_and_the_last_update(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
+    update = {
+        "id": "u1",
+        "outcome": "updated",
+        "from_build": "0123456789ab",
+        "to_build": "abc123def456",
+        "at": 1.5,
+    }
+    agent = _status_after(_v2_hello("abc123def456", update))
     assert agent["build"] == "abc123def456"
-    assert agent["last_update"] == {"id": "u1", "outcome": "updated"}
+    assert agent["impl"] == {"lang": "python", "build": "abc123def456"}
+    assert agent["last_update"] == update
 
 
 @pytest.mark.parametrize(
@@ -302,27 +325,22 @@ def test_a_pending_update_on_the_target_build_is_updated(
     monkeypatch: pytest.MonkeyPatch, build: str, expected: dict[str, str]
 ) -> None:
     monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
-    hello = p.hello(agent_id="agent-1", name="t", version=1, caps=["adb"], token=None)
-    hello["build"] = build
-    hello["update"] = {"id": "u1", "outcome": "pending", "from_build": "old0000", "to_build": "new0000"}
-    with TestClient(create_app()) as c:
-        with c.websocket_connect("/agent/connect") as ws:
-            ws.send_text(p.encode_control(hello))
-            ws.receive_text()
-            agent = c.get("/agent/status").json()["agents"][0]
-    last = agent["last_update"]
+    update = {
+        "id": "u1",
+        "outcome": "pending",
+        "from_build": "old0000",
+        "to_build": "new0000",
+        "at": 1.0,
+    }
+    last = _status_after(_v2_hello(build, update))["last_update"]
     assert {k: last[k] for k in expected} == expected
     assert ("reported" in last) == ("reported" in expected)
 
 
-def test_an_old_agent_has_no_build(monkeypatch):
+def test_a_bench_without_an_update_record_has_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`update` is optional in a v2 hello; absent = no update was ever run."""
     monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
-    hello = p.hello(agent_id="agent-1", name="t", version=1, caps=["adb"], token=None)
-    with TestClient(create_app()) as c:
-        with c.websocket_connect("/agent/connect") as ws:
-            ws.send_text(p.encode_control(hello))
-            ws.receive_text()
-            agent = c.get("/agent/status").json()["agents"][0]
+    agent = _status_after(_v2_hello(""))
     assert agent["build"] == "" and agent["last_update"] == {}
 
 

@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from devicehands.remote.bench_ops import (
+    LEGACY_FLASH_MAX_BYTES,
     OpSpec,
     ParamSpec,
     check_params,
@@ -20,7 +21,6 @@ from devicehands.remote.bench_ops import (
     ops_of,
     parse_ops,
 )
-from devicehands.remote.protocol import LEGACY_FLASH_MAX_BYTES
 
 # ── values, by kind ──────────────────────────────────────────────────────
 
@@ -65,9 +65,16 @@ def test_text_is_shape_and_length_checked():
     assert p.check("a\nb", [])[1]
 
 
-def test_a_pattern_this_side_cannot_compile_is_left_to_the_agent():
-    p = ParamSpec("x", "text", pattern="(?P<", max_len=10)
+def test_a_rule_is_read_as_the_bench_reads_it() -> None:
+    """protocol v2: rules are in the portable subset and both sides read them
+    the same way — whole-string match, ASCII-only \\s. (v1 let a pattern
+    this side could not compile through to the agent; a v2 hello with one
+    is refused before any table reaches this module.)"""
+    p = ParamSpec("x", "text", pattern="[^\\s]{1,8}", max_len=8)
     assert p.check("abc", []) == ("abc", "")
+    assert p.check("a c", [])[1]
+    assert p.check("\u00a0x", []) == ("\u00a0x", "")  # NBSP is not \\s in ASCII mode
+    assert p.check("abc\n", [])[1]
 
 
 def test_an_unknown_kind_from_a_newer_agent_passes_through():

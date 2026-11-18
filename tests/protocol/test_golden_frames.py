@@ -7,8 +7,7 @@ checks three things:
 1. The description is self-consistent: every valid sample passes its schema,
    every invalid sample fails it (driven by frames/index.json, so a new
    sample needs no test change), and breaking a valid sample makes it fail.
-2. The hub (`alb.remote.protocol`, `alb.remote.jobframe`) produces and
-   accepts what the description says.
+2. (moved) The hub speaks v2 now: tests/protocol/test_v2_hub.py.
 3. The bench program (bench-py/dhands_bench.py, loaded in-process
    by path because it cannot import alb) produces what the description says.
 
@@ -20,7 +19,6 @@ failure, and the marker has to be removed.
 
 from __future__ import annotations
 
-import copy
 import importlib.util
 import json
 import struct
@@ -35,9 +33,6 @@ referencing = pytest.importorskip("referencing")
 
 from referencing import Registry, Resource  # noqa: E402
 from referencing.jsonschema import DRAFT202012  # noqa: E402
-
-from devicehands.remote import bench_ops, jobframe  # noqa: E402
-from devicehands.remote import protocol as P  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[2]
 _V1 = _REPO / "protocol" / "v1"
@@ -100,235 +95,6 @@ def _sample(entry: dict[str, Any]) -> Any:
     return json.loads((_FRAMES / entry["file"]).read_text(encoding="utf-8"))
 
 
-# ── 1. the description itself ───────────────────────────────────────
-
-
-@pytest.mark.parametrize("name", sorted(_SCHEMAS))
-def test_schema_is_valid_draft_2020_12(name: str) -> None:
-    schema = _SCHEMAS[name]
-    jsonschema.Draft202012Validator.check_schema(schema)
-    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-    assert schema["$id"] == _BASE + name
-
-
-def test_index_lists_every_sample_file_once() -> None:
-    on_disk = {f"{d}/{p.name}" for d in ("valid", "invalid") for p in (_FRAMES / d).glob("*.json")}
-    listed = [e["file"] for e in _INDEX]
-    assert len(listed) == len(set(listed)), "a sample is listed twice"
-    assert set(listed) == on_disk
-    for e in _INDEX:
-        assert e["valid"] is (e["file"].split("/")[0] == "valid"), e["file"]
-        assert e["schema"].split("#")[0] in _SCHEMAS, e["schema"]
-
-
-@pytest.mark.parametrize("entry", _INDEX, ids=[e["file"] for e in _INDEX])
-def test_sample_frame_matches_index(entry: dict[str, Any]) -> None:
-    frame = _sample(entry)
-    if entry["valid"]:
-        _assert_valid(entry["schema"], frame)
-    else:
-        _assert_invalid(entry["schema"], frame)
-
-
-def test_every_frame_schema_has_valid_and_invalid_samples() -> None:
-    frame_schemas = _CONTROL_SCHEMAS | _EVENT_SCHEMAS | {"job-request.json"}
-    valid = {e["schema"] for e in _INDEX if e["valid"]}
-    invalid = {e["schema"] for e in _INDEX if not e["valid"]}
-    assert frame_schemas - valid == set()
-    assert frame_schemas - invalid == set()
-
-
-@pytest.mark.parametrize(
-    "entry",
-    [e for e in _INDEX if e["valid"] and e["schema"] in _CONTROL_SCHEMAS],
-    ids=lambda e: e["file"],
-)
-def test_valid_control_sample_passes_the_dispatch_schema(entry: dict[str, Any]) -> None:
-    _assert_valid("control.json", _sample(entry))
-
-
-@pytest.mark.parametrize(
-    "entry",
-    [e for e in _INDEX if e["valid"] and e["schema"] in _EVENT_SCHEMAS],
-    ids=lambda e: e["file"],
-)
-def test_valid_job_event_sample_passes_the_dispatch_schema(entry: dict[str, Any]) -> None:
-    _assert_valid("job-event.json", _sample(entry))
-
-
-def _break(entry: dict[str, Any]) -> Any:
-    """A broken copy of a valid sample: the first required field removed."""
-    frame = copy.deepcopy(_sample(entry))
-    target = _SCHEMAS[entry["schema"].split("#")[0]]
-    if "#" in entry["schema"]:
-        for part in entry["schema"].split("#/")[1].split("/"):
-            target = target[part]
-    if "required" in target:
-        del frame[target["required"][0]]
-    else:
-        frame = ["not", "an", "object"]
-    return frame
-
-
-@pytest.mark.parametrize("entry", [e for e in _INDEX if e["valid"]], ids=lambda e: e["file"])
-def test_self_check_breaking_a_valid_sample_makes_it_fail(entry: dict[str, Any]) -> None:
-    """Guards against a validator that accepts everything (a wrong $ref base,
-    a schema that resolved to `true`): the untouched sample passes, the
-    same sample with a required field removed must not."""
-    _assert_valid(entry["schema"], _sample(entry))
-    _assert_invalid(entry["schema"], _break(entry))
-
-
-def test_self_check_nested_reference_is_enforced() -> None:
-    """A bad op row deep inside hello must fail hello: proves the cross-file
-    $ref from hello.json to op-table.json resolves instead of being skipped."""
-    hello = _sample({"file": "valid/hello.json"})
-    _assert_valid("hello.json", hello)
-    hello["ops"][0]["params"] = [{"name": "x", "kind": "float", "required": True, "default": None}]
-    _assert_invalid("hello.json", hello)
-    hello = _sample({"file": "valid/hello.json"})
-    hello["v"] = 2
-    _assert_invalid("hello.json", hello)
-    _assert_invalid("control.json", hello)
-
-
-# ── 2. the hub ───────────────────────────────────────────────────────
-
-
-_HUB_CONTROL = [
-    ("hello_ok.json", lambda: P.hello_ok(server_version=P.PROTOCOL_VERSION)),
-    ("heartbeat.json", P.heartbeat),
-    ("list_adb.json", P.list_adb),
-    ("list_com.json", P.list_com),
-    ("com_list.json", lambda: P.com_list([{"port": "COM3", "desc": "USB Serial Port"}])),
-    ("restart_adb.json", lambda: P.restart_adb(kill_conflicts=True)),
-    ("restart_adb.json", P.restart_adb),
-    *[
-        (
-            "open_channel.json",
-            (
-                lambda ctype=ctype, params=params: P.open_channel(
-                    cid=P.new_cid(),
-                    csecret=P.new_csecret(),
-                    ctype=ctype,
-                    role=P.default_role(ctype),
-                    params=params,
-                )
-            ),
-        )
-        for ctype, params in (
-            (P.ChannelType.TCP, {"target": P.ADB_TARGET}),
-            (P.ChannelType.SERIAL, {"com": "COM3", "baud": 115200}),
-            (P.ChannelType.JOB, {"op": "flash"}),
-        )
-    ],
-    ("channel_error.json", lambda: P.channel_error(cid=P.new_cid(), reason="example")),
-    ("channel_opened.json", lambda: P.channel_opened(cid=P.new_cid())),
-    ("close_channel.json", lambda: P.close_channel(cid=P.new_cid())),
-    ("channel_closed.json", lambda: P.channel_closed(cid=P.new_cid())),
-]
-
-
-@pytest.mark.parametrize(("schema", "build"), _HUB_CONTROL, ids=[s for s, _ in _HUB_CONTROL])
-def test_hub_control_builder_matches_schema(schema: str, build: Any) -> None:
-    frame = build()
-    _assert_valid(schema, frame)
-    _assert_valid("control.json", frame)
-    assert P.decode_control(P.encode_control(frame)) == frame
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason=f"{_GAPS} G2: protocol.hello() lacks build/ops/flash_partitions/boards/update",
-)
-def test_hub_hello_builder_matches_schema() -> None:
-    frame = P.hello(agent_id="bench-1", name="bench one", version=1, caps=["adb"], token=None)
-    _assert_valid("hello.json", frame)
-
-
-@pytest.mark.xfail(strict=True, reason=f"{_GAPS} G3: protocol.adb_list() lacks conflicts")
-def test_hub_adb_list_builder_matches_schema() -> None:
-    _assert_valid("adb_list.json", P.adb_list(["EXAMPLE0001"]))
-
-
-_HUB_JOB = [
-    ("job-request.json", lambda: P.job_flash(partition="boot_a", size=4096, sha256=_SHA)),
-    ("job-request.json", lambda: P.job_reboot(target="bootloader")),
-    ("job-request.json", P.job_devices),
-    ("job-request.json", lambda: P.job_getvar(name="")),
-    ("job-request.json", lambda: P.job_oem(command="device-info")),
-    ("job-request.json", lambda: P.job_erase(partition="misc")),
-    ("job-request.json", lambda: P.job_op("log-tail", {"source": "agent", "lines": 50})),
-    ("job-request.json", lambda: P.job_op("tool-run", {"tool": "example-tool", "args": ["-v"]})),
-    ("job-request.json", lambda: P.job_op("boot", {}, size=4096, sha256=_SHA)),
-    ("job-accepted.json", P.job_accepted),
-    ("job-progress.json", lambda: P.job_progress(phase=P.JobPhase.TRANSFER, done=1, total=2)),
-    (
-        "job-progress.json",
-        lambda: P.job_progress(phase=P.JobPhase.FLASH, done=0, total=0, text="x"),
-    ),
-    ("job-done.json", lambda: P.job_done(ok=True, rc=0)),
-    ("job-done.json", lambda: P.job_done(ok=False, rc=1, error="x", code="FLASH_FAILED", data={})),
-]
-
-
-@pytest.mark.parametrize(("schema", "build"), _HUB_JOB, ids=[s for s, _ in _HUB_JOB])
-def test_hub_job_builder_matches_schema(schema: str, build: Any) -> None:
-    frame = json.loads(json.dumps(build()))  # enum members -> plain JSON values
-    _assert_valid(schema, frame)
-    if schema != "job-request.json":
-        _assert_valid("job-event.json", frame)
-
-
-@pytest.mark.parametrize(
-    "entry",
-    [e for e in _INDEX if e["valid"] and e["schema"] in _CONTROL_SCHEMAS],
-    ids=lambda e: e["file"],
-)
-def test_hub_decode_control_accepts_valid_sample(entry: dict[str, Any]) -> None:
-    frame = _sample(entry)
-    assert P.decode_control(json.dumps(frame, ensure_ascii=False)) == frame
-
-
-def test_verb_enum_matches_schema() -> None:
-    assert sorted(v.value for v in P.Verb) == sorted(_CONTROL_VERBS)
-
-
-def test_channel_enums_match_schema() -> None:
-    props = _SCHEMAS["open_channel.json"]["properties"]
-    assert sorted(t.value for t in P.ChannelType) == sorted(props["channel_type"]["enum"])
-    assert sorted(r.value for r in P.ChannelRole) == sorted(props["role"]["enum"])
-
-
-def test_op_table_enums_match_schema() -> None:
-    defs = _SCHEMAS["op-table.json"]["$defs"]
-    assert sorted(bench_ops.KINDS) == sorted(defs["ParamDesc"]["properties"]["kind"]["enum"])
-    assert sorted(bench_ops.RECORD_TIERS) == sorted(defs["OpDesc"]["properties"]["record"]["enum"])
-
-
-def _wire_events() -> set[str]:
-    return {_SCHEMAS[ref]["properties"]["ev"]["const"] for ref in _EVENT_SCHEMAS}
-
-
-def _wire_phases() -> set[str]:
-    return set(_SCHEMAS["job-progress.json"]["properties"]["phase"]["enum"])
-
-
-def test_job_enums_are_a_subset_of_schema() -> None:
-    assert {e.value for e in P.JobEvent} <= _wire_events()
-    assert {p.value for p in P.JobPhase} <= _wire_phases()
-
-
-@pytest.mark.xfail(strict=True, reason=f"{_GAPS} G4: JobEvent has no 'file'")
-def test_job_event_enum_covers_every_wire_event() -> None:
-    assert {e.value for e in P.JobEvent} == _wire_events()
-
-
-@pytest.mark.xfail(strict=True, reason=f"{_GAPS} G5: JobPhase has no 'edl' / 'tool'")
-def test_job_phase_enum_covers_every_wire_phase() -> None:
-    assert {p.value for p in P.JobPhase} == _wire_phases()
-
-
 # ── 3. the bench program ─────────────────────────────────────────────
 
 
@@ -342,21 +108,6 @@ def _load_agent() -> Any:
 
 
 agent = _load_agent()
-
-
-def test_shared_constants_agree() -> None:
-    """A few of the hand-copied constants the bench mirrors from the hub."""
-    assert (
-        agent.PROTOCOL_VERSION
-        == P.PROTOCOL_VERSION
-        == _SCHEMAS["common.json"]["$defs"]["v"]["const"]
-    )
-    assert (agent.TOKEN_HEADER, agent.CSECRET_HEADER) == (P.TOKEN_HEADER, P.CSECRET_HEADER)
-    assert agent.ADB_TARGET == P.ADB_TARGET
-    assert agent._PARTITION_RE.pattern == bench_ops.PARTITION_RE.pattern
-    assert agent._JOB_HEADER.format == jobframe._HEADER.format
-    assert agent._JOB_MAX_FRAME == jobframe.MAX_FRAME
-    assert sorted(agent._PARAM_KINDS) == sorted(bench_ops.KINDS)
 
 
 def _full_table(tmp_path: Path) -> dict[str, Any]:
@@ -403,7 +154,6 @@ def test_bench_hello_with_every_op_matches_schema(full_hello: dict[str, Any]) ->
     assert {op["group"] for op in full_hello["ops"]} == {"fastboot", "host", "edl", "tool"}
     _assert_valid("hello.json", full_hello)
     _assert_valid("control.json", full_hello)
-    assert P.decode_control(json.dumps(full_hello)) == full_hello
 
 
 def test_bench_hello_without_tools_matches_schema(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -581,34 +331,28 @@ class _ByteStream:
         raise AssertionError("read-only stream")
 
 
-def test_binary_cap_matches_both_ends() -> None:
-    assert _BINARY["max_payload"] == jobframe.MAX_FRAME == agent._JOB_MAX_FRAME
+def test_binary_cap_matches_the_bench() -> None:
+    assert _BINARY["max_payload"] == agent._JOB_MAX_FRAME
 
 
 @pytest.mark.parametrize("case", _BINARY["valid"], ids=lambda c: c["name"])
-def test_both_encoders_produce_the_golden_bytes(case: dict[str, Any]) -> None:
+def test_bench_encoder_produces_the_golden_bytes(case: dict[str, Any]) -> None:
     want = bytes.fromhex(case["hex"])
     if case["kind"] == "C":
-        msg = json.loads(case["payload_text"])
-        assert jobframe.encode_control(msg) == want
-        assert agent._job_control(msg) == want
+        assert agent._job_control(json.loads(case["payload_text"])) == want
     else:
-        assert jobframe.encode_data(_payload(case)) == want
         assert agent._job_encode(b"D", _payload(case)) == want
 
 
 @pytest.mark.parametrize("case", _BINARY["valid"], ids=lambda c: c["name"])
-async def test_both_readers_decode_the_golden_bytes(case: dict[str, Any]) -> None:
+async def test_bench_reader_decodes_the_golden_bytes(case: dict[str, Any]) -> None:
     data = bytes.fromhex(case["hex"])
     want = (case["kind"].encode(), _payload(case))
-    assert await jobframe.FrameReader(_ByteStream(data)).read() == want
     assert await agent._JobReader(_ByteStream(data)).read() == want
 
 
 @pytest.mark.parametrize("case", _BINARY["invalid"], ids=lambda c: c["name"])
-async def test_both_readers_reject_the_bad_bytes(case: dict[str, Any]) -> None:
+async def test_bench_reader_rejects_the_bad_bytes(case: dict[str, Any]) -> None:
     data = bytes.fromhex(case["hex"])
-    with pytest.raises(jobframe.JobProtocolError):
-        await jobframe.FrameReader(_ByteStream(data)).read()
     with pytest.raises(agent._JobProtocolError):
         await agent._JobReader(_ByteStream(data)).read()

@@ -19,6 +19,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -44,16 +45,19 @@ async def _noop(_m):  # pragma: no cover - registry needs a send callable
 
 
 def _conn(**kw) -> AgentConnection:
-    defaults = dict(
-        agent_id="a",
-        name="bench",
-        version=1,
-        caps=["adb", "fastboot"],
-        send_control=_noop,
-        registry=AgentRegistry(),
-    )
+    defaults = dict(agent_id="a", name="bench", send_control=_noop, registry=AgentRegistry())
     defaults.update(kw)
     return AgentConnection(**defaults)  # type: ignore[arg-type]
+
+
+def _bench(partitions: list[str]) -> SimpleNamespace:
+    """An agent object carrying a list, as the flash service reads one.
+    No v2 bench sends a list (the field left the hello with protocol v2);
+    what these pin is how the service and the web view carry whatever list
+    an agent object holds — empty included."""
+    return SimpleNamespace(
+        agent_id="a", name="bench", caps=["adb", "fastboot"], flash_partitions=partitions
+    )
 
 
 # ── the agent side: the allowlist must leave the machine that owns it ──
@@ -89,29 +93,27 @@ def test_allowlist_and_hello_cannot_drift(monkeypatch):
 # ── the hub side: carry it, don't invent it ────────────────────────
 
 
-def test_connection_keeps_the_allowlist():
-    assert _conn(flash_partitions=["cfg"]).flash_partitions == ["cfg"]
-
-
-def test_connection_defaults_to_empty_for_older_agents():
-    """An agent predating the field sends nothing. That must land as empty
-    (= unknown = fall back), never as a crash or a fabricated list."""
+def test_a_v2_connection_has_no_list() -> None:
+    """Protocol v2 carries no partition list: a connection's is always empty
+    (= any well-formed name), never a crash or a fabricated list."""
     assert _conn().flash_partitions == []
 
 
-def test_status_listing_exposes_it():
+def test_status_listing_still_has_the_key() -> None:
+    """The status page reads the key; it stays, empty."""
     reg = AgentRegistry()
-    conn = _conn(registry=reg, flash_partitions=["cfg"])
+    conn = _conn(registry=reg)
     reg._agents[conn.agent_id] = conn  # bypass the async register for a pure read
-    assert reg.list_agents()[0]["flash_partitions"] == ["cfg"]
+    assert reg.list_agents()[0]["flash_partitions"] == []
 
 
 def test_flash_view_reports_the_agents_list(monkeypatch):
     from devicehands.remote import forwarder
 
-    conn = _conn(flash_partitions=["cfg"])
+    conn = _bench(["cfg"])
     monkeypatch.setattr(
-        "devicehands.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: conn})()
+        "devicehands.remote.registry.get_agent_registry",
+        lambda: type("R", (), {"current_agent": lambda _s: conn})(),
     )
     view = forwarder._flash_view()
     assert view["partitions"] == ["cfg"]
@@ -122,7 +124,8 @@ def test_flash_view_with_no_agent_is_empty_not_a_crash(monkeypatch):
     from devicehands.remote import forwarder
 
     monkeypatch.setattr(
-        "devicehands.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: None})()
+        "devicehands.remote.registry.get_agent_registry",
+        lambda: type("R", (), {"current_agent": lambda _s: None})(),
     )
     view = forwarder._flash_view()
     assert view["partitions"] == []
@@ -132,7 +135,7 @@ def test_flash_view_with_no_agent_is_empty_not_a_crash(monkeypatch):
 def test_service_status_carries_partitions():
     from devicehands.remote.flash import FlashService
 
-    conn = _conn(flash_partitions=["cfg", "boot"])
+    conn = _bench(["cfg", "boot"])
     svc = FlashService(lambda: conn)
     assert svc.status()["partitions"] == ["cfg", "boot"]
 
@@ -150,5 +153,5 @@ def test_status_always_has_the_key(advertised):
     that ambiguity is what a fallback rule cannot be written against."""
     from devicehands.remote.flash import FlashService
 
-    svc = FlashService(lambda: _conn(flash_partitions=advertised))
+    svc = FlashService(lambda: _bench(advertised))
     assert "partitions" in svc.status()
