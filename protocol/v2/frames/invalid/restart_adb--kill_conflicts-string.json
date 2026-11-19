@@ -1,0 +1,5 @@
+{
+  "verb": "restart_adb",
+  "id": 3,
+  "kill_conflicts": "yes"
+}

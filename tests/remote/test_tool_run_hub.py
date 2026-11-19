@@ -194,7 +194,6 @@ class _LiveAgent:
         self,
         *,
         ctype: str,
-        role: str,
         params: dict[str, Any],
         timeout: float,  # noqa: ASYNC109 — the hub's call signature
     ) -> _End:

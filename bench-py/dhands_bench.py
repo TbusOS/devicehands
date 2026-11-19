@@ -7,8 +7,9 @@ the hub reach the local adb server and the device's serial / UART port.
 
 Design: see the hub's ADR-050/051/052. This file is intentionally standalone:
 it depends only on the stdlib + `websockets` (+ `pyserial` for serial channels),
-NOT the devicehands package, so it can be dropped onto a bare host. The wire constants
-below mirror the hub's `devicehands.remote.protocol` and MUST stay in lockstep with it.
+NOT the devicehands package, so it can be dropped onto a bare host. It speaks
+protocol v2, described language-neutrally in protocol/v2 of the repository;
+tests/conformance holds this program to it as a separate process.
 
 Usage (config file — the normal path):
     copy bench.conf.example bench.conf   # fill in hub_url + token
@@ -16,7 +17,7 @@ Usage (config file — the normal path):
 
 Usage (flags — override any config value):
     pip install -r requirements.txt   # websockets + pyserial
-    python dhands_bench.py --hub-url wss://<hub>/agent/connect --token <token>
+    python dhands_bench.py --hub-url wss://<hub>/bench/connect --token <token>
 
 Precedence: command line > bench.conf > built-in defaults. The config file
 lives next to this script by default (`--config` points elsewhere).
@@ -40,6 +41,7 @@ import collections
 import contextlib
 import contextvars
 import csv
+import errno
 import functools
 import hashlib
 import json
@@ -57,7 +59,7 @@ import threading
 import time
 import uuid
 import zipfile
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from logging.handlers import RotatingFileHandler
@@ -74,25 +76,52 @@ except ImportError:
 
 _log = logging.getLogger("dhands-bench")
 
-PROTOCOL_VERSION = 1
+# Protocol versions this bench speaks (protocol/v2/sequences.md §2). The hub
+# picks the largest version in both ranges, or refuses with an error frame.
+PROTO_MIN = 2
+PROTO_MAX = 2
+# Paths on the hub. The signaling URL is the configured hub_url; the data
+# path is fixed and keeps only the scheme and host of hub_url.
+CONNECT_PATH = "/bench/connect"
+CHANNEL_PATH = "/bench/channel"
+# How long the hub has to answer the hello.
+HELLO_TIMEOUT_S = 10.0
+# Protocol-level error codes (error frames only).
+PROTO_VERSION_UNSUPPORTED = "PROTO_VERSION_UNSUPPORTED"
+UNKNOWN_VERB = "UNKNOWN_VERB"
+BAD_FRAME = "BAD_FRAME"
+# A done frame's `error` text is cut to this many characters.
+_ERROR_TEXT_CAP = 4096
 
 # Must match the hub's allowlist (ADR-050 §6). The agent re-checks the target
 # itself and NEVER trusts an arbitrary host:port pushed by the hub — otherwise
 # it would become an open proxy on the local LAN.
 ADB_TARGET = "127.0.0.1:5037"
 ALLOWED_TCP_TARGETS = frozenset({ADB_TARGET})
+# ADB_TARGET names "this host's adb server"; where that server listens is
+# this host's business. The default is adb's own port; `adb_port` in
+# bench.conf moves it (a second adb server, or a test that must not touch
+# the real one). `adb_path` picks the adb executable the same way.
+DEFAULT_ADB_PORT = 5037
+_ADB_PORT = DEFAULT_ADB_PORT
+_ADB_PATH = "adb"
 
-# Dial-back credential headers (ADR-055) — mirror devicehands.remote.protocol. They
-# used to ride the query string, where the hub's access log recorded both in
-# clear text on every channel open. Headers are not logged.
-TOKEN_HEADER = "x-alb-token"
-CSECRET_HEADER = "x-alb-csecret"
+# Credential headers (ADR-055). The token rides a header on BOTH connections
+# and the channel secret on the dial-back; no frame ever carries a
+# credential, so frames can be logged whole. (They used to ride the query
+# string and the hello, where logs recorded them in clear text.)
+TOKEN_HEADER = "x-dhands-token"
+CSECRET_HEADER = "x-dhands-csecret"
 
 # Flash job limits (ADR-056). A partition name becomes an argv element, so
 # the shape check is a security control, not tidiness: a name carrying a
 # path separator, a space or a leading dash would either escape into another
 # argument or point fastboot somewhere else entirely.
-_PARTITION_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\Z")
+# The rule rides the wire with every `partition` parameter (ParamDesc.pattern),
+# in the portable regex subset (see _rule_problem): whole-string match.
+_PARTITION_PATTERN = "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}"
+_PARTITION_MAX_LEN = 64
+_PARTITION_RE = re.compile(_PARTITION_PATTERN)
 _FASTBOOT_REBOOT_TARGETS = frozenset({"bootloader", "fastboot", "recovery"})
 # An image is received into a temp file before fastboot sees it (fastboot
 # needs a real file: it splits large images into sparse chunks itself). So
@@ -108,6 +137,9 @@ _JOB_OUTPUT_CAP = 64 * 1024
 _WAITING_MARKER = "waiting for any device"
 
 HEARTBEAT_INTERVAL_S = 20.0
+# `heartbeat_s` in bench.conf: for tests that cannot wait 20 s for a beat.
+# A real bench keeps the protocol's value (protocol/v2/sequences.md §9).
+_HEARTBEAT_S = HEARTBEAT_INTERVAL_S
 RECONNECT_BACKOFF_S = (1.0, 2.0, 5.0, 10.0)
 _CHUNK = 65536
 DEFAULT_STATUS_PORT = 8741
@@ -118,10 +150,11 @@ _shutdown = asyncio.Event()
 def _file_build(path: Path) -> str:
     """Which code this is: the first 12 hex of the file's sha256.
 
-    `agent_version` in hello is the PROTOCOL number and stays 1 across every
-    build, so the hub could not tell an old agent from a new one — the very
-    thing a remote update has to confirm (ADR-060). Content-derived, so there
-    is no version number for anyone to forget to bump."""
+    hello's `proto` is the PROTOCOL range and stays the same across builds,
+    so the hub could not tell an old agent from a new one by it — the very
+    thing a remote update has to confirm (ADR-060). This rides as
+    hello.impl.build. Content-derived, so there is no version number for
+    anyone to forget to bump."""
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
     except OSError:
@@ -402,48 +435,81 @@ class _HandshakeRejected(Exception):
 
 
 def _frame(verb: str, **fields: Any) -> str:
-    return json.dumps({"v": PROTOCOL_VERSION, "verb": verb, **fields}, ensure_ascii=False)
+    return json.dumps({"verb": verb, **fields}, ensure_ascii=False)
 
 
-def _hello(agent_id: str, name: str, token: str | None) -> str:
-    # caps is how the hub answers "can this bench flash?" without sending a
-    # job and waiting for it to time out (ADR-056 §决定 7). Advertise
-    # `fastboot` only when the executable is actually resolvable here.
-    caps = ["adb"]
-    if _fastboot_path():
-        caps.append("fastboot")
-    return _frame(
-        "hello",
-        agent_id=agent_id,
-        name=name,
-        agent_version=PROTOCOL_VERSION,
-        # Which code is running (ADR-060): what `dhands bench agent-update` compares
-        # after the restart to tell "updated" from "rolled back".
-        build=_BUILD,
-        caps=caps,
+def _os_name(platform: str = sys.platform) -> str:
+    """hello.os: one of windows / macos / linux (hello.json)."""
+    if platform == "win32":
+        return "windows"
+    if platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+_UPDATE_OUTCOMES = frozenset({"pending", "updated", "rolled_back", "aborted"})
+_BUILD_RE = re.compile(r"[0-9A-Za-z._+-]{0,64}")
+
+
+def _update_view() -> dict[str, Any] | None:
+    """The last update record as hello carries it, or None. A record that
+    does not have the hello's shape is left out (and logged): sent as is, it
+    would make the hub refuse every hello this bench ever sends again."""
+    rec = _LAST_UPDATE
+    if not rec:
+        return None
+    ok = (
+        isinstance(rec.get("id"), str)
+        and rec.get("outcome") in _UPDATE_OUTCOMES
+        and all(
+            isinstance(rec.get(k), str) and _BUILD_RE.fullmatch(rec[k])
+            for k in ("from_build", "to_build")
+        )
+        and isinstance(rec.get("at"), int | float)
+        and not isinstance(rec.get("at"), bool)
+    )
+    if not ok:
+        _log.warning("the last update record is malformed and not reported: %r", rec)
+        return None
+    return {k: rec[k] for k in ("id", "outcome", "from_build", "to_build", "at")}
+
+
+def _hello(bench_id: str, name: str) -> str:
+    """The first frame (protocol/v2/schema/hello.json). No credential: the
+    token is the connection's header. No capability list: what this bench
+    can do is its op table — fastboot rows only when the tool is there."""
+    fields: dict[str, Any] = {
+        "proto": {"min": PROTO_MIN, "max": PROTO_MAX},
+        "bench_id": bench_id[:128],
+        "name": name[:128],
+        # Which code is running (ADR-060): what `dhands bench agent-update`
+        # compares after the restart to tell "updated" from "rolled back".
+        "impl": {"lang": "python", "build": _BUILD},
+        "os": _os_name(),
         # The op table (ADR-059): what this bench can do, each op with its
         # parameter rules, so the hub, the CLI and the web page all drive
-        # the same rows and a flash plan can ask "is there an `erase` row"
-        # instead of reading a capability string that had to be kept in
-        # step by hand. Fastboot rows are present only when the tool is.
-        ops=[spec.describe() for spec in _OPS.values()],
-        # Always empty since ADR-070: no list limits partition names, and a
-        # hub reads an empty list as "any well-formed name" (the agent's
-        # shape check still applies). Sent so a hub that reads the field
-        # keeps working.
-        flash_partitions=[],
+        # the same rows.
+        "ops": [spec.describe() for spec in _OPS.values()],
         # {board: {"partitions": None, "product": "..."}}: the boards whose
-        # identity this agent checks before a write (ADR-063 phase 2).
-        boards=_boards_view(),
-        # Outcome of the last remote update, if any (ADR-060).
-        update=_LAST_UPDATE or None,
-        token=token,
-    )
+        # identity this bench checks before a write (ADR-063 phase 2).
+        "boards": _boards_view(),
+    }
+    update = _update_view()
+    if update is not None:
+        fields["update"] = update  # outcome of the last remote update (ADR-060)
+    return _frame("hello", **fields)
+
+
+def _error(code: str, message: str, re_id: int | None = None) -> str:
+    fields: dict[str, Any] = {"code": code, "message": message[:_ERROR_TEXT_CAP]}
+    if re_id is not None:
+        fields["re"] = re_id
+    return _frame("error", **fields)
 
 
 def _web_ui_url(hub_url: str) -> str:
     """Best-effort URL of the hub's web console, derived from the signaling
-    URL (ws://host:port/agent/connect → http://host:port/app/). Shown at
+    URL (ws://host:port/bench/connect → http://host:port/app/). Shown at
     startup and on the status page so the operator never has to ask where
     the web UI lives."""
     parts = urlsplit(hub_url)
@@ -454,14 +520,14 @@ def _web_ui_url(hub_url: str) -> str:
 
 
 def _channel_url(hub_url: str, cid: str) -> str:
-    """Derive wss://<host>/agent/channel?cid=... from the hub URL.
+    """Derive wss://<host>/bench/channel?cid=... from the hub URL.
 
     Only the cid rides the query string: it is a routing key, not a
     credential, and keeping it visible is what makes a channel traceable in
     the hub log. The token and the per-channel secret go in headers instead
     (_channel_headers) — see ADR-055."""
     parts = urlsplit(hub_url)
-    return urlunsplit((parts.scheme, parts.netloc, "/agent/channel", urlencode({"cid": cid}), ""))
+    return urlunsplit((parts.scheme, parts.netloc, CHANNEL_PATH, urlencode({"cid": cid}), ""))
 
 
 def _channel_headers(token: str | None, csecret: str | None) -> dict[str, str]:
@@ -476,14 +542,207 @@ def _channel_headers(token: str | None, csecret: str | None) -> dict[str, str]:
     return headers
 
 
+# ── value rules: the portable regex subset ──────────────────────────
+# A text or partition parameter's `pattern` rides the wire in hello, and
+# the hub runs it as well — in another language one day. So it may only
+# use what Python `re`, ECMA-262 and Rust `regex` read the same way, and it
+# is always a whole-string match with ASCII \d \w \s (protocol/v2/framing.md
+# §7). This is a copy of the hub's devicehands.remote.rule_pattern; both are
+# tested against protocol/v2/patterns.json.
+
+# Outside a class these must be escaped to be literal; inside a class, `]`,
+# `[`, `\` and `^` (first position) are the ones that need it.
+_RULE_META = set(".^$|?*+()[]{}\\")
+_RULE_CLASS_ESCAPES = {"d", "D", "w", "W", "s", "S"}
+_RULE_HEX = set("0123456789abcdefABCDEF")
+_RULE_QUANT_RE = re.compile(r"\{(\d{1,4})(,(\d{1,4})?)?\}")
+
+
+def _rule_problem(pattern: str) -> str:
+    """Why `pattern` is outside the subset, or "" when it is inside."""
+    if not isinstance(pattern, str) or not pattern:
+        return "empty pattern"
+    try:
+        _RuleParser(pattern).parse()
+    except _RuleRefused as e:
+        return str(e)
+    try:
+        re.compile(pattern, re.ASCII)
+    except re.error as e:  # pragma: no cover - the parser should refuse first
+        return f"does not compile: {e}"
+    return ""
+
+
+def _rule_fullmatch(pattern: str, value: str) -> bool:
+    """Whole-string match with ASCII-only \\d \\w \\s."""
+    return re.fullmatch(pattern, value, re.ASCII) is not None
+
+
+class _RuleRefused(Exception):
+    pass
+
+
+class _RuleParser:
+    def __init__(self, text: str) -> None:
+        self.s = text
+        self.i = 0
+        self.depth = 0
+
+    def fail(self, why: str) -> _RuleRefused:
+        return _RuleRefused(f"{why} at offset {self.i}")
+
+    def peek(self, n: int = 0) -> str:
+        j = self.i + n
+        return self.s[j] if j < len(self.s) else ""
+
+    def parse(self) -> None:
+        self.alternation()
+        if self.i != len(self.s):
+            raise self.fail(f"unexpected {self.peek()!r}")
+
+    def alternation(self) -> None:
+        self.sequence()
+        while self.peek() == "|":
+            self.i += 1
+            self.sequence()
+
+    def sequence(self) -> None:
+        while self.i < len(self.s) and self.peek() not in ("|", ")"):
+            self.atom()
+            self.quantifier()
+
+    def quantifier(self) -> None:
+        c = self.peek()
+        if c in ("*", "+", "?"):
+            self.i += 1
+        elif c == "{":
+            m = _RULE_QUANT_RE.match(self.s, self.i)
+            if m is None:
+                raise self.fail("a literal { must be escaped; a quantifier is {n}, {n,} or {n,m}")
+            lo, comma, hi = m.group(1), m.group(2), m.group(3)
+            if comma and hi is not None and int(hi) < int(lo):
+                raise self.fail("quantifier {n,m} with m < n")
+            self.i = m.end()
+        else:
+            return
+        if self.peek() in ("?", "+", "*", "{"):
+            raise self.fail("lazy, possessive or repeated quantifiers are not in the subset")
+
+    def atom(self) -> None:
+        c = self.peek()
+        if c == "(":
+            if self.s.startswith("(?:", self.i):
+                self.i += 3
+            elif self.peek(1) == "?":
+                raise self.fail("only (...) and (?:...) groups are in the subset")
+            else:
+                self.i += 1
+            self.depth += 1
+            self.alternation()
+            if self.peek() != ")":
+                raise self.fail("unclosed group")
+            self.i += 1
+            self.depth -= 1
+        elif c == "[":
+            self.char_class()
+        elif c == "\\":
+            self.escape(in_class=False)
+        elif c == ".":
+            raise self.fail("'.' matches different characters in each language; use a class")
+        elif c in ("^", "$"):
+            raise self.fail("anchors are not written: every pattern is a whole-string match")
+        elif c in _RULE_META:
+            raise self.fail(f"{c!r} must be escaped to be literal")
+        else:
+            self.literal()
+
+    def literal(self) -> None:
+        c = self.peek()
+        if not (" " <= c <= "~"):
+            raise self.fail(
+                "only printable ASCII literals; write other characters as \\xHH or a class"
+            )
+        self.i += 1
+
+    def escape(self, *, in_class: bool) -> None:
+        nxt = self.peek(1)
+        if nxt in _RULE_CLASS_ESCAPES:
+            self.i += 2
+            return
+        if nxt == "x":
+            hi, lo = self.peek(2), self.peek(3)
+            if hi and lo and hi in _RULE_HEX and lo in _RULE_HEX:
+                self.i += 4
+                return
+            raise self.fail("\\x needs exactly two hex digits")
+        allowed = {"\\", "]", "[", "-", "^"} if in_class else _RULE_META
+        if nxt and nxt in allowed:
+            self.i += 2
+            return
+        raise self.fail(f"escape \\{nxt} is not in the subset")
+
+    def char_class(self) -> None:
+        self.i += 1  # [
+        if self.peek() == "^":
+            self.i += 1
+        if self.peek() == "]":
+            raise self.fail("a ] right after [ or [^ must be escaped")
+        items = 0
+        while True:
+            c = self.peek()
+            if c == "":
+                raise self.fail("unclosed class")
+            if c == "]":
+                break
+            if self.s.startswith(("&&", "--", "~~"), self.i):
+                raise self.fail("&&, -- and ~~ inside a class are set operators in some languages")
+            if c == "[":
+                raise self.fail("a [ inside a class must be escaped")
+            start_is_range_end = self.class_char()
+            items += 1
+            if self.peek() == "-" and self.peek(1) not in ("]", ""):
+                if self.peek(1) == "-":
+                    raise self.fail(
+                        "&&, -- and ~~ inside a class are set operators in some languages"
+                    )
+                self.i += 1
+                if self.peek() == "\\" and self.peek(1) in _RULE_CLASS_ESCAPES:
+                    raise self.fail("a range cannot end in \\d, \\w or \\s")
+                if not start_is_range_end:
+                    raise self.fail("a range cannot start at \\d, \\w or \\s")
+                self.class_char()
+        if items == 0:
+            raise self.fail("empty class")
+        self.i += 1  # ]
+
+    def class_char(self) -> bool:
+        """Consume one class member; False when it is a \\d-style class
+        (which cannot be a range endpoint)."""
+        c = self.peek()
+        if c == "\\":
+            is_class = self.peek(1) in _RULE_CLASS_ESCAPES
+            self.escape(in_class=True)
+            return not is_class
+        if not (" " <= c <= "~"):
+            raise self.fail("only printable ASCII in a class; write other characters as \\xHH")
+        self.i += 1
+        return True
+
+
 # ── adb device enumeration (best-effort) ─────────────────────────────
+
+
+def _adb_argv(*args: str) -> list[str]:
+    """adb with this host's adb server port: `-P` only when it is not adb's
+    own default, so the default command line stays what it always was."""
+    port = [] if _ADB_PORT == DEFAULT_ADB_PORT else ["-P", str(_ADB_PORT)]
+    return [_ADB_PATH, *port, *args]
 
 
 async def _adb_devices() -> list[str]:
     try:
         proc = await asyncio.create_subprocess_exec(
-            "adb",
-            "devices",
+            *_adb_argv("devices"),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
@@ -502,18 +761,66 @@ async def _adb_devices() -> list[str]:
 # ── data channel: dial back + bridge raw bytes ───────────────────────
 
 
-async def _report_channel_error(ws: Any, cid: str, reason: str) -> None:
-    """Tell the hub we could not open the channel it asked for.
+async def _report_channel_error(ws: Any, cid: str, code: str, reason: str) -> None:
+    """Tell the hub we could not open the channel it asked for, with a code
+    from the hub's catalogue (protocol/v2/sequences.md §5).
 
     Without this the hub learns nothing and just waits out its dial-back
     timeout, holding a local socket that will never carry bytes — and for
     serial, silently swallowing whatever the caller wrote into it (issue #4).
+    Sent for a failed dial-back too: the signaling connection is still up.
     Best-effort: a failure to report must never take down the session.
     """
     if not cid:
         return
     with contextlib.suppress(Exception):
-        await ws.send(_frame("channel_error", cid=cid, reason=reason))
+        await ws.send(_frame("channel_error", cid=cid, code=code, reason=reason))
+
+
+_CID_RE = re.compile(r"[0-9a-f]{32}")
+_CSECRET_RE = re.compile(r"[A-Za-z0-9_-]{43}")
+_OP_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
+
+
+def _open_channel_problem(frame: Mapping[str, Any]) -> str:
+    """What is wrong with an open_channel whose cid is readable, or "".
+    Answered with channel_error BENCH_PARAM_REJECTED (sequences.md §5)."""
+    if not isinstance(frame.get("csecret"), str) or not _CSECRET_RE.fullmatch(frame["csecret"]):
+        return "csecret missing or malformed"
+    ctype = frame.get("channel_type")
+    params = frame.get("params")
+    if not isinstance(params, dict):
+        return "params must be an object"
+    if ctype == "tcp":
+        target = params.get("target")
+        if target not in ALLOWED_TCP_TARGETS:
+            # The only target is this host's adb server; the handler checks
+            # again before it connects anywhere.
+            return f"target {str(target)[:64]!r} not allowlisted on the agent"
+    elif ctype == "serial":
+        com, baud = params.get("com"), params.get("baud")
+        if not isinstance(com, str) or not com:
+            return "no COM port specified in open_channel params"
+        if not isinstance(baud, int) or isinstance(baud, bool) or baud < 1:
+            return f"baud {baud!r} is not a positive integer"
+    elif ctype == "job":
+        op = params.get("op")
+        if not isinstance(op, str) or not _OP_NAME_RE.fullmatch(op):
+            return f"job channel without a valid op ({op!r})"
+    else:
+        return f"unsupported channel type {str(ctype)[:32]!r}"
+    return ""
+
+
+def _dial_back_refused(data_ws: Any) -> bool:
+    """The hub accepted the dial-back and closed it at once with 1008: it
+    did not know the cid or the secret (sequences.md §5 step 6)."""
+    return getattr(data_ws, "close_code", None) == 1008
+
+
+async def _report_dial_back(ws: Any, cid: str, why: str) -> None:
+    _log.warning("channel %s: dial-back failed: %s", cid[:8], why)
+    await _report_channel_error(ws, cid, "BENCH_DIAL_BACK_FAILED", f"dial-back failed: {why}")
 
 
 async def _handle_open_channel(
@@ -525,7 +832,14 @@ async def _handle_open_channel(
         return
     if _STOP_REASON:
         # About to exit: opening it now would only cut it a moment later.
-        await _report_channel_error(ws, cid, _STOP_REASON)
+        await _report_channel_error(ws, cid, "BENCH_STOPPING", _STOP_REASON)
+        return
+    problem = _open_channel_problem(frame)
+    if problem:
+        # The cid is readable, so someone on the hub waits for it: answer on
+        # the channel, not with a bare error frame (sequences.md §5 rule 5).
+        _log.warning("channel %s refused: %s", cid[:8], problem)
+        await _report_channel_error(ws, cid, "BENCH_PARAM_REJECTED", problem)
         return
     if ctype == "tcp":
         await _handle_tcp_channel(hub_url, token, frame, ws)
@@ -533,9 +847,8 @@ async def _handle_open_channel(
         await _handle_serial_channel(hub_url, token, frame, ws)
     elif ctype == "job":
         await _handle_job_channel(hub_url, token, frame, ws)
-    else:
-        _log.warning("unsupported channel type %r", ctype)
-        await _report_channel_error(ws, cid, f"unsupported channel type {ctype!r}")
+    else:  # pragma: no cover - _open_channel_problem refused it already
+        await _report_channel_error(ws, cid, "BENCH_PARAM_REJECTED", f"channel type {ctype!r}")
 
 
 async def _handle_tcp_channel(
@@ -547,28 +860,29 @@ async def _handle_tcp_channel(
     # Re-check the target against our OWN allowlist — do not trust the hub.
     if target not in ALLOWED_TCP_TARGETS:
         _log.warning("rejected channel target %r (not allowlisted)", target)
-        await _report_channel_error(ws, cid, f"target {target!r} not allowlisted on the agent")
+        await _report_channel_error(
+            ws, cid, "BENCH_PARAM_REJECTED", f"target {target!r} not allowlisted on the agent"
+        )
         return
 
     csecret = str(frame.get("csecret") or "")
-    host, _, port_s = target.partition(":")
-    try:
-        port = int(port_s)
-    except ValueError:
-        _log.warning("bad target port %r", target)
-        await _report_channel_error(ws, cid, f"bad target port in {target!r}")
-        return
+    # The target is checked against the allowlist above; where this host's
+    # adb server actually listens is this host's configuration.
+    host, port = "127.0.0.1", _ADB_PORT
 
     # DAEMON channel (ADR-052): a single attempt. No retry of the data channel.
     try:
         reader, writer = await asyncio.open_connection(host, port)
     except OSError as e:
         _log.warning("channel %s: cannot reach %s: %s", cid[:8], target, e)
-        await _report_channel_error(ws, cid, f"cannot reach {target}: {e}")
+        await _report_channel_error(
+            ws, cid, "ADB_SERVER_UNREACHABLE", f"cannot reach the adb server at {host}:{port}: {e}"
+        )
         return
 
     url = _channel_url(hub_url, cid)
     headers = _channel_headers(token, csecret)
+    data_ws: Any = None
     try:
         async with ws_connect(url, max_size=None, additional_headers=headers) as data_ws:
             _STATUS.channel_opened(cid, "adb", target)
@@ -583,13 +897,23 @@ async def _handle_tcp_channel(
             # Same shape as the serial line above it, so one grep finds both.
             _log.info("adb channel %s: opened -> %s", cid[:8], target)
             await _bridge(reader, writer, data_ws)
+        if _dial_back_refused(data_ws):
+            await _report_dial_back(ws, cid, "the hub refused it (1008)")
     except Exception as e:
-        _log.warning("channel %s ended: %s", cid[:8], e)
+        if data_ws is None:
+            await _report_dial_back(ws, cid, f"{type(e).__name__}: {e}")
+        else:
+            _log.warning("channel %s ended: %s", cid[:8], e)
     finally:
         _STATUS.channel_closed(cid)
         with contextlib.suppress(Exception):
             writer.close()
             await writer.wait_closed()
+
+
+# pyserial's loopback port: what is written is read back. A serial channel
+# to it checks the whole tunnel on a host with no serial port at all.
+_SERIAL_LOOPBACK = "loop://"
 
 
 async def _handle_serial_channel(
@@ -598,31 +922,43 @@ async def _handle_serial_channel(
     cid = str(frame.get("cid") or "")
     csecret = str(frame.get("csecret") or "")
     params = frame.get("params") or {}
-    com = str(params.get("com") or "")
-    baud = int(params.get("baud") or 115200)
-    if not com:
-        _log.warning("serial channel %s: no COM specified", cid[:8])
-        await _report_channel_error(ws, cid, "no COM port specified in open_channel params")
+    com = str(params["com"])
+    baud = int(params["baud"])  # a positive JSON integer: _open_channel_problem checked
+    # The request is checked before the host is (sequences.md §5): a port URL
+    # is refused the same way whether or not pyserial is installed.
+    if "://" in com and com != _SERIAL_LOOPBACK:
+        # pyserial reads `socket://host:port`, `rfc2217://…` as ports: opening
+        # one would make this host connect wherever the hub says — the very
+        # thing the tcp allowlist exists to prevent.
+        _log.warning("serial channel %s: refused port URL %r", cid[:8], com)
+        await _report_channel_error(
+            ws, cid, "BENCH_PARAM_REJECTED", f"port {com!r} is a URL; only {_SERIAL_LOOPBACK} is"
+        )
         return
     try:
         import serial  # pyserial
     except ImportError:
         _log.error("pyserial not installed; cannot open serial channel (pip install pyserial)")
-        await _report_channel_error(ws, cid, "pyserial not installed on the agent host")
+        await _report_channel_error(
+            ws, cid, "SYSTEM_DEPENDENCY_MISSING", "pyserial not installed on the agent host"
+        )
         return
 
     try:
         # write_timeout: a write stuck on flow control would otherwise block
         # its worker thread FOREVER — and on Windows the executor join at
         # shutdown can't be interrupted, leaving the console unkillable.
-        ser = serial.Serial(com, baud, timeout=0.05, write_timeout=2)
+        # serial_for_url reads a plain port name exactly as Serial() does.
+        ser = serial.serial_for_url(com, baud, timeout=0.05, write_timeout=2)
     except Exception as e:
         # The COM port is EXCLUSIVE. The hub now shares one channel across all
         # its readers, so a failure here means some OTHER program on this host
         # holds the port (a terminal emulator, a vendor flashing tool) — the
         # operator needs to see WHICH, so send the OS message through.
         _log.warning("serial channel %s: cannot open %s @ %s: %s", cid[:8], com, baud, e)
-        await _report_channel_error(ws, cid, f"cannot open {com} @ {baud}: {e}")
+        await _report_channel_error(
+            ws, cid, _serial_open_code(e), f"cannot open {com} @ {baud}: {e}"
+        )
         return
     _log.info(
         "serial channel %s: opened %s @ %s",
@@ -634,16 +970,35 @@ async def _handle_serial_channel(
 
     url = _channel_url(hub_url, cid)
     headers = _channel_headers(token, csecret)
+    data_ws: Any = None
     try:
         async with ws_connect(url, max_size=None, additional_headers=headers) as data_ws:
             _STATUS.channel_opened(cid, "serial", f"{com} @ {baud}")
             await _bridge_serial(ser, data_ws)
+        if _dial_back_refused(data_ws):
+            await _report_dial_back(ws, cid, "the hub refused it (1008)")
     except Exception as e:
-        _log.warning("serial channel %s ended: %s", cid[:8], e)
+        if data_ws is None:
+            await _report_dial_back(ws, cid, f"{type(e).__name__}: {e}")
+        else:
+            _log.warning("serial channel %s ended: %s", cid[:8], e)
     finally:
         _STATUS.channel_closed(cid)
         with contextlib.suppress(Exception):
             ser.close()
+
+
+def _serial_open_code(e: BaseException) -> str:
+    """SERIAL_PORT_NOT_FOUND when the port does not exist, else
+    SERIAL_PORT_BUSY (held by another program, no permission) — the one code
+    the hub retries (sequences.md §6). pyserial wraps the OS error in a
+    SerialException whose text names it."""
+    text = f"{type(e).__name__} {e}"
+    if isinstance(e, FileNotFoundError) or getattr(e, "errno", None) == errno.ENOENT or any(
+        mark in text for mark in ("FileNotFoundError", "No such file", "cannot find the file")
+    ):
+        return "SERIAL_PORT_NOT_FOUND"
+    return "SERIAL_PORT_BUSY"
 
 
 async def _bridge_serial(ser: Any, data_ws: Any) -> None:
@@ -664,8 +1019,8 @@ async def _bridge_serial(ser: Any, data_ws: Any) -> None:
     async def ws_to_com() -> None:
         try:
             async for message in data_ws:
-                if isinstance(message, str):
-                    message = message.encode("utf-8", errors="replace")
+                if isinstance(message, str) or not message:
+                    return  # the end of the data connection (framing.md §5)
                 await asyncio.to_thread(ser.write, message)
         except Exception:
             return
@@ -695,8 +1050,8 @@ async def _bridge(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, da
     async def ws_to_local() -> None:
         try:
             async for message in data_ws:
-                if isinstance(message, str):
-                    message = message.encode("utf-8", errors="replace")
+                if isinstance(message, str) or not message:
+                    return  # the end of the data connection (framing.md §5)
                 writer.write(message)
                 await writer.drain()
         except Exception:
@@ -760,6 +1115,11 @@ class _JobProtocolError(Exception):
 
 
 def _job_encode(kind: bytes, payload: bytes) -> bytes:
+    # The sender checks the cap too (framing.md §3.2): the hub refuses a
+    # bigger frame, and the job would end in "unexpected frame" instead of
+    # in what this side meant to say.
+    if len(payload) > _JOB_MAX_FRAME:
+        raise ValueError(f"job frame of {len(payload)} bytes is over the {_JOB_MAX_FRAME} cap")
     return _JOB_HEADER.pack(kind, len(payload)) + payload
 
 
@@ -803,9 +1163,9 @@ class _JobReader:
     async def _fill(self, n: int, *, allow_eof: bool) -> bytearray | None:
         while len(self._buf) < n:
             chunk = await self._ws.recv()
-            if isinstance(chunk, str):
-                chunk = chunk.encode()
-            if not chunk:
+            # A text or empty message is the end of the data connection
+            # (framing.md §5), however much of a frame has arrived.
+            if isinstance(chunk, str) or not chunk:
                 if allow_eof and not self._buf:
                     return None
                 raise _JobProtocolError(f"channel closed mid-frame ({len(self._buf)} of {n} bytes)")
@@ -858,8 +1218,8 @@ def _tool_problem_note() -> str:
 def _resolve_fastboot(configured: str) -> str:
     """Where this host's fastboot lives. Explicit config first, then PATH.
 
-    Returns "" when there is none — which becomes a missing `fastboot`
-    capability at hello time, so the hub can tell a caller "this bench
+    Returns "" when there is none — which leaves the fastboot rows out of
+    hello's op table, so the hub can tell a caller "this bench
     cannot flash" instead of letting it discover that by timing out
     (ADR-056 §决定 7)."""
     configured = (configured or "").strip()
@@ -881,7 +1241,7 @@ def _fastboot_path() -> str:
 # (`partition-size:cfg`、`has-slot:boot`),而分区名里冒号是非法的。
 # 放宽的只有冒号这一项 —— 仍然禁开头的 `-`(会被当成 flag)、禁空白(会拆成
 # 两个 argv 元素)、禁路径分隔符,并限长。空字符串是合法输入,代表 `getvar all`。
-_GETVAR_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}\Z")
+_GETVAR_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")
 
 
 def _getvar_allowed(name: str) -> bool:
@@ -891,7 +1251,7 @@ def _getvar_allowed(name: str) -> bool:
     hub 侧无从知道哪些合法,写死一份反而会把这台设备真有的变量挡在外面 ——
     那正是 web 分区下拉写死四个名字的同一个错。形状对了就放行,答不答由设备说。
     """
-    return name == "" or bool(_GETVAR_RE.match(name))
+    return name == "" or bool(_GETVAR_RE.fullmatch(name))
 
 
 # `oem` 命令只查形状,不设白名单(2026-11-05 起)。
@@ -936,7 +1296,7 @@ def _partition_refusal(name: str, board: Any = None) -> tuple[str, str] | None:
     "" means the parameter's own rejection code. `board` is no longer
     consulted for names (ADR-070); who the board is, is checked by
     _check_board_identity."""
-    if not _PARTITION_RE.match(name):
+    if len(name) > _PARTITION_MAX_LEN or not _rule_fullmatch(_PARTITION_PATTERN, name):
         return "", ""
     return None
 
@@ -1015,6 +1375,13 @@ class ParamSpec:
             raise ValueError(f"param {self.name}: int without min/max")
         if self.kind == "text" and (not self.pattern or self.max_len <= 0):
             raise ValueError(f"param {self.name}: text without pattern/max_len")
+        if self.kind == "text" and _rule_problem(self.pattern):
+            # The rule rides the wire and the hub runs it too, in another
+            # language one day: the portable subset only (framing.md §7).
+            raise ValueError(
+                f"param {self.name}: pattern outside the portable subset: "
+                f"{_rule_problem(self.pattern)}"
+            )
         if self.kind == "argv" and (self.max_items <= 0 or self.max_len <= 0):
             raise ValueError(f"param {self.name}: argv without max_items/max_len")
 
@@ -1034,6 +1401,10 @@ class ParamSpec:
         elif self.kind == "text":
             d["pattern"] = self.pattern
             d["max_len"] = self.max_len
+        elif self.kind == "partition":
+            # The partition rule rides the wire with the parameter (v2).
+            d["pattern"] = _PARTITION_PATTERN
+            d["max_len"] = _PARTITION_MAX_LEN
         elif self.kind == "argv":
             d["max_items"] = self.max_items
             d["max_len"] = self.max_len
@@ -1082,7 +1453,7 @@ class ParamSpec:
         if (
             not isinstance(raw, str)
             or len(raw) > self.max_len
-            or not re.fullmatch(self.pattern, raw)
+            or not _rule_fullmatch(self.pattern, raw)
         ):
             raise _JobRejected(self.code, f"{what} {raw!r} rejected")
         return raw
@@ -1189,8 +1560,7 @@ class OpSpec:
 
     def resolve(self, req: Mapping[str, Any]) -> dict[str, Any]:
         """Every param validated from the request. Keys the table does not
-        name are ignored: they cannot reach argv, so there is nothing to
-        refuse — and `op` / `size` / `sha256` ride the same frame."""
+        name are refused before this (_request_stray_keys)."""
         return {p.name: p.resolve(req) for p in self.params}
 
     def assemble(self, values: Mapping[str, Any], image: str = "") -> list[str]:
@@ -3174,16 +3544,12 @@ async def _handle_job_channel(
     cid = str(frame.get("cid") or "")
     csecret = str(frame.get("csecret") or "")
     params = frame.get("params") or {}
-    # The op hint lets this side refuse BEFORE dialling back — the caller
-    # is holding a device it thinks is about to be written — and decide
-    # whether the job needs the lock at all. No hint = an older hub: treat
-    # the job as an exclusive fastboot job, as before.
-    hint = params.get("op")
-    hint = None if hint is None else str(hint)
-    spec = _OPS.get(hint) if hint is not None else None
-    if hint is None:
-        wants_fastboot, exclusive = True, True
-    elif spec is None:
+    # The op lets this side refuse BEFORE dialling back — the caller is
+    # holding a device it thinks is about to be written — and decide whether
+    # the job needs the lock at all.
+    hint = str(params["op"])  # required: _open_channel_problem checked
+    spec = _OPS.get(hint)
+    if spec is None:
         # Not in the table: dial back so the answer is a structured
         # BENCH_OP_UNKNOWN — unless it is a fastboot op this host lacks the
         # tool for, which is a different, more useful answer.
@@ -3191,7 +3557,9 @@ async def _handle_job_channel(
     else:
         wants_fastboot, exclusive = spec.group == "fastboot", spec.exclusive
     if wants_fastboot and not _fastboot_path():
-        await _report_channel_error(ws, cid, "no fastboot executable on this agent host")
+        await _report_channel_error(
+            ws, cid, "FASTBOOT_UNAVAILABLE", "no fastboot executable on this agent host"
+        )
         return
     url = _channel_url(hub_url, cid)
     headers = _channel_headers(token, csecret)
@@ -3202,7 +3570,9 @@ async def _handle_job_channel(
         # "rejected at once", never "queued". An unlocked asyncio.Lock is
         # acquired without suspending.
         if _job_lock.locked():
-            await _report_channel_error(ws, cid, "another flash job is already running")
+            await _report_channel_error(
+                ws, cid, "FASTBOOT_BUSY", "another flash job is already running"
+            )
             return
         await _job_lock.acquire()
     held = exclusive
@@ -3216,12 +3586,20 @@ async def _handle_job_channel(
     # Normally released by _job_reported() as `done` goes out; the finally
     # below covers a job that ended without one.
     reset = _job_release.set(release)
+    data_ws: Any = None
     try:
         async with ws_connect(url, max_size=None, additional_headers=headers) as data_ws:
-            _STATUS.channel_opened(cid, "job", hint or "fastboot")
+            _STATUS.channel_opened(cid, "job", hint)
             await _run_job(data_ws, _OPS, hint=hint)
+        if _dial_back_refused(data_ws):
+            await _report_dial_back(ws, cid, "the hub refused it (1008)")
     except Exception as e:
-        _log.warning("job channel %s ended: %s", cid[:8], e)
+        if data_ws is None:
+            await _report_dial_back(ws, cid, f"{type(e).__name__}: {e}")
+        elif _dial_back_refused(data_ws):
+            await _report_dial_back(ws, cid, "the hub refused it (1008)")
+        else:
+            _log.warning("job channel %s ended: %s", cid[:8], e)
     finally:
         _job_release.reset(reset)
         release()
@@ -3235,7 +3613,7 @@ async def _run_job(data_ws: Any, ops: Mapping[str, OpSpec], *, hint: str | None 
     try:
         req = await reader.read_control()
     except (_JobProtocolError, ValueError) as e:
-        await _job_fail(data_ws, f"bad opening frame: {e}", code="")
+        await _job_fail(data_ws, f"bad opening frame: {e}", code="BENCH_PARAM_REJECTED")
         return
     if req is None:
         return
@@ -3283,6 +3661,17 @@ async def _run_job(data_ws: Any, ops: Mapping[str, OpSpec], *, hint: str | None 
 async def _dispatch(data_ws: Any, reader: _JobReader, spec: OpSpec, req: Mapping[str, Any]) -> None:
     """Validate, check the precondition, run. Raises _JobRejected for a
     refusal that `_run_job` turns into a structured `done` frame."""
+    stray = _request_stray_keys(spec, req)
+    if stray:
+        # Refused, not ignored (sequences.md §7): a misspelt optional
+        # parameter would otherwise run the op with its default.
+        known = ", ".join(p.name for p in spec.params) or "none"
+        await _job_fail(
+            data_ws,
+            f"{spec.name} has no parameter {', '.join(stray)} (parameters: {known})",
+            code="BENCH_PARAM_REJECTED",
+        )
+        return
     try:
         values = spec.resolve(req)
     except _JobRejected as e:
@@ -3317,6 +3706,19 @@ async def _dispatch(data_ws: Any, reader: _JobReader, spec: OpSpec, req: Mapping
     await _finish_tool(data_ws, spec, rc, out, err)
 
 
+# Request keys that are not parameters: the op, the image's size and digest
+# (image ops), and the board the hub has chosen.
+_REQUEST_KEYS = frozenset({"op", "board"})
+_IMAGE_REQUEST_KEYS = frozenset({"size", "sha256"})
+
+
+def _request_stray_keys(spec: OpSpec, req: Mapping[str, Any]) -> list[str]:
+    allowed = _REQUEST_KEYS | {p.name for p in spec.params}
+    if spec.image:
+        allowed |= _IMAGE_REQUEST_KEYS
+    return sorted(str(k) for k in req if k not in allowed)
+
+
 async def _finish_tool(data_ws: Any, spec: OpSpec, rc: int, out: str, err: str) -> None:
     if spec.verdict is None:
         await _job_finish(data_ws, rc, out, err, fail_code="FLASH_FAILED")
@@ -3340,8 +3742,9 @@ async def _job_fail(
         "rc": rc,
         "stdout": stdout[-_JOB_OUTPUT_CAP:],
         "stderr": "",
-        "error": error,
-        "code": code,
+        "error": error[:_ERROR_TEXT_CAP],
+        # A failure always names its code (sequences.md §7).
+        "code": code or "FLASH_FAILED",
     }
     # Only a failed vendor tool has one (ADR-068): who judged it a failure,
     # the highlight lines, the files it wrote. Every other refusal's frame
@@ -3508,16 +3911,23 @@ async def _run_image_op(
     """The ONE receive path for every image op (flash, boot): refuse what can
     be refused before a byte crosses the tunnel, receive into a temp file
     this agent chose, verify size and digest, and only then run the tool."""
-    try:
-        size = int(req.get("size") or 0)
-    except (TypeError, ValueError):
-        size = 0
-    want_digest = str(req.get("sha256") or "").lower()
+    size = req.get("size")
+    want_digest = req.get("sha256")
     fastboot = spec.argv[0] if spec.argv else _fastboot_path()
 
-    if size <= 0:
+    if (
+        not isinstance(size, int)
+        or isinstance(size, bool)
+        or size <= 0
+        or not isinstance(want_digest, str)
+        or not _SHA256_RE.fullmatch(want_digest)
+    ):
+        # The request itself is malformed (job-request.json): a size that is
+        # a positive JSON integer and a lowercase sha256 travel together.
         await _job_fail(
-            data_ws, f"image size {req.get('size')!r} out of range", code="FLASH_IMAGE_CORRUPT"
+            data_ws,
+            f"image size {size!r} / sha256 {str(want_digest)[:70]!r} malformed",
+            code="BENCH_PARAM_REJECTED",
         )
         return
     free = await _tmp_free_bytes()
@@ -3572,7 +3982,11 @@ async def _run_image_op(
                     return
                 kind, payload = frame
                 if kind != _JOB_KIND_DATA:
-                    await _job_fail(data_ws, "expected image data, got a control frame", code="")
+                    await _job_fail(
+                        data_ws,
+                        "expected image data, got a control frame",
+                        code="BENCH_PARAM_REJECTED",
+                    )
                     return
                 if not payload:
                     break
@@ -3622,6 +4036,9 @@ async def _run_image_op(
             await asyncio.to_thread(tmp_img.unlink, missing_ok=True)
         with contextlib.suppress(Exception):
             await asyncio.to_thread(tmp_dir.rmdir)
+
+
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 async def _tmp_free_bytes() -> int:
@@ -3707,8 +4124,10 @@ async def _job_finish(
         "rc": rc,
         "stdout": out[-_JOB_OUTPUT_CAP:],
         "stderr": err[-_JOB_OUTPUT_CAP:],
-        "error": "" if ok else (fail_error or err.strip() or out.strip() or "fastboot failed"),
-        "code": "" if ok else fail_code,
+        "error": ""
+        if ok
+        else (fail_error or err.strip() or out.strip() or "fastboot failed")[:_ERROR_TEXT_CAP],
+        "code": "" if ok else (fail_code or "FLASH_FAILED"),
     }
     # Only builtins have structured results; the frame of every other op
     # stays byte-for-byte what it was.
@@ -5103,7 +5522,7 @@ def _self_check_main(args: argparse.Namespace) -> int:
 async def _heartbeat(ws: Any) -> None:
     try:
         while not _shutdown.is_set():
-            await asyncio.sleep(HEARTBEAT_INTERVAL_S)
+            await asyncio.sleep(_HEARTBEAT_S)
             await ws.send(_frame("heartbeat"))
     except Exception:
         return
@@ -5196,7 +5615,7 @@ def _kill_adb_conflicts() -> list[str]:
     return killed
 
 
-async def _reply_adb_list(ws: Any) -> None:
+async def _reply_adb_list(ws: Any, re_id: int) -> None:
     devices = await _adb_devices()
     # empty list is the takeover's signature — surface the suspects so the
     # hub (and the local status page) can see WHY instead of just "no devices".
@@ -5204,10 +5623,10 @@ async def _reply_adb_list(ws: Any) -> None:
     _STATUS.set_adb_devices(devices)
     _STATUS.set_adb_conflicts(conflicts)
     with contextlib.suppress(Exception):
-        await ws.send(_frame("adb_list", devices=devices, conflicts=conflicts))
+        await ws.send(_frame("adb_list", re=re_id, devices=devices, conflicts=conflicts))
 
 
-async def _restart_adb_and_report(ws: Any, kill_conflicts: bool = False) -> None:
+async def _restart_adb_and_report(ws: Any, re_id: int, kill_conflicts: bool = False) -> None:
     """Restart the LOCAL adb server, then re-report devices. Runs here on the
     agent host by design — the hub must never kill an adb server remotely.
     Unsticks the common 'interface enumerated but adb server sees nothing'
@@ -5220,7 +5639,7 @@ async def _restart_adb_and_report(ws: Any, kill_conflicts: bool = False) -> None
         killed = await asyncio.to_thread(_kill_adb_conflicts)
         if killed:
             _log.info("terminated adb conflicts on hub request: %s", ", ".join(killed))
-    for args in (("adb", "kill-server"), ("adb", "start-server")):
+    for args in (_adb_argv("kill-server"), _adb_argv("start-server")):
         try:
             proc = await asyncio.create_subprocess_exec(
                 *args,
@@ -5233,7 +5652,7 @@ async def _restart_adb_and_report(ws: Any, kill_conflicts: bool = False) -> None
             break
     else:
         _log.info("local adb server restarted on hub request")
-    await _reply_adb_list(ws)
+    await _reply_adb_list(ws, re_id)
 
 
 def _enumerate_com() -> list[dict[str, str]]:
@@ -5244,11 +5663,11 @@ def _enumerate_com() -> list[dict[str, str]]:
     return [{"port": p.device, "desc": (p.description or "")} for p in list_ports.comports()]
 
 
-async def _reply_com_list(ws: Any) -> None:
+async def _reply_com_list(ws: Any, re_id: int) -> None:
     ports = await asyncio.to_thread(_enumerate_com)
     _STATUS.set_com_ports(ports)
     with contextlib.suppress(Exception):
-        await ws.send(_frame("com_list", ports=ports))
+        await ws.send(_frame("com_list", re=re_id, ports=ports))
 
 
 async def _close_on_shutdown(ws: Any) -> None:
@@ -5266,26 +5685,139 @@ async def _close_on_shutdown(ws: Any) -> None:
         await ws.close()
 
 
+class _Refusal(Exception):
+    """An incoming signaling frame this bench will not act on: answered with
+    an error frame carrying `code` (framing.md §2)."""
+
+    def __init__(self, code: str, message: str, re_id: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.re_id = re_id
+
+
+def _msg_id(obj: Mapping[str, Any]) -> int | None:
+    value = obj.get("id")
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+# What the hub may send once the session is up. Any other verb — unknown, or
+# one that only travels bench -> hub, or hello_ok (the handshake's alone) —
+# is UNKNOWN_VERB (framing.md §2).
+_SESSION_VERBS = frozenset({"list_adb", "list_com", "restart_adb", "open_channel", "error"})
+
+
+def _parse_hub_frame(raw: str | bytes) -> dict[str, Any]:
+    """One signaling message from the hub, checked (framing.md §2). Raises
+    _Refusal(BAD_FRAME / UNKNOWN_VERB). An open_channel whose cid is readable
+    passes: its other defects are answered on the channel."""
+    if not isinstance(raw, str):
+        raise _Refusal(BAD_FRAME, "binary message on the signaling connection")
+    try:
+        frame = json.loads(raw)
+    except ValueError as e:
+        raise _Refusal(BAD_FRAME, f"not valid JSON: {e}") from None
+    if not isinstance(frame, dict):
+        raise _Refusal(BAD_FRAME, "a control frame must be a JSON object")
+    re_id = _msg_id(frame)
+    verb = frame.get("verb")
+    if not isinstance(verb, str):
+        raise _Refusal(BAD_FRAME, "missing 'verb'", re_id)
+    if verb not in _SESSION_VERBS:
+        raise _Refusal(UNKNOWN_VERB, f"unknown verb {verb[:64]!r}", re_id)
+    if verb in ("list_adb", "list_com", "restart_adb") and re_id is None:
+        raise _Refusal(BAD_FRAME, f"{verb}: 'id' must be an integer >= 0")
+    if verb == "restart_adb" and not isinstance(frame.get("kill_conflicts"), bool):
+        raise _Refusal(BAD_FRAME, "restart_adb: 'kill_conflicts' must be true or false", re_id)
+    if verb == "open_channel":
+        cid = frame.get("cid")
+        if not isinstance(cid, str) or not _CID_RE.fullmatch(cid):
+            raise _Refusal(BAD_FRAME, "open_channel: 'cid' missing or malformed", re_id)
+    return frame
+
+
+def _error_frame_ok(frame: Mapping[str, Any]) -> bool:
+    code, message = frame.get("code"), frame.get("message")
+    return isinstance(code, str) and bool(code) and isinstance(message, str)
+
+
+def _refusal_text(frame: Mapping[str, Any]) -> str:
+    """Why the hub refused this bench, worded for whoever has to fix it —
+    which side needs upgrading, for a version refusal (sequences.md §2)."""
+    code = str(frame.get("code") or "?")
+    message = str(frame.get("message") or "")[:300]
+    if code != PROTO_VERSION_UNSUPPORTED:
+        return f"hub refused the handshake: {code}: {message}"
+    raw = frame.get("supported")
+    sup: Mapping[str, Any] = raw if isinstance(raw, dict) else {}
+    lo, hi = sup.get("min"), sup.get("max")
+    if isinstance(hi, int) and hi < PROTO_MIN:
+        who = "the hub is older than this bench program — upgrade the hub"
+    elif isinstance(lo, int) and lo > PROTO_MAX:
+        who = "the hub is newer than this bench program — upgrade the bench program"
+    else:
+        who = "the two cannot agree on a version"
+    return f"hub speaks protocol {lo}..{hi}, this bench {PROTO_MIN}..{PROTO_MAX}: {who}"
+
+
+async def _handshake(ws: Any, args: argparse.Namespace) -> int:
+    """Send hello, wait for the answer (sequences.md §2). Returns the
+    negotiated version. Raises _HandshakeRejected for every answer that a
+    reconnect would only repeat, TimeoutError when there is none."""
+    try:
+        # The hub may already have closed (a refused token is closed before
+        # any frame is read), so the send can fail the same way as the recv.
+        await ws.send(_hello(args.agent_id, args.name))
+        reply = await asyncio.wait_for(ws.recv(), HELLO_TIMEOUT_S)
+    except websockets.exceptions.ConnectionClosed as e:
+        code = e.rcvd.code if e.rcvd is not None else None
+        if code == 1008:
+            raise _HandshakeRejected("hub refused the token (close code 1008)") from e
+        if code == 1002:
+            raise _HandshakeRejected("hub refused the hello (close code 1002)") from e
+        raise
+    try:
+        msg = json.loads(reply) if isinstance(reply, str) else None
+    except ValueError:
+        msg = None
+    if not isinstance(msg, dict):
+        raise _HandshakeRejected(f"unexpected handshake reply: {str(reply)[:200]!r}")
+    if msg.get("verb") == "error":
+        raise _HandshakeRejected(_refusal_text(msg))
+    proto = msg.get("proto")
+    if msg.get("verb") != "hello_ok" or not isinstance(proto, int) or isinstance(proto, bool):
+        raise _HandshakeRejected(f"unexpected handshake reply: {str(msg)[:200]}")
+    if not PROTO_MIN <= proto <= PROTO_MAX:
+        with contextlib.suppress(Exception):
+            await ws.close()
+        raise _HandshakeRejected(
+            f"hub chose protocol {proto}, outside this bench's {PROTO_MIN}..{PROTO_MAX}"
+        )
+    return proto
+
+
 async def _run_session(args: argparse.Namespace) -> None:
-    async with ws_connect(args.hub_url) as ws:
-        await ws.send(_hello(args.agent_id, args.name, args.token))
-        # expect hello_ok; a hub rejection (bad token / bad hello) closes the
-        # WS with a policy/protocol code instead of replying — treat that as
-        # fatal so a misconfigured agent doesn't reconnect forever.
+    headers = {TOKEN_HEADER: args.token} if args.token else {}
+    async with ws_connect(args.hub_url, additional_headers=headers) as ws:
+        # Watches for a stop request from the start: a stop that arrives
+        # while the hub has not answered the hello would otherwise wait out
+        # the whole hello timeout.
+        stopper = asyncio.create_task(_close_on_shutdown(ws))
         try:
-            reply = await ws.recv()
-        except websockets.exceptions.ConnectionClosed as e:
-            if getattr(e, "code", None) in (1002, 1008):
-                raise _HandshakeRejected(f"hub rejected handshake (code {e.code})") from e
+            proto = await _handshake(ws, args)
+        except BaseException:
+            stopper.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await stopper
             raise
-        msg = json.loads(reply) if isinstance(reply, str) else {}
-        if msg.get("verb") != "hello_ok":
-            raise _HandshakeRejected(f"unexpected handshake reply: {msg!r}")
         _log.info(
-            "connected to %s as %s (build %s)",
+            "connected to %s as %s (build %s) on protocol %s",
             args.hub_url,
             args.agent_id,
             _BUILD,
+            proto,
             extra={"dhands_where": "file"},
         )
         _STATUS.on_connected()
@@ -5294,7 +5826,6 @@ async def _run_session(args: argparse.Namespace) -> None:
         await asyncio.to_thread(_mark_connected)
 
         hb = asyncio.create_task(_heartbeat(ws))
-        stopper = asyncio.create_task(_close_on_shutdown(ws))
         channels: set[asyncio.Task[None]] = set()
 
         def _forget(task: asyncio.Task[None]) -> None:
@@ -5311,40 +5842,44 @@ async def _run_session(args: argparse.Namespace) -> None:
             if not task.cancelled():
                 task.exception()
 
+        def _spawn(coro: Coroutine[Any, Any, None]) -> None:
+            # Each request runs as its own task: subprocess and port
+            # enumeration must not block the reader loop (it would delay
+            # subsequent open_channel frames).
+            task = asyncio.create_task(coro)
+            channels.add(task)
+            task.add_done_callback(_forget)
+
         try:
             async for raw in ws:
-                if isinstance(raw, bytes):
-                    continue
                 try:
-                    frame = json.loads(raw)
-                except json.JSONDecodeError:
+                    frame = _parse_hub_frame(raw)
+                except _Refusal as e:
+                    # An error frame never lands here: _parse_hub_frame passes
+                    # every frame whose verb is "error", and the branch below
+                    # only logs it — errors are never answered (framing.md §2).
+                    _log.warning("hub frame refused: %s %s", e.code, e.message)
+                    with contextlib.suppress(Exception):
+                        await ws.send(_error(e.code, e.message, e.re_id))
                     continue
-                verb = frame.get("verb")
+                verb = frame["verb"]
                 if verb == "open_channel":
-                    task = asyncio.create_task(
-                        _handle_open_channel(args.hub_url, args.token, frame, ws)
-                    )
-                    channels.add(task)
-                    task.add_done_callback(_forget)
+                    _spawn(_handle_open_channel(args.hub_url, args.token, frame, ws))
                 elif verb == "list_adb":
-                    # subprocess enumeration must not block the reader loop
-                    # (it would delay subsequent open_channel frames) — run it
-                    # as its own task.
-                    task = asyncio.create_task(_reply_adb_list(ws))
-                    channels.add(task)
-                    task.add_done_callback(_forget)
+                    _spawn(_reply_adb_list(ws, frame["id"]))
                 elif verb == "restart_adb":
-                    task = asyncio.create_task(
-                        _restart_adb_and_report(ws, bool(frame.get("kill_conflicts")))
-                    )
-                    channels.add(task)
-                    task.add_done_callback(_forget)
+                    _spawn(_restart_adb_and_report(ws, frame["id"], frame["kill_conflicts"]))
                 elif verb == "list_com":
-                    # pyserial enumeration is sync → run as its own task so it
-                    # doesn't block the reader loop.
-                    task = asyncio.create_task(_reply_com_list(ws))
-                    channels.add(task)
-                    task.add_done_callback(_forget)
+                    _spawn(_reply_com_list(ws, frame["id"]))
+                elif verb == "error":
+                    if _error_frame_ok(frame):
+                        _log.warning(
+                            "hub answered a frame of ours with %s: %s",
+                            frame["code"],
+                            str(frame["message"])[:300],
+                        )
+                    else:
+                        _log.warning("hub sent a malformed error frame: %r", frame)
         finally:
             _STATUS.on_disconnected()
             hb.cancel()
@@ -5369,7 +5904,8 @@ async def _main_loop(args: argparse.Namespace) -> None:
             await _run_session(args)
             attempt = 0  # clean session end → reset backoff
         except _HandshakeRejected as e:
-            _log.error("%s — not retrying (check --token / hub version)", e)
+            _log.error("%s — not retrying", e)
+            _STATUS.on_disconnected(f"stopped: {e}")
             _console_title("STOPPED - the hub refused this agent", args.hub_url, args.name)
             return  # misconfig won't fix itself by reconnecting
         except (OSError, websockets.exceptions.WebSocketException, RuntimeError) as e:
@@ -5460,6 +5996,13 @@ def _port_number(value: str) -> int:
     return port
 
 
+def _positive_seconds(value: str) -> float:
+    seconds = float(value)  # ValueError propagates to the caller's error message
+    if not 0 < seconds <= 3600:
+        raise ValueError("seconds out of range (0, 3600]")
+    return seconds
+
+
 # key → converter. argparse `type=` does NOT run on defaults injected via
 # set_defaults(), so non-string values must be converted here.
 _CONFIG_KEYS: dict[str, Any] = {
@@ -5470,6 +6013,9 @@ _CONFIG_KEYS: dict[str, Any] = {
     "status_port": _port_number,
     "status_host": str,
     "log_file": str,
+    "adb_path": str,
+    "adb_port": _port_number,
+    "heartbeat_s": _positive_seconds,
     # ADR-056 flashing. Keys here MUST stay in lockstep with the argparse
     # options in _parse_args — an unknown key is a hard error by design, so a
     # flag that exists only on the command line reads to the operator as
@@ -5587,7 +6133,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"config file (default: {DEFAULT_CONFIG_NAME} next to this script)",
     )
     ap.add_argument(
-        "--hub-url", default=None, help="wss://<hub>/agent/connect (or hub_url in bench.conf)"
+        "--hub-url", default=None, help="wss://<hub>/bench/connect (or hub_url in bench.conf)"
     )
     ap.add_argument(
         "--token", default=None, help="agent auth token (matches DHANDS_AGENT_TOKEN on the hub)"
@@ -5612,11 +6158,30 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         " resolved next to this script; 'none' disables)",
     )
     ap.add_argument(
+        "--adb-path",
+        default=None,
+        help="adb executable (or adb_path in bench.conf); defaults to adb on PATH",
+    )
+    ap.add_argument(
+        "--adb-port",
+        type=_port_number,
+        default=None,
+        help=f"port of this host's adb server (or adb_port in bench.conf; default "
+        f"{DEFAULT_ADB_PORT})",
+    )
+    ap.add_argument(
+        "--heartbeat-s",
+        type=_positive_seconds,
+        default=None,
+        help=f"heartbeat interval in seconds (or heartbeat_s in bench.conf; default "
+        f"{HEARTBEAT_INTERVAL_S:.0f}). For tests; a real bench keeps the default",
+    )
+    ap.add_argument(
         "--fastboot-path",
         default=None,
         help="fastboot executable (or fastboot_path in bench.conf); "
-        "defaults to whatever is on PATH. Absent = this agent reports no "
-        "fastboot capability and the hub says so immediately",
+        "defaults to whatever is on PATH. Absent = this agent offers no "
+        "fastboot ops and the hub says so immediately",
     )
     ap.add_argument(
         "--flash-partitions",
@@ -6050,6 +6615,15 @@ def _log_environment(args: argparse.Namespace) -> None:
     web_ui = _web_ui_url(args.hub_url)
     if web_ui:
         _log.info("hub web console: %s", web_ui, extra=detail)
+    hub_path = urlsplit(args.hub_url).path
+    if hub_path != CONNECT_PATH:
+        # The hub serves its benches at this one path; a URL copied from an
+        # older setup (/agent/connect) would only show as endless reconnects.
+        _log.warning(
+            "hub_url path is %r, the hub listens on %r — check hub_url in bench.conf",
+            hub_path,
+            CONNECT_PATH,
+        )
     # Say it at startup, not at the first failed flash: "no fastboot here" is
     # a five-minute fix on this host and an hour of confusion from the hub.
     if _fastboot_path():
@@ -6063,8 +6637,8 @@ def _log_environment(args: argparse.Namespace) -> None:
             _log.info("board %s: product %s", board, row["product"], extra=detail)
     else:
         _log.info(
-            "fastboot: not found — this agent will NOT advertise the fastboot "
-            "capability (set fastboot_path in bench.conf to enable flashing)",
+            "fastboot: not found — this agent will NOT offer the fastboot ops "
+            "(set fastboot_path in bench.conf to enable flashing)",
             extra=detail,
         )
     if _EDL is not None:
@@ -6105,13 +6679,24 @@ def _partition_set(raw: str) -> frozenset[str]:
     return frozenset(p.strip() for p in raw.split(",") if p.strip())
 
 
+def _apply_host_config(args: argparse.Namespace) -> None:
+    """adb executable and port, heartbeat interval: plain values, no checks
+    beyond the converters'."""
+    global _ADB_PATH, _ADB_PORT, _HEARTBEAT_S
+    _ADB_PATH = getattr(args, "adb_path", None) or "adb"
+    port = getattr(args, "adb_port", None)
+    _ADB_PORT = DEFAULT_ADB_PORT if port is None else int(port)
+    beat = getattr(args, "heartbeat_s", None)
+    _HEARTBEAT_S = HEARTBEAT_INTERVAL_S if beat is None else float(beat)
+
+
 def _apply_flash_config(args: argparse.Namespace) -> None:
     """Resolve the flash settings and build the op table once, before
     anything can use them.
 
     Runs before the first `hello`, because the resolved path is what decides
-    whether this agent claims the `fastboot` capability at all — and which
-    rows the hello's op table carries."""
+    whether this agent offers the fastboot ops at all — which rows the
+    hello's op table carries."""
     global _FASTBOOT_PATH, _FLASH_PARTITIONS, _BOARD_PARTITIONS, _BOARD_PRODUCT, _OPS
     global _EDL, _EDL_PROBLEM, _TOOLS, _TOOL_PROBLEMS
     _FASTBOOT_PATH = _resolve_fastboot(getattr(args, "fastboot_path", None) or "")
@@ -6167,6 +6752,7 @@ def main() -> None:
     _CONFIG_EXPLICIT = args.config_explicit
     _IDENTITY_STABLE = args.agent_id_explicit
     _AGENT_ID = args.agent_id
+    _apply_host_config(args)
     # Before the previous instance is stopped: a flash setting this build
     # refuses must leave the running agent in place, not the bench without one.
     _apply_flash_config(args)

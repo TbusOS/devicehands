@@ -19,6 +19,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -44,74 +45,89 @@ async def _noop(_m):  # pragma: no cover - registry needs a send callable
 
 
 def _conn(**kw) -> AgentConnection:
-    defaults = dict(
-        agent_id="a",
-        name="bench",
-        version=1,
-        caps=["adb", "fastboot"],
-        send_control=_noop,
-        registry=AgentRegistry(),
-    )
+    defaults = dict(agent_id="a", name="bench", send_control=_noop, registry=AgentRegistry())
     defaults.update(kw)
     return AgentConnection(**defaults)  # type: ignore[arg-type]
 
 
-# ── the agent side: the allowlist must leave the machine that owns it ──
+def _bench(partitions: list[str]) -> SimpleNamespace:
+    """An agent object carrying a list, as the flash service reads one.
+    No v2 bench sends a list (the field left the hello with protocol v2);
+    what these pin is how the service and the web view carry whatever list
+    an agent object holds — empty included."""
+    return SimpleNamespace(
+        agent_id="a", name="bench", caps=["adb", "fastboot"], flash_partitions=partitions
+    )
+
+
+# ── the agent side: the rule must leave the machine that owns it ──
+# Protocol v2 (DESIGN.md 3.6 / 3.7): no list rides the hello; the partition
+# rule rides the wire as the flash op's parameter rule, which the hub and
+# the web page read from the op table.
+
+
+def _partition_rules(monkeypatch) -> list[dict]:
+    monkeypatch.setattr(agent_mod, "_OPS", agent_mod._build_ops("/opt/example/fastboot", {}))
+    hello = json.loads(agent_mod._hello("a", "n"))
+    assert "flash_partitions" not in hello
+    rules = [p for op in hello["ops"] for p in op["params"] if p["kind"] == "partition"]
+    assert rules, "no partition parameter in the table: these checks would be vacuous"
+    return rules
 
 
 def test_hello_reports_no_list_even_with_one_left_in_agent_conf(monkeypatch):
     """ADR-070: no list limits partition names any more, so none is offered
     — a picker built from a leftover line would hide partitions the agent
-    accepts."""
+    accepts. The rule on the wire is the shape rule, not the leftover list."""
     monkeypatch.setattr(agent_mod, "_FLASH_PARTITIONS", frozenset({"cfg", "boot"}))
-    hello = json.loads(agent_mod._hello("a", "n", None))
-    assert hello["flash_partitions"] == []
+    for rule in _partition_rules(monkeypatch):
+        assert rule["pattern"] == agent_mod._PARTITION_PATTERN
+        assert agent_mod._rule_fullmatch(rule["pattern"], "vendor_x")
 
 
-def test_hello_reports_empty_when_no_allowlist_is_configured(monkeypatch):
-    """Empty is a real answer ("any well-formed"), not a missing one — the
-    field must still be present so the hub can tell it from an old agent."""
+def test_every_partition_parameter_carries_the_rule(monkeypatch):
+    """The hub checks names before it opens a channel, with the rule the
+    bench sent: every partition parameter has one."""
     monkeypatch.setattr(agent_mod, "_FLASH_PARTITIONS", frozenset())
-    hello = json.loads(agent_mod._hello("a", "n", None))
-    assert hello["flash_partitions"] == []
+    for rule in _partition_rules(monkeypatch):
+        assert rule["pattern"] and rule["max_len"] >= 1
 
 
-def test_allowlist_and_hello_cannot_drift(monkeypatch):
+@pytest.mark.parametrize("name", ["cfg", "boot", "vendor_x", "boot_a", "-w", "a/b", "a b", ""])
+def test_allowlist_and_hello_cannot_drift(monkeypatch, name):
     """Whatever the agent advertises, it must actually accept — otherwise the
-    picker offers a name the very same process will refuse."""
+    picker offers a name the very same process will refuse — and what it
+    refuses, the advertised rule must refuse too."""
     monkeypatch.setattr(agent_mod, "_FLASH_PARTITIONS", frozenset({"cfg"}))
-    advertised = json.loads(agent_mod._hello("a", "n", None))["flash_partitions"]
-    assert advertised == [], "empty = any well-formed name"
-    for name in ("cfg", "boot", "vendor_x"):
-        assert agent_mod._partition_allowed(name), name
+    (rule, *_) = _partition_rules(monkeypatch)
+    advertised = len(name) <= rule["max_len"] and agent_mod._rule_fullmatch(rule["pattern"], name)
+    assert advertised == agent_mod._partition_allowed(name)
 
 
 # ── the hub side: carry it, don't invent it ────────────────────────
 
 
-def test_connection_keeps_the_allowlist():
-    assert _conn(flash_partitions=["cfg"]).flash_partitions == ["cfg"]
-
-
-def test_connection_defaults_to_empty_for_older_agents():
-    """An agent predating the field sends nothing. That must land as empty
-    (= unknown = fall back), never as a crash or a fabricated list."""
+def test_a_v2_connection_has_no_list() -> None:
+    """Protocol v2 carries no partition list: a connection's is always empty
+    (= any well-formed name), never a crash or a fabricated list."""
     assert _conn().flash_partitions == []
 
 
-def test_status_listing_exposes_it():
+def test_status_listing_still_has_the_key() -> None:
+    """The status page reads the key; it stays, empty."""
     reg = AgentRegistry()
-    conn = _conn(registry=reg, flash_partitions=["cfg"])
+    conn = _conn(registry=reg)
     reg._agents[conn.agent_id] = conn  # bypass the async register for a pure read
-    assert reg.list_agents()[0]["flash_partitions"] == ["cfg"]
+    assert reg.list_agents()[0]["flash_partitions"] == []
 
 
 def test_flash_view_reports_the_agents_list(monkeypatch):
     from devicehands.remote import forwarder
 
-    conn = _conn(flash_partitions=["cfg"])
+    conn = _bench(["cfg"])
     monkeypatch.setattr(
-        "devicehands.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: conn})()
+        "devicehands.remote.registry.get_agent_registry",
+        lambda: type("R", (), {"current_agent": lambda _s: conn})(),
     )
     view = forwarder._flash_view()
     assert view["partitions"] == ["cfg"]
@@ -122,7 +138,8 @@ def test_flash_view_with_no_agent_is_empty_not_a_crash(monkeypatch):
     from devicehands.remote import forwarder
 
     monkeypatch.setattr(
-        "devicehands.remote.registry.get_agent_registry", lambda: type("R", (), {"current_agent": lambda _s: None})()
+        "devicehands.remote.registry.get_agent_registry",
+        lambda: type("R", (), {"current_agent": lambda _s: None})(),
     )
     view = forwarder._flash_view()
     assert view["partitions"] == []
@@ -132,7 +149,7 @@ def test_flash_view_with_no_agent_is_empty_not_a_crash(monkeypatch):
 def test_service_status_carries_partitions():
     from devicehands.remote.flash import FlashService
 
-    conn = _conn(flash_partitions=["cfg", "boot"])
+    conn = _bench(["cfg", "boot"])
     svc = FlashService(lambda: conn)
     assert svc.status()["partitions"] == ["cfg", "boot"]
 
@@ -150,5 +167,5 @@ def test_status_always_has_the_key(advertised):
     that ambiguity is what a fallback rule cannot be written against."""
     from devicehands.remote.flash import FlashService
 
-    svc = FlashService(lambda: _conn(flash_partitions=advertised))
+    svc = FlashService(lambda: _bench(advertised))
     assert "partitions" in svc.status()

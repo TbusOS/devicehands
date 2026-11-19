@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/job-done.json",
+  "title": "job event: done",
+  "description": "Terminal frame of a job. The bench releases its job lock as soon as this frame is sent. May arrive before the hub has finished sending an image (a refusal). A failed done always names its error code; a request the bench will not act on is BENCH_PARAM_REJECTED.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "ev",
+    "ok",
+    "rc",
+    "stdout",
+    "stderr",
+    "error",
+    "code"
+  ],
+  "properties": {
+    "ev": {
+      "const": "done"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "rc": {
+      "description": "Tool exit code; -1 when the tool did not run or was killed.",
+      "type": "integer"
+    },
+    "stdout": {
+      "description": "Last 65536 characters of the tool's stdout.",
+      "type": "string",
+      "maxLength": 65536
+    },
+    "stderr": {
+      "description": "Last 65536 characters of the tool's stderr.",
+      "type": "string",
+      "maxLength": 65536
+    },
+    "error": {
+      "description": "Human-readable reason; empty when ok. At most 4096 characters, cut by the sender.",
+      "type": "string",
+      "maxLength": 4096
+    },
+    "code": {
+      "description": "Empty when ok, an error code otherwise.",
+      "type": "string"
+    },
+    "data": {
+      "description": "Structured result of builtin ops. Shape differs per op and is not described in v2.",
+      "type": "object"
+    }
+  },
+  "if": {
+    "required": [
+      "ok"
+    ],
+    "properties": {
+      "ok": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "code": {
+        "const": ""
+      },
+      "error": {
+        "const": ""
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "code": {
+        "$ref": "common.json#/$defs/errorCode"
+      }
+    }
+  }
+}

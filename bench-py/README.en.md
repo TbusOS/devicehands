@@ -45,13 +45,13 @@ tool's adb mid-flash would interrupt it.
 
 ```
 pip install -r requirements.txt
-python dhands_bench.py --hub-url wss://<hub>/agent/connect --token <token>
+python dhands_bench.py --hub-url wss://<hub>/bench/connect --token <token>
 ```
 
 Precedence: command line > `bench.conf` > built-in defaults.
 
 - `--config`  — config file path (default: `bench.conf` next to the script).
-- `--hub-url` — the hub's signaling endpoint (`/agent/connect`).
+- `--hub-url` — the hub's signaling endpoint (`/bench/connect`).
 - `--token`   — must match `DHANDS_AGENT_TOKEN` configured on the hub. Omit only
   for a fully local, no-auth dev setup.
 - `--name`    — a human-readable label shown in the hub's device list.
@@ -140,7 +140,7 @@ so a new op on the agent needs no hub code.
 | op | what | needs a device in fastboot |
 |---|---|---|
 | `devices` / `getvar` / `oem` / `reboot` / `flash` | the existing fastboot ops, unchanged | yes |
-| `erase` | `fastboot erase <partition>`; same allowlist as `flash` (`flash_partitions`) | yes |
+| `erase` | `fastboot erase <partition>`; the partition name is checked the same way as for `flash` | yes |
 | `set-active` | `fastboot set_active a` or `b` | yes |
 | `boot` | `fastboot boot <image>`: runs from RAM, writes no partition | yes |
 | `usb-list` | USB devices as Windows sees them: name, VID:PID, serial, driver, problem code, interface class ids — tells "cable not on this machine" from "driver missing" when `fastboot devices` is empty | no |
@@ -153,7 +153,7 @@ Two rules do not change:
 
 - The hub sends structured fields only — never a command line, never a
   path. argv is assembled here from a fixed template after every parameter
-  is validated (partition shape + allowlist, enum values matched exactly,
+  is validated (partition-name shape, enum values matched exactly,
   integers bounded).
 - `usb-list` and `log-tail` read this host only and never take the job
   lock, so they answer during a running flash. fastboot ops run one at a
@@ -163,32 +163,37 @@ Without a fastboot executable the table holds only `usb-list` / `log-tail` /
 `agent-update`, and the hub tells callers this bench cannot flash. The status
 page lists the table on its `ops` row.
 
-### Several boards on one cable: a list per board
+### Several boards on one PC: check which board it is before writing
 
-`flash_partitions` is one list for the whole agent. With boards swapped on
-the same USB cable it has to be the union, so a partition only one board
-has is accepted for the other. Give each board its own list instead
-(ADR-063 phase 2):
+There is no partition list (ADR-070, since 2026-11-12): which partitions a
+package writes, and which file goes to each, is the vendor's flash manifest's
+to say (`dhands flash plan --only`). The agent checks only the shape of a
+partition name; that rule travels in the op table as the parameter rule of
+`flash` / `erase`. Old `flash_partitions` / `flash_partitions.<board>` lines
+in `bench.conf` are still read, and the start-up log says they no longer have
+any effect.
+
+What needs guarding against is writing to the wrong board. Register the
+product each board reports in fastboot:
 
 ```
-flash_partitions.board-a=boot,dtbo,vendor_cfg
 fastboot_product.board-a=board_a_product
-flash_partitions.board-b=boot_a,boot_b
+fastboot_product.board-b=board_b_product
 ```
 
-Board names are the hub's board-table names (`dhands bench board`). With any
-per-board list set:
+Board names are the hub's board-table names (`dhands bench board`). Once any
+board is registered:
 
-- every job carries the board the hub has chosen, and the partition must be
-  on THAT board's list; no board chosen, or no list for it, and the job is
-  refused before the image is received (`FLASH_BOARD_NOT_LISTED`);
-- with `fastboot_product.<board>` set, a job that changes the device first
-  runs `fastboot getvar product` and is refused on a mismatch
-  (`FLASH_BOARD_MISMATCH`), nothing written. The board name says which list
-  applies; only this step says which board is on the cable;
-- the global `flash_partitions` must go, and a per-board list may not be
-  empty — either would widen the list, so the agent refuses to start, and
-  does so before stopping the instance already running.
+- every job carries the board the hub has chosen; no board chosen, or the
+  chosen board has no product registered, and the job is refused before the
+  image is received (`FLASH_BOARD_NOT_LISTED`). So **register every board** on
+  this PC.
+- a job that changes the device first runs `fastboot getvar product` and is
+  refused on a mismatch (`FLASH_BOARD_MISMATCH`), nothing written. The board
+  name says which board the hub chose; only this step says which board is on
+  the cable.
+- an agent with no board registered works as before: no check, and no board
+  needs to be chosen.
 
 ### Qualcomm 9008 (EDL)
 

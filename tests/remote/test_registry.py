@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
-import json
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-from devicehands.remote.protocol import ADB_TARGET, ChannelRole, ChannelType
+from devicehands.remote.bench_ops import OpSpec
+from devicehands.remote.protocol import ADB_TARGET, ChannelType
 from devicehands.remote.registry import (
     AgentConnection,
     AgentRegistry,
@@ -18,20 +15,6 @@ from devicehands.remote.registry import (
     get_agent_registry,
     reset_agent_registry,
 )
-
-_AGENT_PATH = Path(__file__).resolve().parents[2] / "bench-py" / "dhands_bench.py"
-
-
-def _load_agent():
-    spec = importlib.util.spec_from_file_location("dhands_bench_registry_under_test", _AGENT_PATH)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_agent = _load_agent()
 
 
 class _DummyChannel:
@@ -52,8 +35,6 @@ def _conn(reg: AgentRegistry, agent_id: str, send=None) -> AgentConnection:
     return AgentConnection(
         agent_id=agent_id,
         name=agent_id,
-        version=1,
-        caps=[],
         send_control=send or _noop,
         registry=reg,
     )
@@ -185,7 +166,6 @@ async def test_open_data_channel_registers_cid_before_signaling():
     conn = _conn(reg, "a", send=send_control)
     dc = await conn.open_data_channel(
         ctype=ChannelType.TCP,
-        role=ChannelRole.DAEMON,
         params={"target": ADB_TARGET},
         timeout=2.0,
     )
@@ -204,32 +184,109 @@ def test_singleton_reset():
 # ── device enumeration cache (P4-deferred → enumeration increment) ────
 
 
-@pytest.mark.parametrize("fastboot", [None, "fastboot"])
-async def test_request_device_list_asks_for_com_ports_with_the_shipped_agents_caps(
-    monkeypatch, fastboot
-):
-    # caps come from the shipped agent's own hello, not typed here: a typed
-    # ["adb", "serial"] is how this passed while every real bench reported
-    # no COM ports — the real agent has never sent `serial`.
-    monkeypatch.setattr(_agent, "_fastboot_path", lambda: fastboot)
-    caps = json.loads(_agent._hello("a", "n", None))["caps"]
+async def test_request_device_list_asks_for_both_lists_with_fresh_ids() -> None:
+    """COM ports are asked for unconditionally: nothing in the op table says
+    whether a bench has a serial port, and gating on a capability left
+    com_ports empty on every bench once."""
     reg = AgentRegistry()
-    sent: list[str] = []
+    sent: list[dict[str, Any]] = []
 
     async def send(m: dict[str, Any]) -> None:
-        sent.append(m["verb"])
+        sent.append(m)
 
-    conn = AgentConnection(
-        agent_id="a",
-        name="a",
-        version=1,
-        caps=caps,
-        send_control=send,
-        registry=reg,
-    )
+    conn = _conn(reg, "a", send=send)
     await conn.request_device_list()
-    assert sent.count("list_adb") == 1
-    assert sent.count("list_com") == 1
+    await conn.request_adb_restart(kill_conflicts=True)
+    assert [m["verb"] for m in sent] == ["list_adb", "list_com", "restart_adb"]
+    ids = [m["id"] for m in sent]
+    assert len(set(ids)) == 3 and ids == sorted(ids)
+
+
+async def test_replies_apply_by_request_id_and_never_go_backwards() -> None:
+    """sequences.md §4: a late answer to an older request must not
+    overwrite a newer one, and a reply to nothing we asked is dropped."""
+    reg = AgentRegistry()
+    sent: list[dict[str, Any]] = []
+
+    async def send(m: dict[str, Any]) -> None:
+        sent.append(m)
+
+    conn = _conn(reg, "a", send=send)
+    await conn.request_device_list()
+    await conn.request_device_list()
+    old_adb, _, new_adb, new_com = (m["id"] for m in sent)
+    newer = {"verb": "adb_list", "re": new_adb, "devices": ["new"], "conflicts": []}
+    older = {"verb": "adb_list", "re": old_adb, "devices": ["old"], "conflicts": []}
+    assert conn.apply_reply(newer) is True
+    assert conn.apply_reply(older) is False
+    assert conn.adb_devices == ["new"]
+    stray = {"verb": "adb_list", "re": 999, "devices": ["stray"], "conflicts": ["x pid=1"]}
+    assert conn.apply_reply(stray) is False
+    # an adb id answered as a com list is not a match either
+    assert conn.apply_reply({"verb": "com_list", "re": new_adb, "ports": []}) is False
+    ports = [{"port": "COM3", "desc": ""}]
+    assert conn.apply_reply({"verb": "com_list", "re": new_com, "ports": ports}) is True
+    assert conn.com_ports == ports
+    # each request is answered once
+    assert conn.apply_reply(newer) is False
+
+
+async def test_adb_list_conflicts_are_stored_and_cleared() -> None:
+    reg = AgentRegistry()
+    sent: list[dict[str, Any]] = []
+
+    async def send(m: dict[str, Any]) -> None:
+        sent.append(m)
+
+    conn = _conn(reg, "a", send=send)
+    await conn.request_device_list()
+    await conn.request_device_list()
+    first, second = sent[0]["id"], sent[2]["id"]
+    conn.apply_reply({"verb": "adb_list", "re": first, "devices": [], "conflicts": ["x_adb pid=9"]})
+    assert conn.adb_conflicts == ["x_adb pid=9"]
+    conn.apply_reply({"verb": "adb_list", "re": second, "devices": ["s1"], "conflicts": []})
+    assert conn.adb_conflicts == []
+
+
+def test_capabilities_follow_from_the_op_table() -> None:
+    reg = AgentRegistry()
+
+    async def _noop(_m: dict[str, Any]) -> None:
+        return None
+
+    def conn(ops: dict[str, OpSpec]) -> AgentConnection:
+        return AgentConnection(agent_id="a", name="a", send_control=_noop, registry=reg, ops=ops)
+
+    assert conn({}).caps == ["adb"]
+    host = {"usb-list": OpSpec("usb-list", group="host")}
+    assert conn(host).caps == ["adb"]
+    both = {**host, "devices": OpSpec("devices", group="fastboot")}
+    assert conn(both).caps == ["adb", "fastboot"]
+    assert conn(both).ops_reported is True
+    assert conn(both).flash_partitions == []
+
+
+async def test_channel_error_counts_only_from_the_owning_connection() -> None:
+    """sequences.md §5 rule 4 (v1: any connection could fail any cid)."""
+    reg = AgentRegistry()
+    owner, other = object(), object()
+    fut = reg.register_pending("cid1", "sec1", owner=owner)
+    assert reg.fail_pending("cid1", "x", code="SERIAL_PORT_BUSY", owner=other) is False
+    assert not fut.done()
+    assert reg.fail_pending("cid1", "busy", code="SERIAL_PORT_BUSY", owner=owner) is True
+    with pytest.raises(ChannelOpenError) as e:
+        fut.result()
+    assert e.value.code == "SERIAL_PORT_BUSY"
+
+
+async def test_a_gone_connection_fails_its_waiting_opens() -> None:
+    reg = AgentRegistry()
+    owner, other = object(), object()
+    mine = reg.register_pending("cid1", "s", owner=owner)
+    theirs = reg.register_pending("cid2", "s", owner=other)
+    assert reg.fail_owned(owner, "gone") == 1
+    assert isinstance(mine.exception(), ChannelOpenError)
+    assert not theirs.done()
 
 
 async def test_list_agents_includes_device_cache():

@@ -41,7 +41,7 @@ class _QuietWs:
         self.sent.append(data)
 
     async def recv(self) -> str:
-        return json.dumps({"v": 1, "verb": "hello_ok", "server_version": 1})
+        return json.dumps({"verb": "hello_ok", "proto": 2})
 
     async def close(self) -> None:
         self.closed.set()
@@ -68,7 +68,7 @@ def _dial(ws: _QuietWs):
 async def test_a_stop_request_ends_a_live_session(monkeypatch):
     ws = _QuietWs()
     monkeypatch.setattr(agent, "ws_connect", _dial(ws))
-    args = argparse.Namespace(hub_url="ws://hub/agent/connect", agent_id="a", name="n", token=None)
+    args = argparse.Namespace(hub_url="ws://hub/bench/connect", agent_id="a", name="n", token=None)
     agent._shutdown.clear()
     try:
         session = asyncio.create_task(agent._run_session(args))

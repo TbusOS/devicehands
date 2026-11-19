@@ -288,7 +288,7 @@ def test_agent_conf_keys_reach_the_table_and_hello(
 ) -> None:
     conf = tmp_path / "bench.conf"
     conf.write_text(
-        "hub_url=ws://h/agent/connect\n"
+        "hub_url=ws://h/bench/connect\n"
         f"edl_sahara={bench.exe['QSaharaServer']}\n"
         f"edl_firehose={bench.exe['fh_loader']}\n"
         f"edl_root={bench.root}\n",
@@ -306,7 +306,7 @@ def test_agent_conf_keys_reach_the_table_and_hello(
         monkeypatch.setattr(agent, name, getattr(agent, name))
     monkeypatch.setattr(agent, "_AGENT_LOG_PATH", None)
     agent._apply_flash_config(agent._parse_args(["--config", str(conf)]))
-    hello = json.loads(agent._hello("a", "n", None))
+    hello = json.loads(agent._hello("a", "n"))
     assert {"edl-sahara", "edl-program", "edl-reset"} <= {op["name"] for op in hello["ops"]}
     assert agent._EDL_PROBLEM == ""
 

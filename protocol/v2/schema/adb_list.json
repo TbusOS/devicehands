@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/adb_list.json",
+  "title": "adb_list",
+  "description": "adb devices seen on the bench host. The answer to list_adb or restart_adb whose id is re.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "verb",
+    "re",
+    "devices",
+    "conflicts"
+  ],
+  "properties": {
+    "verb": {
+      "const": "adb_list"
+    },
+    "re": {
+      "$ref": "common.json#/$defs/msgId"
+    },
+    "devices": {
+      "description": "adb serial numbers, as `adb devices` lists them.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conflicts": {
+      "description": "Processes that look like a foreign adb build ('<name> pid=<n>'). Filled only when devices is empty.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

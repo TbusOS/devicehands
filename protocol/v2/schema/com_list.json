@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/com_list.json",
+  "title": "com_list",
+  "description": "Serial ports seen on the bench host; the answer to the list_com whose id is re. Empty when the bench cannot enumerate ports.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "verb",
+    "re",
+    "ports"
+  ],
+  "properties": {
+    "verb": {
+      "const": "com_list"
+    },
+    "re": {
+      "$ref": "common.json#/$defs/msgId"
+    },
+    "ports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "port",
+          "desc"
+        ],
+        "properties": {
+          "port": {
+            "description": "Port name as the OS reports it, e.g. COM3 or /dev/ttyUSB0.",
+            "type": "string"
+          },
+          "desc": {
+            "description": "OS description of the port; may be empty.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

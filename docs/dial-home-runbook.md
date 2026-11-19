@@ -36,7 +36,7 @@ changes for remote vs local.
 ## What you need
 
 - **Linux hub**: DeviceHands installed (`dhands-hub`, `dhands`, `dhands-mcp` on PATH), reachable
-  from the Windows host at some `wss://<hub>/agent/connect` (terminate TLS at
+  from the Windows host at some `wss://<hub>/bench/connect` (terminate TLS at
   your reverse proxy, or use `ws://` only on a trusted LAN). The two machines
   need not share a subnet — see [5. Across networks](#5-across-networks).
 - **Windows host**: Python 3.11+, the device on USB (for adb) and/or a serial
@@ -127,7 +127,7 @@ Or by hand, flags overriding anything in `bench.conf`:
 
 ```
 pip install -r requirements.txt
-python dhands_bench.py --hub-url wss://<hub>/agent/connect --token s3cret-xyz --name bench-01
+python dhands_bench.py --hub-url wss://<hub>/bench/connect --token s3cret-xyz --name bench-01
 ```
 
 The agent auto-reconnects with backoff and serves a **local status page** on
@@ -171,14 +171,15 @@ Walk down the chain; each hop has an unambiguous "good" signal.
 |---|---|---|
 | status page shows **disconnected** + an error | agent → hub | read `last_error`: `1008` = bad token; connection refused / timeout = hub URL / TLS / firewall |
 | status page never loads | agent not running / port taken | is `dhands_bench.py` running? try `--status-port` |
-| `/agent/status` shows no agents | hub | agent didn't register — recheck token match + hub URL path is `/agent/connect` |
+| `/agent/status` shows no agents | hub | agent didn't register — recheck token match + hub URL path is `/bench/connect` |
+| status page keeps reconnecting, never **connected** | agent → hub | the path in `hub_url` is not `/bench/connect` — a URL copied from an older setup (`/agent/connect`) is not served by this hub and shows only as endless reconnects; the agent's start-up log warns about the path |
 | `forwarders.adb.bound: false` | hub | another program holds the forward port (default `8776`), e.g. a second hub — stop it or set `DHANDS_ADB_FORWARD_PORT` to a free port (the hub log prints the bind error). A local adb server is not the cause: it uses `5037` |
 | `dhands devices` empty but agent connected | Windows adb | `adb devices` on the Windows host — authorize the USB prompt; the agent only proxies what its local adb sees. A wedged enumeration can be kicked remotely: `curl -X POST http://<hub>:8775/api/agent/adb/restart` (the agent restarts its local adb server and re-reports) |
 | adb empty + `/agent/status` shows `adb_conflicts` | Windows adb takeover | a renamed vendor adb build holds the exclusive USB interface — `curl -X POST "http://<hub>:8775/api/agent/adb/restart?kill_conflicts=true"` terminates the suspects (agent-side heuristic) and restarts the server; expect it to recur whenever the vendor tool runs |
 | serial silent | hub COM / agent | `DHANDS_AGENT_SERIAL_COM` set on the **hub**? COM exists on the Windows host? right baud? |
 | `SERIAL_PORT_BUSY`, or the agent logs `cannot open COM…: Access is denied` | Windows host | some **other** program on the agent host holds the port (terminal emulator, vendor flashing tool) — close it. Concurrent dhands clients are not the cause: they share one channel, and `/agent/status` → `forwarders.serial.readers` shows how many are attached |
 | `serial shell` fails while a capture runs | — | fixed (issue #4). If it still happens, the hub is running a build older than the shared-channel fan-out — check `forwarders.serial.readers` exists in `/agent/status` |
-| agent connects then drops in a loop | hub | older builds tore the session down on a forwarder bind failure — current builds keep it up and warn; if looping, it's the handshake (token/version) |
+| agent connects then drops in a loop | hub | older builds tore the session down on a forwarder bind failure — current builds keep it up and warn. A refused handshake does not loop: on a bad token (`1008`) or a protocol version the hub does not speak the agent stops, and the status page and log say why and which side needs upgrading |
 | the board is in fastboot (UART shows the bootloader processing commands) but `dhands flash devices` lists nothing | agent host USB | `dhands bench usb` lists what the agent host itself sees on USB and the mode each board is in: a board shown with `driver: missing` needs the Android bootloader (WinUSB) driver on that host; no board at all means the cable is not on that host or the board is not enumerating. Needs an agent from the op-table era (`dhands bench ops` says so if it is older) |
 | `dhands power reboot fastboot` then flashing fails with `Download is not allowed on locked devices` | — | that command lands in **fastbootd** (userspace, dynamic partitions only). Use `dhands power reboot bootloader --allow-dangerous --no-wait-boot` for the bootloader's fastboot |
 | need the agent host's own log, or the driver-install log | agent host | `dhands bench log agent` / `dhands bench log setupapi` (by source name; `-n` lines, `-g` text). `dhands bench ops` lists the sources this agent offers |
@@ -187,7 +188,7 @@ Walk down the chain; each hop has an unambiguous "good" signal.
 
 The hub and the bench PC do **not** have to share a subnet. The agent opens
 every connection itself — the signaling socket to `hub_url` and each data
-channel to `/agent/channel` on the same host and port
+channel to `/bench/channel` on the same host and port
 (`bench-py/dhands_bench.py`, `_channel_url`) — and the hub never
 connects back. So the one requirement is:
 
@@ -200,19 +201,19 @@ outside, that does not help: the direction is fixed, agent → hub.
 ```
  bench PC (any network)                       build server
  dhands_bench.py ── opens ws:// or wss:// ──▶ reverse proxy / VPN ──▶ dhands-hub :8775
-   /agent/connect   signaling, one socket
-   /agent/channel   adb, serial, flash data, one socket each
+   /bench/connect   signaling, one socket
+   /bench/channel   adb, serial, flash data, one socket each
 ```
 
 ### Pick a setup
 
 | where the two machines are | `hub_url` on the bench | what to set up |
 |---|---|---|
-| same LAN | `ws://<hub-ip>:8775/agent/connect` | nothing |
-| different subnets, routed (office VLANs, two buildings) | `ws://<hub-ip>:8775/agent/connect` | let bench → hub:8775 through the firewall |
-| different sites over the internet — **VPN** (recommended) | `ws://<hub-vpn-ip>:8775/agent/connect` | WireGuard, Tailscale or the company VPN on both machines; the hub stays off the public internet |
-| different sites — **reverse proxy with TLS** | `wss://hub.example.com/agent/connect` | a proxy in front of the hub (example below), login on everything except the two agent endpoints |
-| different sites — **port relay** (frp and similar) | `ws://<relay>:<port>/agent/connect` | the relay forwards to hub:8775; same login rule as the proxy |
+| same LAN | `ws://<hub-ip>:8775/bench/connect` | nothing |
+| different subnets, routed (office VLANs, two buildings) | `ws://<hub-ip>:8775/bench/connect` | let bench → hub:8775 through the firewall |
+| different sites over the internet — **VPN** (recommended) | `ws://<hub-vpn-ip>:8775/bench/connect` | WireGuard, Tailscale or the company VPN on both machines; the hub stays off the public internet |
+| different sites — **reverse proxy with TLS** | `wss://hub.example.com/bench/connect` | a proxy in front of the hub (example below), login on everything except the two agent endpoints |
+| different sites — **port relay** (frp and similar) | `ws://<relay>:<port>/bench/connect` | the relay forwards to hub:8775; same login rule as the proxy |
 
 ### Do not publish port 8775 as it is
 
@@ -237,9 +238,9 @@ server {
     ssl_certificate_key /etc/ssl/hub.example.com.key;
 
     # Agent endpoints: WebSocket, token checked by DeviceHands itself.
-    # Exact-match locations; the ?cid=… query on /agent/channel still matches.
-    location = /agent/connect { include /etc/nginx/dhands-ws.conf; }
-    location = /agent/channel { include /etc/nginx/dhands-ws.conf; }
+    # Exact-match locations; the ?cid=… query on /bench/channel still matches.
+    location = /bench/connect { include /etc/nginx/dhands-ws.conf; }
+    location = /bench/channel { include /etc/nginx/dhands-ws.conf; }
 
     # Web UI and HTTP API: people log in.
     location / {
@@ -302,8 +303,9 @@ once — have not been measured. Report what you see in an issue.
   token still can't claim a channel.
 - Set a token for any non-loopback hub. The status page binds `127.0.0.1` only
   and never shows the token.
-- The dial-back sends both the token and the per-channel secret as **headers**
-  (`x-alb-token` / `x-alb-csecret`, see `docs/web-api.md`), not query params,
+- The token travels as a **header** on both connections (`x-dhands-token`),
+  and the dial-back adds the per-channel secret (`x-dhands-csecret`, see
+  `docs/web-api.md`) — never as query params,
   so they never reach the access log. **If you ran a build from before this
   change, treat the token as exposed** — it was written in clear text to the
   hub's log on every channel open. Rotate it in all three places at once:

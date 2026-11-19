@@ -777,53 +777,66 @@ WS_ENDPOINTS: list[WSSpec] = [
         ],
     },
     {
-        "path": "/agent/connect",
-        "description": "Remote device agent dial-home signaling channel "
-        "(ADR-050/051) — control frames only; data rides "
-        "per-channel /agent/channel connections.",
+        "path": "/bench/connect",
+        "description": "Bench program dial-home signaling connection, protocol v2 "
+        "(protocol/v2 in the repository is the full description) — JSON control "
+        "frames only; the token rides the x-dhands-token header; data rides "
+        "per-channel /bench/channel connections.",
         "messages": [
             {
                 "type": "hello",
                 "direction": "C→S",
-                "description": "{agent_id, name, agent_version, caps, token} — "
-                "first frame; token checked before any registration",
+                "description": "{proto: {min, max}, bench_id, name, impl, os, ops, "
+                "boards, update?} — first frame; answered with hello_ok, or "
+                "error + close 1002",
             },
             {
                 "type": "hello_ok",
                 "direction": "S→C",
-                "description": "{server_version} — handshake accepted",
+                "description": "{proto} — the version both sides use",
+            },
+            {
+                "type": "error",
+                "direction": "C↔S",
+                "description": "{code, message, re?, supported?} — "
+                "PROTO_VERSION_UNSUPPORTED / UNKNOWN_VERB / BAD_FRAME",
             },
             {
                 "type": "heartbeat",
                 "direction": "C→S",
-                "description": "Liveness ping; hub drops the agent on timeout",
+                "description": "Liveness, every 20 s; hub drops the bench after 60 s",
+            },
+            {
+                "type": "list_adb / list_com / restart_adb",
+                "direction": "S→C",
+                "description": "{id, …} — answered with adb_list / com_list {re = id}",
             },
             {
                 "type": "open_channel",
                 "direction": "S→C",
-                "description": "{cid, csecret, channel_type, role, params} — hub asks "
-                "the agent to dial back a data channel; csecret "
+                "description": "{cid, csecret, channel_type, params} — hub asks "
+                "the bench to dial back a data channel; csecret "
                 "authenticates that dial-back (DEBT-084)",
             },
             {
-                "type": "adb_list",
+                "type": "channel_error",
                 "direction": "C→S",
-                "description": "{devices} — reply to a list_adb request",
+                "description": "{cid, code, reason} — the bench could not open it",
             },
         ],
     },
     {
-        "path": "/agent/channel",
-        "description": "Remote device agent per-channel DATA connection "
-        "(ADR-050) — raw bytes, correlated to a pending "
-        "open_channel by the ?cid= query param and authenticated "
-        "by the ?csecret= per-channel secret (DEBT-084).",
+        "path": "/bench/channel",
+        "description": "Bench per-channel DATA connection, protocol v2 — "
+        "correlated to a pending open_channel by the ?cid= query param and "
+        "authenticated by the x-dhands-token and x-dhands-csecret headers "
+        "(DEBT-084, ADR-055).",
         "messages": [
             {
                 "type": "<raw-bytes>",
                 "direction": "C↔S",
-                "description": "Bidirectional raw byte shuttle for one channel "
-                "(e.g. adb 127.0.0.1:5037); no framing",
+                "description": "tcp / serial: raw bytes, no framing. job: job frames "
+                "(1-byte kind, 4-byte length, payload; protocol/v2/framing.md §3)",
             },
         ],
     },

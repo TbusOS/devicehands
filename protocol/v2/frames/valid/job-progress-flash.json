@@ -1,0 +1,7 @@
+{
+  "ev": "progress",
+  "phase": "flash",
+  "done": 0,
+  "total": 0,
+  "text": "Sending 'boot_a' (65536 KB)"
+}

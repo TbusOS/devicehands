@@ -11,13 +11,16 @@ verbs, so an op that only uses existing parameter kinds needs no hub change.
 What this module is NOT: an authority. The agent re-validates every value
 and builds every argv (ADR-056 §决定 5). The checks here exist so a typo is
 reported before a channel is opened, and so a UI can offer a dropdown
-instead of a text box. Where this side cannot judge — an unknown kind, a
-pattern that does not compile — it lets the value through and the agent
-decides.
+instead of a text box. Both sides read the same rules the same way: a
+table reaches this module only after protocol.decode_control checked it,
+patterns included (the portable subset, rule_pattern).
 
-An agent from before the table (no `ops` in its hello) gets a conservative
-synthesised table from its caps: only the five ops every such agent has,
-each treated as one that changes the device.
+Every v2 bench reports a table (protocol/v2/DESIGN.md 3.7), and what it
+can do follows from that table alone — `caps_of` derives the two capability
+words the rest of the hub still asks about. `legacy_ops` is only reached by
+objects that carry no table at all (test doubles, a plan checked without a
+bench): the five ops every pre-table bench had, each treated as one that
+changes the device.
 """
 
 from __future__ import annotations
@@ -28,20 +31,32 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from devicehands.remote.protocol import CAP_FASTBOOT, LEGACY_FLASH_MAX_BYTES
+from devicehands.remote import rule_pattern
+from devicehands.remote.protocol import PARAM_KINDS
+from devicehands.remote.protocol import RECORD_TIERS as _RECORD_TIERS
 
-# Same shape rule the agent applies (`_PARTITION_RE` in dhands_bench.py). The
-# leading-character class keeps a name from starting with `-`, which fastboot
-# would parse as a flag.
-PARTITION_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\Z")
+# Capability words the hub derives from a bench's op table (`caps_of`).
+CAP_ADB = "adb"
+CAP_FASTBOOT = "fastboot"
+# The fixed image ceiling every pre-table bench applied (`legacy_ops`).
+LEGACY_FLASH_MAX_BYTES = 2 * 1024 * 1024 * 1024
+
+# The partition-name rule, in the portable form it rides the wire in
+# (ParamDesc.pattern of a `partition` parameter). The bench sends it with
+# its table; this copy is what the hub checks names against when no table is
+# at hand (a flash plan's manifest). The leading-character class keeps a
+# name from starting with `-`, which fastboot would parse as a flag.
+PARTITION_PATTERN = "[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}"
+PARTITION_MAX_LEN = 64
+PARTITION_RE = re.compile(rf"^{PARTITION_PATTERN}\Z")
 # An op name ends up in a URL path, a timeline directory name and a log line.
 OP_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 
-KINDS = ("partition", "enum", "int", "text", "argv")
+KINDS = PARAM_KINDS
 # argv (ADR-068): an argument list for a vendor tool. Same element rule as the
 # agent's: a control character could split or end an argument on the way.
 _ARGV_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
-RECORD_TIERS = ("none", "events", "uart")
+RECORD_TIERS = _RECORD_TIERS
 
 
 @dataclass(frozen=True)
@@ -88,11 +103,18 @@ class ParamSpec:
             out["choices"] = list(self.choices)
         if self.kind == "int":
             out["min"], out["max"] = self.min, self.max
-        if self.kind == "text":
-            out["pattern"], out["max_len"] = self.pattern, self.max_len
+        if self.kind in ("text", "partition"):
+            out["pattern"], out["max_len"] = self.rule()
         if self.kind == "argv":
             out["max_items"], out["max_len"] = self.max_items, self.max_len
         return out
+
+    def rule(self) -> tuple[str, int]:
+        """(pattern, max_len) of a text or partition value. A partition
+        parameter built here without one gets the standard partition rule."""
+        if self.kind == "partition" and not self.pattern:
+            return PARTITION_PATTERN, self.max_len or PARTITION_MAX_LEN
+        return self.pattern, self.max_len
 
     def check(self, value: Any, allowlist: list[str]) -> tuple[Any, str]:
         """(normalised value, problem). `problem` is "" when the value passes.
@@ -105,7 +127,12 @@ class ParamSpec:
                 return None, f"{self.name} is required"
             return self.default, ""
         if self.kind == "partition":
-            if not isinstance(value, str) or not PARTITION_RE.match(value):
+            pattern, max_len = self.rule()
+            if (
+                not isinstance(value, str)
+                or len(value) > max_len
+                or not rule_pattern.fullmatch(pattern, value)
+            ):
                 return None, f"{self.name} {value!r} is not a well-formed partition name"
             if allowlist and value not in allowlist:
                 return None, (
@@ -132,11 +159,10 @@ class ParamSpec:
         if self.kind == "text":
             if self.max_len and len(value) > self.max_len:
                 return None, f"{self.name} is longer than {self.max_len} characters"
-            try:
-                if self.pattern and not re.fullmatch(self.pattern, value):
-                    return None, f"{self.name} {value!r} does not have the allowed shape"
-            except re.error:
-                pass  # the agent's regex dialect is the authority; let it judge
+            # The bench's hello passed only patterns in the portable subset
+            # (protocol.decode_control), so this reads them as the bench does.
+            if self.pattern and not rule_pattern.fullmatch(self.pattern, value):
+                return None, f"{self.name} {value!r} does not have the allowed shape"
         # An unknown kind (a newer agent): pass the string through untouched.
         return value, ""
 
@@ -293,6 +319,15 @@ def legacy_ops(caps: list[str]) -> dict[str, OpSpec]:
         ),
     ]
     return {r.name: r for r in rows}
+
+
+def caps_of(ops: dict[str, OpSpec]) -> list[str]:
+    """The capability words a table implies: every bench reaches its host's
+    adb server; fastboot when the table has fastboot rows (DESIGN.md 3.7)."""
+    caps = [CAP_ADB]
+    if any(spec.group == "fastboot" for spec in ops.values()):
+        caps.append(CAP_FASTBOOT)
+    return caps
 
 
 def ops_of(agent: Any) -> dict[str, OpSpec]:

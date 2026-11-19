@@ -1,0 +1,8 @@
+{
+  "ev": "file",
+  "name": "a",
+  "size": 1,
+  "offset": 0,
+  "b64": "%%%",
+  "end": true
+}

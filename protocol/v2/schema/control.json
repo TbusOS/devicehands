@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/control.json",
+  "title": "Any control frame",
+  "description": "A JSON text message on the signaling WebSocket /bench/connect. Exactly one of the per-verb schemas applies, selected by verb. An unknown verb is answered with error UNKNOWN_VERB; a malformed frame with error BAD_FRAME (sequences.md section 8).",
+  "oneOf": [
+    {
+      "$ref": "hello.json"
+    },
+    {
+      "$ref": "hello_ok.json"
+    },
+    {
+      "$ref": "error.json"
+    },
+    {
+      "$ref": "heartbeat.json"
+    },
+    {
+      "$ref": "list_adb.json"
+    },
+    {
+      "$ref": "adb_list.json"
+    },
+    {
+      "$ref": "list_com.json"
+    },
+    {
+      "$ref": "com_list.json"
+    },
+    {
+      "$ref": "restart_adb.json"
+    },
+    {
+      "$ref": "open_channel.json"
+    },
+    {
+      "$ref": "channel_error.json"
+    }
+  ]
+}

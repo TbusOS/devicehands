@@ -7,7 +7,8 @@ they are operating-system sockets (not in-loop objects), the separate dhands-mcp
 CLI processes reach the device by plain connect() — dhands's transports and MCP
 tools are unchanged.
 
-ADR-052 channel roles decide how a local connection maps onto agent channels:
+The channel type decides how a local connection maps onto bench channels
+(ADR-052; protocol/v2/sequences.md section 6):
   - adb    = DAEMON  — proxies the adb server (a listen-socket daemon), which
              is happy to serve many clients. ONE channel per local connection.
              Fail fast, NO retry; a reset is a real error (USB reauth / device
@@ -30,7 +31,8 @@ from collections.abc import Callable
 from typing import Any
 
 from devicehands.infra.ports import DEFAULT_ADB_FORWARD_PORT, DEFAULT_SERIAL_FORWARD_PORT
-from devicehands.remote.protocol import ADB_TARGET, CAP_FASTBOOT, ChannelRole, ChannelType
+from devicehands.remote.bench_ops import CAP_FASTBOOT
+from devicehands.remote.protocol import ADB_TARGET, ChannelType
 from devicehands.remote.registry import ChannelOpener, ChannelOpenError, DataChannel
 
 _log = logging.getLogger(__name__)
@@ -50,10 +52,13 @@ _CHUNK = 65536
 # every OTHER reader (the capture that must not miss boot bytes).
 _SUB_QUEUE_MAX = 256
 
-# Inter-attempt waits when the agent reports it could not open the serial port.
-# Covers the hand-off gap while the agent releases the COM handle from the
+# Inter-attempt waits when the bench reports the serial port busy.
+# Covers the hand-off gap while the bench releases the COM handle from the
 # session that just ended; a port held by another program still fails, ~0.5s later.
 _SERIAL_OPEN_BACKOFF_S: tuple[float, ...] = (0.15, 0.35)
+# The one channel_error code worth a retry: any other (no such port, a
+# refused parameter, no serial library) gives the same answer the next time.
+_SERIAL_RETRY_CODE = "SERIAL_PORT_BUSY"
 
 
 def _err_text(exc: BaseException) -> str:
@@ -111,14 +116,12 @@ class ChannelForwarder:
         get_agent: Callable[[], ChannelOpener | None],
         *,
         channel_type: ChannelType,
-        role: ChannelRole,
         params: dict[str, object],
         host: str,
         port: int,
     ) -> None:
         self._get_agent = get_agent
         self._channel_type = channel_type
-        self._role = role
         self._params = params
         self._host = host
         self._port = port
@@ -189,11 +192,10 @@ class ChannelForwarder:
             return
         # A SINGLE attempt (ADR-052). The adb (DAEMON) path must never retry;
         # the serial (GATEWAY) path's bounded retry lives in the dhands-side
-        # SerialTransport, not here. So neither role retries in the forwarder.
+        # SerialTransport, not here. So neither type retries in this handler.
         try:
             channel = await agent.open_data_channel(
                 ctype=self._channel_type,
-                role=self._role,
                 params=self._params,
                 timeout=DIAL_BACK_TIMEOUT_S,
             )
@@ -272,7 +274,6 @@ class AdbForwarder(ChannelForwarder):
         super().__init__(
             get_agent,
             channel_type=ChannelType.TCP,
-            role=ChannelRole.DAEMON,
             params={"target": ADB_TARGET},
             host=host,
             port=port,
@@ -440,7 +441,6 @@ class SerialForwarder(ChannelForwarder):
         super().__init__(
             get_agent,
             channel_type=ChannelType.SERIAL,
-            role=ChannelRole.GATEWAY,
             params={"com": com, "baud": baud},
             host=host,
             port=port,
@@ -537,9 +537,9 @@ class SerialForwarder(ChannelForwarder):
             return session
 
     async def _open_channel_with_retry(self, agent: ChannelOpener) -> DataChannel:
-        """Bounded retry on "the agent could not open the port" — the GATEWAY
-        half of ADR-052, which permits it precisely because an exclusive
-        gateway can be *momentarily* busy.
+        """Bounded retry on "the bench reports the port busy"
+        (SERIAL_PORT_BUSY) — the serial half of ADR-052, which permits it
+        precisely because an exclusive gateway can be *momentarily* busy.
 
         The window we are covering: the previous session just closed, and the
         agent has not finished releasing its COM handle. Retrying turns a
@@ -552,12 +552,13 @@ class SerialForwarder(ChannelForwarder):
             try:
                 return await agent.open_data_channel(
                     ctype=self._channel_type,
-                    role=self._role,
                     params=self._params,
                     timeout=DIAL_BACK_TIMEOUT_S,
                 )
             except ChannelOpenError as e:
                 last = e
+                if e.code != _SERIAL_RETRY_CODE:
+                    raise
                 if attempt < len(_SERIAL_OPEN_BACKOFF_S):
                     await asyncio.sleep(_SERIAL_OPEN_BACKOFF_S[attempt])
         assert last is not None  # the loop only exits here after a failure

@@ -8,9 +8,9 @@
 
 # The hub's signaling endpoint. ws:// on a trusted LAN; wss:// when TLS is
 # terminated at a reverse proxy in front of the hub.
-#   ws://<hub-ip>:8775/agent/connect
-#   wss://hub.example.com/agent/connect
-hub_url=ws://<hub-ip>:8775/agent/connect
+#   ws://<hub-ip>:8775/bench/connect
+#   wss://hub.example.com/bench/connect
+hub_url=ws://<hub-ip>:8775/bench/connect
 
 # Must match DHANDS_AGENT_TOKEN on the hub. Stick to letters/digits/_/- so the
 # same value pastes cleanly into the hub's hub.env too.
@@ -43,6 +43,12 @@ log_file=logs/bench.log
 # immediately instead of letting a caller discover it by timing out.
 #   fastboot_path=D:\platform-tools\fastboot.exe
 #fastboot_path=
+
+# adb: the executable (default: adb on PATH) and the port this host's adb
+# server listens on (default 5037). The hub's adb channel reaches that
+# server; nothing else on this host.
+#adb_path=
+#adb_port=5037
 
 # Which partitions may be written is not set here (ADR-070): a package's
 # own manifest says which partitions it writes and with which file

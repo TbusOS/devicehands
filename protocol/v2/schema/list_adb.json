@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/list_adb.json",
+  "title": "list_adb",
+  "description": "Ask the bench to report its adb devices; answered with adb_list carrying re = id.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "verb",
+    "id"
+  ],
+  "properties": {
+    "verb": {
+      "const": "list_adb"
+    },
+    "id": {
+      "$ref": "common.json#/$defs/msgId"
+    }
+  }
+}

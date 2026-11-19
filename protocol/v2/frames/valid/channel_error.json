@@ -1,0 +1,6 @@
+{
+  "verb": "channel_error",
+  "cid": "0123456789abcdef0123456789abcdef",
+  "code": "SERIAL_PORT_BUSY",
+  "reason": "cannot open COM3 @ 115200: Access is denied"
+}

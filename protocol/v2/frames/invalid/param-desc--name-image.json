@@ -1,0 +1,8 @@
+{
+  "name": "image",
+  "kind": "argv",
+  "required": false,
+  "default": [],
+  "max_items": 64,
+  "max_len": 1024
+}

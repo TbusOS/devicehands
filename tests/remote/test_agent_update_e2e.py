@@ -71,9 +71,9 @@ def _agent_text(
             assert old in text
             text = text.replace(old, new)
     if broken_hello:
-        old = '    return _frame(\n        "hello",\n'
-        assert old in text
-        text = text.replace(old, '    return _frame(\n        "hullo",\n')
+        old = '    return _frame("hello", **fields)\n'
+        assert text.count(old) == 1
+        text = text.replace(old, '    return _frame("hullo", **fields)\n')
     if exits_at_start:
         old = "        sys.exit(_self_check_main(args))\n"
         assert text.count(old) == 1
@@ -113,7 +113,7 @@ class StandInHub:
 
     async def _handler(self, ws: Any) -> None:
         path = ws.request.path
-        if path.startswith("/agent/channel"):
+        if path.startswith("/bench/channel"):
             cid = path.split("cid=", 1)[1]
             done: asyncio.Future[None] = self._loop.create_future()
             self._channels[cid].set_result((ws, done))
@@ -124,7 +124,7 @@ class StandInHub:
             await ws.close(code=1008)
             return
         self.hellos.append(hello)
-        await ws.send(json.dumps({"v": 1, "verb": "hello_ok", "server_version": 1}))
+        await ws.send(json.dumps({"verb": "hello_ok", "proto": 2}))
         self._session = ws
         with contextlib.suppress(Exception):
             async for _ in ws:
@@ -132,7 +132,7 @@ class StandInHub:
 
     @property
     def url(self) -> str:
-        return f"ws://127.0.0.1:{self.port}/agent/connect"
+        return f"ws://127.0.0.1:{self.port}/bench/connect"
 
     def wait_hello(self, pred: Any, timeout: float = 30.0, *, after: int = 0) -> dict[str, Any]:
         """The latest hello matching `pred`, among those after the first
@@ -143,7 +143,7 @@ class StandInHub:
                 if pred(h):
                     return h
             time.sleep(0.1)
-        seen = [(h.get("agent_id"), h.get("build"), h.get("update")) for h in self.hellos]
+        seen = [(h.get("bench_id"), h.get("impl", {}).get("build"), h.get("update")) for h in self.hellos]
         raise AssertionError(f"no matching hello within {timeout}s; saw {seen}")
 
     def run_job(self, request: dict[str, Any], image: bytes) -> list[dict[str, Any]]:
@@ -157,12 +157,10 @@ class StandInHub:
         await self._session.send(
             json.dumps(
                 {
-                    "v": 1,
                     "verb": "open_channel",
                     "cid": cid,
-                    "csecret": "s",
+                    "csecret": "s" * 43,
                     "channel_type": "job",
-                    "role": "job",
                     "params": {"op": request["op"]},
                 }
             )
@@ -288,14 +286,14 @@ def test_update_swaps_the_files_and_the_new_build_reconnects(bench):
     old = _agent_text(marker="old")
     new = _agent_text(marker="new")
     first = start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
 
     done = _update(hub, {**_repo_files(), "dhands_bench.py": new})
     assert done["ok"], done
     assert done["data"]["restarting"] is True
     assert done["data"]["changed"] == ["dhands_bench.py"]
 
-    hello = hub.wait_hello(lambda h: h.get("build") == _build(new), timeout=40)
+    hello = hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(new), timeout=40)
     assert (install / "dhands_bench.py").read_bytes() == new
     # the old process stopped on request (75), it was not killed
     assert first.wait(timeout=10) == 75
@@ -324,13 +322,13 @@ def test_a_build_that_never_reaches_the_hub_is_rolled_back(bench):
     old = _agent_text(marker="old")
     broken = _agent_text(marker="broken", broken_hello=True)
     start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
     seen = len(hub.hellos)
 
     done = _update(hub, {**_repo_files(), "dhands_bench.py": broken})
     assert done["ok"] and done["data"]["restarting"], done
 
-    hello = hub.wait_hello(lambda h: h.get("build") == _build(old), timeout=60, after=seen)
+    hello = hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old), timeout=60, after=seen)
     assert hello["update"]["outcome"] == "rolled_back", _log(install)
     assert (install / "dhands_bench.py").read_bytes() == old
     assert "rolling back" in _log(install)
@@ -344,13 +342,13 @@ def test_a_build_stuck_before_its_first_log_line_is_written_down_then_rolled_bac
     old = _agent_text(marker="old")
     stuck = _agent_text(marker="stuck", hangs_at_start=True)
     start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
     seen = len(hub.hellos)
 
     done = _update(hub, {**_repo_files(), "dhands_bench.py": stuck})
     assert done["ok"] and done["data"]["restarting"], done
 
-    hello = hub.wait_hello(lambda h: h.get("build") == _build(old), timeout=60, after=seen)
+    hello = hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old), timeout=60, after=seen)
     assert hello["update"]["outcome"] == "rolled_back", _log(install)
     log = _log(install)
     account = log[: log.index("rolling back")]
@@ -366,13 +364,13 @@ def test_a_build_that_exits_at_once_is_rolled_back_without_waiting_out_the_timeo
     old = _agent_text(marker="old")
     dead = _agent_text(marker="dead", exits_at_start=True)
     start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
     seen = len(hub.hellos)
 
     done = _update(hub, {**_repo_files(), "dhands_bench.py": dead})
     assert done["ok"] and done["data"]["restarting"], done
 
-    hello = hub.wait_hello(lambda h: h.get("build") == _build(old), timeout=60, after=seen)
+    hello = hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old), timeout=60, after=seen)
     assert hello["update"]["outcome"] == "rolled_back", _log(install)
     log = _log(install)
     assert "exited with code 3 before reaching the hub" in log, log
@@ -385,7 +383,7 @@ def test_a_bundle_that_fails_its_self_check_changes_nothing(bench):
     hub, install, start = bench
     old = _agent_text(marker="old")
     proc = start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
 
     done = _update(hub, {**_repo_files(), "dhands_bench.py": b"def broken(:\n"})
     assert not done["ok"]
@@ -401,7 +399,7 @@ def test_identical_files_do_not_restart_anything(bench):
     hub, install, start = bench
     old = _agent_text(marker="same")
     proc = start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
     files = {n: (install / n).read_bytes() for n in _repo_files()}
 
     done = _update(hub, files)
@@ -414,7 +412,7 @@ def test_a_second_start_stops_the_first_instance_of_the_same_agent(bench):
     hub, _install, start = bench
     old = _agent_text(marker="one")
     first = start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
     seen = len(hub.hellos)
 
     second = start(old)
@@ -438,9 +436,9 @@ def test_another_agent_with_its_own_folder_is_left_alone(bench, tmp_path):
         stderr=subprocess.DEVNULL,
     )
     try:
-        hub.wait_hello(lambda h: h.get("agent_id") == "bench-other")
+        hub.wait_hello(lambda h: h.get("bench_id") == "bench-other")
         start(text)
-        hub.wait_hello(lambda h: h.get("agent_id") == "bench-e2e")
+        hub.wait_hello(lambda h: h.get("bench_id") == "bench-e2e")
         time.sleep(2.0)
         assert neighbour.poll() is None, "an agent with its own config must not be stopped"
     finally:
@@ -453,7 +451,7 @@ def test_a_pushed_config_that_changes_the_agent_id_is_refused(bench):
     hub, install, start = bench
     old = _agent_text(marker="old")
     proc = start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
     conf = (install / "bench.conf").read_bytes().replace(b"bench-e2e", b"someone-else")
 
     done = _update(hub, {**_repo_files(), "dhands_bench.py": old, "bench.conf": conf})
@@ -467,12 +465,12 @@ def test_a_pushed_config_is_installed_and_read_on_restart(bench):
     hub, install, start = bench
     old = _agent_text(marker="old")
     start(old)
-    hub.wait_hello(lambda h: h.get("build") == _build(old))
+    hub.wait_hello(lambda h: h.get("impl", {}).get("build") == _build(old))
     seen = len(hub.hellos)
     conf = (install / "bench.conf").read_bytes().replace(b"name=e2e", b"name=renamed")
 
     done = _update(hub, {**_repo_files(), "dhands_bench.py": old, "bench.conf": conf})
     assert done["ok"] and done["data"]["changed"] == ["bench.conf"], done
     hello = hub.wait_hello(lambda h: h.get("name") == "renamed", timeout=40, after=seen)
-    assert hello["agent_id"] == "bench-e2e"
+    assert hello["bench_id"] == "bench-e2e"
     assert (install / "bench.conf").read_bytes() == conf

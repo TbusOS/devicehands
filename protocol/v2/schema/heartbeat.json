@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/heartbeat.json",
+  "title": "heartbeat",
+  "description": "Liveness frame, bench -> hub, every 20 s. The hub ends the session when no frame arrives for 60 s. No fields.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "verb"
+  ],
+  "properties": {
+    "verb": {
+      "const": "heartbeat"
+    }
+  }
+}

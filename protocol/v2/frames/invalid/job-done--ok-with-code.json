@@ -1,0 +1,9 @@
+{
+  "ev": "done",
+  "ok": true,
+  "rc": 0,
+  "stdout": "EXAMPLE0001\tfastboot\n",
+  "stderr": "",
+  "error": "",
+  "code": "FLASH_FAILED"
+}

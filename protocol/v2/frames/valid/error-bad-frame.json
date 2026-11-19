@@ -1,0 +1,5 @@
+{
+  "verb": "error",
+  "code": "BAD_FRAME",
+  "message": "not a JSON object"
+}

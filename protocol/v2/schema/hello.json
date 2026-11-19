@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/hello.json",
+  "title": "hello",
+  "description": "First frame on the signaling connection, bench -> hub, sent right after the WebSocket opens. The credential is not in this frame: it rides the x-dhands-token header of the WebSocket upgrade. The hub answers hello_ok, or error (PROTO_VERSION_UNSUPPORTED / BAD_FRAME / UNKNOWN_VERB) followed by close code 1002. See sequences.md section 2.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "verb",
+    "proto",
+    "bench_id",
+    "name",
+    "impl",
+    "os",
+    "ops",
+    "boards"
+  ],
+  "properties": {
+    "verb": {
+      "const": "hello"
+    },
+    "proto": {
+      "description": "Protocol versions this bench speaks.",
+      "$ref": "common.json#/$defs/protoRange"
+    },
+    "bench_id": {
+      "description": "Stable identity of this bench. Must contain a non-blank character. Reconnecting with the same id replaces the previous registration.",
+      "type": "string",
+      "pattern": "\\S",
+      "maxLength": 128
+    },
+    "name": {
+      "description": "Human-readable bench name; may be empty (the hub then shows bench_id).",
+      "type": "string",
+      "maxLength": 128
+    },
+    "impl": {
+      "description": "Which implementation of the bench program this is.",
+      "type": "object",
+      "required": [
+        "lang",
+        "build"
+      ],
+      "properties": {
+        "lang": {
+          "enum": [
+            "python",
+            "rust"
+          ]
+        },
+        "build": {
+          "$ref": "common.json#/$defs/build"
+        }
+      }
+    },
+    "os": {
+      "description": "Operating system of the bench host.",
+      "enum": [
+        "windows",
+        "macos",
+        "linux"
+      ]
+    },
+    "ops": {
+      "description": "The bench op table, one OpDesc per op, names unique. What the bench can do follows from this table alone (there is no separate capability list): e.g. fastboot is available when the table has rows of group fastboot.",
+      "type": "array",
+      "items": {
+        "$ref": "op-table.json#/$defs/OpDesc"
+      }
+    },
+    "boards": {
+      "description": "Boards whose identity the bench checks before a write, keyed by board name (^[a-z0-9][a-z0-9_-]{0,31}$). Same shape as v1; a board description (type, ports) will be added as new optional fields without a version change.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "partitions",
+          "product"
+        ],
+        "properties": {
+          "partitions": {
+            "description": "Always null from the current bench (no list limits partition names). null means not configured, never 'none'.",
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "product": {
+            "description": "What `fastboot getvar product` must answer before a write to this board.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "update": {
+      "description": "Optional. Outcome of the last remote self-update as the bench's update helper recorded it; absent when there is none. The hub reads outcome=pending from a hello whose impl.build equals to_build as updated.",
+      "type": "object",
+      "required": [
+        "id",
+        "outcome",
+        "from_build",
+        "to_build",
+        "at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "pending",
+            "updated",
+            "rolled_back",
+            "aborted"
+          ]
+        },
+        "from_build": {
+          "$ref": "common.json#/$defs/build"
+        },
+        "to_build": {
+          "$ref": "common.json#/$defs/build"
+        },
+        "at": {
+          "description": "Unix time in seconds.",
+          "type": "number"
+        }
+      }
+    }
+  }
+}

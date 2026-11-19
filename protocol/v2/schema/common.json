@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/common.json",
+  "title": "Shared definitions",
+  "description": "Building blocks shared by the v2 control-frame and job-channel schemas. Not a frame by itself.",
+  "$defs": {
+    "proto": {
+      "description": "A protocol version number. v2 is 2.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "protoRange": {
+      "description": "An inclusive range of protocol versions. min <= max is required as well; JSON Schema cannot say that, receivers check it and answer BAD_FRAME.",
+      "type": "object",
+      "required": [
+        "min",
+        "max"
+      ],
+      "properties": {
+        "min": {
+          "$ref": "#/$defs/proto"
+        },
+        "max": {
+          "$ref": "#/$defs/proto"
+        }
+      }
+    },
+    "msgId": {
+      "description": "Request number chosen by the hub. Unique and increasing within one signaling session. A reply carries it back as `re`.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "cid": {
+      "description": "Channel id minted by the hub: 32 lowercase hex digits. An opaque routing key for the bench.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "csecret": {
+      "description": "Per-channel secret minted by the hub, 43 base64url characters. Sent only on the signaling connection; presented back as the x-dhands-csecret header on the dial-back.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "opName": {
+      "description": "Name of an op in the bench op table. Op names are an open set: whatever the bench lists, the hub may call.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
+    },
+    "build": {
+      "description": "Which build of the bench program is running. The Python bench sends the first 12 hex digits of the sha256 of its own file, or an empty string when the file cannot be read.",
+      "type": "string",
+      "pattern": "^[0-9A-Za-z._+-]{0,64}$"
+    },
+    "sha256": {
+      "description": "sha256 of an image, 64 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "errorCode": {
+      "description": "A non-empty error code, upper snake case. Codes the hub explains are in its catalogue (src/devicehands/infra/errors.py); a new code does not change the protocol version.",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "rulePattern": {
+      "description": "A value rule in the portable regex subset of framing.md section 7. Always applied as a whole-string match; never written with ^, $ or other anchors. JSON Schema cannot check the subset; protocol/v2/patterns.json has the cases both sides must agree on.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

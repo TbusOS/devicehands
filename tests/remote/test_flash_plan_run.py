@@ -38,7 +38,17 @@ tool reboot
 """
 
 
+# A v2 bench always sends every field of an event (protocol/v2/schema
+# job-*.json); the hub refuses an event that lacks one. The answers below
+# write only the fields they are about, and this fills in the rest.
+_EVENT_DEFAULTS: dict[str, dict] = {
+    "progress": {"phase": "flash", "done": 0, "total": 0, "text": ""},
+    "done": {"rc": -1, "stdout": "", "stderr": "", "error": "", "code": ""},
+}
+
+
 def _ctl(msg: dict) -> bytes:
+    msg = {**_EVENT_DEFAULTS.get(str(msg.get("ev")), {}), **msg}
     payload = json.dumps(msg).encode()
     return _HDR.pack(KIND_CONTROL, len(payload)) + payload
 
@@ -71,7 +81,7 @@ class _Bench:
         self.getvar_stderr = ""
         self.on_flash = None  # async hook, run while a flash row is in flight
 
-    async def open_data_channel(self, *, ctype, role, params, timeout):  # noqa: ASYNC109
+    async def open_data_channel(self, *, ctype, params, timeout):  # noqa: ASYNC109
         return _Chan(self)
 
 
@@ -104,7 +114,9 @@ class _Chan:
         bench = self.bench
         if req["op"] == "devices":
             listed = bench.devices_answers.pop(0) if bench.devices_answers else True
-            return [_ctl({"ev": "done", "ok": listed, "rc": 0})]
+            if not listed:
+                return [_ctl({"ev": "done", "ok": False, "code": "FASTBOOT_NO_DEVICE"})]
+            return [_ctl({"ev": "done", "ok": True, "rc": 0})]
         bench.requests.append(req)
         if req["op"] == "flash":
             data = b"".join(p for k, p in frames[1:] if k == KIND_DATA)
@@ -445,7 +457,9 @@ _NOT_FOUND = (
 )
 
 
-@pytest.mark.parametrize("via_run_op", [False, True], ids=["dhands flash getvar", "dhands bench run"])
+@pytest.mark.parametrize(
+    "via_run_op", [False, True], ids=["dhands flash getvar", "dhands bench run"]
+)
 async def test_a_getvar_the_device_answered_with_failed_is_a_failure(via_run_op: bool) -> None:
     bench = _Bench()
     bench.getvar_stderr = _NOT_FOUND

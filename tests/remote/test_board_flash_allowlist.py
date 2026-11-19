@@ -79,7 +79,7 @@ def _conf(tmp_path, body: str) -> Path:
     exe = tmp_path / "fastboot"
     exe.write_text("#!/bin/sh\n")
     path = tmp_path / "bench.conf"
-    path.write_text(f"hub_url=ws://h/agent/connect\nfastboot_path={exe}\n{body}", encoding="utf-8")
+    path.write_text(f"hub_url=ws://h/bench/connect\nfastboot_path={exe}\n{body}", encoding="utf-8")
     return path
 
 
@@ -101,9 +101,10 @@ def test_per_board_lines_are_read_and_only_products_are_reported(tmp_path):
         "board-c": {"partitions": None, "product": "prod_c"},
     }
     assert agent._boards_view() == view
-    hello = json.loads(agent._hello("a", "n", None))
+    hello = json.loads(agent._hello("a", "n"))
     assert hello["boards"] == view
-    assert hello["flash_partitions"] == [], "empty = any well-formed name, to every hub"
+    # v2: no partition list rides the hello; the rule is the flash parameter's.
+    assert "flash_partitions" not in hello
 
 
 @pytest.mark.parametrize(
@@ -396,7 +397,12 @@ PER_BOARD = {
         (_Conn(PER_BOARD), "board-z", [], "no fastboot_product for board 'board-z'"),
         # a current agent (ADR-070): products only, no lists → any name
         (_Conn({"board-a": {"partitions": None, "product": "prod_a"}}), "board-a", [], ""),
-        (_Conn({"board-a": {"partitions": None, "product": "prod_a"}}), "board-b", [], "it has: board-a"),
+        (
+            _Conn({"board-a": {"partitions": None, "product": "prod_a"}}),
+            "board-b",
+            [],
+            "it has: board-a",
+        ),
         (_Conn({"board-a": {"partitions": [], "product": None}}), "board-a", [], "is empty"),
         (None, "board-a", [], ""),
     ],
@@ -540,8 +546,8 @@ def test_the_real_hello_lands_as_the_hubs_lists(monkeypatch):
     monkeypatch.setenv("DHANDS_ADB_FORWARD_PORT", "0")
     monkeypatch.delenv("DHANDS_AGENT_TOKEN", raising=False)
     _per_board(monkeypatch, products={"board-a": "prod_a"})
-    with TestClient(create_app()) as c, c.websocket_connect("/agent/connect") as ws:
-        ws.send_text(agent._hello("agent-boards", "bench", None))
+    with TestClient(create_app()) as c, c.websocket_connect(p.CONNECT_PATH) as ws:
+        ws.send_text(agent._hello("agent-boards", "bench"))
         assert p.decode_control(ws.receive_text())["verb"] == p.Verb.HELLO_OK.value
         conn = get_agent_registry().current_agent()
         assert conn is not None and conn.agent_id == "agent-boards"

@@ -35,7 +35,7 @@ agent = _load_agent()
 
 def _fresh():
     s = agent.AgentStatus()
-    s.init(hub_url="wss://hub.example/agent/connect", agent_id="abcd1234ef", name="bench-01")
+    s.init(hub_url="wss://hub.example/bench/connect", agent_id="abcd1234ef", name="bench-01")
     return s
 
 
@@ -43,7 +43,7 @@ def test_initial_snapshot_is_disconnected():
     snap = _fresh().snapshot()
     assert snap["connected"] is False
     assert snap["name"] == "bench-01"
-    assert snap["hub_url"] == "wss://hub.example/agent/connect"
+    assert snap["hub_url"] == "wss://hub.example/bench/connect"
     assert snap["active_channels"] == []
     assert snap["channels_total"] == 0
 
@@ -115,7 +115,7 @@ def test_snapshot_is_json_serializable():
 
 def test_render_html_escapes_user_fields_and_shows_state():
     s = agent.AgentStatus()
-    s.init(hub_url="wss://h/agent/connect", agent_id="dead", name="<script>x</script>")
+    s.init(hub_url="wss://h/bench/connect", agent_id="dead", name="<script>x</script>")
     s.on_connected()
     html = agent._render_status_html(s.snapshot())
     assert "connected" in html
@@ -154,7 +154,7 @@ def test_status_server_serves_json_and_html_over_a_real_socket(monkeypatch):
     import urllib.request
 
     fresh = agent.AgentStatus()
-    fresh.init(hub_url="wss://h/agent/connect", agent_id="deadbeef", name="smoke")
+    fresh.init(hub_url="wss://h/bench/connect", agent_id="deadbeef", name="smoke")
     fresh.on_connected()
     monkeypatch.setattr(agent, "_STATUS", fresh)
 
@@ -193,8 +193,8 @@ def test_status_server_bind_failure_returns_none():
 
 
 def test_web_ui_url_derivation():
-    assert agent._web_ui_url("ws://192.0.2.1:8765/agent/connect") == "http://192.0.2.1:8765/app/"
-    assert agent._web_ui_url("wss://hub.example/agent/connect") == "https://hub.example/app/"
+    assert agent._web_ui_url("ws://192.0.2.1:8765/bench/connect") == "http://192.0.2.1:8765/app/"
+    assert agent._web_ui_url("wss://hub.example/bench/connect") == "https://hub.example/app/"
     assert agent._web_ui_url("nonsense") == ""
 
 
@@ -208,8 +208,8 @@ def test_status_page_links_web_console():
 def test_channel_url_carries_only_cid():
     """ADR-055: the dial-back URL must be safe to log verbatim — no token, no
     per-channel secret, only the routing key."""
-    url = agent._channel_url("wss://hub.example/agent/connect", "c0ffee")
-    assert url == "wss://hub.example/agent/channel?cid=c0ffee"
+    url = agent._channel_url("wss://hub.example/bench/connect", "c0ffee")
+    assert url == "wss://hub.example/bench/channel?cid=c0ffee"
 
 
 def test_channel_headers_carry_the_credentials():

@@ -1,0 +1,10 @@
+{
+  "verb": "open_channel",
+  "cid": "0123456789abcdef0123456789abcdef",
+  "csecret": "EXAMPLE_secret-EXAMPLE_secret-EXAMPLE_00000",
+  "channel_type": "serial",
+  "params": {
+    "com": "loop://",
+    "baud": 115200
+  }
+}

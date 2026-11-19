@@ -1,0 +1,9 @@
+{
+  "verb": "open_channel",
+  "cid": "0123456789abcdef0123456789abcdef",
+  "csecret": "EXAMPLE_secret-EXAMPLE_secret-EXAMPLE_00000",
+  "channel_type": "tcp",
+  "params": {
+    "target": "192.0.2.10:22"
+  }
+}

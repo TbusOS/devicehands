@@ -29,7 +29,8 @@ def _ctl(msg: dict) -> bytes:
 
 
 def _done(**kw) -> bytes:
-    return _ctl({"ev": "done", "ok": True, "rc": 0, "stdout": "", "stderr": "", **kw})
+    done = {"ev": "done", "ok": True, "rc": 0, "stdout": "", "stderr": "", "error": "", "code": ""}
+    return _ctl({**done, **kw})
 
 
 class _Channel:
@@ -64,7 +65,7 @@ class _Agent:
         self.channel = _Channel(replies or [_done()])
         self.opened: list[dict] = []
 
-    async def open_data_channel(self, *, ctype, role, params, timeout):  # noqa: ASYNC109
+    async def open_data_channel(self, *, ctype, params, timeout):  # noqa: ASYNC109
         self.opened.append(params)
         return self.channel
 

@@ -186,11 +186,11 @@ export function ConnectionsPage() {
             <div className="conn-hint">
               <span>
                 {zh
-                  ? "在设备所在主机上运行 agent（只需 Python + websockets）："
-                  : "Run the agent on the device's host (it needs only Python + websockets):"}
+                  ? "在设备所在主机上运行 agent（Python 3.11+，依赖见 requirements.txt：websockets，串口还要 pyserial）："
+                  : "Run the agent on the device's host (Python 3.11+, packages in requirements.txt: websockets, plus pyserial for serial):"}
               </span>
               <code className="conn-hint__code">
-                python dhands_bench.py --hub-url wss://&lt;hub&gt;/agent/connect
+                python dhands_bench.py --hub-url wss://&lt;hub&gt;/bench/connect
                 --token &lt;token&gt;
               </code>
             </div>

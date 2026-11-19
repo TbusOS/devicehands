@@ -387,7 +387,11 @@ class _EraseAgent:
         self.sent: list[bytes] = []
 
     async def open_data_channel(
-        self, *, ctype: str, role: str, params: dict[str, Any], timeout: float  # noqa: ASYNC109
+        self,
+        *,
+        ctype: str,
+        params: dict[str, Any],
+        timeout: float,  # noqa: ASYNC109
     ) -> _EraseAgent:
         self.opened.append(params)
         return self
@@ -398,7 +402,9 @@ class _EraseAgent:
     async def recv(self) -> bytes:
         from devicehands.remote.jobframe import KIND_CONTROL
 
-        payload = json.dumps({"ev": "done", "ok": True, "rc": 0, "stdout": "", "stderr": ""})
+        payload = json.dumps(
+            {"ev": "done", "ok": True, "rc": 0, "stdout": "", "stderr": "", "error": "", "code": ""}
+        )
         return struct.pack(">cI", KIND_CONTROL, len(payload)) + payload.encode()
 
     async def aclose(self) -> None:

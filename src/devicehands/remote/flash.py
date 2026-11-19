@@ -41,24 +41,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from devicehands.remote.bench_board import PartitionList, current_board, partition_list
-from devicehands.remote.bench_ops import OpSpec, check_params, legacy_ops, ops_of
+from devicehands.remote.bench_ops import CAP_FASTBOOT, OpSpec, check_params, legacy_ops, ops_of
 from devicehands.remote.flash_plan import AgentView, Plan, PlanResult, PlanRow
 from devicehands.remote.jobframe import FrameReader, JobProtocolError, encode_control, encode_data
-from devicehands.remote.protocol import (
-    CAP_FASTBOOT,
-    ChannelRole,
-    ChannelType,
-    JobEvent,
-    JobPhase,
-    job_devices,
-    job_erase,
-    job_flash,
-    job_getvar,
-    job_oem,
-    job_op,
-    job_reboot,
-)
-from devicehands.remote.registry import DataChannel
+from devicehands.remote.protocol import ChannelType, JobEvent, check_job_event, job_op
+from devicehands.remote.registry import ChannelOpenError, DataChannel
 
 if TYPE_CHECKING:
     from devicehands.remote.flash_timeline import FlashTimeline
@@ -650,12 +637,16 @@ class FlashService:
             # The digest is the one computed when the plan was built — the
             # one the caller confirmed. A file changed since then fails the
             # agent's check, and nothing is written.
-            request = job_flash(partition=row.partition, size=row.size, sha256=row.sha256)
+            request = job_op(
+                "flash", {"partition": row.partition}, size=row.size, sha256=row.sha256
+            )
             return await self._step(request, sink, send_image, label=label)
         if row.action == "erase":
-            return await self._step(job_erase(partition=row.partition), sink, None, label=label)
+            return await self._step(
+                job_op("erase", {"partition": row.partition}), sink, None, label=label
+            )
         if row.action == "getvar":
-            outcome = await self._step(job_getvar(name=row.key), sink, None, label=label)
+            outcome = await self._step(job_op("getvar", {"name": row.key}), sink, None, label=label)
             failed = _GETVAR_FAILED_RE.search(f"{outcome.stderr}\n{outcome.stdout}")
             if outcome.ok and failed is not None:
                 # Either the device's FAIL (`remote: '...'`) or a local
@@ -668,11 +659,15 @@ class FlashService:
                 )
             return outcome
         if row.action == "oem":
-            return await self._step(job_oem(command=row.command), sink, None, label=label)
+            return await self._step(
+                job_op("oem", {"command": row.command}), sink, None, label=label
+            )
         if row.action == "reboot":
-            return await self._step(job_reboot(target=""), sink, None, label=label)
+            return await self._step(job_op("reboot", {"target": ""}), sink, None, label=label)
         if row.action == "reboot-bootloader":
-            outcome = await self._step(job_reboot(target="bootloader"), sink, None, label=label)
+            outcome = await self._step(
+                job_op("reboot", {"target": "bootloader"}), sink, None, label=label
+            )
             if not outcome.ok:
                 return outcome
             return await self._await_fastboot(reboot_wait_s, sink)
@@ -714,7 +709,7 @@ class FlashService:
     async def _fastboot_listed(self) -> bool:
         try:
             outcome = await asyncio.wait_for(
-                self._drive(job_devices(), None, None), DIAL_BACK_TIMEOUT_S + 10.0
+                self._drive(job_op("devices", {}), None, None), DIAL_BACK_TIMEOUT_S + 10.0
             )
         except Exception:
             # The agent's USB view can be briefly confused while the board
@@ -820,7 +815,11 @@ class FlashService:
             )
         except JobProtocolError as e:
             return _fail("FLASH_FAILED", f"agent spoke an unexpected frame: {e}")
-        except Exception as e:  # channel open / send failures
+        except ChannelOpenError as e:
+            # The bench said why it would not open the job channel; its code
+            # (FASTBOOT_BUSY, FASTBOOT_UNAVAILABLE, ...) is the answer.
+            return _fail(e.code or "FLASH_FAILED", f"job '{label}' failed: {_error_text(e)}")
+        except Exception as e:  # dial-back timeout / send failures
             return _fail("FLASH_FAILED", f"job '{label}' failed: {_error_text(e)}")
 
     async def _drive(
@@ -842,7 +841,6 @@ class FlashService:
             request = {**request, "board": board}
         channel = await agent.open_data_channel(
             ctype=ChannelType.JOB,
-            role=ChannelRole.JOB,
             # The op name rides the open request so the agent can refuse a
             # busy / unsupported job BEFORE dialling back (ADR-059 §5 of the
             # contract); the request frame that follows is still the authority.
@@ -965,10 +963,15 @@ async def _collect(
                 # agent update: from the next hello) tell this apart.
                 data={"result_lost": True},
             )
+        problem = check_job_event(msg)
+        if problem:
+            # The four events are a closed set and each has required fields
+            # (protocol/v2/sequences.md §7): anything else is a broken channel.
+            raise JobProtocolError(problem)
         ev = msg.get("ev")
         if ev == JobEvent.PROGRESS.value:
             item = FlashEvent(
-                phase=str(msg.get("phase") or JobPhase.FLASH.value),
+                phase=str(msg["phase"]),
                 done=int(msg.get("done") or 0),
                 total=int(msg.get("total") or 0),
                 text=str(msg.get("text") or ""),
@@ -976,7 +979,7 @@ async def _collect(
             events.append(item)
             if on_event is not None:
                 on_event(item)
-        elif ev == "file":
+        elif ev == JobEvent.FILE.value:
             # A piece of a file a vendor tool wrote on the bench host
             # (ADR-068). Kept beside the timeline; never fatal to the job.
             name = str(msg.get("name") or "")
@@ -1004,9 +1007,8 @@ async def _collect(
                 events=events,
                 data=data,
             )
-        # ACCEPTED and anything unknown: ignore. A forward-compatible agent
-        # may add events; refusing to proceed on an unrecognised one would
-        # make every future agent addition a breaking change.
+        # ACCEPTED: nothing to do. An unknown event never gets here — a new
+        # event kind is a protocol version change, not a silent addition.
 
 
 # ── timeline plumbing (ADR-056 §决定 4) ──────────────────────────────

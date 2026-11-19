@@ -42,14 +42,14 @@ async def test_restarts_then_reports(monkeypatch):
         calls.append(args)
         return _FakeProc()
 
-    async def fake_reply(ws):
-        replied.append(ws)
+    async def fake_reply(ws, re_id):
+        replied.append((ws, re_id))
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     monkeypatch.setattr(agent, "_reply_adb_list", fake_reply)
-    await agent._restart_adb_and_report(ws := object())
+    await agent._restart_adb_and_report(ws := object(), 3)
     assert calls == [("adb", "kill-server"), ("adb", "start-server")]
-    assert replied == [ws]
+    assert replied == [(ws, 3)], "the reply answers the request id (v2 re)"
 
 
 async def test_missing_adb_aborts_but_still_reports(monkeypatch):
@@ -60,12 +60,12 @@ async def test_missing_adb_aborts_but_still_reports(monkeypatch):
         calls.append(args)
         raise FileNotFoundError("adb not on PATH")
 
-    async def fake_reply(ws):
+    async def fake_reply(ws, _re_id):
         replied.append(ws)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     monkeypatch.setattr(agent, "_reply_adb_list", fake_reply)
-    await agent._restart_adb_and_report(object())
+    await agent._restart_adb_and_report(object(), 4)
     assert calls == [("adb", "kill-server")]  # aborted after the first failure
     assert len(replied) == 1  # the (empty) enumeration still goes back
 
@@ -108,8 +108,9 @@ def test_reply_adb_list_reports_conflicts_when_empty(monkeypatch):
 
     monkeypatch.setattr(agent, "_adb_devices", fake_devices)
     monkeypatch.setattr(agent, "_find_adb_conflicts", lambda: ["vendor_adb.exe pid=7"])
-    asyncio.run(agent._reply_adb_list(_Ws()))
+    asyncio.run(agent._reply_adb_list(_Ws(), 9))
     frame = json.loads(frames[0])
+    assert frame["re"] == 9
     assert frame["devices"] == []
     assert frame["conflicts"] == ["vendor_adb.exe pid=7"]
     assert agent._STATUS.snapshot()["adb_conflicts"] == ["vendor_adb.exe pid=7"]
@@ -130,7 +131,7 @@ def test_reply_adb_list_skips_conflict_scan_when_devices_present(monkeypatch):
 
     monkeypatch.setattr(agent, "_adb_devices", fake_devices)
     monkeypatch.setattr(agent, "_find_adb_conflicts", boom)
-    asyncio.run(agent._reply_adb_list(_Ws()))
+    asyncio.run(agent._reply_adb_list(_Ws(), 10))
     frame = json.loads(frames[0])
     assert frame["devices"] == ["serial-1"]
     assert frame["conflicts"] == []
@@ -146,15 +147,15 @@ async def test_kill_conflicts_only_when_asked(monkeypatch):
     async def fake_exec(*_args, **_kw):
         return _FakeProc()
 
-    async def fake_reply(_ws):
+    async def fake_reply(_ws, _re_id):
         return None
 
     monkeypatch.setattr(agent, "_kill_adb_conflicts", fake_kill)
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     monkeypatch.setattr(agent, "_reply_adb_list", fake_reply)
-    await agent._restart_adb_and_report(object())  # default: no kill
+    await agent._restart_adb_and_report(object(), 1)  # default: no kill
     assert killed_calls == []
-    await agent._restart_adb_and_report(object(), kill_conflicts=True)
+    await agent._restart_adb_and_report(object(), 2, kill_conflicts=True)
     assert killed_calls == [True]
 
 

@@ -1,0 +1,12 @@
+{
+  "name": "devices",
+  "group": "fastboot",
+  "summary": "fastboot devices",
+  "params": [],
+  "needs": "",
+  "image": false,
+  "max_image_bytes": 0,
+  "mutates": false,
+  "exclusive": true,
+  "record": "none"
+}

@@ -19,7 +19,7 @@ import pytest
 
 from devicehands.remote.flash import CHUNK, FlashService, digest_file
 from devicehands.remote.jobframe import KIND_CONTROL, KIND_DATA
-from devicehands.remote.protocol import ChannelRole, ChannelType
+from devicehands.remote.protocol import ChannelType
 
 _HDR = struct.Struct(">cI")
 
@@ -74,7 +74,19 @@ class _Channel:
         return b"".join(p for k, p in self.frames()[1:] if k == KIND_DATA)
 
 
+# A v2 bench always sends every field of an event (protocol/v2/schema
+# job-*.json); the hub refuses an event that lacks one. The tests below
+# write only the fields they are about, and this fills in the rest the way
+# the bench does.
+_EVENT_DEFAULTS: dict[str, dict] = {
+    "accepted": {"detail": ""},
+    "progress": {"phase": "flash", "done": 0, "total": 0, "text": ""},
+    "done": {"rc": -1, "stdout": "", "stderr": "", "error": "", "code": ""},
+}
+
+
 def _ctl(msg: dict) -> bytes:
+    msg = {**_EVENT_DEFAULTS.get(str(msg.get("ev")), {}), **msg}
     payload = json.dumps(msg).encode()
     return _HDR.pack(KIND_CONTROL, len(payload)) + payload
 
@@ -90,11 +102,10 @@ class _Agent:
         self,
         *,
         ctype,
-        role,
         params,
         timeout,  # noqa: ASYNC109 — mirrors AgentConnection's real signature
     ):
-        self.opened.append({"ctype": ctype, "role": role, "params": params, "timeout": timeout})
+        self.opened.append({"ctype": ctype, "params": params, "timeout": timeout})
         return self.channel
 
 
@@ -171,7 +182,6 @@ async def test_devices_round_trip():
     assert r.ok is True
     assert ch.request() == {"op": "devices"}
     assert agent.opened[0]["ctype"] is ChannelType.JOB
-    assert agent.opened[0]["role"] is ChannelRole.JOB
     assert ch.closed is True
 
 
@@ -238,13 +248,16 @@ async def test_progress_events_reach_the_sink(tmp_path):
     assert r.events == seen
 
 
-async def test_unknown_events_are_ignored_not_fatal():
-    """A newer agent may add event kinds; refusing to proceed on one would
-    make every future agent addition a breaking change."""
+async def test_an_unknown_event_breaks_the_job_channel() -> None:
+    """protocol v2: the four job events are a closed set — a new kind is a
+    version change, not a silent addition — so an unknown one means the two
+    sides do not speak the same protocol, and the job's outcome is unknown."""
     ch = _Channel(
         [_ctl({"ev": "something-new", "x": 1}), _ctl({"ev": "done", "ok": True, "rc": 0})]
     )
-    assert (await _service(_Agent(ch)).devices()).ok is True
+    r = await _service(_Agent(ch)).devices()
+    assert (r.ok, r.code) == (False, "FLASH_FAILED")
+    assert "unexpected frame" in r.error
 
 
 # ── failure surfaces ────────────────────────────────────────────────────
@@ -279,11 +292,16 @@ async def test_agent_failure_code_is_passed_through():
     assert (r.ok, r.code, r.rc) == (False, "FLASH_IMAGE_CORRUPT", 1)
 
 
-async def test_malformed_rc_does_not_lose_the_verdict():
-    ch = _Channel([_ctl({"ev": "done", "ok": False, "rc": "nonsense", "code": "FLASH_FAILED"})])
-    r = await _service(_Agent(ch)).devices()
-    assert r.code == "FLASH_FAILED"  # still reported, rc falls back
-    assert r.rc == -1
+async def test_a_malformed_done_is_a_broken_channel() -> None:
+    """protocol v2: a done that breaks the schema (here rc is not an integer;
+    likewise a failure without a code) is not read as a verdict."""
+    for done in (
+        {"ev": "done", "ok": False, "rc": "nonsense", "code": "FLASH_FAILED"},
+        {"ev": "done", "ok": False, "rc": 1, "code": ""},
+    ):
+        r = await _service(_Agent(_Channel([_ctl(done)]))).devices()
+        assert (r.ok, r.code, r.rc) == (False, "FLASH_FAILED", -1)
+        assert "unexpected frame" in r.error
 
 
 async def test_missing_image_is_refused_before_any_channel(tmp_path):
@@ -415,7 +433,7 @@ class _BoundedBench:
         self.caps = ["adb", "fastboot"]
         self.task: asyncio.Task | None = None
 
-    async def open_data_channel(self, *, ctype, role, params, timeout):  # noqa: ASYNC109
+    async def open_data_channel(self, *, ctype, params, timeout):  # noqa: ASYNC109
         self.task = asyncio.create_task(self._agent())
         return self
 

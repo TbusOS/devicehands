@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/channel_error.json",
+  "title": "channel_error",
+  "description": "The bench could not open the channel named by cid, bench -> hub; sent for every failure before or during the dial-back. The hub fails the waiting open at once, and only when the frame arrives on the signaling connection the open_channel went out on.",
+  "x-direction": "bench->hub",
+  "type": "object",
+  "required": [
+    "verb",
+    "cid",
+    "code",
+    "reason"
+  ],
+  "properties": {
+    "verb": {
+      "const": "channel_error"
+    },
+    "cid": {
+      "$ref": "common.json#/$defs/cid"
+    },
+    "code": {
+      "$ref": "common.json#/$defs/errorCode"
+    },
+    "reason": {
+      "description": "Human-readable reason, e.g. the OS message.",
+      "type": "string"
+    }
+  }
+}

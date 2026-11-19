@@ -376,7 +376,13 @@ def test_every_row_describes_itself_with_exactly_the_contract_fields():
         assert d["record"] in ("none", "events", "uart")
         for p in d["params"]:
             base = {"name", "kind", "required", "default"}
-            extra = {"enum": {"choices"}, "int": {"min", "max"}, "text": {"pattern", "max_len"}}
+            extra = {
+                "enum": {"choices"},
+                "int": {"min", "max"},
+                "text": {"pattern", "max_len"},
+                # v2: the partition rule rides the wire (DESIGN.md 3.6)
+                "partition": {"pattern", "max_len"},
+            }
             assert set(p) == base | extra.get(p["kind"], set()), (spec.name, p["name"])
         json.dumps(d)  # must be plain JSON
 
@@ -457,10 +463,12 @@ def test_hello_carries_the_table_from_apply_config(tmp_path, monkeypatch):
     agent._apply_flash_config(
         agent._parse_args(["--hub-url", "ws://h", "--fastboot-path", str(exe)])
     )
-    hello = json.loads(agent._hello("a", "n", None))
+    hello = json.loads(agent._hello("a", "n"))
     names = [op["name"] for op in hello["ops"]]
     assert "flash" in names and "log-tail" in names
-    assert hello["caps"] == ["adb", "fastboot"]
+    # v2: no caps list; fastboot shows as rows of group fastboot
+    assert "caps" not in hello
+    assert any(op["group"] == "fastboot" for op in hello["ops"])
     assert agent._OPS["flash"].argv[0] == str(exe)
     assert agent._STATUS.snapshot()["ops"] == names, "the status page lists the same rows"
 
@@ -610,7 +618,7 @@ async def _open(
     # a 2 s ceiling turns "took the lock it must not take" into a failure
     # instead of a hung test run
     await asyncio.wait_for(
-        agent._handle_job_channel("ws://h/agent/connect", None, _open_frame(op), sig), 2.0
+        agent._handle_job_channel("ws://h/bench/connect", None, _open_frame(op), sig), 2.0
     )
     return sig, data_ws, dial
 
@@ -805,7 +813,7 @@ async def test_the_next_row_opened_on_done_is_not_refused_as_a_running_job(monke
     dial = _ClosingDial({"c1": row, "c2": row}, got_done)
     monkeypatch.setattr(agent, "ws_connect", dial)
     sig = _FakeSignal()
-    url = "ws://h/agent/connect"
+    url = "ws://h/bench/connect"
 
     async def hub_runs_the_next_row() -> None:
         await got_done.wait()
@@ -847,7 +855,7 @@ async def test_a_read_only_job_ending_does_not_free_the_lock_a_running_flash_hol
     dial = _ClosingDial(requests, got_done)
     monkeypatch.setattr(agent, "ws_connect", dial)
     sig = _FakeSignal()
-    url = "ws://h/agent/connect"
+    url = "ws://h/bench/connect"
 
     async def run() -> None:
         flash = asyncio.create_task(
@@ -872,12 +880,17 @@ async def test_fastboot_op_without_fastboot_is_refused_before_dialling(monkeypat
     assert dial.calls == 0
 
 
-async def test_no_hint_means_an_exclusive_fastboot_job_as_before(monkeypatch):
-    sig, _, dial = await _open(monkeypatch, None, fastboot="")
-    assert sig.errors() == ["no fastboot executable on this agent host"]
-    async with agent._job_lock:
-        sig, _, dial = await _open(monkeypatch, None)
-    assert sig.errors() == ["another flash job is already running"]
+async def test_a_job_channel_without_an_op_is_refused_before_dialling(monkeypatch):
+    """v2 (sequences.md §5 rule 5): params.op is required. v1 read a missing
+    op as "an older hub" and ran it as an exclusive fastboot job; now the
+    cid is readable, so the answer is channel_error BENCH_PARAM_REJECTED."""
+    sig = _FakeSignal()
+    dial = _FakeDial(_FakeWs())
+    monkeypatch.setattr(agent, "ws_connect", dial)
+    frame = {**_open_frame(None), "cid": "c1" * 16, "csecret": "s" * 43}
+    await asyncio.wait_for(agent._handle_open_channel("ws://h/bench/connect", None, frame, sig), 2)
+    (err,) = [f for f in sig.sent if f.get("verb") == "channel_error"]
+    assert err["code"] == "BENCH_PARAM_REJECTED"
     assert dial.calls == 0
 
 
@@ -968,11 +981,17 @@ async def test_boot_refuses_before_receiving_when_no_device_or_no_space(monkeypa
     assert not ws.events("accepted")
 
 
-@pytest.mark.parametrize("size", [0, -1, "many", None])
-async def test_image_op_with_a_bad_size_is_corrupt_not_a_crash(monkeypatch, size):
-    ws, ran = await _dispatch(monkeypatch, {"op": "boot", "size": size, "sha256": "00" * 32})
+@pytest.mark.parametrize(
+    ("size", "sha256"),
+    [(0, "00" * 32), (-1, "00" * 32), ("many", "00" * 32), (None, "00" * 32), (64, "AB" * 32)],
+)
+async def test_image_op_with_a_bad_size_is_refused_not_a_crash(monkeypatch, size, sha256):
+    """v2: a size that is not a positive JSON integer, or a digest that is
+    not 64 lowercase hex digits, is a malformed request (job-request.json):
+    BENCH_PARAM_REJECTED (sequences.md §7). v1 answered FLASH_IMAGE_CORRUPT."""
+    ws, ran = await _dispatch(monkeypatch, {"op": "boot", "size": size, "sha256": sha256})
     assert ran == []
-    assert ws.done()["code"] == "FLASH_IMAGE_CORRUPT"
+    assert ws.done()["code"] == "BENCH_PARAM_REJECTED"
 
 
 # ── usb-list: the Windows JSON → UsbDev, as a pure function ─────────────
@@ -1293,7 +1312,7 @@ async def test_the_lock_is_taken_before_dialling_back(monkeypatch):
     monkeypatch.setattr(agent, "_device_present", yes)
     sig = _FakeSignal()
     await asyncio.wait_for(
-        agent._handle_job_channel("ws://h/agent/connect", None, _open_frame("erase"), sig), 2.0
+        agent._handle_job_channel("ws://h/bench/connect", None, _open_frame("erase"), sig), 2.0
     )
     assert held_at_dial == [True]
     assert data_ws.done()["ok"] is True
@@ -1327,12 +1346,12 @@ async def test_a_second_request_while_the_first_is_dialling_is_refused_not_queue
     monkeypatch.setattr(agent, "_device_present", yes)
     sig = _FakeSignal()
     first = asyncio.create_task(
-        agent._handle_job_channel("ws://h/agent/connect", None, _open_frame("erase"), sig)
+        agent._handle_job_channel("ws://h/bench/connect", None, _open_frame("erase"), sig)
     )
     await asyncio.wait_for(dialled.wait(), 2.0)
     second = dict(_open_frame("erase"), cid="c2")
     await asyncio.wait_for(
-        agent._handle_job_channel("ws://h/agent/connect", None, second, sig), 2.0
+        agent._handle_job_channel("ws://h/bench/connect", None, second, sig), 2.0
     )
     assert sig.errors() == ["another flash job is already running"]
     assert dial.calls == 1, "the second request never dialled"
@@ -1464,4 +1483,4 @@ async def test_usb_list_on_a_host_without_sysfs_is_refused_not_empty(monkeypatch
 @pytest.mark.parametrize("name", ["misc\n", "boot_a\n"])
 def test_agent_shape_rules_do_not_let_a_trailing_newline_through(name):
     assert agent._partition_allowed(name) is False
-    assert agent._GETVAR_RE.match(name) is None
+    assert agent._getvar_allowed(name) is False

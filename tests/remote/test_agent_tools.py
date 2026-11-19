@@ -238,7 +238,7 @@ def _gone(pid: int, wait_s: float = 3.0) -> bool:
 
 def _conf(tmp_path: Path, text: str) -> Path:
     path = tmp_path / "bench.conf"
-    path.write_text("hub_url=ws://h/agent/connect\n" + text, encoding="utf-8")
+    path.write_text("hub_url=ws://h/bench/connect\n" + text, encoding="utf-8")
     return path
 
 
@@ -392,7 +392,7 @@ def test_agent_conf_reaches_the_table_hello_and_self_check(
     report = json.loads(capsys.readouterr().out)
     assert report["tools"] == ["vt"]
     assert "tool gone: tool_exe" in report["tool_problems"][0]
-    hello = json.loads(agent._hello("a", "n", None))
+    hello = json.loads(agent._hello("a", "n"))
     run = next(op for op in hello["ops"] if op["name"] == "tool-run")
     assert run["params"][0]["choices"] == ["vt"]
 

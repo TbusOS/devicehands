@@ -163,7 +163,7 @@ class _Agent:
     def __init__(self) -> None:
         self.opened: list[dict] = []
 
-    async def open_data_channel(self, *, ctype, role, params, timeout):  # noqa: ASYNC109
+    async def open_data_channel(self, *, ctype, params, timeout):  # noqa: ASYNC109
         self.opened.append(dict(params))
         return _Channel()
 

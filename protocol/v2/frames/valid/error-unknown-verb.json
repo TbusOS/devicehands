@@ -1,0 +1,6 @@
+{
+  "verb": "error",
+  "code": "UNKNOWN_VERB",
+  "message": "unknown verb 'list_usb'",
+  "re": 7
+}

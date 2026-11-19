@@ -51,13 +51,13 @@ tags: [errors, reference, llm-friendly]
 <!-- BEGIN GENERATED: scripts/gen_errors_doc.py -->
 <!-- 本段由脚本生成,不要手改。改了 src/devicehands/infra/errors.py 或返回错误码的代码后,运行:uv run python scripts/gen_errors_doc.py -->
 
-登记在 `ERROR_CODES` 里的码共 99 个,按 `category` 分 7 组,每组按码名字母排序。message 和 suggestion 是目录里的默认文字,原样照抄英文:`dhands_describe_errors` 返回的就是这两句。
+登记在 `ERROR_CODES` 里的码共 104 个,按 `category` 分 7 组,每组按码名字母排序。message 和 suggestion 是目录里的默认文字,原样照抄英文:`dhands_describe_errors` 返回的就是这两句。
 
 另有 61 个码代码里会返回、但没有登记,列在本节最后。
 
 | category | 中文 | 含义 | 码数 | 码名前缀 |
 |---|---|---|---|---|
-| `transport` | 通道与台架 | 到板子的通道(adb / ssh / 串口)出了问题,或经台架 agent 做的操作(fastboot 烧录、9008、agent 更新与启动)失败 | 59 | `ADB_*` `AGENT_*` `BENCH_*` `BOARD_*` `EDL_*` `FASTBOOT_*` `FLASH_*` `PORT_*` `PSTORE_*` `SERIAL_*` `SHELL_*` `SSH_*` `TIMELINE_*` `TRANSPORT_*` |
+| `transport` | 通道与台架 | 到板子的通道(adb / ssh / 串口)出了问题,或经台架 agent 做的操作(fastboot 烧录、9008、agent 更新与启动)失败 | 64 | `ADB_*` `AGENT_*` `BAD_*` `BENCH_*` `BOARD_*` `EDL_*` `FASTBOOT_*` `FLASH_*` `PORT_*` `PROTO_*` `PSTORE_*` `SERIAL_*` `SHELL_*` `SSH_*` `TIMELINE_*` `TRANSPORT_*` `UNKNOWN_*` |
 | `device` | 对端状态 | 连接本身是通的,是对端(板子或台架主机)的状态或回答不对:USB 未授权、离线、adbd 不肯切 root、板子上的端口没人监听、台架主机上没有启动 agent 的任务 | 14 | `ADB_*` `AGENT_*` `BENCH_*` `BREAKIN_*` `DEVICE_*` `FLASH_*` `PORT_*` |
 | `permission` | 权限 | 被权限策略拦下,或要 root 才能读 | 2 | `PERMISSION_*` `ROOT_*` |
 | `timeout` | 超时 | 在限定时间内没等到预期的输出或状态 | 6 | `ADBD_*` `AGENT_*` `BREAKIN_*` `TIMEOUT_*` |
@@ -66,7 +66,7 @@ tags: [errors, reference, llm-friendly]
 | `system` | 主机环境与 LLM | 主机缺依赖,或 LLM 后端的上下文 / 输出被截断 | 4 | `LLM_*` `SYSTEM_*` `TERMINAL_*` |
 | `capability` | 业务层 | `fail()` 不传 category 时的默认值;目录里目前没有这一类的码 | 0 | — |
 
-### transport · 通道与台架(59 个)
+### transport · 通道与台架(64 个)
 
 | Code | 默认 message | 默认 suggestion |
 |---|---|---|
@@ -80,10 +80,13 @@ tags: [errors, reference, llm-friendly]
 | `AGENT_UPDATE_NO_RETURN` | The agent restarted for an update and has not reconnected | Look at the bench host: the agent window, and .dhands-bench/update.log in the agent's folder. It may still come back after its rollback finishes |
 | `AGENT_UPDATE_REJECTED` | The agent refused the update bundle; it keeps running unchanged | Check the folder the hub sends the agent files from: DHANDS_AGENT_BUNDLE_DIR if set, else the installed package's _resources/bench, or bench-py when the hub runs from a source checkout (only flat file names, dhands_bench.py present); and check that the agent was started with a config file |
 | `AGENT_UPDATE_ROLLED_BACK` | The new agent build did not reach the hub, so the old build was put back | `dhands bench log update` shows what the update helper saw; the agent's own log (`dhands bench log agent`) shows why the new build could not connect |
+| `BAD_FRAME` | A signaling frame was malformed (not a JSON object, a field missing or of the wrong type) | The hub and the bench program are from different builds, or something between them changes frames — update the older one, check any proxy |
 | `BENCH_AGENT_TOO_OLD` | The agent on the bench host predates this op | Copy the current dhands_bench.py to the bench host and restart the agent |
+| `BENCH_DIAL_BACK_FAILED` | The bench opened the device side but could not connect the channel back to the hub | Check that the bench host reaches the hub's address and that the hub was not restarted in between; the bench log has the reason |
 | `BENCH_LOG_UNAVAILABLE` | The log source is configured on the agent but cannot be read right now | Check that the file exists on the bench host and the agent's account may read it; `dhands bench ops` lists the sources this agent offers |
 | `BENCH_OP_UNKNOWN` | The agent on the bench host has no such op | Run `dhands bench ops` to see what this agent offers |
 | `BENCH_PARAM_REJECTED` | A parameter value was refused (wrong type, out of range, or not one of the allowed choices) | Run `dhands bench ops` — each op lists its parameters with their kinds and allowed values |
+| `BENCH_STOPPING` | The bench program is stopping (replaced by a newer instance or an update) and opens no more channels | Wait for it to reconnect (`dhands bench status`), then retry |
 | `BENCH_TOOL_ARG_REJECTED` | An argument for the vendor tool was refused; the tool was not started | Name files relative to the package (the tool runs in it), or write {pkg}; no drive paths, network paths or '..'; {com} needs tool_usb in bench.conf; the error says which argument and which rule |
 | `BENCH_TOOL_DEVICE_AMBIGUOUS` | More than one device registered for the tool (tool_usb) is attached to the bench host, and the request does not say which; the tool was not started | Choose one with port= when the tool's arguments use {com}; otherwise leave only the board to flash in download mode |
 | `BENCH_TOOL_FAILED` | The vendor tool ran and failed: a line matched tool_fail, its exit code was not 0, or the tool_ok line never appeared | data.judged_by says which; read the output and the files it wrote (record: …/files/) before running it again |
@@ -117,6 +120,7 @@ tags: [errors, reference, llm-friendly]
 | `FLASH_PLAN_REJECTED` | The flash plan has problems; no row was executed | Run `dhands flash plan <manifest> --dry-run` to see every problem with its line number |
 | `FLASH_VAR_REJECTED` | The agent refused the getvar variable name (it is not a well-formed name) | Use a plain variable name such as `partition-size:boot_a`, or none for `getvar all` |
 | `PORT_LOCAL_BUSY` | The requested local port is already in use | Pick another with `--local`, or omit it to take a free port |
+| `PROTO_VERSION_UNSUPPORTED` | The hub and the bench program speak no common protocol version | Upgrade the side the message names — the hub, or bench-py/dhands_bench.py on the bench host; the bench stops dialling until then |
 | `PSTORE_PULL_FAILED` | Crash records were listed on the device but none could be pulled | Read each file's error in the result; run `dhands adb root` if they say permission denied, otherwise check `dhands devices` |
 | `SERIAL_BAUD_MISMATCH` | UART stream is mostly non-printable — likely baud-rate mismatch | Try common baud rates (115200 / 921600 / 1500000) or run `dhands serial probe` |
 | `SERIAL_LINK_LOST` | The serial link dropped during the attempt and could not be reopened | Check the bridge / agent (dhands serial health); nothing about the board is implied |
@@ -129,6 +133,7 @@ tags: [errors, reference, llm-friendly]
 | `TIMELINE_NO_SOURCE` | None of the requested timeline sources could be read; nothing was captured | Read the notes: dmesg usually needs `dhands adb root`, uart needs `dhands setup serial`, logcat needs an adb device |
 | `TRANSPORT_NOT_CONFIGURED` | No active transport configured | Run: dhands setup adb  (or: dhands setup ssh / serial) |
 | `TRANSPORT_NOT_SUPPORTED` | Operation not supported by this transport | Switch transport: dhands setup \<other-method> |
+| `UNKNOWN_VERB` | A signaling frame of a type the receiver does not know | The hub and the bench program are from different builds — update the older one |
 
 ### device · 对端状态(14 个)
 

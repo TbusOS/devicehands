@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 from typing import Any, ClassVar
 
 from devicehands.remote.forwarder import AdbForwarder, SerialForwarder
-from devicehands.remote.protocol import ChannelRole, ChannelType
+from devicehands.remote.protocol import ChannelType
 from devicehands.remote.registry import ChannelOpenError, DataChannel
 
 
@@ -50,15 +51,13 @@ class _FakeAgent:
         self.open_calls = 0
         self.fail = False
         self.last_ctype: Any = None
-        self.last_role: Any = None
         self.last_params: dict[str, Any] | None = None
 
     async def open_data_channel(
-        self, *, ctype: Any, role: Any, params: dict[str, Any], timeout: float
+        self, *, ctype: Any, params: dict[str, Any], timeout: float
     ) -> DataChannel:
         self.open_calls += 1
         self.last_ctype = ctype
-        self.last_role = role
         self.last_params = params
         if self.fail:
             raise ConnectionResetError("simulated reset")
@@ -217,7 +216,6 @@ async def test_adb_forwarder_opens_daemon_tcp_channel():
         await writer.drain()
         await asyncio.wait_for(reader.readexactly(1), timeout=5)
         assert agent.last_ctype is ChannelType.TCP
-        assert agent.last_role is ChannelRole.DAEMON
         assert agent.last_params == {"target": "127.0.0.1:5037"}
         writer.close()
         with contextlib.suppress(Exception):
@@ -270,7 +268,10 @@ class _ExclusiveSerialAgent:
         self.live = 0
 
     async def open_data_channel(
-        self, *, ctype: Any, role: Any, params: dict[str, Any],
+        self,
+        *,
+        ctype: Any,
+        params: dict[str, Any],
         timeout: float,  # noqa: ASYNC109 — name fixed by the ChannelOpener protocol
     ) -> DataChannel:
         self.open_calls += 1
@@ -465,7 +466,6 @@ async def test_serial_forwarder_passes_com_baud_and_round_trips():
         got = await asyncio.wait_for(reader.readexactly(len(b"u-boot=> ")), timeout=5)
         assert got == b"u-boot=> "
         assert agent.last_ctype is ChannelType.SERIAL
-        assert agent.last_role is ChannelRole.GATEWAY
         assert agent.last_params == {"com": "COM_X", "baud": 1500000}
         writer.close()
         with contextlib.suppress(Exception):
@@ -489,7 +489,7 @@ async def test_serial_open_retries_while_the_agent_releases_the_port():
         if refuse["n"]:
             refuse["n"] -= 1
             agent.open_calls += 1
-            raise ChannelOpenError("cannot open COM_X: Access is denied")
+            raise ChannelOpenError("cannot open COM_X: Access is denied", "SERIAL_PORT_BUSY")
         return await real_open(**kw)
 
     agent.open_data_channel = flaky  # type: ignore[method-assign]
@@ -518,7 +518,7 @@ async def test_serial_open_gives_up_when_another_program_owns_the_port():
 
     async def always_refuse(**_kw):
         agent.open_calls += 1
-        raise ChannelOpenError("cannot open COM_X: Access is denied")
+        raise ChannelOpenError("cannot open COM_X: Access is denied", "SERIAL_PORT_BUSY")
 
     agent.open_data_channel = always_refuse  # type: ignore[method-assign]
     fwd = SerialForwarder(lambda: agent, com="COM_X", baud=115200, port=0)
@@ -532,6 +532,34 @@ async def test_serial_open_gives_up_when_another_program_owns_the_port():
             await writer.wait_closed()
     finally:
         await fwd.detach()
+
+
+def _same(agent: Any) -> Any:
+    return agent
+
+
+async def test_serial_open_is_not_retried_for_any_other_code() -> None:
+    """protocol/v2/sequences.md §6: only SERIAL_PORT_BUSY can change on a
+    second try; no such port, a refused parameter, no serial library cannot."""
+    for code in ("SERIAL_PORT_NOT_FOUND", "BENCH_PARAM_REJECTED", ""):
+        agent = _ExclusiveSerialAgent("127.0.0.1", 1)
+
+        async def refuse(_agent=agent, _code=code, **_kw):
+            _agent.open_calls += 1
+            raise ChannelOpenError("cannot open COM_X", _code)
+
+        agent.open_data_channel = refuse  # type: ignore[method-assign]
+        fwd = SerialForwarder(functools.partial(_same, agent), com="COM_X", baud=115200, port=0)
+        await fwd.attach()
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", fwd.port)
+            assert await asyncio.wait_for(reader.read(), timeout=5) == b""
+            assert agent.open_calls == 1, code
+            writer.close()
+            with contextlib.suppress(Exception):
+                await writer.wait_closed()
+        finally:
+            await fwd.detach()
 
 
 async def test_the_agents_reason_for_a_failed_open_is_kept_until_an_open_works():

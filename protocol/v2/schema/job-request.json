@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devicehands.invalid/protocol/v2/schema/job-request.json",
+  "title": "job request",
+  "description": "The first control frame (kind 'C') on a job channel, hub -> bench. Flat: op, then one key per parameter value, plus size/sha256 for image ops and board when the hub has a board chosen. A key that is none of these and not a parameter of the op is refused by the bench with BENCH_PARAM_REJECTED. No path and no command line ever rides this frame.",
+  "x-direction": "hub->bench",
+  "type": "object",
+  "required": [
+    "op"
+  ],
+  "properties": {
+    "op": {
+      "$ref": "common.json#/$defs/opName"
+    },
+    "size": {
+      "description": "Image ops only: exact image length in bytes.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "sha256": {
+      "$ref": "common.json#/$defs/sha256"
+    },
+    "board": {
+      "description": "The board the hub has chosen; the bench uses it for the product identity check before a write.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "dependentRequired": {
+    "size": [
+      "sha256"
+    ],
+    "sha256": [
+      "size"
+    ]
+  },
+  "additionalProperties": {
+    "description": "A parameter value keyed by ParamDesc.name: string (partition, enum, text), JSON integer (int; a decimal string is refused) or list of strings (argv).",
+    "type": [
+      "string",
+      "integer",
+      "array"
+    ],
+    "items": {
+      "type": "string"
+    }
+  }
+}

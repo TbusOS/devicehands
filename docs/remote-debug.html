@@ -163,27 +163,27 @@
     <div class="setups">
       <div class="setup">
         <h3><span class="lang-en">Same LAN</span><span class="lang-zh">同一个局域网</span></h3>
-        <div><code>ws://&lt;hub-ip&gt;:8775/agent/connect</code></div>
+        <div><code>ws://&lt;hub-ip&gt;:8775/bench/connect</code></div>
         <div><span class="lang-en">Nothing to set up. This is the setup used on a real bench so far.</span><span class="lang-zh">不用额外配置。目前真台架用的就是这种。</span></div>
       </div>
       <div class="setup">
         <h3><span class="lang-en">Different subnets, routed</span><span class="lang-zh">不同网段，有路由</span></h3>
-        <div><code>ws://&lt;hub-ip&gt;:8775/agent/connect</code></div>
+        <div><code>ws://&lt;hub-ip&gt;:8775/bench/connect</code></div>
         <div><span class="lang-en">Office VLANs or two buildings: let the bench reach the hub's port through the firewall.</span><span class="lang-zh">办公室的不同 VLAN、两栋楼之间：防火墙放行台架到 hub 那个端口。</span></div>
       </div>
       <div class="setup">
         <h3><span class="lang-en">Two sites over a VPN</span><span class="lang-zh">两地，走 VPN</span> <span class="pill pill--today"><span class="lang-en">recommended</span><span class="lang-zh">推荐</span></span></h3>
-        <div><code>ws://&lt;hub-vpn-ip&gt;:8775/agent/connect</code></div>
+        <div><code>ws://&lt;hub-vpn-ip&gt;:8775/bench/connect</code></div>
         <div><span class="lang-en">WireGuard, Tailscale or the company VPN on both machines. The hub stays off the public internet.</span><span class="lang-zh">两台机器都接进 WireGuard、Tailscale 或公司 VPN。hub 不暴露在公网上。</span></div>
       </div>
       <div class="setup">
         <h3><span class="lang-en">Two sites, reverse proxy with TLS</span><span class="lang-zh">两地，带 TLS 的反向代理</span></h3>
-        <div><code>wss://hub.example.com/agent/connect</code></div>
+        <div><code>wss://hub.example.com/bench/connect</code></div>
         <div><span class="lang-en">A proxy in front of the hub, with a login on everything except the two agent endpoints. The runbook has an nginx example; it has not been run on a real proxy yet.</span><span class="lang-zh">hub 前面放一个代理，除了 agent 用的两个地址以外都要登录。手册里有一份 nginx 示例，这份示例还没在真的代理上跑过。</span></div>
       </div>
       <div class="setup">
         <h3><span class="lang-en">Two sites, port relay</span><span class="lang-zh">两地，端口中转</span></h3>
-        <div><code>ws://&lt;relay&gt;:&lt;port&gt;/agent/connect</code></div>
+        <div><code>ws://&lt;relay&gt;:&lt;port&gt;/bench/connect</code></div>
         <div><span class="lang-en">frp and similar forward to the hub's port. The same login rule applies as for the proxy.</span><span class="lang-zh">frp 这类工具把连接转到 hub 的端口。登录的要求和反向代理一样。</span></div>
       </div>
     </div>
@@ -212,7 +212,7 @@ DHANDS_AGENT_TOKEN=&lt;a-long-random-string&gt;
       <div class="cpanel">
         <div class="cpanel__bar"><span><span class="lang-en">site B · Windows · bench.conf</span><span class="lang-zh">B 地 · Windows · bench.conf</span></span></div>
 <pre class="code"><span class="c"># copy bench-py/ to the bench PC</span>
-hub_url=ws://&lt;hub-vpn-ip&gt;:8775/agent/connect
+hub_url=ws://&lt;hub-vpn-ip&gt;:8775/bench/connect
 token=&lt;the-same-string&gt;
 name=bench-01
 <span class="c"># then double-click run-bench.bat</span></pre>
