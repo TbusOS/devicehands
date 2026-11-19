@@ -328,23 +328,27 @@ Rendezvous endpoints for the remote device agent
 shared token (`DHANDS_AGENT_TOKEN`); full bring-up in
 [dial-home-runbook.md](./dial-home-runbook.md).
 
-### WS /agent/connect
+### WS /bench/connect
 
 The agent's persistent signaling channel (hello / heartbeat / device lists /
-channel control). Not for browser use.
+channel control), protocol v2 (`protocol/v2/`). The token travels in the
+`x-dhands-token` header and is checked before any frame is read; a wrong
+token is closed with `1008`. Not for browser use.
 
-### WS /agent/channel?cid=…
+### WS /bench/channel?cid=…
 
-Per-channel data connection the agent dials back, one per open channel,
-carrying raw bytes. Authenticated by the per-channel secret, which — like
-the agent token — travels in a header (`x-alb-csecret` / `x-alb-token`),
-never in the query string: an access log records the full request line, so a
-secret placed there is written to disk in clear text on every channel open.
-Only the `cid` (a routing key, not a credential) stays in the URL.
+Per-channel data connection the agent dials back, one per open channel
+(adb and serial carry raw bytes, a job channel carries job frames — see
+`protocol/v2/framing.md`). Authenticated by the per-channel secret, which —
+like the agent token — travels in a header (`x-dhands-csecret` /
+`x-dhands-token`), never in the query string: an access log records the full
+request line, so a secret placed there is written to disk in clear text on
+every channel open. Only the `cid` (a routing key, not a credential) stays in
+the URL. Credentials in the query string are not read.
 
-Agents older than this change still send both as query params; the hub keeps
-accepting that form so a hand-deployed agent is not locked out by a hub
-upgrade, and redacts the values out of the access log instead.
+The hub speaks protocol v2 only. An agent built for v1 dials `/agent/connect`,
+which this hub does not serve; it shows only as endless reconnects. Update the
+agent and change the path in its `hub_url`.
 
 ### GET /agent/status
 
@@ -356,7 +360,7 @@ so the next poll reflects plug/unplug.
   "v": "1",
   "agents": [
     {
-      "agent_id": "win-…", "name": "bench-01", "version": 1,
+      "agent_id": "win-…", "name": "bench-01", "version": 2,
       "caps": ["adb"], "current": true,
       "adb_devices": ["1000000002"],
       "adb_conflicts": [],
@@ -370,6 +374,10 @@ so the next poll reflects plug/unplug.
   }
 }
 ```
+
+`version` is the protocol version agreed in the handshake. `caps` is worked
+out by the hub from the agent's op table; protocol v2 agents no longer send
+it.
 
 `adb_conflicts` lists adb-flavoured foreign processes the agent saw while its
 device list was empty — the signature of a renamed vendor adb holding the
