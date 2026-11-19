@@ -443,6 +443,9 @@ Linux 板子由 USB 网卡提供。工具只声明需要 `files`,不关心下面
 - Rust 线的依据是 R12:P0 之后就开始 P4,不等主线。P4 只新增 `protocol/` 目录和测试,
   P5 只新增 `crates/` 目录,和主线互不影响。
 
+各阶段落到能派活程度的实施方案:P2 见 [design/p2-skeleton.md](design/p2-skeleton.md),
+P4 见 [protocol/v2/DESIGN.md](../protocol/v2/DESIGN.md)。
+
 P6 之后依次是:RTOS 和 MCU 的串口调试、模型协作、板上运行台架服务、团队版。
 P3 之前,RTOS 和 MCU 只在设备类型和能力接口里留位置,不写实现。
 
