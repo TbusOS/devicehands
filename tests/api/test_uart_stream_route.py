@@ -288,6 +288,29 @@ class _FakeLink:
         self.writer = _FakeWriter()
 
 
+def _close_and_wait_closed(ws: Any) -> dict[str, Any]:
+    """Send {"type":"close"} and block until the server's closed frame.
+
+    Leaving the ``websocket_connect`` block makes the TestClient cancel
+    the server task at once (starlette/testclient.py, ``cs.cancel`` in
+    ``__enter__``'s exit stack). Frames the server has not read yet are
+    then never handled, so a test that sends bytes, sends close and
+    leaves can find nothing written. The server reads frames in order
+    and sends the closed frame only after the close, so once it
+    arrives every earlier frame has been handled."""
+    ws.send_json({"type": "close"})
+    for _ in range(200):
+        msg = ws.receive()
+        if msg.get("type") == "websocket.close":
+            break
+        text = msg.get("text")
+        if text:
+            obj = json.loads(text)
+            if obj.get("type") == "closed":
+                return obj
+    raise AssertionError("server did not send a closed frame")
+
+
 class _FakeBidirectionalTransport(_FakeSerialStreamTransport):
     """Adds open_session / close_session so /uart/stream switches into
     PR-C.c bidirectional path. write capture is exposed via .last_link."""
@@ -343,7 +366,7 @@ def test_bidirectional_writes_client_bytes_to_uart(monkeypatch, tmp_path) -> Non
             assert ready["write"] is True
             ws.send_bytes(b"\x03")  # Ctrl-C — typical u-boot interrupt
             ws.send_bytes(b"reset\n")
-            ws.send_json({"type": "close"})
+            _close_and_wait_closed(ws)
     assert t.last_link is not None
     assert b"\x03" in t.last_link.writer.written
     assert b"reset\n" in t.last_link.writer.written
@@ -470,8 +493,8 @@ def test_oversized_write_frame_dropped_not_closed(
             assert dropped["got_bytes"] == 64 * 1024 + 1
             # Session must still be alive — send a small frame & it goes through.
             ws.send_bytes(b"ok")
-            # Close cleanly.
-            ws.send_json({"type": "close"})
+            # Close cleanly, and wait until the server has handled b"ok".
+            _close_and_wait_closed(ws)
     assert b"ok" in t.last_link.writer.written
     assert not any(buf == huge for buf in t.last_link.writer.written)
 
